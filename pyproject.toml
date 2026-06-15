@@ -1,0 +1,24 @@
+[project]
+name = "csv-sql-judge"
+version = "0.1.0"
+description = "LLM-powered re-scoring of Text-to-SQL evaluation CSVs."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+dependencies = [
+    "langchain-nvidia-ai-endpoints",
+    "langchain-openai>=1.3.2",
+    "pandas",
+    "pydantic",
+    "python-dotenv",
+]
+
+[project.scripts]
+csv-sql-judge = "csv_sql_judge.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["csv_sql_judge"]
