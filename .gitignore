@@ -1,0 +1,20 @@
+# Secrets / local environment
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtual environments
+.venv/
+venv/
+
+# Generated scoring output
+/output/*.csv
+
+# OS / editor
+.DS_Store
