@@ -1,0 +1,630 @@
+row_index,question_id,question,expected_sql,returned_sql,sql_text_similarity,sql_exec_match,expected_sql_error,returned_sql_error,returned_answer,answer_text_similarity,answer_numbers_match,runtime_seconds,llm_logic_match,llm_semantic_match,llm_final_weighted_score,llm_sql_vs_ground_truth,llm_is_valid_sql,llm_is_sql_returns_data,llm_logic_issues
+0,1,what is the average order value of orders with promotions and without promotions on 2024's black friday?,"WITH BlackFridayOrders AS (
+    SELECT 
+        O.ORDERID,
+        O.ORDERDATE,
+        SUM(OL.QUANTITY * OL.UNITPRICE) AS OrderValue,
+        CASE WHEN SD.SPECIALDEALID IS NOT NULL THEN 'With Promotion' ELSE 'Without Promotion' END AS PromotionStatus
+    FROM SALES.ORDERS O
+    LEFT JOIN SALES.ORDERLINES OL ON O.ORDERID = OL.ORDERID
+    LEFT JOIN SALES.SPECIALDEALS SD ON OL.STOCKITEMID = SD.STOCKITEMID
+    WHERE O.ORDERDATE = '2024-11-29'
+    GROUP BY O.ORDERID, O.ORDERDATE, PromotionStatus
+)
+SELECT 
+    PromotionStatus,
+    AVG(OrderValue) AS AverageOrderValue
+FROM BlackFridayOrders
+GROUP BY PromotionStatus;","WITH per_order AS (
+  SELECT o.ORDERID,
+         SUM(ol.UNITPRICE * ol.QUANTITY) AS gross_value,
+         SUM(COALESCE(sd.DISCOUNTAMOUNT, 0)) AS discount_amount
+  FROM SALES.ORDERS AS o
+  JOIN SALES.ORDERLINES AS ol ON ol.ORDERID = o.ORDERID
+  LEFT JOIN SALES.SPECIALDEALS AS sd ON ol.STOCKITEMID = sd.STOCKITEMID
+  WHERE o.ORDERDATE = DATE '2024-11-29'
+  GROUP BY o.ORDERID
+)
+SELECT CASE WHEN discount_amount > 0 THEN 'With Promotions' ELSE 'Without Promotions' END AS promotion_status,
+       AVG(gross_value - discount_amount) AS average_order_value
+FROM per_order
+GROUP BY promotion_status
+ORDER BY average_order_value;",0.141,1,,,['[]'],1,1,890.76,0.8,0.9,0.85,0.6,TRUE,TRUE,"Calculates net order value (gross_value - discount_amount) instead of gross order value; the question asks for average order value, which is typically the gross value unless net is explicitly requested. If an order has mixed promotion/no-promotion lines, promotion_status may be driven by total discount_amount and could misclassify in edge cases. Overall the two-group per-order aggregation logic is correct for the stated goal, but the net vs gross distinction and potential edge cases reduce robustness."
+1,2,"which is the single earliest opened account name, select 1 if multiple accounts share the same date","SELECT
+  CUSTOMERNAME,
+  ACCOUNTOPENEDDATE
+FROM
+  SALES.CUSTOMERS
+ORDER BY
+  ACCOUNTOPENEDDATE ASC
+LIMIT
+  1;","WITH ordered AS (
+  SELECT ca.CUSTOMERNAME AS CUSTOMERNAME,
+         ca.ACCOUNTOPENEDDATE AS OPENED
+  FROM SALES.CUSTOMERS_ARCHIVE ca
+), earliest_date AS (
+  SELECT MIN(OPENED) AS EARLIEST
+  FROM ordered
+), candidates AS (
+  SELECT CUSTOMERNAME
+  FROM ordered
+  JOIN earliest_date e ON ordered.OPENED = e.EARLIEST
+)
+SELECT CASE WHEN COUNT(*) = 1 THEN MAX(CUSTOMERNAME) ELSE 1 END AS EARLIEST_ACCOUNT
+FROM candidates;",0.249,0,,,"['[{""earliest_account"":1.0}]']",0,0,153.31,0.9,0.95,0.925,0.68,TRUE,TRUE,"Uses SALES.CUSTOMERS_ARCHIVE instead of the primary SALES.CUSTOMERS table; tie-handling logic is correct, but there is a potential edge case: if no matching rows exist, the query would return 1. Includes proper earliest-date logic and single-name output when unique."
+2,3,calculate the customer count by state province name,"SELECT
+    SP.STATEPROVINCENAME AS STATE_PROVINCE_NAME,
+    COUNT(C.CUSTOMERID) AS CUSTOMER_COUNT
+FROM SALES.CUSTOMERS C
+JOIN APPLICATION.CITIES CT ON C.DELIVERYCITYID = CT.CITYID
+JOIN APPLICATION.STATEPROVINCES SP ON CT.STATEPROVINCEID = SP.STATEPROVINCEID
+GROUP BY SP.STATEPROVINCENAME 
+ORDER BY STATE_PROVINCE_NAME DESC;","SELECT sp.STATEPROVINCENAME AS state_province_name,
+       COUNT(*) AS customer_count
+FROM SALES.CUSTOMERS AS cust
+JOIN APPLICATION.CITIES AS ci ON ci.CITYID = cust.POSTALCITYID
+JOIN APPLICATION.STATEPROVINCES AS sp ON sp.STATEPROVINCEID = ci.STATEPROVINCEID
+JOIN APPLICATION.COUNTRIES AS c ON c.COUNTRYID = sp.COUNTRYID
+GROUP BY sp.STATEPROVINCENAME
+ORDER BY customer_count DESC;",0.6861,1,,,"['[{""state_province_name"":""Texas"",""customer_count"":46},{""state_province_name"":""Pennsylvania"",""customer_count"":37},{""state_province_name"":""New York"",""customer_count"":35},{""state_province_name"":""California"",""customer_count"":33},{""state_province_name"":""Florida"",""customer_count"":21},{""state_province_name"":""Ohio"",""customer_count"":21},{""state_province_name"":""Oklahoma"",""customer_count"":19},{""state_province_name"":""Minnesota"",""customer_count"":19},{""state_province_name"":""Illinois"",""customer_count"":19},{""state_province_name"":""Missouri"",""customer_count"":18},{""state_province_name"":""Colorado"",""customer_count"":18},{""state_province_name"":""New Jersey"",""customer_count"":18},{""state_province_name"":""New Mexico"",""customer_count"":18},{""state_province_name"":""North Carolina"",""customer_count"":18},{""state_province_name"":""Washington"",""customer_count"":17},{""state_province_name"":""Alabama"",""customer_count"":16},{""state_province_name"":""South Carolina"",""customer_count"":15},{""state_province_name"":""West Virginia"",""customer_count"":14},{""state_province_name"":""Michigan"",""customer_count"":13},{""state_province_name"":""Kansas"",""customer_count"":13},{""state_province_name"":""Louisiana"",""customer_count"":13},{""state_province_name"":""Iowa"",""customer_count"":12},{""state_province_name"":""Georgia"",""customer_count"":12},{""state_province_name"":""Alaska"",""customer_count"":12},{""state_province_name"":""Indiana"",""customer_count"":12},{""state_province_name"":""Wisconsin"",""customer_count"":12},{""state_province_name"":""Massachusetts[E]"",""customer_count"":11},{""state_province_name"":""North Dakota"",""customer_count"":10},{""state_province_name"":""Kentucky"",""customer_count"":10},{""state_province_name"":""Puerto Rico (US Territory)"",""customer_count"":10},{""state_province_name"":""Arizona"",""customer_count"":10},{""state_province_name"":""Virginia"",""customer_count"":9},{""state_province_name"":""Maine"",""customer_count"":8},{""state_province_name"":""Montana"",""customer_count"":8},{""state_province_name"":""South Dakota"",""customer_count"":8},{""state_province_name"":""Arkansas"",",0,0,82.47,0.65,0.95,0.8,0.85,TRUE,TRUE,Uses POSTALCITYID instead of DELIVERYCITYID (may change counts if customers' postal vs delivery city differ); includes an extra join to COUNTRIES (likely unnecessary for counting by state province); orders by customer_count instead of state_province_name (differs from typical ground-truth ordering).
+3,4,calculate the average transaction amount per customer,"SELECT 
+    c.customername AS CustomerName, 
+    ct.CUSTOMERID AS CustomerID,
+    AVG(ct.TRANSACTIONAMOUNT) AS AverageTransactionAmount
+FROM 
+    WIDEWORLDIMPORTERS.SALES.CUSTOMERTRANSACTIONS ct
+LEFT JOIN 
+    WIDEWORLDIMPORTERS.SALES.CUSTOMERS c 
+    ON ct.CUSTOMERID = c.CUSTOMERID
+WHERE 
+    ct.ISFINALIZED = 1
+GROUP BY 
+    c.customername;","SELECT c.CUSTOMERNAME, c.CUSTOMERID, AVG(t.TRANSACTIONAMOUNT) AS AVERAGE_TRANSACTION_AMOUNT
+FROM SALES.CUSTOMERTRANSACTIONS AS t
+JOIN WEBSITE.CUSTOMERS AS c ON t.CUSTOMERID = c.CUSTOMERID
+GROUP BY c.CUSTOMERNAME, c.CUSTOMERID
+ORDER BY AVERAGE_TRANSACTION_AMOUNT DESC;",0.4745,0,"ProgrammingError: 001104 (42601): 01c50a05-0107-193c-0005-062e0011f13a: SQL compilation error: error line 3 at position 4
+'CT.CUSTOMERID' in select clause is neither an aggregate nor in the group by clause.",,"['[{""customername"":""Kumar Naicker"",""customerid"":995,""average_transaction_amount"":61.16722222},{""customername"":""Isa Hulsegge"",""customerid"":1015,""average_transaction_amount"":30.41193548},{""customername"":""Rodrigo Figueiredo"",""customerid"":840,""average_transaction_amount"":30.02713568},{""customername"":""Linh Dao"",""customerid"":953,""average_transaction_amount"":26.59545455},{""customername"":""Ana Florea"",""customerid"":915,""average_transaction_amount"":26.36913876},{""customername"":""Shyam Poddar"",""customerid"":813,""average_transaction_amount"":26.21740909},{""customername"":""Dominic Davignon"",""customerid"":835,""average_transaction_amount"":25.47991111},{""customername"":""Liidia Lepp"",""customerid"":911,""average_transaction_amount"":24.87270642},{""customername"":""Emma Van Zant"",""customerid"":1028,""average_transaction_amount"":24.34015748},{""customername"":""Lilli Sokk"",""customerid"":900,""average_transaction_amount"":23.41279835},{""customername"":""Narendra Tickoo"",""customerid"":1014,""average_transaction_amount"":22.31381215},{""customername"":""Satish Mittal"",""customerid"":856,""average_transaction_amount"":22.13626609},{""customername"":""Suparna Bhattacharya"",""customerid"":822,""average_transaction_amount"":22.07449198},{""customername"":""Sabine Alksne"",""customerid"":983,""average_transaction_amount"":19.09679803},{""customername"":""Kertu Sokk"",""customerid"":919,""average_transaction_amount"":17.37852941},{""customername"":""Nils Kaulins"",""customerid"":1018,""average_transaction_amount"":16.40459459},{""customername"":""Marcela Lucescu"",""customerid"":860,""average_transaction_amount"":15.90461165},{""customername"":""Cosmina Vlad"",""customerid"":802,""average_transaction_amount"":15.72284404},{""customername"":""Geza Roman"",""customerid"":895,""average_transaction_amount"":14.20767196},{""customername"":""Manca Hrastovsek"",""customerid"":937,""average_transaction_amount"":11.37092308},{""customername"":""Can ozcan"",""customerid"":925,""average_transaction_amount"":9.69913706},{""customername"":""Neil Farrelly"",""customerid"":986,""average_transaction_amount"":9.08044554",0,0,142.52,0.85,0.92,0.885,0.66,TRUE,TRUE,No filter for finalized transactions (if the dataset requires it); uses an inner join which omits customers with no transactions. These choices may diverge from typical ground-truth filtering and could slightly affect results.
+4,5,calculate the average completed successfully transaction amount,"SELECT 
+    AVG(TRANSACTIONAMOUNT) AS AverageTransactionAmount
+FROM 
+    SALES.CUSTOMERTRANSACTIONS
+WHERE 
+    ISFINALIZED = 1;","SELECT AVG(amount) AS AVERAGE_TRANSACTION_AMOUNT
+FROM (
+  SELECT TRANSACTIONAMOUNT AS amount
+  FROM SALES.CUSTOMERTRANSACTIONS AS ct
+  WHERE ct.ISFINALIZED = TRUE AND ct.FINALIZATIONDATE IS NOT NULL
+  UNION ALL
+  SELECT TRANSACTIONAMOUNT AS amount
+  FROM PURCHASING.SUPPLIERTRANSACTIONS AS st
+  WHERE st.ISFINALIZED = TRUE AND st.FINALIZATIONDATE IS NOT NULL
+) AS all_transactions;",0.2096,1,,,"['[{""average_transaction_amount"":0.0}]']",0,0,105.6,0.85,0.92,0.885,0.25,TRUE,TRUE,Includes supplier transactions via UNION ALL; question may intend only customer transactions; minor dialect issue with TRUE boolean literal in some DBs.
+5,6,calculate the average quantity sold for each stock item,"SELECT 
+    si.StockItemName, 
+    AVG(ol.Quantity) AS AverageQuantity
+FROM 
+    SALES.ORDERLINES ol
+JOIN 
+    WAREHOUSE.STOCKITEMS si ON ol.StockItemID = si.StockItemID
+GROUP BY 
+    si.StockItemName
+ORDER BY 
+    AverageQuantity DESC;","SELECT si.STOCKITEMNAME,
+       si.STOCKITEMID,
+       AVG(ol.QUANTITY) AS AVERAGE_QUANTITY_SOLD
+FROM WIDEWORLDIMPORTERS.SALES.ORDERLINES AS ol
+JOIN WIDEWORLDIMPORTERS.SALES.ORDERS AS o ON o.ORDERID = ol.ORDERID
+JOIN WAREHOUSE.STOCKITEMS AS si ON ol.STOCKITEMID = si.STOCKITEMID
+GROUP BY si.STOCKITEMNAME, si.STOCKITEMID
+ORDER BY AVERAGE_QUANTITY_SOLD DESC;",0.6764,0,,,"['[{""stockitemname"":""Black and orange fragile despatch tape 48mmx75m"",""stockitemid"":191,""average_quantity_sold"":199.35},{""stockitemname"":""Black and orange fragile despatch tape 48mmx100m"",""stockitemid"":192,""average_quantity_sold"":198.239509},{""stockitemname"":""Clear packaging tape 48mmx75m"",""stockitemid"":189,""average_quantity_sold"":145.261905},{""stockitemname"":""Shipping carton (Brown) 356x356x279mm"",""stockitemid"":185,""average_quantity_sold"":141.643389},{""stockitemname"":""3 kg Courier post bag (White) 300x190x95mm"",""stockitemid"":188,""average_quantity_sold"":141.480966},{""stockitemname"":""Express post box 5kg (White) 350x280x130mm"",""stockitemid"":187,""average_quantity_sold"":140.680751},{""stockitemname"":""Shipping carton (Brown) 305x305x305mm"",""stockitemid"":184,""average_quantity_sold"":139.46281},{""stockitemname"":""Shipping carton (Brown) 413x285x187mm"",""stockitemid"":177,""average_quantity_sold"":139.184731},{""stockitemname"":""Chocolate beetles 250g"",""stockitemid"":222,""average_quantity_sold"":138.938776},{""stockitemname"":""Shipping carton (Brown) 279x254x217mm"",""stockitemid"":180,""average_quantity_sold"":138.816425},{""stockitemname"":""Shipping carton (Brown) 480x270x320mm"",""stockitemid"":183,""average_quantity_sold"":137.488129},{""stockitemname"":""Shipping carton (Brown) 229x229x229mm"",""stockitemid"":179,""average_quantity_sold"":137.441315},{""stockitemname"":""White chocolate moon rocks 250g"",""stockitemid"":227,""average_quantity_sold"":137.230769},{""stockitemname"":""Shipping carton (Brown) 457x279x279mm"",""stockitemid"":182,""average_quantity_sold"":136.972522},{""stockitemname"":""Shipping carton (Brown) 356x229x229mm"",""stockitemid"":181,""average_quantity_sold"":135.608944},{""stockitemname"":""Shipping carton (Brown) 457x457x457mm"",""stockitemid"":186,""average_quantity_sold"":135.340803},{""stockitemname"":""Chocolate echidnas 250g"",""stockitemid"":223,""average_quantity_sold"":134.817391},{""stockitemname"":""Red and white urgent despatch tape 48mmx75m"",""stockitemid"":201,""average_quantity_sold"":134.810913},{""stockite",0,0,121.73,0.92,0.88,0.9,0.82,TRUE,TRUE,"Unnecessary join to ORDERS; could simplify by joining ORDERLINES directly to STOCKITEMS. Including STOCKITEMID in the GROUP BY is acceptable and ensures per-item granularity, but the ORDERS join does not affect results."
+6,7,What was the total revenue generated in the first quarter of 2013?,"SELECT
+  SUM(
+    ol.QUANTITY * ol.UNITPRICE * (1 - sd.DISCOUNTAMOUNT)
+  ) AS TOTAL_REVENUE
+FROM
+  SALES.ORDERS o
+  JOIN SALES.ORDERLINES ol ON o.ORDERID = ol.ORDERID
+  JOIN SALES.SPECIALDEALS sd ON ol.STOCKITEMID = sd.STOCKITEMID
+WHERE
+  o.ORDERDATE BETWEEN '2013-01-01' AND '2013-03-31';","SELECT SUM(m.TOTAL_SALES) AS Q1_2013_TOTAL_REVENUE
+FROM REPORTS.MONTHLY_SALES_AGGREGATE AS m
+WHERE m.YEAR = 2013
+  AND m.MONTH IN (1, 2, 3);",0.3423,0,,,"['[{""q1_2013_total_revenue"":11980359.1899999995}]']",0,0,90.61,0.85,1,0.925,0.55,TRUE,TRUE,Assumes TOTAL_SALES represents net revenue for each month; may differ from ground truth if discounts or item-level revenue are applied. Uses a pre-aggregated monthly table rather than summing line items.
+7,8,how many customers had backorders?,"SELECT 
+    COUNT(DISTINCT CUSTOMERID) AS NumberOfCustomersWithBackorders
+FROM 
+    SALES.ORDERS
+WHERE 
+    ISUNDERSUPPLYBACKORDERED = 1;","SELECT COUNT(DISTINCT c.CUSTOMERNAME) AS BACKORDER_CUSTOMER_COUNT
+FROM SALES.ORDERS AS o
+INNER JOIN SALES.CUSTOMERS AS c ON o.CUSTOMERID = c.CUSTOMERID
+WHERE o.ISUNDERSUPPLYBACKORDERED = TRUE;",0.6026,1,,,"['[{""backorder_customer_count"":663}]']",0,0,142.82,0.8,0.9,0.85,0.75,TRUE,TRUE,Counts distinct CUSTOMERNAME instead of CUSTOMERID (potential duplicates if names are not unique); uses TRUE instead of 1 for the backorder flag (may vary by DB); INNER JOIN to CUSTOMERS is unnecessary if only counting by customer ID; overall logic counts customers with backorders but relies on name uniqueness.
+8,9,"how many customers had backorders? please break that by year, starting from 2000 to 2020?","SELECT
+  YEAR (o.ORDERDATE) AS Year,
+  COUNT(DISTINCT o.CUSTOMERID) AS NumberOfCustomersWithBackorders
+FROM
+  SALES.ORDERS o
+WHERE
+  o.ISUNDERSUPPLYBACKORDERED = 1
+  AND YEAR (o.ORDERDATE) BETWEEN 2000 AND 2020
+GROUP BY
+  YEAR (o.ORDERDATE)
+ORDER BY
+  Year;","SELECT DATE_PART('YEAR', o.ORDERDATE) AS order_year,
+       COUNT(DISTINCT o.CUSTOMERID) AS backorder_customer_count
+FROM SALES.ORDERS AS o
+WHERE o.ISUNDERSUPPLYBACKORDERED = TRUE
+  AND o.ORDERDATE >= DATE '2000-01-01'
+  AND o.ORDERDATE <= DATE '2020-12-31'
+GROUP BY DATE_PART('YEAR', o.ORDERDATE)
+ORDER BY order_year;",0.4854,1,,,"['[{""order_year"":2013,""backorder_customer_count"":625},{""order_year"":2014,""backorder_customer_count"":640},{""order_year"":2015,""backorder_customer_count"":657},{""order_year"":2016,""backorder_customer_count"":663}]']",0,0,233.49,0.92,0.95,0.935,0.92,TRUE,TRUE,"Strengths: correctly counts distinct customers with backorders per year and filters to 2000-01-01 through 2020-12-31. Potential issues: relies on PostgreSQL syntax (DATE_PART and TRUE). If ISUNDERSUPPLYBACKORDERED is numeric, use = 1. Does not generate rows for years with zero backorders (the question could imply all years 2000-2020, but the ground truth similarly returns only years with data)."
+9,10,Identify the top 10 brands by stock count,"SELECT BRAND, COUNT(*) AS STOCK_COUNT
+FROM WIDEWORLDIMPORTERS.WAREHOUSE.STOCKITEMS
+GROUP BY BRAND
+ORDER BY STOCK_COUNT DESC
+LIMIT 10;","SELECT si.BRAND, SUM(COALESCE(sh.QUANTITYONHAND, 0)) AS TOTAL_ON_HAND
+FROM WAREHOUSE.STOCKITEMS AS si
+JOIN WAREHOUSE.STOCKITEMHOLDINGS AS sh ON sh.STOCKITEMID = si.STOCKITEMID
+GROUP BY si.BRAND
+ORDER BY TOTAL_ON_HAND DESC
+LIMIT 10;",0.3204,0,,,"['[{""brand"":null,""total_on_hand"":27866875},{""brand"":""Northwind"",""total_on_hand"":2476421}]']",0,0,109.56,0.9,0.8,0.85,0.25,TRUE,TRUE,"Includes NULL BRAND in results (GROUP BY BRAND); INNER JOIN excludes stock items without holdings which could undercount in some cases; relies on SUM(QUANTITYONHAND) as 'stock count' which is a quantity-based metric rather than a simple item-count. If the intention is only non-null brands or to count items rather than quantity, adjust JOIN or FILTERS."
+10,11,who is the biggest consumer of ‘Northwind’ brand?,"WITH BrandStockItems AS (
+    SELECT
+        STOCKITEMID
+    FROM WAREHOUSE.STOCKITEMS_ARCHIVE
+    WHERE BRAND = 'Northwind'
+),
+CustomerPurchases AS (
+    SELECT
+        o.CUSTOMERID,
+        SUM(ol.QUANTITY) AS TotalQuantity
+    FROM SALES.ORDERLINES ol
+    JOIN SALES.ORDERS o ON ol.ORDERID = o.ORDERID
+    WHERE ol.STOCKITEMID IN (SELECT STOCKITEMID FROM BrandStockItems)
+    GROUP BY o.CUSTOMERID
+)
+SELECT
+    c.CUSTOMERNAME,
+    cp.TotalQuantity
+FROM CustomerPurchases cp
+JOIN SALES.CUSTOMERS c ON cp.CUSTOMERID = c.CUSTOMERID
+ORDER BY cp.TotalQuantity DESC
+LIMIT 1;","SELECT
+  c.CUSTOMERNAME,
+  SUM(COALESCE(i.TOTALCHILLERITEMS, 0) + COALESCE(i.TOTALDRYITEMS, 0)) AS TOTALSALES
+FROM WIDEWORLDIMPORTERS.SALES.INVOICES AS i
+JOIN SALES.CUSTOMERS AS c ON i.CUSTOMERID = c.CUSTOMERID
+WHERE c.CUSTOMERNAME ILIKE '%Northwind%'
+GROUP BY c.CUSTOMERNAME
+ORDER BY TOTALSALES DESC
+LIMIT 1;",0.1383,0,,,['[]'],1,1,142.99,0.15,0.35,0.25,0.15,TRUE,TRUE,"Incorrect filtering: uses Northwind in the customer name filter instead of filtering invoices/items by the Northwind brand. No join or filter on brand inventory; sums fields (TOTALCHILLERITEMS, TOTALDRYITEMS) that may not align with Northwind items. Uses inconsistent schemas/tables for brand-specific sale calculation."
+11,12,list all orders from 01 november 2013?,"SELECT 
+    ORDERID, 
+    ORDERDATE
+FROM 
+    SALES.ORDERS
+WHERE 
+    ORDERDATE >= '2013-11-01'
+ORDER BY 
+    ORDERDATE;","SELECT o.ORDERID, o.ORDERDATE, o.CUSTOMERID
+FROM SALES.ORDERS AS o
+WHERE o.ORDERDATE = DATE '2013-11-01'
+ORDER BY o.ORDERID;",0.8295,0,,,"['[{""orderid"":16324,""orderdate"":1383264000000,""customerid"":521},{""orderid"":16325,""orderdate"":1383264000000,""customerid"":929},{""orderid"":16326,""orderdate"":1383264000000,""customerid"":176},{""orderid"":16327,""orderdate"":1383264000000,""customerid"":19},{""orderid"":16328,""orderdate"":1383264000000,""customerid"":41},{""orderid"":16329,""orderdate"":1383264000000,""customerid"":949},{""orderid"":16330,""orderdate"":1383264000000,""customerid"":492},{""orderid"":16331,""orderdate"":1383264000000,""customerid"":993},{""orderid"":16332,""orderdate"":1383264000000,""customerid"":172},{""orderid"":16333,""orderdate"":1383264000000,""customerid"":839},{""orderid"":16334,""orderdate"":1383264000000,""customerid"":504},{""orderid"":16335,""orderdate"":1383264000000,""customerid"":568},{""orderid"":16336,""orderdate"":1383264000000,""customerid"":103},{""orderid"":16337,""orderdate"":1383264000000,""customerid"":885},{""orderid"":16338,""orderdate"":1383264000000,""customerid"":498},{""orderid"":16339,""orderdate"":1383264000000,""customerid"":463},{""orderid"":16340,""orderdate"":1383264000000,""customerid"":923},{""orderid"":16341,""orderdate"":1383264000000,""customerid"":61},{""orderid"":16342,""orderdate"":1383264000000,""customerid"":933},{""orderid"":16343,""orderdate"":1383264000000,""customerid"":517},{""orderid"":16344,""orderdate"":1383264000000,""customerid"":10},{""orderid"":16345,""orderdate"":1383264000000,""customerid"":874},{""orderid"":16346,""orderdate"":1383264000000,""customerid"":585},{""orderid"":16347,""orderdate"":1383264000000,""customerid"":926},{""orderid"":16348,""orderdate"":1383264000000,""customerid"":92},{""orderid"":16349,""orderdate"":1383264000000,""customerid"":825},{""orderid"":16350,""orderdate"":1383264000000,""customerid"":425},{""orderid"":16351,""orderdate"":1383264000000,""customerid"":504},{""orderid"":16352,""orderdate"":1383264000000,""customerid"":539},{""orderid"":16353,""orderdate"":1383264000000,""customerid"":509},{""orderid"":16354,""orderdate"":1383264000000,""customerid"":14},{""orderid"":16355,""orderdate"":1383264000000,""customerid"":425},{""orderid"":16356,""orderdate"":1383264000000,""custome",0,0,102.51,0.9,0.85,0.875,0.4,TRUE,TRUE,Uses equality on ORDERDATE; potential mismatch if ORDERDATE has a time component beyond midnight. Returns CUSTOMERID column not explicitly requested by the prompt.
+12,13,what is the average order value by customer category?,"SELECT 
+    cc.CustomerCategoryName, 
+    AVG(ct.TRANSACTIONAMOUNT) AS AverageOrderValue
+FROM 
+    SALES.CUSTOMERTRANSACTIONS ct
+JOIN 
+    SALES.CUSTOMERS cu ON ct.CUSTOMERID = cu.CUSTOMERID
+JOIN 
+    SALES.CUSTOMERCATEGORIES cc ON cu.CUSTOMERCATEGORYID = cc.CUSTOMERCATEGORYID
+GROUP BY 
+    cc.CustomerCategoryName
+ORDER BY 
+    AverageOrderValue DESC;","WITH order_values AS (
+  SELECT o.ORDERID,
+         o.CUSTOMERID,
+         SUM(ol.QUANTITY * ol.UNITPRICE) AS ORDER_VALUE
+  FROM SALES.ORDERS AS o
+  JOIN WIDEWORLDIMPORTERS.SALES.ORDERLINES AS ol
+    ON o.ORDERID = ol.ORDERID
+  GROUP BY o.ORDERID, o.CUSTOMERID
+)
+SELECT cc.CUSTOMERCATEGORYNAME,
+       AVG(ov.ORDER_VALUE) AS AVERAGE_ORDER_VALUE
+FROM order_values ov
+JOIN SALES.CUSTOMERS AS cu ON ov.CUSTOMERID = cu.CUSTOMERID
+JOIN SALES.CUSTOMERCATEGORIES AS cc ON cu.CUSTOMERCATEGORYID = cc.CUSTOMERCATEGORYID
+GROUP BY cc.CUSTOMERCATEGORYNAME
+ORDER BY AVERAGE_ORDER_VALUE DESC;",0.3127,0,,,"['[{""customercategoryname"":""Supermarket"",""average_order_value"":2460.56602458},{""customercategoryname"":""Novelty Shop"",""average_order_value"":2416.95997869},{""customercategoryname"":""Corporate"",""average_order_value"":2410.25729167},{""customercategoryname"":""Computer Store"",""average_order_value"":2375.71656417},{""customercategoryname"":""Gift Store"",""average_order_value"":2365.12967184}]']",0,0,265.13,0.85,0.95,0.9,0.85,TRUE,TRUE,Uses an extra CTE to compute per-order values from ORDERLINES in a different schema (WIDEWORLDIMPORTERS) which may not align with the standard data model; assumes ORDER_VALUE equals TRANSACTIONAMOUNT (ignores discounts/taxes); no handling of cancelled orders or nulls; overall logic is correct for average order value by category but relies on potentially inconsistent source tables.
+13,14,what are the 5 top cities with the highest delay time in delivery?,"WITH City_Delays AS (
+    SELECT
+        c2.cityid as CITYID,
+        c2.cityname as CityName,
+        AVG(DATEDIFF('day', o.ORDERDATE, o.PICKINGCOMPLETEDWHEN)) AS AvgDelayDays
+    FROM
+        SALES.ORDERS o
+    JOIN SALES.CUSTOMERS c
+        ON o.CUSTOMERID = c.CUSTOMERID
+    JOIN APPLICATION.CITIES c2
+        ON c.deliverycityid = c2.cityid
+    WHERE
+        o.PICKINGCOMPLETEDWHEN > o.ORDERDATE
+    GROUP BY
+        c2.cityid,
+        c2.cityname
+)
+SELECT
+    CityName,
+    AvgDelayDays
+FROM
+    City_Delays
+ORDER BY
+    AvgDelayDays DESC 
+LIMIT 5;","SELECT ci.CITYNAME AS city_name, SUM(dd.DELIVERY_DELAY) AS total_delivery_delay
+FROM REPORTS.DELAYED_ORDERS dd
+CROSS JOIN APPLICATION.CITIES ci
+GROUP BY ci.CITYNAME
+ORDER BY total_delivery_delay DESC
+LIMIT 5;",0.0526,0,,,"['[{""city_name"":""Franklin"",""total_delivery_delay"":9719552},{""city_name"":""Clinton"",""total_delivery_delay"":8808344},{""city_name"":""Marion"",""total_delivery_delay"":8504608},{""city_name"":""Washington"",""total_delivery_delay"":8504608},{""city_name"":""Fairview"",""total_delivery_delay"":8200872}]']",0,0,187.02,0.2,0.55,0.375,0.25,TRUE,TRUE,No join condition linking DELAYED_ORDERS to a city; CROSS JOIN yields a cartesian product; per-city delay cannot be determined because delays are not associated with a specific city in the query; aggregation is effectively spatially agnostic. Should join on a city identifier (and group by city) or use an AVG/appropriate metric per city as in the ground truth.
+14,15,how many customers bought with discount in 2024?,"SELECT 
+    COUNT(DISTINCT o.CustomerID) AS NumberOfCustomersWithDiscount
+FROM 
+    SALES.ORDERS o
+JOIN 
+    SALES.ORDERLINES ol ON o.OrderID = ol.OrderID
+JOIN 
+    SALES.SPECIALDEALS sd ON ol.StockItemID = sd.StockItemID
+WHERE 
+    o.OrderDate BETWEEN '2024-01-01' AND '2024-12-31';","SELECT COUNT(DISTINCT O.CUSTOMERID) AS NUM_CUSTOMERS_WITH_DISCOUNT_2024
+FROM WIDEWORLDIMPORTERS.SALES.ORDERS AS O
+JOIN WIDEWORLDIMPORTERS.SALES.ORDERLINES AS OL ON OL.ORDERID = O.ORDERID
+JOIN SALES.SPECIALDEALS AS SD ON OL.STOCKITEMID = SD.STOCKITEMID
+WHERE O.ORDERDATE BETWEEN DATE '2024-01-01' AND DATE '2024-12-31'
+  AND (SD.DISCOUNTAMOUNT > 0 OR SD.DISCOUNTPERCENTAGE > 0);",0.2345,1,,,"['[{""num_customers_with_discount_2024"":0}]']",0,0,149.35,0.8,1,0.9,0.7,TRUE,TRUE,"Schema qualification inconsistency: ORDERS and ORDERLINES use WIDEWORLDIMPORTERS.SALES.* while SPECIALDEALS uses SALES.*; this could cause runtime qualification issues depending on the DB. The discount predicate (DISCOUNTAMOUNT > 0 OR DISCOUNTPERCENTAGE > 0) correctly captures discounts, but if there are edge cases (e.g., NULL values) they are not explicitly handled. The date filter assumes timestamp-safe comparison; using DATE literals is fine in many DBs but could behave differently with timestamps."
+15,16,what is the ratio of salesmen to employees?,"SELECT 
+    (SUM(CASE WHEN ISSALESPERSON = TRUE THEN 1 ELSE 0 END) * 1.0 / SUM(CASE WHEN ISEMPLOYEE = TRUE THEN 1 ELSE 0 END)) AS SalesmenToEmployeesRatio
+FROM APPLICATION.PEOPLE;","SELECT
+  SUM(CASE WHEN ISSALESPERSON = TRUE
+            AND ISEMPLOYEE = TRUE
+            AND VALIDFROM <= CURRENT_TIMESTAMP()
+            AND (VALIDTO IS NULL OR VALIDTO > CURRENT_TIMESTAMP())
+           THEN 1 ELSE 0 END) AS SALESPEOPLE_COUNT,
+  SUM(CASE WHEN ISEMPLOYEE = TRUE
+            AND VALIDFROM <= CURRENT_TIMESTAMP()
+            AND (VALIDTO IS NULL OR VALIDTO > CURRENT_TIMESTAMP())
+           THEN 1 ELSE 0 END) AS EMPLOYEES_COUNT,
+  CASE
+        WHEN SUM(CASE WHEN ISEMPLOYEE = TRUE
+                       AND VALIDFROM <= CURRENT_TIMESTAMP()
+                       AND (VALIDTO IS NULL OR VALIDTO > CURRENT_TIMESTAMP())
+                  THEN 1 ELSE 0 END) = 0
+        THEN NULL
+        ELSE CAST(SUM(CASE WHEN ISSALESPERSON = TRUE
+                             AND ISEMPLOYEE = TRUE
+                             AND VALIDFROM <= CURRENT_TIMESTAMP()
+                             AND (VALIDTO IS NULL OR VALIDTO > CURRENT_TIMESTAMP())
+                        THEN 1 ELSE 0 END) AS FLOAT)
+             / CAST(SUM(CASE WHEN ISEMPLOYEE = TRUE
+                             AND VALIDFROM <= CURRENT_TIMESTAMP()
+                             AND (VALIDTO IS NULL OR VALIDTO > CURRENT_TIMESTAMP())
+                        THEN 1 ELSE 0 END) AS FLOAT)
+  END AS RATIO_SALESPEOPLE_TO_EMPLOYEES
+FROM APPLICATION.PEOPLE;",0.1154,0,,,"['[{""salespeople_count"":10,""employees_count"":19,""ratio_salespeople_to_employees"":0.5263157895}]']",0,0,116.25,0.65,0.85,0.75,0.95,TRUE,TRUE,"Numerator filters for ISSALESPERSON = TRUE AND ISEMPLOYEE = TRUE count only salespeople who are also employees, which may undercount pure salesmen. Includes CURRENT_TIMESTAMP validity filters not specified by the question, reducing generality. Returns additional columns (salespeople_count, employees_count) beyond the required ratio."
+16,17,list top 5 suppliers by how many items they sold?,"SELECT 
+    s.SupplierName, 
+    SUM(ol.Quantity) AS TotalItemsSold
+FROM 
+    SALES.ORDERLINES ol
+JOIN 
+    WAREHOUSE.STOCKITEMS si ON ol.StockItemID = si.StockItemID
+JOIN 
+    PURCHASING.SUPPLIERS s ON si.SupplierID = s.SupplierID
+GROUP BY 
+    s.SupplierName
+ORDER BY 
+    TotalItemsSold DESC
+LIMIT 5;","SELECT s.SUPPLIERNAME, SUM(p.TOTAL_QUANTITY) AS TOTAL_QUANTITY_SOLD
+FROM REPORTS.TOP_SELLING_PRODUCTS AS p
+JOIN WAREHOUSE.STOCKITEMS AS si ON p.STOCKITEMNAME = si.STOCKITEMNAME
+JOIN WEBSITE.SUPPLIERS AS s ON si.SUPPLIERID = s.SUPPLIERID
+GROUP BY s.SUPPLIERNAME
+ORDER BY TOTAL_QUANTITY_SOLD DESC
+LIMIT 5;",0.5905,0,,,"['[{""suppliername"":""Litware, Inc."",""total_quantity_sold"":5696347},{""suppliername"":""Fabrikam, Inc."",""total_quantity_sold"":2624338},{""suppliername"":""Graphic Design Institute"",""total_quantity_sold"":244010},{""suppliername"":""The Phone Company"",""total_quantity_sold"":137217},{""suppliername"":""A Datum Corporation"",""total_quantity_sold"":127356}]']",0,0,171.22,0.45,0.9,0.675,0.4,TRUE,TRUE,Relies on a pre-aggregated TOP_SELLING_PRODUCTS source instead of summing actual sales order lines; may miss non-top items and misrepresent total items sold by each supplier.
+17,18,count number of vehicles?,"SELECT COUNT(DISTINCT VEHICLEREGISTRATION) AS VehicleCount
+FROM WAREHOUSE.VEHICLETEMPERATURES;","SELECT COUNT(DISTINCT v.VEHICLETEMPERATUREID) AS FleetCount
+FROM WEBSITE.VEHICLETEMPERATURES AS v",0.6842,0,,,"['[{""fleetcount"":65998}]']",0,0,155.99,0.3,0.75,0.525,0.5,TRUE,TRUE,"Counts distinct VEHICLETEMPERATUREID instead of a true vehicle identifier; likely counts unique temperature records, not vehicles. Also uses WEBSITE.VEHICLETEMPERATURES instead of the ground truth's WAREHOUSE.VEHICLETEMPERATURES, which may indicate a different data source/schema and could affect correctness of the count."
+18,19,calculate the average unit price of items in the stock grouped by size?,"SELECT
+    SIZE,
+    AVG(UNITPRICE) AS AVERAGE_UNIT_PRICE
+FROM
+    WAREHOUSE.STOCKITEMS
+GROUP BY
+    SIZE
+ORDER BY
+    SIZE;","SELECT SIZE, AVG(UNITPRICE) AS AVERAGE_UNIT_PRICE
+FROM WAREHOUSE.STOCKITEMS
+WHERE SIZE IS NOT NULL
+GROUP BY SIZE",0.8279,0,,,"['[{""size"":""S"",""average_unit_price"":23.81818182},{""size"":""5XL"",""average_unit_price"":26.25},{""size"":""1.5m"",""average_unit_price"":240.0},{""size"":""229x229x229mm"",""average_unit_price"":1.05},{""size"":""457x457x457mm"",""average_unit_price"":2.1},{""size"":""48mmx100m"",""average_unit_price"":4.01428571},{""size"":""9mm"",""average_unit_price"":2.995},{""size"":""7XL"",""average_unit_price"":18.0},{""size"":""305x305x305mm"",""average_unit_price"":3.5},{""size"":""400L"",""average_unit_price"":50.0},{""size"":""250g"",""average_unit_price"":8.55},{""size"":""356x229x229mm"",""average_unit_price"":1.14},{""size"":""480x270x320mm"",""average_unit_price"":2.74},{""size"":""300L"",""average_unit_price"":37.5},{""size"":""1\\/50 scale"",""average_unit_price"":28.33333333},{""size"":""10m"",""average_unit_price"":20.92857143},{""size"":""20m"",""average_unit_price"":36.42857143},{""size"":""50m"",""average_unit_price"":93.57142857},{""size"":""356x356x279mm"",""average_unit_price"":2.04},{""size"":""48mmx75m"",""average_unit_price"":3.58571429},{""size"":""350x280x130mm"",""average_unit_price"":0.95},{""size"":""300x190x95mm"",""average_unit_price"":0.66},{""size"":""100L"",""average_unit_price"":12.5},{""size"":""500g"",""average_unit_price"":14.5},{""size"":""XXS"",""average_unit_price"":20.33333333},{""size"":""L"",""average_unit_price"":24.27272727},{""size"":""6XL"",""average_unit_price"":18.0},{""size"":""457x279x279mm"",""average_unit_price"":1.28},{""size"":""XL"",""average_unit_price"":25.16666667},{""size"":""3XL"",""average_unit_price"":26.25},{""size"":""XXL"",""average_unit_price"":25.25},{""size"":""4XL"",""average_unit_price"":26.25},{""size"":""500x310x310mm"",""average_unit_price"":2.55},{""size"":""279x254x217mm"",""average_unit_price"":1.11},{""size"":""5mm"",""average_unit_price"":2.7},{""size"":""200L"",""average_unit_price"":25.0},{""size"":""1\\/12 scale"",""average_unit_price"":255.0},{""size"":""3XS"",""average_unit_price"":20.33333333},{""size"":""XS"",""average_unit_price"":20.33333333},{""size"":""M"",""average_unit_price"":24.27272727},{""size"":""413x285x187mm"",""average_unit_price"":1.05},{""size"":""18mm"",""average_unit_price"":3.35},{""size"":""325m"",""average_unit_price",0,0,108.62,0.85,1,0.925,0.9,TRUE,TRUE,Excludes NULL SIZE values via WHERE SIZE IS NOT NULL; otherwise correct grouping and aggregation. ORDER BY SIZE is present in ground truth but not required by the question.
+19,20,count the items in stock which don't have tax rate attached?,"SELECT 
+    COUNT(*) AS ItemsWithoutTaxRate
+FROM 
+    WAREHOUSE.STOCKITEMS
+WHERE 
+    TAXRATE IS NULL;","SELECT COUNT(DISTINCT si.STOCKITEMID) AS ITEMS_WITH_NO_TAX_RATE_IN_STOCK
+FROM WAREHOUSE.STOCKITEMS AS si
+JOIN WAREHOUSE.STOCKITEMHOLDINGS AS sh ON sh.STOCKITEMID = si.STOCKITEMID
+WHERE sh.QUANTITYONHAND > 0
+  AND si.TAXRATE IS NULL;",0.4317,1,,,"['[{""items_with_no_tax_rate_in_stock"":0}]']",0,0,114.35,0.85,0.9,0.875,0.75,TRUE,TRUE,"Includes a JOIN to STOCKITEMHOLDINGS and filters by QUANTITYONHAND > 0 to ensure items are in stock. This excludes stock items that exist but have no holdings record. If the interpretation requires counting items with NULL tax rate regardless of stock holdings, this would be stricter than needed."
+20,21,top 6 search terms the stock items are being searched by?,"SELECT 
+    SEARCHDETAILS, 
+    COUNT(*) AS SEARCH_COUNT
+FROM 
+    WAREHOUSE.STOCKITEMS
+GROUP BY 
+    SEARCHDETAILS
+ORDER BY 
+    SEARCH_COUNT DESC
+LIMIT 6;","SELECT TRIM(t.VALUE::STRING) AS search_term, SUM(r.TRANSACTION_COUNT) AS weighted_searches
+FROM REPORTS.STOCK_ITEM_TRANSACTION_SUMMARY AS r
+JOIN WAREHOUSE.STOCKITEMS AS s
+  ON r.STOCKITEMNAME = s.STOCKITEMNAME
+CROSS JOIN LATERAL FLATTEN(INPUT => SPLIT(REGEXP_REPLACE(s.SEARCHDETAILS, '[^A-Za-z0-9]+', ' '), ' ')) AS t
+WHERE t.VALUE IS NOT NULL
+  AND TRIM(t.VALUE::STRING) <> ''
+GROUP BY TRIM(t.VALUE::STRING)
+ORDER BY weighted_searches DESC
+LIMIT 6;",0.2369,0,,,"['[{""search_term"":""Black"",""weighted_searches"":67876},{""search_term"":""shirt"",""weighted_searches"":61416},{""search_term"":""mug"",""weighted_searches"":46729},{""search_term"":""White"",""weighted_searches"":44984},{""search_term"":""joke"",""weighted_searches"":44632},{""search_term"":""red"",""weighted_searches"":31749}]']",0,0,156.63,0.65,0.8,0.725,0.25,TRUE,TRUE,Weights by TRANSACTION_COUNT (not raw term frequency) may misrepresent popularity; potential double-counting within a single stock item's SEARCHDETAILS; case normalization not applied; inner join may drop terms for items with no transactions.
+21,22,top 5 cities with the highest number of suppliers?,"SELECT 
+    c.CityName, 
+    COUNT(s.SupplierID) AS SupplierCount
+FROM 
+    APPLICATION.CITIES c
+JOIN 
+    PURCHASING.SUPPLIERS s ON c.CityID = s.DeliveryCityID
+GROUP BY 
+    c.CityName
+ORDER BY 
+    SupplierCount DESC
+LIMIT 5;","SELECT s.CITYNAME, COUNT(*) AS SUPPLIER_COUNT
+FROM WEBSITE.SUPPLIERS AS s
+GROUP BY s.CITYNAME
+ORDER BY SUPPLIER_COUNT DESC
+LIMIT 5;",0.7362,0,,,"['[{""cityname"":""San Francisco"",""supplier_count"":2},{""cityname"":""Elizabeth City"",""supplier_count"":1},{""cityname"":""Mokelumne Hill"",""supplier_count"":1},{""cityname"":""Crandon Lakes"",""supplier_count"":1},{""cityname"":""Karlstad"",""supplier_count"":1}]']",0,0,146.78,0.9,0.95,0.93,0.72,TRUE,TRUE,Counts suppliers by CITYNAME directly from the SUPPLIERS table instead of joining to a central CITY dimension; may include NULL or inconsistent city values; uses COUNT(*) (could count rows with NULL city) instead of COUNT(s.SupplierID) as in the ground truth.
+22,23,top 5 ratio of population of a city to the suppliers in it?,"WITH CitySupplierCount AS (
+    SELECT
+        c.CITYNAME,
+        c.LATESTRECORDEDPOPULATION,
+        COUNT(s.SUPPLIERID) AS SupplierCount
+    FROM APPLICATION.CITIES AS c
+    LEFT JOIN PURCHASING.SUPPLIERS AS s
+        ON c.CITYID = s.DELIVERYCITYID
+    GROUP BY c.CITYNAME, c.LATESTRECORDEDPOPULATION
+)
+SELECT
+    CITYNAME,
+    LATESTRECORDEDPOPULATION,
+    SupplierCount,
+    LATESTRECORDEDPOPULATION / NULLIF(SupplierCount, 0) AS PopulationToSupplierRatio
+FROM CitySupplierCount
+ORDER BY PopulationToSupplierRatio DESC
+LIMIT 5;","SELECT c.CITYNAME, c.LATESTRECORDEDPOPULATION AS POPULATION, COUNT(DISTINCT s.SUPPLIERID) AS SUPPLIERS_IN_CITY, (c.LATESTRECORDEDPOPULATION / NULLIF(COUNT(DISTINCT s.SUPPLIERID), 0)) AS POPULATION_PER_SUPPLIER FROM APPLICATION.CITIES AS c LEFT JOIN WEBSITE.SUPPLIERS AS s ON c.CITYNAME = s.CITYNAME GROUP BY c.CITYNAME, c.CITYID, c.LATESTRECORDEDPOPULATION HAVING COUNT(DISTINCT s.SUPPLIERID) > 0 ORDER BY POPULATION_PER_SUPPLIER DESC LIMIT 5;",0.132,0,,,"['[{""cityname"":""Lancing"",""population"":null,""suppliers_in_city"":1,""population_per_supplier"":null},{""cityname"":""Greenbank"",""population"":null,""suppliers_in_city"":1,""population_per_supplier"":null},{""cityname"":""San Francisco"",""population"":805235.0,""suppliers_in_city"":2,""population_per_supplier"":402617.5},{""cityname"":""Elizabeth City"",""population"":18683.0,""suppliers_in_city"":1,""population_per_supplier"":18683.0},{""cityname"":""Zionsville"",""population"":14160.0,""suppliers_in_city"":1,""population_per_supplier"":14160.0}]']",0,0,256.89,0.35,0.85,0.6,0.75,TRUE,TRUE,"Join predicate uses city name (c.CITYNAME = s.CITYNAME) instead of a city-id foreign key. This can incorrectly lump suppliers from cities with identical names into the same city, inflating counts and distorting the population-per-supplier ratio. Grouping by CITYID mitigates some issues but the join still cross-contaminates across similarly named cities. Also, NULL population values yield NULL ratios which may affect ordering depending on DB dialect."
+23,24,what was the most successful special deal?,"SELECT 
+    SD.DEALDESCRIPTION, 
+    SUM(OL.QUANTITY * OL.UNITPRICE * (1 - SD.DISCOUNTAMOUNT)) AS TOTAL_REVENUE
+FROM 
+    SALES.ORDERLINES OL
+JOIN 
+    SALES.SPECIALDEALS SD 
+    ON OL.STOCKITEMID = SD.STOCKITEMID
+GROUP BY 
+    SD.DEALDESCRIPTION
+ORDER BY 
+    TOTAL_REVENUE DESC
+LIMIT 1;","SELECT t.DEALDESCRIPTION, t.TOTAL_DISCOUNT
+FROM (
+  SELECT SD.DEALDESCRIPTION, SUM(OL.QUANTITY * OL.UNITPRICE * SD.DISCOUNTAMOUNT) AS TOTAL_DISCOUNT
+  FROM WIDEWORLDIMPORTERS.SALES.ORDERLINES OL
+  JOIN SALES.SPECIALDEALS SD ON OL.STOCKITEMID = SD.STOCKITEMID
+  GROUP BY SD.DEALDESCRIPTION
+) AS t
+ORDER BY t.TOTAL_DISCOUNT DESC
+LIMIT 1;",0.7855,1,,,['[]'],1,1,177.95,0.25,0.35,0.3,0.2,TRUE,FALSE,Calculates total discount instead of total revenue to determine
+24,25,what day was the highest number of items ordered by customers?,"SELECT
+  O.ORDERDATE,
+  SUM(OL.QUANTITY) AS TOTAL_PACKAGES
+FROM SALES.ORDERS AS O
+JOIN SALES.ORDERLINES AS OL
+  ON O.ORDERID = OL.ORDERID
+GROUP BY O.ORDERDATE
+ORDER BY TOTAL_PACKAGES DESC
+LIMIT 1;","SELECT o.ORDERDATE AS order_date,
+       SUM(ol.QUANTITY) AS total_items
+FROM SALES.ORDERS AS o
+JOIN SALES.ORDERLINES AS ol ON o.ORDERID = ol.ORDERID
+GROUP BY o.ORDERDATE
+ORDER BY total_items DESC, order_date ASC
+LIMIT 1;",0.8557,1,,,"['[{""order_date"":1458604800000,""total_items"":18675}]']",0,0,128.51,0.95,0.95,0.95,0.98,TRUE,TRUE,"Ties for max total_items are resolved by ORDER BY total_items DESC, order_date ASC; the question does not specify tie-breaking behavior."
+25,26,calc top 3 geographical area that a company targets?,"SELECT TOP 3 c.COUNTRYNAME AS GeographicalArea, COUNT(cust.CUSTOMERID) AS TargetCount
+FROM WIDEWORLDIMPORTERS.APPLICATION.COUNTRIES c
+JOIN WIDEWORLDIMPORTERS.APPLICATION.STATEPROVINCES sp ON c.COUNTRYID = sp.COUNTRYID
+JOIN WIDEWORLDIMPORTERS.APPLICATION.CITIES ci ON sp.STATEPROVINCEID = ci.STATEPROVINCEID
+JOIN WIDEWORLDIMPORTERS.SALES.CUSTOMERS cust ON ci.CITYID = cust.POSTALCITYID
+GROUP BY c.COUNTRYNAME
+ORDER BY TargetCount DESC;","SELECT c.REGION AS region_name, COUNT(*) AS customer_count
+FROM WIDEWORLDIMPORTERS.SALES.CUSTOMERS AS cust
+JOIN APPLICATION.CITIES AS ci ON ci.CITYID = cust.DELIVERYCITYID
+JOIN APPLICATION.STATEPROVINCES AS sp ON sp.STATEPROVINCEID = ci.STATEPROVINCEID
+JOIN APPLICATION.COUNTRIES AS c ON c.COUNTRYID = sp.COUNTRYID
+GROUP BY c.REGION
+ORDER BY customer_count DESC
+LIMIT 3;",0.0224,0,,,"['[{""region_name"":""Americas"",""customer_count"":663}]']",0,0,154.33,0.25,0.6,0.425,0.25,TRUE,TRUE,"• Groups by REGION instead of COUNTRYNAME, which semantically targets a regional level rather than country-level geography as shown in the ground truth. 
+• Join path uses cust.DELIVERYCITYID → ci.CITYID, whereas the ground truth uses cust.POSTALCITYID → ci.CITYID; this could yield different regional results depending on data. 
+• Column alias region_name/LABEL may not align with expected GeographicalArea naming (country-based in ground truth). 
+• SQL dialect uses LIMIT 3 (MySQL/PostgreSQL) instead of TOP 3 (SQL Server); could affect portability."
+26,27,"what are the 4 best sellers in ""North America""?","WITH  NorthAmericaCountries AS (    SELECT      COUNTRYID    FROM      APPLICATION.COUNTRIES    WHERE      CONTINENT = 'North America'  ),  NorthAmericaCustomers AS (    SELECT      CUSTOMERID    FROM      SALES.CUSTOMERS      JOIN APPLICATION.CITIES ON CUSTOMERS.DELIVERYCITYID = CITIES.CITYID      JOIN APPLICATION.STATEPROVINCES ON CITIES.STATEPROVINCEID = STATEPROVINCES.STATEPROVINCEID    WHERE      STATEPROVINCES.COUNTRYID IN (        SELECT          COUNTRYID        FROM          NorthAmericaCountries      )  ),  NorthAmericaSales AS (    SELECT      INVOICELINES.STOCKITEMID,      SUM(INVOICELINES.QUANTITY) AS TOTAL_QUANTITY    FROM      SALES.INVOICELINES      JOIN SALES.INVOICES ON INVOICELINES.INVOICEID = INVOICES.INVOICEID    WHERE      INVOICES.CUSTOMERID IN (        SELECT          CUSTOMERID        FROM          NorthAmericaCustomers      )    GROUP BY      INVOICELINES.STOCKITEMID  )SELECT  INVOICELINES.STOCKITEMID,  NorthAmericaSales.TOTAL_QUANTITYFROM  NorthAmericaSalesORDER BY  NorthAmericaSales.TOTAL_QUANTITY DESCLIMIT  4;","SELECT STOCKITEMNAME, TOTAL_REVENUE, TOTAL_QUANTITY
+FROM REPORTS.TOP_SELLING_PRODUCTS
+ORDER BY TOTAL_REVENUE DESC
+LIMIT 4;",0.1678,0,"ProgrammingError: 001003 (42000): 01c50a3e-0107-1937-0005-062e0011c1da: SQL compilation error:
+syntax error line 1 at position 4 unexpected '  '.
+syntax error line 1 at position 32 unexpected '  '.
+syntax error line 1 at position 42 unexpected '  '.
+syntax error line 1 at position 65 unexpected '  '.
+syntax error line 1 at position 101 unexpected '  '.
+syntax error line 1 at position 875 unexpected '  '.",,"['[{""stockitemname"":""Air cushion machine (Blue)"",""total_revenue"":12773338.6500000004,""total_quantity"":5849},{""stockitemname"":""32 mm Anti static bubble wrap (Blue) 50m"",""total_revenue"":7341600.0,""total_quantity"":60800},{""stockitemname"":""10 mm Anti static bubble wrap (Blue) 50m"",""total_revenue"":7278430.5,""total_quantity"":63930},{""stockitemname"":""20 mm Double sided bubble wrap 50m"",""total_revenue"":7146468.0,""total_quantity"":57540}]']",0,0,121.58,0.25,0.4,0.325,0.25,TRUE,TRUE,No North America filter; uses a global TOP_SELLING_PRODUCTS view instead of region-specific data; orders by TOTAL_REVENUE rather than the quantity metric shown in ground truth; may not return NA-specific top sellers.
+27,28,find the month with the highest sale transactions,"WITH MonthlyTransactionCounts AS (
+    SELECT 
+        YEAR(i.InvoiceDate) AS Year, 
+        MONTH(i.InvoiceDate) AS Month, 
+        COUNT(i.InvoiceID) AS TransactionCount
+    FROM SALES.INVOICES i
+    GROUP BY YEAR(i.InvoiceDate), MONTH(i.InvoiceDate)
+)
+SELECT 
+    Year, 
+    Month, 
+    TransactionCount
+FROM MonthlyTransactionCounts
+ORDER BY TransactionCount DESC
+LIMIT 1;","SELECT ms.YEAR AS YEAR,
+       ms.MONTH AS MONTH,
+       ms.TOTAL_SALES AS TOTAL_SALES
+FROM REPORTS.MONTHLY_SALES_AGGREGATE AS ms
+ORDER BY ms.TOTAL_SALES DESC, ms.YEAR ASC, ms.MONTH ASC
+LIMIT 1;",0.38,0,,,"['[{""year"":2015,""month"":7,""total_sales"":5929023.3799999999}]']",0,0,142.32,0.25,0.15,0.2,0.55,TRUE,TRUE,"Metric used is TOTAL_SALES (highest total sales) instead of counting transactions per month. Ground truth seeks the month with the maximum TransactionCount, not maximum TOTAL_SALES. Uses a pre-aggregated view; does not compute per-month transaction counts."
+28,29,which customers order more than 130 times?,"SELECT CUSTOMERNAME, ORDERCOUNT 
+FROM REPORTS.MV_CUSTOMERORDERFREQUENCY
+WHERE ORDERCOUNT > 130;","SELECT cus.CUSTOMERNAME, COUNT(*) AS ORDER_COUNT
+FROM SALES.ORDERS AS ord
+JOIN SALES.CUSTOMERS AS cus ON ord.CUSTOMERID = cus.CUSTOMERID
+GROUP BY cus.CUSTOMERNAME
+HAVING COUNT(*) > 130
+ORDER BY ORDER_COUNT DESC;",0.264,0,"ProgrammingError: 002003 (42S02): 01c50a43-0107-193c-0005-062e0011f206: SQL compilation error:
+Object 'WIDEWORLDIMPORTERS.REPORTS.MV_CUSTOMERORDERFREQUENCY' does not exist or not authorized.",,"['[{""customername"":""Tailspin Toys (Tolna, ND)"",""order_count"":150},{""customername"":""Bhaavan Rai"",""order_count"":147},{""customername"":""Anca Gogean"",""order_count"":146},{""customername"":""Wingtip Toys (Bourbonnais, IL)"",""order_count"":145},{""customername"":""Aleksandrs Riekstins"",""order_count"":145},{""customername"":""Tailspin Toys (New Baden, IL)"",""order_count"":144},{""customername"":""Tailspin Toys (Ashtabula, OH)"",""order_count"":144},{""customername"":""Tailspin Toys (North Crows Nest, IN)"",""order_count"":143},{""customername"":""Tailspin Toys (Tierra Verde, FL)"",""order_count"":141},{""customername"":""Wingtip Toys (Kapa\'a, HI)"",""order_count"":140},{""customername"":""Elina Kaleja"",""order_count"":140},{""customername"":""Wingtip Toys (Sarversville, PA)"",""order_count"":140},{""customername"":""Ingrida Zeltina"",""order_count"":140},{""customername"":""Bishwa Chatterjee"",""order_count"":139},{""customername"":""Tailspin Toys (Sentinel Butte, ND)"",""order_count"":139},{""customername"":""Tailspin Toys (Maypearl, TX)"",""order_count"":139},{""customername"":""Shantanu Huq"",""order_count"":138},{""customername"":""Wingtip Toys (West Frostproof, FL)"",""order_count"":138},{""customername"":""Tailspin Toys (Coney Island, MO)"",""order_count"":138},{""customername"":""Wingtip Toys (Federalsburg, MD)"",""order_count"":137},{""customername"":""Wingtip Toys (Bourneville, OH)"",""order_count"":137},{""customername"":""Prabodh Nair"",""order_count"":137},{""customername"":""Om Yadav"",""order_count"":137},{""customername"":""Ajitaab Pakalapati"",""order_count"":136},{""customername"":""Tailspin Toys (Slanesville, WV)"",""order_count"":136},{""customername"":""Wingtip Toys (Harkers Island, NC)"",""order_count"":136},{""customername"":""Wingtip Toys (Key Biscayne, FL)"",""order_count"":136},{""customername"":""Tailspin Toys (Vidrine, LA)"",""order_count"":135},{""customername"":""Wingtip Toys (Salt Wells, NV)"",""order_count"":135},{""customername"":""Tailspin Toys (Fieldbrook, CA)"",""order_count"":135},{""customername"":""Wingtip Toys (Knights Landing, CA)"",""order_count"":133},{""customername"":""Rajeev Sandhu"",""order_co",0,0,156.3,0.92,0.95,0.945,0.85,TRUE,TRUE,Grouping by CUSTOMERNAME could merge distinct customers sharing the same name; safer to group by CUSTOMERID and select the name. ORDER BY ORDER_COUNT may be dialect-dependent depending on alias support.
+29,30,calculate the annual supplier purchase totals for 2014?,"SELECT
+  YEAR(PO.ORDERDATE) AS YEAR,
+  S.SUPPLIERNAME,
+  SUM(POL.ExpectedUnitPricePerOuter * POL.ReceivedOuters) AS TOTAL_PURCHASED
+FROM PURCHASING.PURCHASEORDERS PO
+JOIN PURCHASING.SUPPLIERS S ON PO.SUPPLIERID = S.SUPPLIERID
+JOIN PURCHASING.PURCHASEORDERLINES POL ON PO.PURCHASEORDERID = POL.PURCHASEORDERID
+WHERE YEAR(PO.ORDERDATE) = 2014
+GROUP BY YEAR(PO.ORDERDATE), S.SUPPLIERNAME
+ORDER BY S.SUPPLIERNAME;","SELECT YEAR(PO.ORDERDATE) AS YEAR,
+       S.SUPPLIERNAME,
+       SUM(POL.EXPECTEDUNITPRICEPEROUTER * POL.RECEIVEDOUTERS) AS TOTAL_PURCHASED
+FROM PURCHASING.PURCHASEORDERS AS PO
+JOIN PURCHASING.SUPPLIERS AS S ON PO.SUPPLIERID = S.SUPPLIERID
+JOIN PURCHASING.PURCHASEORDERLINES AS POL ON PO.PURCHASEORDERID = POL.PURCHASEORDERID
+WHERE YEAR(PO.ORDERDATE) = 2014
+GROUP BY YEAR(PO.ORDERDATE), S.SUPPLIERNAME
+ORDER BY S.SUPPLIERNAME;",0.9889,1,,,"['[{""year"":2014,""suppliername"":""Fabrikam, Inc."",""total_purchased"":167641710.0},{""year"":2014,""suppliername"":""Litware, Inc."",""total_purchased"":58040657.3999999985}]']",0,0,127.62,1,1,1,1,TRUE,TRUE,No notable logic issues; correctly filters for 2014 and aggregates per supplier totals.
+30,31,what is the count of orders placed by each buying group?,"SELECT 
+    BG.BUYINGGROUPNAME, 
+    COUNT(O.ORDERID) AS ORDER_COUNT
+FROM 
+    SALES.ORDERS O
+JOIN 
+    SALES.CUSTOMERS C ON O.CUSTOMERID = C.CUSTOMERID
+JOIN 
+    SALES.BUYINGGROUPS BG ON C.BUYINGGROUPID = BG.BUYINGGROUPID
+GROUP BY 
+    BG.BUYINGGROUPNAME
+ORDER BY ORDER_COUNT DESC;","SELECT BG.BUYINGGROUPNAME, COUNT(O.ORDERID) AS ORDER_COUNT
+FROM SALES.ORDERS O
+JOIN SALES.CUSTOMERS C ON O.CUSTOMERID = C.CUSTOMERID
+JOIN SALES.BUYINGGROUPS BG ON C.BUYINGGROUPID = BG.BUYINGGROUPID
+GROUP BY BG.BUYINGGROUPNAME",0.9454,1,,,"['[{""buyinggroupname"":""Wingtip Toys"",""order_count"":23123},{""buyinggroupname"":""Tailspin Toys"",""order_count"":23296}]']",0,0,111.41,1,1,1,0.95,TRUE,TRUE,
+31,32,"list the recorded temperatures in the cold room, including the timestamp and temperature values","SELECT
+  crt.ColdRoomTemperatureID,
+  crt.RecordedWhen,
+  crt.Temperature
+FROM
+  WAREHOUSE.COLDROOMTEMPERATURES crt;","SELECT crt.COLDROOMTEMPERATUREID, crt.RECORDEDWHEN, crt.TEMPERATURE
+FROM WAREHOUSE.COLDROOMTEMPERATURES crt;",1,1,,,"['[{""coldroomtemperatureid"":3654737,""recordedwhen"":1464739164000,""temperature"":3.72},{""coldroomtemperatureid"":3654738,""recordedwhen"":1464739164000,""temperature"":4.7},{""coldroomtemperatureid"":3654739,""recordedwhen"":1464739164000,""temperature"":3.0},{""coldroomtemperatureid"":3654740,""recordedwhen"":1464739164000,""temperature"":3.58}]']",0,0,112.65,1,1,1,0.99,TRUE,TRUE,"No issues; query selects all three required fields (ColdRoomTemperatureID, RecordedWhen, Temperature) from the correct table to list recorded temperatures."
+32,33,"list the invoices issued in may 2014, including their ids, customer ids, and invoice dates","SELECT
+  INVOICEID,
+  CUSTOMERID,
+  INVOICEDATE
+FROM
+  SALES.INVOICES
+WHERE
+  YEAR (INVOICEDATE) = 2014
+  AND MONTH (INVOICEDATE) = 5;","SELECT i.INVOICEID, i.CUSTOMERID, i.INVOICEDATE
+FROM SALES.INVOICES AS i
+WHERE i.INVOICEDATE >= DATE '2014-05-01' AND i.INVOICEDATE < DATE '2014-06-01'
+ORDER BY i.INVOICEDATE;",0.7051,1,,,"['[{""invoiceid"":25171,""customerid"":196,""invoicedate"":1398902400000},{""invoiceid"":25172,""customerid"":158,""invoicedate"":1398902400000},{""invoiceid"":25173,""customerid"":159,""invoicedate"":1398902400000},{""invoiceid"":25174,""customerid"":472,""invoicedate"":1398902400000},{""invoiceid"":25175,""customerid"":81,""invoicedate"":1398902400000},{""invoiceid"":25176,""customerid"":1001,""invoicedate"":1398902400000},{""invoiceid"":25177,""customerid"":107,""invoicedate"":1398902400000},{""invoiceid"":25178,""customerid"":25,""invoicedate"":1398902400000},{""invoiceid"":25179,""customerid"":846,""invoicedate"":1398902400000},{""invoiceid"":25180,""customerid"":804,""invoicedate"":1398902400000},{""invoiceid"":25181,""customerid"":809,""invoicedate"":1398902400000},{""invoiceid"":25182,""customerid"":124,""invoicedate"":1398902400000},{""invoiceid"":25183,""customerid"":925,""invoicedate"":1398902400000},{""invoiceid"":25184,""customerid"":957,""invoicedate"":1398902400000},{""invoiceid"":25185,""customerid"":597,""invoicedate"":1398902400000},{""invoiceid"":25186,""customerid"":486,""invoicedate"":1398902400000},{""invoiceid"":25187,""customerid"":829,""invoicedate"":1398902400000},{""invoiceid"":25188,""customerid"":586,""invoicedate"":1398902400000},{""invoiceid"":25189,""customerid"":1001,""invoicedate"":1398902400000},{""invoiceid"":25190,""customerid"":158,""invoicedate"":1398902400000},{""invoiceid"":25191,""customerid"":913,""invoicedate"":1398902400000},{""invoiceid"":25192,""customerid"":157,""invoicedate"":1398902400000},{""invoiceid"":25193,""customerid"":522,""invoicedate"":1398902400000},{""invoiceid"":25194,""customerid"":972,""invoicedate"":1398902400000},{""invoiceid"":25195,""customerid"":448,""invoicedate"":1398902400000},{""invoiceid"":25196,""customerid"":826,""invoicedate"":1398902400000},{""invoiceid"":25197,""customerid"":401,""invoicedate"":1398902400000},{""invoiceid"":25198,""customerid"":580,""invoicedate"":1398902400000},{""invoiceid"":25199,""customerid"":982,""invoicedate"":1398902400000},{""invoiceid"":25200,""customerid"":84,""invoicedate"":1398902400000},{""invoiceid"":25201,""customerid"":182,""invoicedate",0,0,116.81,1,1,1,0.95,TRUE,TRUE,"None. Correctly lists invoices issued in May 2014 with id, customer id, and invoice date; uses an appropriate date range. The ORDER BY is optional for the question but harmless."
+33,34,"calculate monthly summary of total sales by aggregating the total chiller and dry items sold, grouped by invoice date","SELECT 
+    TO_CHAR(i.InvoiceDate, 'YYYY-MM') AS Month, 
+    SUM(i.totalchilleritems) + SUM(i.totaldryitems) AS TotalSales
+FROM 
+    SALES.INVOICES i
+GROUP BY 
+    TO_CHAR(i.InvoiceDate, 'YYYY-MM')
+ORDER BY 
+    Month;","SELECT TO_CHAR(INVOICEDATE, 'YYYY-MM') AS MONTH, SUM(TOTALCHILLERITEMS) + SUM(TOTALDRYITEMS) AS TOTAL_SALES FROM SALES.INVOICES GROUP BY TO_CHAR(INVOICEDATE, 'YYYY-MM') ORDER BY MONTH;",0.9707,1,,,"['[{""month"":""2013-01"",""total_sales"":5246},{""month"":""2013-02"",""total_sales"":3707},{""month"":""2013-03"",""total_sales"":5330},{""month"":""2013-04"",""total_sales"":5254},{""month"":""2013-05"",""total_sales"":5617},{""month"":""2013-06"",""total_sales"":5287},{""month"":""2013-07"",""total_sales"":5834},{""month"":""2013-08"",""total_sales"":4767},{""month"":""2013-09"",""total_sales"":5021},{""month"":""2013-10"",""total_sales"":5097},{""month"":""2013-11"",""total_sales"":4899},{""month"":""2013-12"",""total_sales"":4909},{""month"":""2014-01"",""total_sales"":5610},{""month"":""2014-02"",""total_sales"":4768},{""month"":""2014-03"",""total_sales"":5070},{""month"":""2014-04"",""total_sales"":5443},{""month"":""2014-05"",""total_sales"":5930},{""month"":""2014-06"",""total_sales"":5798},{""month"":""2014-07"",""total_sales"":6227},{""month"":""2014-08"",""total_sales"":5059},{""month"":""2014-09"",""total_sales"":5059},{""month"":""2014-10"",""total_sales"":5983},{""month"":""2014-11"",""total_sales"":5070},{""month"":""2014-12"",""total_sales"":5924},{""month"":""2015-01"",""total_sales"":5651},{""month"":""2015-02"",""total_sales"":5406},{""month"":""2015-03"",""total_sales"":5877},{""month"":""2015-04"",""total_sales"":6549},{""month"":""2015-05"",""total_sales"":6000},{""month"":""2015-06"",""total_sales"":6084},{""month"":""2015-07"",""total_sales"":6955},{""month"":""2015-08"",""total_sales"":5321},{""month"":""2015-09"",""total_sales"":6297},{""month"":""2015-10"",""total_sales"":6152},{""month"":""2015-11"",""total_sales"":5625},{""month"":""2015-12"",""total_sales"":5981},{""month"":""2016-01"",""total_sales"":5914},{""month"":""2016-02"",""total_sales"":5196},{""month"":""2016-03"",""total_sales"":6074},{""month"":""2016-04"",""total_sales"":5923},{""month"":""2016-05"",""total_sales"":6351}]']",0,0,143.96,0.95,1,0.975,0.95,TRUE,TRUE,Alias MONTH uses a reserved word style in some dialects; prefer a safer alias such as Month or quote it. Otherwise the query correctly aggregates totals by year-month and sums chiller and dry items.
+34,35,list the order details with customer names?,"SELECT 
+    o.OrderID, 
+    o.OrderDate, 
+    c.CustomerName
+FROM 
+    SALES.ORDERS o
+INNER JOIN 
+    SALES.CUSTOMERS c ON o.CustomerID = c.CustomerID;","SELECT o.ORDERID, o.ORDERDATE, c.CUSTOMERNAME
+FROM SALES.ORDERS AS o
+JOIN SALES.CUSTOMERS AS c ON o.CUSTOMERID = c.CUSTOMERID
+ORDER BY o.ORDERDATE DESC, o.ORDERID;",0.8293,1,,,"['[{""orderid"":73506,""orderdate"":1464652800000,""customername"":""Wingtip Toys (Cos Cob, CT)""},{""orderid"":73507,""orderdate"":1464652800000,""customername"":""Tailspin Toys (Slanesville, WV)""},{""orderid"":73508,""orderdate"":1464652800000,""customername"":""Can ozcan""},{""orderid"":73509,""orderdate"":1464652800000,""customername"":""Manca Hrastovsek""},{""orderid"":73510,""orderdate"":1464652800000,""customername"":""Lilli Sokk""},{""orderid"":73511,""orderdate"":1464652800000,""customername"":""Elina Kaleja""},{""orderid"":73512,""orderdate"":1464652800000,""customername"":""Wingtip Toys (Beals, ME)""},{""orderid"":73513,""orderdate"":1464652800000,""customername"":""Tailspin Toys (Yewed, OK)""},{""orderid"":73514,""orderdate"":1464652800000,""customername"":""Joel Carrillo""},{""orderid"":73515,""orderdate"":1464652800000,""customername"":""Tailspin Toys (Sinclair, WY)""},{""orderid"":73516,""orderdate"":1464652800000,""customername"":""Tailspin Toys (McCamey, TX)""},{""orderid"":73517,""orderdate"":1464652800000,""customername"":""Nils Kaulins""},{""orderid"":73518,""orderdate"":1464652800000,""customername"":""Shyam Poddar""},{""orderid"":73519,""orderdate"":1464652800000,""customername"":""Tailspin Toys (North Ridge, NY)""},{""orderid"":73520,""orderdate"":1464652800000,""customername"":""Ana Florea""},{""orderid"":73521,""orderdate"":1464652800000,""customername"":""Wingtip Toys (Birds, IL)""},{""orderid"":73522,""orderdate"":1464652800000,""customername"":""Tailspin Toys (Sauquoit, NY)""},{""orderid"":73523,""orderdate"":1464652800000,""customername"":""Wingtip Toys (Montoya, NM)""},{""orderid"":73524,""orderdate"":1464652800000,""customername"":""Milinka Zujovic""},{""orderid"":73525,""orderdate"":1464652800000,""customername"":""Wingtip Toys (Lynne, FL)""},{""orderid"":73526,""orderdate"":1464652800000,""customername"":""Baalaamjali Devulapalli""},{""orderid"":73527,""orderdate"":1464652800000,""customername"":""Lilli Sokk""},{""orderid"":73528,""orderdate"":1464652800000,""customername"":""Wingtip Toys (Sunburg, MN)""},{""orderid"":73529,""orderdate"":1464652800000,""customername"":""Wingtip Toys (Lytle, TX)""},{""orderid"":73530,""order",0,0,379.81,0.95,1,0.975,0.92,TRUE,TRUE,"Unnecessary ORDER BY clause (ORDER BY o.ORDERDATE DESC, o.ORDERID) not requested by the question; sorting could alter result presentation but not correctness."
+35,36,calculates the total discount amount given for each deal description?,"SELECT 
+    SD.DEALDESCRIPTION, 
+    SUM(OL.QUANTITY * OL.UNITPRICE * SD.DISCOUNTAMOUNT) AS TOTAL_DISCOUNT
+FROM 
+    SALES.ORDERLINES OL
+JOIN 
+    SALES.SPECIALDEALS SD 
+    ON OL.STOCKITEMID = SD.STOCKITEMID
+GROUP BY 
+    SD.DEALDESCRIPTION;","SELECT SD.DEALDESCRIPTION, SUM(OL.QUANTITY * OL.UNITPRICE * SD.DISCOUNTAMOUNT) AS TOTAL_DISCOUNT
+FROM WIDEWORLDIMPORTERS.SALES.ORDERLINES AS OL
+JOIN SALES.SPECIALDEALS AS SD ON OL.DESCRIPTION = SD.DEALDESCRIPTION
+GROUP BY SD.DEALDESCRIPTION",0.7317,1,,,['[]'],1,1,128.98,0.55,0.8,0.675,0.55,TRUE,FALSE,Incorrect join key (ON OL.DESCRIPTION = SD.DEALDESCRIPTION) instead of ON OL.STOCKITEMID = SD.STOCKITEMID; potential schema prefix inconsistency (WIDEWORLDIMPORTERS...). This likely yields incorrect totals or empty results.
+36,37,calculates the average transaction amount including tax for each customer?,"SELECT c.CUSTOMERNAME, AVG(ct.TRANSACTIONAMOUNT + ct.TAXAMOUNT) AS AVG_TRANSACTION_AMOUNT_WITH_TAX
+FROM WIDEWORLDIMPORTERS.SALES.CUSTOMERTRANSACTIONS ct
+JOIN WIDEWORLDIMPORTERS.SALES.CUSTOMERS c
+ON ct.CUSTOMERID = c.CUSTOMERID
+GROUP BY c.CUSTOMERNAME;","SELECT c.CUSTOMERNAME, AVG(ct.AMOUNTEXCLUDINGTAX + ct.TAXAMOUNT) AS AVG_TRANSACTION_AMOUNT_INCLUDING_TAX
+FROM SALES.CUSTOMERTRANSACTIONS AS ct
+JOIN SALES.CUSTOMERS AS c ON ct.CUSTOMERID = c.CUSTOMERID
+GROUP BY c.CUSTOMERNAME
+ORDER BY AVG_TRANSACTION_AMOUNT_INCLUDING_TAX DESC;",0.579,0,,,"['[{""customername"":""Wingtip Toys (Head Office)"",""avg_transaction_amount_including_tax"":2683.77450652},{""customername"":""Tailspin Toys (Head Office)"",""avg_transaction_amount_including_tax"":2679.36463223},{""customername"":""Jaroslav Fisar"",""avg_transaction_amount_including_tax"":2317.06814815},{""customername"":""Agrita Abele"",""avg_transaction_amount_including_tax"":2172.45166667},{""customername"":""Erik Malk"",""avg_transaction_amount_including_tax"":2093.34704545},{""customername"":""Kalyani Benjaree"",""avg_transaction_amount_including_tax"":1969.82461538},{""customername"":""Laszlo Gardenier"",""avg_transaction_amount_including_tax"":1951.20043062},{""customername"":""Hoc Tran"",""avg_transaction_amount_including_tax"":1910.63570652},{""customername"":""Mauno Laurila"",""avg_transaction_amount_including_tax"":1902.80161435},{""customername"":""Taj Syme"",""avg_transaction_amount_including_tax"":1876.78521505},{""customername"":""Seo-yun Paik"",""avg_transaction_amount_including_tax"":1795.91694064},{""customername"":""Camille Authier"",""avg_transaction_amount_including_tax"":1782.8652193},{""customername"":""Hue Ton"",""avg_transaction_amount_including_tax"":1772.16271186},{""customername"":""In-Su Bae"",""avg_transaction_amount_including_tax"":1772.10483412},{""customername"":""Bahaar Asef zade"",""avg_transaction_amount_including_tax"":1766.51966184},{""customername"":""Baran Jonsson"",""avg_transaction_amount_including_tax"":1757.13862857},{""customername"":""Abhra Ganguly"",""avg_transaction_amount_including_tax"":1755.33789474},{""customername"":""Nasrin Omidzadeh"",""avg_transaction_amount_including_tax"":1740.60682008},{""customername"":""Ida Celma"",""avg_transaction_amount_including_tax"":1729.37009804},{""customername"":""Amarasimha Vinjamuri"",""avg_transaction_amount_including_tax"":1728.51414847},{""customername"":""Daniel Martensson"",""avg_transaction_amount_including_tax"":1707.69643777},{""customername"":""Dinh Mai"",""avg_transaction_amount_including_tax"":1706.35894958},{""customername"":""Satish Mittal"",""avg_transaction_amount_including_tax"":1706.31493562},{""",0,0,158.73,0.92,1,0.96,0.85,TRUE,TRUE,Relies on AMOUNTEXCLUDINGTAX as the pre-tax amount (assumes it equals TRANSACTIONAMOUNT in ground truth); ORDER BY clause is not required for the stated goal.
+37,38,What are the top 100 customers based on the highest cumulative transaction amounts?,"SELECT
+  C.CUSTOMERID,
+  C.CUSTOMERNAME,
+  SUM(CT.TRANSACTIONAMOUNT) AS TOTAL_TRANSACTIONS
+FROM
+  WIDEWORLDIMPORTERS.SALES.CUSTOMERS C
+  JOIN WIDEWORLDIMPORTERS.SALES.CUSTOMERTRANSACTIONS CT ON C.CUSTOMERID = CT.CUSTOMERID
+GROUP BY
+  C.CUSTOMERID,
+  C.CUSTOMERNAME
+ORDER BY
+  TOTAL_TRANSACTIONS DESC
+LIMIT
+  100;","SELECT c.CUSTOMERNAME, SUM(ct.TRANSACTIONAMOUNT) AS TOTAL_TRANSACTION_AMOUNT
+FROM SALES.CUSTOMERTRANSACTIONS AS ct
+JOIN SALES.CUSTOMERS AS c ON ct.CUSTOMERID = c.CUSTOMERID
+WHERE ct.ISFINALIZED = TRUE
+GROUP BY c.CUSTOMERNAME, c.CUSTOMERID
+ORDER BY TOTAL_TRANSACTION_AMOUNT DESC
+LIMIT 100;",0.5172,0,,,"['[{""customername"":""Akhil Nadar"",""total_transaction_amount"":0.0},{""customername"":""Andris Saulitis"",""total_transaction_amount"":0.0},{""customername"":""Krishnam Allu"",""total_transaction_amount"":0.0},{""customername"":""Baran Jonsson"",""total_transaction_amount"":0.0},{""customername"":""Risto Valbe"",""total_transaction_amount"":0.0},{""customername"":""Be Trang"",""total_transaction_amount"":0.0},{""customername"":""Prabodh Nair"",""total_transaction_amount"":0.0},{""customername"":""Richard Zahradnicek"",""total_transaction_amount"":0.0},{""customername"":""Gunnar Lohmus"",""total_transaction_amount"":0.0},{""customername"":""Daakshaayaani Sankaramanchi"",""total_transaction_amount"":0.0},{""customername"":""Ludmila Smidova"",""total_transaction_amount"":0.0},{""customername"":""Amarakumaar Gadiyaram"",""total_transaction_amount"":0.0},{""customername"":""Om Yadav"",""total_transaction_amount"":0.0},{""customername"":""Yves Belisle"",""total_transaction_amount"":0.0},{""customername"":""Mauno Laurila"",""total_transaction_amount"":0.0},{""customername"":""Vladimir Henzl"",""total_transaction_amount"":0.0},{""customername"":""Bimla Prabhup\\u00c4\\u0081da"",""total_transaction_amount"":0.0},{""customername"":""Rodrigo Figueiredo"",""total_transaction_amount"":0.0},{""customername"":""Libuse Valentova"",""total_transaction_amount"":0.0},{""customername"":""Ajitaab Pakalapati"",""total_transaction_amount"":0.0},{""customername"":""Lorin Astrom"",""total_transaction_amount"":0.0},{""customername"":""Taneli Riutta"",""total_transaction_amount"":0.0},{""customername"":""Daevasree Samavedam"",""total_transaction_amount"":0.0},{""customername"":""Gayatri Gajula"",""total_transaction_amount"":0.0},{""customername"":""Maryann Huddleston"",""total_transaction_amount"":0.0},{""customername"":""Taj Syme"",""total_transaction_amount"":0.0},{""customername"":""Suparna Bhattacharya"",""total_transaction_amount"":0.0},{""customername"":""Bhagavateeprasaad Malladi"",""total_transaction_amount"":0.0},{""customername"":""Serdar ozCelik"",""total_transaction_amount"":0.0},{""customername"":""Nils Kaulins"",""total_transaction_amount"":0.0},{""cust",0,0,150.85,0.75,0.85,0.8,0.65,TRUE,TRUE,"Includes a WHERE ct.ISFINALIZED = TRUE filter which may exclude non-finalized transactions from the totals; selects only CUSTOMERNAME (no CUSTOMERID) which can be non-unique and cause ambiguous rows if multiple customers share the same name; GROUP BY includes both CUSTOMERNAME and CUSTOMERID (fine) but the SELECT does not expose CUSTOMERID, potentially hiding a stable key for disambiguation."
+38,39,list the supplier transactions with supplier names?,"SELECT 
+    st.SupplierTransactionID, 
+    st.TransactionDate, 
+    s.SupplierName
+FROM 
+    PURCHASING.SUPPLIERTRANSACTIONS st
+INNER JOIN 
+    PURCHASING.SUPPLIERS s ON st.SupplierID = s.SupplierID;","SELECT STX.SUPPLIERTRANSACTIONID, STX.TRANSACTIONDATE, SP.SUPPLIERNAME
+FROM PURCHASING.SUPPLIERTRANSACTIONS AS STX
+JOIN WEBSITE.SUPPLIERS AS SP ON STX.SUPPLIERID = SP.SUPPLIERID;",0.9086,1,,,"['[{""suppliertransactionid"":293115,""transactiondate"":1451865600000,""suppliername"":""A Datum Corporation""},{""suppliertransactionid"":293124,""transactiondate"":1451865600000,""suppliername"":""A Datum Corporation""},{""suppliertransactionid"":293125,""transactiondate"":1451865600000,""suppliername"":""A Datum Corporation""},{""suppliertransactionid"":293548,""transactiondate"":1451952000000,""suppliername"":""A Datum Corporation""},{""suppliertransactionid"":293973,""transactiondate"":1452038400000,""suppliername"":""A Datum Corporation""},{""suppliertransactionid"":294505,""transactiondate"":1452124800000,""suppliername"":""A Datum Corporation""},{""suppliertransactionid"":295785,""transactiondate"":1452470400000,""suppliername"":""A Datum Corporation""},{""suppliertransactionid"":134,""transactiondate"":1357084800000,""suppliername"":""Contoso, Ltd.""},{""suppliertransactionid"":1423,""transactiondate"":1357516800000,""suppliername"":""Contoso, Ltd.""},{""suppliertransactionid"":275478,""transactiondate"":1446422400000,""suppliername"":""Fabrikam, Inc.""},{""suppliertransactionid"":275487,""transactiondate"":1446422400000,""suppliername"":""Fabrikam, Inc.""},{""suppliertransactionid"":275490,""transactiondate"":1446422400000,""suppliername"":""Fabrikam, Inc.""},{""suppliertransactionid"":275777,""transactiondate"":1446508800000,""suppliername"":""Fabrikam, Inc.""},{""suppliertransactionid"":276313,""transactiondate"":1446595200000,""suppliername"":""Fabrikam, Inc.""},{""suppliertransactionid"":276745,""transactiondate"":1446681600000,""suppliername"":""Fabrikam, Inc.""},{""suppliertransactionid"":277097,""transactiondate"":1446768000000,""suppliername"":""Fabrikam, Inc.""},{""suppliertransactionid"":277561,""transactiondate"":1447027200000,""suppliername"":""Fabrikam, Inc.""},{""suppliertransactionid"":277567,""transactiondate"":1447027200000,""suppliername"":""Fabrikam, Inc.""},{""suppliertransactionid"":277570,""transactiondate"":1447027200000,""suppliername"":""Fabrikam, Inc.""},{""suppliertransactionid"":277891,""transactiondate"":1447113600000,""suppliername"":""Fabrikam, Inc.""},{""suppliertransactionid"":2783",0,0,151.77,0.95,0.95,0.95,0.85,TRUE,TRUE,None.

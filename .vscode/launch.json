@@ -1,0 +1,15 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python: csv-sql-judge",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "csv_sql_judge.main",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "envFile": "${workspaceFolder}/.env"
+    }
+  ]
+}
