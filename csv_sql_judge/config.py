@@ -29,10 +29,22 @@ class Settings:
 
 
 def load_settings() -> Settings:
-    """Load settings from a ``.env`` file (if present) and the environment."""
+    """Load the judge's LLM settings from a ``.env`` file and the environment.
+
+    The judge uses its own ``JUDGE_*`` variables so the scoring model can differ
+    from the agent LLM (``MODEL_NAME`` / ``BASE_URL`` / ``NVIDIA_API_KEY``) used
+    during retrieval eval. Each ``JUDGE_*`` var falls back to its shared
+    counterpart when unset.
+    """
     load_dotenv()
     return Settings(
-        model_name=os.environ.get("MODEL_NAME", _DEFAULT_MODEL),
-        base_url=os.environ.get("BASE_URL", _DEFAULT_BASE_URL),
-        api_key=os.environ.get("NVIDIA_API_KEY", ""),
+        model_name=os.environ.get(
+            "JUDGE_MODEL_NAME", os.environ.get("MODEL_NAME", _DEFAULT_MODEL)
+        ),
+        base_url=os.environ.get(
+            "JUDGE_BASE_URL", os.environ.get("BASE_URL", _DEFAULT_BASE_URL)
+        ),
+        api_key=os.environ.get(
+            "JUDGE_API_KEY", os.environ.get("NVIDIA_API_KEY", "")
+        ),
     )
