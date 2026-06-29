@@ -1,0 +1,412 @@
+[
+  {
+    "question_id": 1,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "what is the average order value of orders with promotions and without promotions on 2024's black friday?",
+    "evidence": "",
+    "SQL": "with blackfridayorders as (\n    select \n        o.orderid,\n        o.orderdate,\n        sum(ol.quantity * ol.unitprice) as ordervalue,\n        case when sd.specialdealid is not null then 'with promotion' else 'without promotion' end as promotionstatus\n    from sales.orders o\n    left join sales.orderlines ol on o.orderid = ol.orderid\n    left join sales.specialdeals sd on ol.stockitemid = sd.stockitemid\n    where o.orderdate = '2024-11-29'\n    group by o.orderid, o.orderdate, promotionstatus\n)\nselect \n    promotionstatus,\n    avg(ordervalue) as averageordervalue\nfrom blackfridayorders\ngroup by promotionstatus;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 2,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "which is the single earliest opened account name, select 1 if multiple accounts share the same date",
+    "evidence": "",
+    "SQL": "select\n  customername,\n  accountopeneddate\nfrom\n  sales.customers\norder by\n  accountopeneddate asc\nlimit\n  1;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 3,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "calculate the customer count by state province name",
+    "evidence": "",
+    "SQL": "select\n    sp.stateprovincename as state_province_name,\n    count(c.customerid) as customer_count\nfrom sales.customers c\njoin application.cities ct on c.deliverycityid = ct.cityid\njoin application.stateprovinces sp on ct.stateprovinceid = sp.stateprovinceid\ngroup by sp.stateprovincename \norder by state_province_name desc;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 4,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "calculate the average transaction amount per customer",
+    "evidence": "",
+    "SQL": "select \n    c.customername as customername, \n    ct.customerid as customerid,\n    avg(ct.transactionamount) as averagetransactionamount\nfrom \n    sales.customertransactions ct\nleft join \n    sales.customers c \n    on ct.customerid = c.customerid\nwhere \n    ct.isfinalized = true\ngroup by \n    c.customername;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 5,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "calculate the average completed successfully transaction amount",
+    "evidence": "",
+    "SQL": "select \n    avg(transactionamount) as averagetransactionamount\nfrom \n    sales.customertransactions\nwhere \n    isfinalized = true;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 6,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "calculate the average quantity sold for each stock item",
+    "evidence": "",
+    "SQL": "select \n    si.stockitemname, \n    avg(ol.quantity) as averagequantity\nfrom \n    sales.orderlines ol\njoin \n    warehouse.stockitems si on ol.stockitemid = si.stockitemid\ngroup by \n    si.stockitemname\norder by \n    averagequantity desc;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 7,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "What was the total revenue generated in the first quarter of 2013?",
+    "evidence": "",
+    "SQL": "select\n  sum(\n    ol.quantity * ol.unitprice * (1 - sd.discountamount)\n  ) as total_revenue\nfrom\n  sales.orders o\n  join sales.orderlines ol on o.orderid = ol.orderid\n  join sales.specialdeals sd on ol.stockitemid = sd.stockitemid\nwhere\n  o.orderdate between '2013-01-01' and '2013-03-31';",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 8,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "how many customers had backorders?",
+    "evidence": "",
+    "SQL": "select \n    count(distinct customerid) as numberofcustomerswithbackorders\nfrom \n    sales.orders\nwhere \n    isundersupplybackordered = true;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 9,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "how many customers had backorders? please break that by year, starting from 2000 to 2020?",
+    "evidence": "",
+    "SQL": "select\n  extract(year from o.orderdate)::int as year,\n  count(distinct o.customerid) as numberofcustomerswithbackorders\nfrom\n  sales.orders o\nwhere\n  o.isundersupplybackordered = true\n  and extract(year from o.orderdate) between 2000 and 2020\ngroup by\n  extract(year from o.orderdate)\norder by\n  year;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 10,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "Identify the top 10 brands by stock count",
+    "evidence": "",
+    "SQL": "select brand, count(*) as stock_count\nfrom warehouse.stockitems\ngroup by brand\norder by stock_count desc\nlimit 10;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 11,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "who is the biggest consumer of 'Northwind' brand?",
+    "evidence": "",
+    "SQL": "with brandstockitems as (\n    select\n        stockitemid\n    from warehouse.stockitems_archive\n    where brand = 'Northwind'\n),\ncustomerpurchases as (\n    select\n        o.customerid,\n        sum(ol.quantity) as totalquantity\n    from sales.orderlines ol\n    join sales.orders o on ol.orderid = o.orderid\n    where ol.stockitemid in (select stockitemid from brandstockitems)\n    group by o.customerid\n)\nselect\n    c.customername,\n    cp.totalquantity\nfrom customerpurchases cp\njoin sales.customers c on cp.customerid = c.customerid\norder by cp.totalquantity desc\nlimit 1;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 12,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "list all orders from 01 november 2013?",
+    "evidence": "",
+    "SQL": "select \n    orderid, \n    orderdate\nfrom \n    sales.orders\nwhere \n    orderdate >= '2013-11-01'\norder by \n    orderdate;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 13,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "what is the average order value by customer category?",
+    "evidence": "",
+    "SQL": "select \n    cc.customercategoryname, \n    avg(ct.transactionamount) as averageordervalue\nfrom \n    sales.customertransactions ct\njoin \n    sales.customers cu on ct.customerid = cu.customerid\njoin \n    sales.customercategories cc on cu.customercategoryid = cc.customercategoryid\ngroup by \n    cc.customercategoryname\norder by \n    averageordervalue desc;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 14,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "what are the 5 top cities with the highest delay time in delivery?",
+    "evidence": "Uses DELIVERYCITYID instead of city name, which may not match the question's intent.",
+    "SQL": "with city_delays as (\n    select\n        c2.cityid as cityid,\n        c2.cityname as cityname,\n        avg(o.pickingcompletedwhen::date - o.orderdate::date) as avgdelaydays\n    from\n        sales.orders o\n    join sales.customers c\n        on o.customerid = c.customerid\n    join application.cities c2\n        on c.deliverycityid = c2.cityid\n    where\n        o.pickingcompletedwhen > o.orderdate\n    group by\n        c2.cityid,\n        c2.cityname\n)\nselect\n    cityname,\n    avgdelaydays\nfrom\n    city_delays\norder by\n    avgdelaydays desc \nlimit 5;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 15,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "how many customers bought with discount in 2024?",
+    "evidence": "",
+    "SQL": "select \n    count(distinct o.customerid) as numberofcustomerswithdiscount\nfrom \n    sales.orders o\njoin \n    sales.orderlines ol on o.orderid = ol.orderid\njoin \n    sales.specialdeals sd on ol.stockitemid = sd.stockitemid\nwhere \n    o.orderdate between '2024-01-01' and '2024-12-31';",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 16,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "what is the ratio of salesmen to employees?",
+    "evidence": "",
+    "SQL": "select \n    (sum(case when issalesperson = true then 1 else 0 end) * 1.0 / sum(case when isemployee = true then 1 else 0 end)) as salesmentoemployeesratio\nfrom application.people;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 17,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "list top 5 suppliers by how many items they sold?",
+    "evidence": "",
+    "SQL": "select \n    s.suppliername, \n    sum(ol.quantity) as totalitemssold\nfrom \n    sales.orderlines ol\njoin \n    warehouse.stockitems si on ol.stockitemid = si.stockitemid\njoin \n    purchasing.suppliers s on si.supplierid = s.supplierid\ngroup by \n    s.suppliername\norder by \n    totalitemssold desc\nlimit 5;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 18,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "count number of vehicles?",
+    "evidence": "",
+    "SQL": "select count(distinct vehicleregistration) as vehiclecount\nfrom warehouse.vehicletemperatures;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 19,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "calculate the average unit price of items in the stock grouped by size?",
+    "evidence": "",
+    "SQL": "select\n    size,\n    avg(unitprice) as average_unit_price\nfrom\n    warehouse.stockitems\ngroup by\n    size\norder by\n    size;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 20,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "count the items in stock which don't have tax rate attached?",
+    "evidence": "",
+    "SQL": "select \n    count(*) as itemswithouttaxrate\nfrom \n    warehouse.stockitems\nwhere \n    taxrate is null;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 21,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "top 6 search terms the stock items are being searched by?",
+    "evidence": "",
+    "SQL": "select \n    searchdetails, \n    count(*) as search_count\nfrom \n    warehouse.stockitems\ngroup by \n    searchdetails\norder by \n    search_count desc\nlimit 6;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 22,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "top 5 cities with the highest number of suppliers?",
+    "evidence": "",
+    "SQL": "select \n    c.cityname, \n    count(s.supplierid) as suppliercount\nfrom \n    application.cities c\njoin \n    purchasing.suppliers s on c.cityid = s.deliverycityid\ngroup by \n    c.cityname\norder by \n    suppliercount desc\nlimit 5;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 23,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "top 5 ratio of population of a city to the suppliers in it?",
+    "evidence": "",
+    "SQL": "with citysuppliercount as (\n    select\n        c.cityname,\n        c.latestrecordedpopulation,\n        count(s.supplierid) as suppliercount\n    from application.cities as c\n    left join purchasing.suppliers as s\n        on c.cityid = s.deliverycityid\n    group by c.cityname, c.latestrecordedpopulation\n)\nselect\n    cityname,\n    latestrecordedpopulation,\n    suppliercount,\n    latestrecordedpopulation / nullif(suppliercount, 0) as populationtosupplierratio\nfrom citysuppliercount\norder by populationtosupplierratio desc\nlimit 5;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 24,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "what was the most successful special deal?",
+    "evidence": "",
+    "SQL": "select \n    sd.dealdescription, \n    sum(ol.quantity * ol.unitprice * (1 - sd.discountamount)) as total_revenue\nfrom \n    sales.orderlines ol\njoin \n    sales.specialdeals sd \n    on ol.stockitemid = sd.stockitemid\ngroup by \n    sd.dealdescription\norder by \n    total_revenue desc\nlimit 1;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 25,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "what day was the highest number of items ordered by customers?",
+    "evidence": "",
+    "SQL": "select\n  o.orderdate,\n  sum(ol.quantity) as total_packages\nfrom sales.orders as o\njoin sales.orderlines as ol\n  on o.orderid = ol.orderid\ngroup by o.orderdate\norder by total_packages desc\nlimit 1;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 26,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "calc top 3 geographical area that a company targets?",
+    "evidence": "",
+    "SQL": "select c.countryname as geographicalarea, count(cust.customerid) as targetcount\nfrom application.countries c\njoin application.stateprovinces sp on c.countryid = sp.countryid\njoin application.cities ci on sp.stateprovinceid = ci.stateprovinceid\njoin sales.customers cust on ci.cityid = cust.postalcityid\ngroup by c.countryname\norder by targetcount desc\nlimit 3;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 27,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "what are the 4 best sellers in \"North America\"?",
+    "evidence": "",
+    "SQL": "with northamericacountries as (    select      countryid    from      application.countries    where      continent = 'North America'  ),  northamericacustomers as (    select      customers.customerid    from      sales.customers      join application.cities on customers.deliverycityid = cities.cityid      join application.stateprovinces on cities.stateprovinceid = stateprovinces.stateprovinceid    where      stateprovinces.countryid in (        select          countryid        from          northamericacountries      )  ),  northamericasales as (    select      invoicelines.stockitemid,      sum(invoicelines.quantity) as total_quantity    from      sales.invoicelines      join sales.invoices on invoicelines.invoiceid = invoices.invoiceid    where      invoices.customerid in (        select          customerid        from          northamericacustomers      )    group by      invoicelines.stockitemid  )select  northamericasales.stockitemid,  northamericasales.total_quantityfrom  northamericasalesorder by  northamericasales.total_quantity desclimit  4;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 28,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "find the month with the highest sale transactions",
+    "evidence": "",
+    "SQL": "with monthlytransactioncounts as (\n    select \n        extract(year from i.invoicedate)::int as year, \n        extract(month from i.invoicedate)::int as month, \n        count(i.invoiceid) as transactioncount\n    from sales.invoices i\n    group by extract(year from i.invoicedate), extract(month from i.invoicedate)\n)\nselect \n    year, \n    month, \n    transactioncount\nfrom monthlytransactioncounts\norder by transactioncount desc\nlimit 1;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 29,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "which customers order more than 130 times?",
+    "evidence": "",
+    "SQL": "select customername, total_orders as ordercount \nfrom reports.customer_order_summaries\nwhere total_orders > 130;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 30,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "calculate the annual supplier purchase totals for 2014?",
+    "evidence": "",
+    "SQL": "select\n  extract(year from po.orderdate)::int as year,\n  s.suppliername,\n  sum(pol.expectedunitpriceperouter * pol.receivedouters) as total_purchased\nfrom purchasing.purchaseorders po\njoin purchasing.suppliers s on po.supplierid = s.supplierid\njoin purchasing.purchaseorderlines pol on po.purchaseorderid = pol.purchaseorderid\nwhere extract(year from po.orderdate) = 2014\ngroup by extract(year from po.orderdate), s.suppliername\norder by s.suppliername;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 31,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "what is the count of orders placed by each buying group?",
+    "evidence": "",
+    "SQL": "select \n    bg.buyinggroupname, \n    count(o.orderid) as order_count\nfrom \n    sales.orders o\njoin \n    sales.customers c on o.customerid = c.customerid\njoin \n    sales.buyinggroups bg on c.buyinggroupid = bg.buyinggroupid\ngroup by \n    bg.buyinggroupname\norder by order_count desc;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 32,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "list the recorded temperatures in the cold room, including the timestamp and temperature values",
+    "evidence": "",
+    "SQL": "select\n  crt.coldroomtemperatureid,\n  crt.recordedwhen,\n  crt.temperature\nfrom\n  warehouse.coldroomtemperatures crt;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 33,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "list the invoices issued in may 2014, including their ids, customer ids, and invoice dates",
+    "evidence": "",
+    "SQL": "select\n  invoiceid,\n  customerid,\n  invoicedate\nfrom\n  sales.invoices\nwhere\n  extract(year from invoicedate) = 2014\n  and extract(month from invoicedate) = 5;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 34,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "calculate monthly summary of total sales by aggregating the total chiller and dry items sold, grouped by invoice date",
+    "evidence": "",
+    "SQL": "select \n    to_char(i.invoicedate, 'yyyy-mm') as month, \n    sum(i.totalchilleritems) + sum(i.totaldryitems) as totalsales\nfrom \n    sales.invoices i\ngroup by \n    to_char(i.invoicedate, 'yyyy-mm')\norder by \n    month;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 35,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "list the order details with customer names?",
+    "evidence": "",
+    "SQL": "select \n    o.orderid, \n    o.orderdate, \n    c.customername\nfrom \n    sales.orders o\ninner join \n    sales.customers c on o.customerid = c.customerid;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 36,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "calculates the total discount amount given for each deal description?",
+    "evidence": "",
+    "SQL": "select \n    sd.dealdescription, \n    sum(ol.quantity * ol.unitprice * sd.discountamount) as total_discount\nfrom \n    sales.orderlines ol\njoin \n    sales.specialdeals sd \n    on ol.stockitemid = sd.stockitemid\ngroup by \n    sd.dealdescription;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 37,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "calculates the average transaction amount including tax for each customer?",
+    "evidence": "",
+    "SQL": "select c.customername, avg(ct.transactionamount + ct.taxamount) as avg_transaction_amount_with_tax\nfrom sales.customertransactions ct\njoin sales.customers c\non ct.customerid = c.customerid\ngroup by c.customername;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 38,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "What are the top 100 customers based on the highest cumulative transaction amounts?",
+    "evidence": "",
+    "SQL": "select\n  c.customerid,\n  c.customername,\n  sum(ct.transactionamount) as total_transactions\nfrom\n  sales.customers c\n  join sales.customertransactions ct on c.customerid = ct.customerid\ngroup by\n  c.customerid,\n  c.customername\norder by\n  total_transactions desc\nlimit\n  100;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 39,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "list the supplier transactions with supplier names?",
+    "evidence": "",
+    "SQL": "select \n    st.suppliertransactionid, \n    st.transactiondate, \n    s.suppliername\nfrom \n    purchasing.suppliertransactions st\ninner join \n    purchasing.suppliers s on st.supplierid = s.supplierid;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 40,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "list the order details with stock item names?",
+    "evidence": "",
+    "SQL": "select \n    o.orderid, \n    o.orderdate, \n    ol.orderlineid, \n    si.stockitemname\nfrom \n    sales.orders o\njoin \n    sales.orderlines ol on o.orderid = ol.orderid\njoin \n    warehouse.stockitems si on ol.stockitemid = si.stockitemid;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  },
+  {
+    "question_id": 41,
+    "db_id": "WIDEWORLDIMPORTERS",
+    "question": "list the order details with special deals?",
+    "evidence": "",
+    "SQL": "select \n    o.orderid, \n    o.orderdate, \n    sd.dealdescription, \n    sd.discountamount\nfrom \n    sales.orders o\ninner join \n    sales.orderlines ol on o.orderid = ol.orderid\ninner join \n    sales.specialdeals sd on ol.stockitemid = sd.stockitemid;",
+    "difficulty": "",
+    "answer_raw": "",
+    "answer": ""
+  }
+]
