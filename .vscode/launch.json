@@ -1,12 +1,12 @@
 {
   "version": "0.2.0",
   "configurations": [
-    // ── csv-sql-judge (LLM re-scoring of eval CSVs) ───────────────────────
+    // ── sql-eval-judge (LLM re-scoring of eval CSVs) ───────────────────────
     {
-      "name": "Python: csv-sql-judge",
+      "name": "Python: sql-eval-judge",
       "type": "debugpy",
       "request": "launch",
-      "module": "csv_sql_judge.main",
+      "module": "sql_eval_judge.main",
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",

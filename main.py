@@ -4,7 +4,7 @@
 
 """Convenience entry point so the tool can be run with ``python main.py``."""
 
-from csv_sql_judge.main import main
+from sql_eval_judge.main import main
 
 if __name__ == "__main__":
     main()

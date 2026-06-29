@@ -1,4 +1,4 @@
-# csv-sql-judge
+# sql-eval-judge
 
 A Text-to-SQL evaluation toolkit. It bundles three workflows in one project:
 
@@ -12,7 +12,7 @@ code from the sibling repos rather than re-implementing it.
 ## Layout
 
 ```
-csv_sql_judge/        standalone LLM scorer (no GSF dependency)
+sql_eval_judge/       standalone LLM scorer (no GSF dependency)
 evaluation/           GSF-backed ingestion + retrieval eval
   enrich_graph.py     graph metadata + custom-analysis enrichment
   local_ingest.py     source DB -> pgvector ingest (calls enrich_graph)
@@ -52,7 +52,7 @@ All settings are read from `.env` (see `.env.example` for the full list):
 | Variable                                | Used by                | Description                                   |
 | --------------------------------------- | ---------------------- | --------------------------------------------- |
 | `NVIDIA_API_KEY`, `BASE_URL`, `MODEL_NAME` | agent (eval)        | LLM that the text-to-SQL agent generates with. |
-| `JUDGE_API_KEY`, `JUDGE_BASE_URL`, `JUDGE_MODEL_NAME` | judge   | LLM that csv-sql-judge scores with (falls back to the shared vars above). |
+| `JUDGE_API_KEY`, `JUDGE_BASE_URL`, `JUDGE_MODEL_NAME` | judge   | LLM that sql-eval-judge scores with (falls back to the shared vars above). |
 | `EMBED_API_KEY`, `EMBED_ENDPOINT`, `EMBED_MODEL` | ingest + eval | Embedding endpoint (must match ingest/query). |
 | `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD` | ingest + eval  | Graph store connection.                       |
 | `POSTGRES_*`                            | ingest + eval          | pgvector store connection.                    |
@@ -71,7 +71,7 @@ Drop one or more CSV files into `input/`. Each file must contain `question`,
 Scored CSVs are written to `output/<name>_scores.csv`.
 
 ```bash
-uv run csv-sql-judge            # or: uv run python main.py
+uv run sql-eval-judge           # or: uv run python main.py
 ```
 
 Options: `--input-dir` (default `input`), `--output-dir` (default `output`),

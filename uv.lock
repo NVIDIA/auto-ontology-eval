@@ -335,7 +335,7 @@ wheels = [
 ]
 
 [[package]]
-name = "csv-sql-judge"
+name = "sql-eval-judge"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
