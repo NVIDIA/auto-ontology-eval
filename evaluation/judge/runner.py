@@ -94,7 +94,28 @@ def run(
             f.flush()
 
     logger.info("Scored %d/%d rows. Output: %s", scored, total, output_path)
-    _print_summary(output_path)
+    try:
+        import pandas as pd
+
+        df = pd.read_csv(output_path)
+
+        def _avg(col: str) -> float:
+            if col not in df.columns:
+                return float("nan")
+            series = pd.Series(pd.to_numeric(df[col], errors="coerce"))
+            return float(series.mean())
+
+        sep = "=" * 50
+        logger.info("%s", sep)
+        logger.info("  LLM SCORING SUMMARY  (%d questions)", len(df))
+        logger.info("%s", sep)
+        logger.info("  Logic match            : %.4f", _avg("llm_logic_match"))
+        logger.info("  Semantic match         : %.4f", _avg("llm_semantic_match"))
+        logger.info("  Final weighted score   : %.4f", _avg("llm_final_weighted_score"))
+        logger.info("  SQL vs ground truth    : %.4f", _avg("llm_sql_vs_ground_truth"))
+        logger.info("%s", sep)
+    except Exception as exc:  # noqa: BLE001 - summary is best-effort
+        logger.warning("Could not compute summary: %s", exc)
 
 
 def run_directory(
@@ -116,27 +137,3 @@ def run_directory(
         output_path = output_dir / f"{csv_path.stem}_scores.csv"
         logger.info("Processing %s -> %s", csv_path, output_path)
         run(csv_path, output_path, settings=settings, workers=workers)
-
-
-def _print_summary(output_path: Path) -> None:
-    try:
-        import pandas as pd
-
-        df = pd.read_csv(output_path)
-
-        def _avg(col: str) -> float:
-            if col not in df.columns:
-                return float("nan")
-            return pd.to_numeric(df[col], errors="coerce").mean()
-
-        sep = "=" * 50
-        print(f"\n{sep}")
-        print(f"  LLM SCORING SUMMARY  ({len(df)} questions)")
-        print(sep)
-        print(f"  Logic match            : {_avg('llm_logic_match'):.4f}")
-        print(f"  Semantic match         : {_avg('llm_semantic_match'):.4f}")
-        print(f"  Final weighted score   : {_avg('llm_final_weighted_score'):.4f}")
-        print(f"  SQL vs ground truth    : {_avg('llm_sql_vs_ground_truth'):.4f}")
-        print(sep)
-    except Exception as exc:  # noqa: BLE001 - summary is best-effort
-        logger.warning("Could not compute summary: %s", exc)
