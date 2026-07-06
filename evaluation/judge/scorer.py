@@ -10,13 +10,13 @@ import logging
 from functools import lru_cache
 from typing import TYPE_CHECKING
 
-from evaluation_judge.config import Settings
-from evaluation_judge.models import SQL_SCORING_PROMPT, SqlScore
+from evaluation.judge.config import Settings
+from evaluation.judge.models import SQL_SCORING_PROMPT, SqlScore
 
 if TYPE_CHECKING:
     from langchain_core.language_models.chat_models import BaseChatModel
 
-logger = logging.getLogger("evaluation_judge.scorer")
+logger = logging.getLogger(__name__)
 
 _RESULT_PREVIEW_LIMIT = 500
 

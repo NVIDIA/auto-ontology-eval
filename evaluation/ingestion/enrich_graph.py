@@ -53,7 +53,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_DIR = Path(__file__).resolve().parent
+DEFAULT_DIR = Path(__file__).resolve().parents[2] / "datasets"
 
 
 def apply_metadata(database_name: str) -> None:

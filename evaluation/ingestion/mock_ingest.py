@@ -6,14 +6,14 @@
 
 Vendored from ``../GSF/dev_tools/mock_ingest.py``. Builds a 4-table shop schema
 (customer / order / orderline / products) entirely in-memory and pushes it
-through the same tabular ingest pipeline that ``evaluation.local_ingest`` uses.
+through the same tabular ingest pipeline that ``evaluation.ingestion.pipeline`` uses.
 No remote DB, no docker dependency, no metadata JSON files. Embeddings still go
 through the real NVIDIA endpoint because the semantic-compile path needs the
 data-layer VDB populated.
 
 Usage::
 
-    uv run python -m evaluation.mock_ingest
+    uv run python -m evaluation.ingestion.mock_ingest
 
 Or via the "Debug Mock Ingest" launch config in .vscode/launch.json.
 """
@@ -43,7 +43,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-logger = logging.getLogger("evaluation.mock_ingest")
+logger = logging.getLogger(__name__)
 
 MOCK_DATABASE_NAME = "mock_shop"
 MOCK_SCHEMA = "public"

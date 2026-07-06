@@ -12,13 +12,19 @@ code from the sibling repos rather than re-implementing it.
 ## Layout
 
 ```
-evaluation_judge/     standalone LLM scorer (no GSF dependency)
-evaluation/           GSF-backed ingestion + retrieval eval
-  enrich_graph.py     graph metadata + custom-analysis enrichment
-  local_ingest.py     source DB -> pgvector ingest (calls enrich_graph)
-  mock_ingest.py      in-memory 4-table demo ingest (mock_shop)
-  eval_chatbot.py     retrieval eval driver
-  <database_name>/    evaluation.json, metadata.json, custom_analyses.json
+evaluation/                 single namespace package
+  judge/                    standalone LLM scorer (no GSF dependency)
+  ingestion/                GSF-backed ingestion pipeline
+    pipeline.py             source DB -> pgvector ingest (calls enrich_graph)
+    enrich_graph.py         graph metadata + custom-analysis enrichment
+    mock_ingest.py          in-memory 4-table demo ingest (mock_shop)
+  retrieval/                GSF-backed retrieval eval
+    eval_chatbot.py         retrieval eval driver
+    scoring.py              SQL/answer scoring helpers
+  input/                    judge input CSVs (contents gitignored)
+  output/                   judge scored CSVs (contents gitignored)
+datasets/
+  <database_name>/          evaluation.json, metadata.json, custom_analyses.json
 ```
 
 ## Prerequisites
@@ -66,15 +72,15 @@ All settings are read from `.env` (see `.env.example` for the full list):
 
 ### 1. sql judge (standalone)
 
-Drop one or more CSV files into `input/`. Each file must contain `question`,
+Drop one or more CSV files into `evaluation/input/`. Each file must contain `question`,
 `expected_sql`, and `returned_sql` columns (and optionally `returned_answer`).
-Scored CSVs are written to `output/<name>_scores.csv`.
+Scored CSVs are written to `evaluation/output/<name>_scores.csv`.
 
 ```bash
 uv run evaluation-judge     # or: uv run python main.py
 ```
 
-Options: `--input-dir` (default `input`), `--output-dir` (default `output`),
+Options: `--input-dir` (default `evaluation/input`), `--output-dir` (default `evaluation/output`),
 `--workers` (default `1`).
 
 Output columns: `llm_logic_match`, `llm_semantic_match`,
@@ -84,31 +90,31 @@ Output columns: `llm_logic_match`, `llm_semantic_match`,
 ### 2. ingestion
 
 Set `CONNECTION_STRINGS` to the source DB, then run the pipeline. Metadata and
-custom analyses are read from `evaluation/<database_name>/`.
+custom analyses are read from `datasets/<database_name>/`.
 
 ```bash
-PYTHONPATH=../GSF uv run python -m evaluation.local_ingest                       # extract + embed + enrich graph
+PYTHONPATH=../GSF uv run python -m evaluation.ingestion.pipeline                 # extract + embed + enrich graph
 PYTHONPATH=../GSF uv run python -m gsf.semantic --database-name <database_name>  # compile semantic layer
 ```
 
 For a quick, DB-free smoke test of the embed pipeline:
 
 ```bash
-PYTHONPATH=../GSF uv run python -m evaluation.mock_ingest
+PYTHONPATH=../GSF uv run python -m evaluation.ingestion.mock_ingest
 ```
 
 ### 3. retrieval eval
 
-Provide `evaluation/<database_name>/evaluation.json` (an array of
+Provide `datasets/<database_name>/evaluation.json` (an array of
 `{question_id, question, SQL, answer_raw}` entries), then:
 
 ```bash
-PYTHONPATH=../GSF uv run python -m evaluation.eval_chatbot --database-name <database_name>
+PYTHONPATH=../GSF uv run python -m evaluation.retrieval.eval_chatbot --database-name <database_name>
 ```
 
 Useful flags: `--single` (one hardcoded query), `--consistency --runs N`
 (repeat-and-compare). Results are written to
-`evaluation/<database_name>/<model>.csv`, which you can then re-score with the
+`datasets/<database_name>/<model>.csv`, which you can then re-score with the
 sql judge above.
 
 VS Code launch configurations for all of the above are provided in
