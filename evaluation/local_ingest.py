@@ -18,8 +18,8 @@ from __future__ import annotations
 
 import logging
 import os
+from dotenv import load_dotenv
 
-from gsf.utils import get_embed_params
 from nemo_retriever.graph import Graph
 from nemo_retriever.tabular_data.operators.tabular_schema_extract_operator import (
     TabularSchemaExtractOp,
@@ -30,11 +30,9 @@ from nemo_retriever.tabular_data.operators.tabular_fetch_embeddings_operator imp
 from nemo_retriever.operators.embed.operators import _BatchEmbedActor
 from nemo_retriever.operators.vdb import IngestVdbOperator
 from nemo_retriever.common.params.models import TabularExtractParams
+from gsf.utils import get_embed_params
 from gsf.vdb import get_data_vdb, get_semantic_vdb
 from gsf.connectors.registry import create_connector
-
-from dotenv import load_dotenv
-
 from evaluation.enrich_graph import add_custom_analyses, apply_metadata
 
 load_dotenv()
