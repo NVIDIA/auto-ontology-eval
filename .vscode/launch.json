@@ -1,9 +1,8 @@
 {
   "version": "0.2.0",
   "configurations": [
-    // ── evaluation-judge (LLM re-scoring of eval CSVs) ───────────────────────
     {
-      "name": "Python: evaluation-judge",
+      "name": "Judge (score CSVs)",
       "type": "debugpy",
       "request": "launch",
       "module": "evaluation.judge.main",
@@ -13,163 +12,115 @@
       "envFile": "${workspaceFolder}/.env",
       "justMyCode": false
     },
-
-    // ── dor_prod ──────────────────────────────────────────────────────────
     {
-      "name": "dor_prod: Ingest",
+      "name": "Ingest",
       "type": "debugpy",
       "request": "launch",
       "module": "evaluation.ingestion.pipeline",
+      "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
       "envFile": "${workspaceFolder}/.env",
-      "env": { "PYTHONPATH": "${workspaceFolder}/../GSF" },
-      "console": "integratedTerminal",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/../GSF"
+      },
       "justMyCode": false
     },
     {
-      "name": "dor_prod: Semantic compile",
+      "name": "Semantic compile",
       "type": "debugpy",
       "request": "launch",
       "module": "gsf.semantic",
-      "args": ["--database-name", "dor_prod"],
+      "args": [
+        "--database-name",
+        "${input:databaseName}"
+      ],
+      "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
       "envFile": "${workspaceFolder}/.env",
-      "env": { "PYTHONPATH": "${workspaceFolder}/../GSF" },
-      "console": "integratedTerminal",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/../GSF"
+      },
       "justMyCode": false
     },
     {
-      "name": "dor_prod: Eval",
+      "name": "Eval",
       "type": "debugpy",
       "request": "launch",
       "module": "evaluation.retrieval.eval_chatbot",
-      "args": ["--database-name", "dor_prod"],
+      "args": [
+        "--database-name",
+        "${input:databaseName}"
+      ],
+      "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
       "envFile": "${workspaceFolder}/.env",
-      "env": { "PYTHONPATH": "${workspaceFolder}/../GSF" },
-      "console": "integratedTerminal",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/../GSF"
+      },
       "justMyCode": false
     },
     {
-      "name": "dor_prod: Eval (single query)",
+      "name": "Eval (single query)",
       "type": "debugpy",
       "request": "launch",
       "module": "evaluation.retrieval.eval_chatbot",
-      "args": ["--single", "--database-name", "dor_prod"],
+      "args": [
+        "--single",
+        "--database-name",
+        "${input:databaseName}"
+      ],
+      "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
       "envFile": "${workspaceFolder}/.env",
-      "env": { "PYTHONPATH": "${workspaceFolder}/../GSF" },
-      "console": "integratedTerminal",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/../GSF"
+      },
       "justMyCode": false
     },
     {
-      "name": "dor_prod: Eval (consistency)",
+      "name": "Eval (consistency)",
       "type": "debugpy",
       "request": "launch",
       "module": "evaluation.retrieval.eval_chatbot",
-      "args": ["--consistency", "--runs", "10", "--database-name", "dor_prod"],
+      "args": [
+        "--consistency",
+        "--runs",
+        "${input:runs}",
+        "--database-name",
+        "${input:databaseName}"
+      ],
+      "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
       "envFile": "${workspaceFolder}/.env",
-      "env": { "PYTHONPATH": "${workspaceFolder}/../GSF" },
-      "console": "integratedTerminal",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/../GSF"
+      },
       "justMyCode": false
-    },
-
-    // ── WWI ───────────────────────────────────────────────────────────────
+    }
+  ],
+  "inputs": [
     {
-      "name": "WWI: Ingest",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "evaluation.ingestion.pipeline",
-      "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/bin/python",
-      "envFile": "${workspaceFolder}/.env",
-      "env": { "PYTHONPATH": "${workspaceFolder}/../GSF" },
-      "console": "integratedTerminal",
-      "justMyCode": false
-    },
-    {
-      "name": "WWI: Semantic compile",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "gsf.semantic",
-      "args": ["--database-name", "WIDEWORLDIMPORTERS"],
-      "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/bin/python",
-      "envFile": "${workspaceFolder}/.env",
-      "env": { "PYTHONPATH": "${workspaceFolder}/../GSF" },
-      "console": "integratedTerminal",
-      "justMyCode": false
+      "id": "databaseName",
+      "type": "pickString",
+      "description": "Database name",
+      "options": [
+        "dor_prod",
+        "wideworldimporters",
+        "mock_shop",
+        "bird"
+      ],
+      "default": "dor_prod"
     },
     {
-      "name": "WWI: Eval",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "evaluation.retrieval.eval_chatbot",
-      "args": ["--database-name", "wideworldimporters"],
-      "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/bin/python",
-      "envFile": "${workspaceFolder}/.env",
-      "env": { "PYTHONPATH": "${workspaceFolder}/../GSF" },
-      "console": "integratedTerminal",
-      "justMyCode": false
-    },
-    {
-      "name": "WWI: Eval (single query)",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "evaluation.retrieval.eval_chatbot",
-      "args": ["--single", "--database-name", "wideworldimporters"],
-      "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/bin/python",
-      "envFile": "${workspaceFolder}/.env",
-      "env": { "PYTHONPATH": "${workspaceFolder}/../GSF" },
-      "console": "integratedTerminal",
-      "justMyCode": false
-    },
-
-    // ── Infrastructure ────────────────────────────────────────────────────
-    {
-      "name": "Debug API",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "gsf.server",
-      "python": "${workspaceFolder}/.venv/bin/python",
-      "cwd": "${workspaceFolder}",
-      "envFile": "${workspaceFolder}/.env",
-      "env": { "PYTHONPATH": "${workspaceFolder}/../GSF" },
-      "console": "integratedTerminal",
-      "justMyCode": false
-    },
-    {
-      "name": "Debug Mock Ingest",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "evaluation.ingestion.mock_ingest",
-      "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/bin/python",
-      "envFile": "${workspaceFolder}/.env",
-      "env": { "PYTHONPATH": "${workspaceFolder}/../GSF" },
-      "console": "integratedTerminal",
-      "justMyCode": false
-    },
-    {
-      "name": "Semantic: compile mock_shop",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "gsf.semantic",
-      "args": ["--database-name", "mock_shop"],
-      "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/bin/python",
-      "envFile": "${workspaceFolder}/.env",
-      "env": { "PYTHONPATH": "${workspaceFolder}/../GSF" },
-      "console": "integratedTerminal",
-      "justMyCode": false
+      "id": "runs",
+      "type": "promptString",
+      "description": "Number of consistency runs",
+      "default": "10"
     }
   ]
 }
