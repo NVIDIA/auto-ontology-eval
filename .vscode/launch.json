@@ -10,7 +10,8 @@
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
-      "envFile": "${workspaceFolder}/.env"
+      "envFile": "${workspaceFolder}/.env",
+      "justMyCode": false
     },
 
     // ── dor_prod ──────────────────────────────────────────────────────────
