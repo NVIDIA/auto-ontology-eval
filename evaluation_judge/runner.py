@@ -18,13 +18,13 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from eval_judge.config import Settings, load_settings
-from eval_judge.models import LLM_SCORE_FIELDS, SqlScore
-from eval_judge.scorer import score_sql
+from evaluation_judge.config import Settings, load_settings
+from evaluation_judge.models import LLM_SCORE_FIELDS, SqlScore
+from evaluation_judge.scorer import score_sql
 
 csv.field_size_limit(sys.maxsize)
 
-logger = logging.getLogger("eval_judge.runner")
+logger = logging.getLogger("evaluation_judge.runner")
 
 
 def _score_row(settings: Settings, row: dict[str, str]) -> SqlScore | None:
