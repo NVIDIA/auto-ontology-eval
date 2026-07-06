@@ -13,11 +13,9 @@ dist/
 .venv/
 venv/
 
-# Judge input/output working dirs (keep the folders, ignore their contents)
-/evaluation/input/*
-!/evaluation/input/.gitkeep
-/evaluation/output/*
-!/evaluation/output/.gitkeep
+# Judge working I/O dirs (created on demand, never tracked)
+/input/
+/output/
 
 # OS / editor
 .DS_Store

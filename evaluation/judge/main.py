@@ -12,8 +12,8 @@ from pathlib import Path
 
 from evaluation.judge.runner import run_directory
 
-_DEFAULT_INPUT_DIR = Path("evaluation/input")
-_DEFAULT_OUTPUT_DIR = Path("evaluation/output")
+_DEFAULT_INPUT_DIR = Path("input")
+_DEFAULT_OUTPUT_DIR = Path("output")
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:

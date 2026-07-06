@@ -21,10 +21,9 @@ evaluation/                 single namespace package
   retrieval/                GSF-backed retrieval eval
     eval_chatbot.py         retrieval eval driver
     scoring.py              SQL/answer scoring helpers
-  input/                    judge input CSVs (contents gitignored)
-  output/                   judge scored CSVs (contents gitignored)
 datasets/
   <database_name>/          evaluation.json, metadata.json, custom_analyses.json
+input/, output/             judge working dirs (created on demand, gitignored)
 ```
 
 ## Prerequisites
@@ -72,15 +71,16 @@ All settings are read from `.env` (see `.env.example` for the full list):
 
 ### 1. sql judge (standalone)
 
-Drop one or more CSV files into `evaluation/input/`. Each file must contain `question`,
+Drop one or more CSV files into `input/`. Each file must contain `question`,
 `expected_sql`, and `returned_sql` columns (and optionally `returned_answer`).
-Scored CSVs are written to `evaluation/output/<name>_scores.csv`.
+Scored CSVs are written to `output/<name>_scores.csv`. Both folders are created
+on demand (relative to the current directory) and are not tracked in git.
 
 ```bash
 uv run evaluation-judge     # or: uv run python main.py
 ```
 
-Options: `--input-dir` (default `evaluation/input`), `--output-dir` (default `evaluation/output`),
+Options: `--input-dir` (default `input`), `--output-dir` (default `output`),
 `--workers` (default `1`).
 
 Output columns: `llm_logic_match`, `llm_semantic_match`,
