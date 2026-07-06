@@ -38,20 +38,18 @@ import time
 import traceback
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-
 import pandas as pd
+from dotenv import load_dotenv
 
 from nemo_retriever.graph.retriever import Retriever
 from nemo_retriever.tabular_data.sql_database import SQLDatabase
 
 from gsf.retrieval.text_to_sql.main import get_agent_response
 from gsf.retrieval.text_to_sql.state import TextToSQLPayload
-
 from gsf.connectors import get_connectors
 from gsf.utils.embedding import get_embed_kwargs
 from gsf.vdb import get_data_vdb, get_semantic_vdb
 
-from dotenv import load_dotenv
 
 load_dotenv()
 
