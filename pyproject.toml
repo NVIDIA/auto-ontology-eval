@@ -42,3 +42,7 @@ packages = ["evaluation"]
 
 [tool.uv.sources]
 nemo-retriever = { path = "../NeMo-Retriever/nemo_retriever", editable = true }
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

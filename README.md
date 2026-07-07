@@ -353,6 +353,23 @@ compile, Eval, Eval single-query, Eval consistency) are provided in
 `.env` automatically. Type-checker paths for the sibling repos are configured in
 [pyrightconfig.json](pyrightconfig.json).
 
+### Testing
+
+The `tests/` suite covers the standalone **judge** package (config resolution,
+score model, scorer, and CSV runner) and needs no sibling repos, databases, or
+LLM access — the LLM call is mocked. Because the project's full dependency set
+pulls in the sibling-repo path dependency, install just the light test deps and
+skip installing the project itself:
+
+```bash
+uv venv --python 3.12
+uv pip install pytest pandas pydantic python-dotenv
+uv run --no-project pytest
+```
+
+These tests run automatically on pull requests via
+[.github/workflows/tests.yml](.github/workflows/tests.yml).
+
 ## License and security
 
 This project is licensed under **Apache-2.0** (see the SPDX headers in the
