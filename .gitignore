@@ -19,3 +19,7 @@ venv/
 
 # OS / editor
 .DS_Store
+
+# Datasets kept local only (not tracked on remote)
+/datasets/bird/
+/datasets/dor_prod/
