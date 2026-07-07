@@ -31,10 +31,7 @@
       "type": "debugpy",
       "request": "launch",
       "module": "gsf.semantic",
-      "args": [
-        "--database-name",
-        "${input:databaseName}"
-      ],
+      "args": ["--database-name", "${input:databaseName}"],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
@@ -49,10 +46,7 @@
       "type": "debugpy",
       "request": "launch",
       "module": "evaluation.retrieval.eval_chatbot",
-      "args": [
-        "--database-name",
-        "${input:databaseName}"
-      ],
+      "args": ["--database-name", "${input:databaseName}"],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
@@ -67,11 +61,7 @@
       "type": "debugpy",
       "request": "launch",
       "module": "evaluation.retrieval.eval_chatbot",
-      "args": [
-        "--single",
-        "--database-name",
-        "${input:databaseName}"
-      ],
+      "args": ["--single", "--database-name", "${input:databaseName}"],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
@@ -108,13 +98,8 @@
       "id": "databaseName",
       "type": "pickString",
       "description": "Database name",
-      "options": [
-        "dor_prod",
-        "wideworldimporters",
-        "mock_shop",
-        "bird"
-      ],
-      "default": "dor_prod"
+      "options": ["wideworldimporters", "bird"],
+      "default": "wideworldimporters"
     },
     {
       "id": "runs",

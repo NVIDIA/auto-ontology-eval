@@ -446,7 +446,7 @@ def run_single_question(question: str) -> None:
     print(f"\n  Runtime: {elapsed}s")
 
 
-SINGLE_QUERY = "What is the most frequently used GPU MODS version?"
+SINGLE_QUERY = "calculate the customer count by state province name"
 
 START_INDEX = 0
 END_INDEX = None  # None = run to the end
