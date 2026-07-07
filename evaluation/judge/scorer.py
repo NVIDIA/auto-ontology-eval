@@ -50,7 +50,9 @@ def score_sql(
         sql_code=sql_code,
         ground_truth_sql=ground_truth_sql or "(none provided)",
         sql_result_preview=(
-            sql_result_preview[:_RESULT_PREVIEW_LIMIT] if sql_result_preview else "(none)"
+            sql_result_preview[:_RESULT_PREVIEW_LIMIT]
+            if sql_result_preview
+            else "(none)"
         ),
     )
 
@@ -66,5 +68,7 @@ def score_sql(
     try:
         return SqlScore.model_validate(result)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("Could not parse LLM score for question %r: %s", question[:60], exc)
+        logger.warning(
+            "Could not parse LLM score for question %r: %s", question[:60], exc
+        )
         return None

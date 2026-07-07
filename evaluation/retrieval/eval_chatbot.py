@@ -385,9 +385,7 @@ def run_evaluation_consistency(
                     f"{max(sql_counts.values())}/{run_num}" if sql_counts else ""
                 )
                 row["answer_consistency"] = (
-                    f"{max(answer_counts.values())}/{run_num}"
-                    if answer_counts
-                    else ""
+                    f"{max(answer_counts.values())}/{run_num}" if answer_counts else ""
                 )
 
                 writer.writerow(row)
