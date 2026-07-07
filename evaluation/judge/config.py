@@ -44,7 +44,5 @@ def load_settings() -> Settings:
         base_url=os.environ.get(
             "JUDGE_BASE_URL", os.environ.get("BASE_URL", _DEFAULT_BASE_URL)
         ),
-        api_key=os.environ.get(
-            "JUDGE_API_KEY", os.environ.get("NVIDIA_API_KEY", "")
-        ),
+        api_key=os.environ.get("JUDGE_API_KEY", os.environ.get("NVIDIA_API_KEY", "")),
     )

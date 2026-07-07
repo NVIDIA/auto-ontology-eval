@@ -53,7 +53,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_DIR = Path(__file__).resolve().parent
+DEFAULT_DIR = Path(__file__).resolve().parents[2] / "datasets"
 
 
 def apply_metadata(database_name: str) -> None:
@@ -185,13 +185,12 @@ def add_custom_analyses(
         get_all_schemas_ids,
         get_schemas_by_ids,
     )
-
-    from gsf.server.custom_analyses.dal import _embed_custom_analyses
+    from gsf.dal.custom_analyses import embed_custom_analyses
 
     analyses_path = DEFAULT_DIR / database_name / "custom_analyses.json"
 
     if not analyses_path.exists():
-        logger.warning("custom analyses file not found at %s; skipping", analyses_path)
+        logger.info("custom analyses file not found at %s; skipping", analyses_path)
         return
 
     with analyses_path.open() as f:
@@ -266,4 +265,4 @@ def add_custom_analyses(
         )
         return
 
-    _embed_custom_analyses(embed_params, vdb, database_name=database_name)
+    embed_custom_analyses(embed_params, vdb, database_name=database_name)

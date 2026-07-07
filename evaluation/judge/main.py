@@ -2,7 +2,7 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Command-line entry point for sql-eval-judge."""
+"""Command-line entry point for evaluation-judge."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import argparse
 import logging
 from pathlib import Path
 
-from sql_eval_judge.runner import run_directory
+from evaluation.judge.runner import run_directory
 
 _DEFAULT_INPUT_DIR = Path("input")
 _DEFAULT_OUTPUT_DIR = Path("output")
@@ -18,7 +18,7 @@ _DEFAULT_OUTPUT_DIR = Path("output")
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        prog="sql-eval-judge",
+        prog="evaluation-judge",
         description=(
             "Re-score Text-to-SQL evaluation CSVs with LLM-based logic/semantic scoring. "
             "Every CSV in the input folder is scored into '<name>_scores.csv' in the output folder."

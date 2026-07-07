@@ -10,13 +10,13 @@ import logging
 from functools import lru_cache
 from typing import TYPE_CHECKING
 
-from sql_eval_judge.config import Settings
-from sql_eval_judge.models import SQL_SCORING_PROMPT, SqlScore
+from evaluation.judge.config import Settings
+from evaluation.judge.models import SQL_SCORING_PROMPT, SqlScore
 
 if TYPE_CHECKING:
     from langchain_core.language_models.chat_models import BaseChatModel
 
-logger = logging.getLogger("sql_eval_judge.scorer")
+logger = logging.getLogger(__name__)
 
 _RESULT_PREVIEW_LIMIT = 500
 
@@ -50,7 +50,9 @@ def score_sql(
         sql_code=sql_code,
         ground_truth_sql=ground_truth_sql or "(none provided)",
         sql_result_preview=(
-            sql_result_preview[:_RESULT_PREVIEW_LIMIT] if sql_result_preview else "(none)"
+            sql_result_preview[:_RESULT_PREVIEW_LIMIT]
+            if sql_result_preview
+            else "(none)"
         ),
     )
 
@@ -66,5 +68,7 @@ def score_sql(
     try:
         return SqlScore.model_validate(result)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("Could not parse LLM score for question %r: %s", question[:60], exc)
+        logger.warning(
+            "Could not parse LLM score for question %r: %s", question[:60], exc
+        )
         return None

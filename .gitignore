@@ -13,8 +13,13 @@ dist/
 .venv/
 venv/
 
-# Generated scoring output
-/output/*.csv
+# Judge working I/O dirs (created on demand, never tracked)
+/input/
+/output/
 
 # OS / editor
 .DS_Store
+
+# Datasets kept local only (not tracked on remote)
+/datasets/bird/
+/datasets/dor_prod/

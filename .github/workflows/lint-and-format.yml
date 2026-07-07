@@ -1,0 +1,39 @@
+# SPDX-FileCopyrightText: Copyright (c) 2024-2026, NVIDIA CORPORATION & AFFILIATES.
+# All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: Python Lint and Format
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'evaluation/**'
+      - 'main.py'
+
+jobs:
+  lint_and_format:
+    name: Ruff Check & Format
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Ruff lint
+        uses: astral-sh/ruff-action@v3
+        with:
+          version: '0.15.9'
+          args: check
+          src: './evaluation'
+
+      - name: Ruff format check
+        uses: astral-sh/ruff-action@v3
+        with:
+          version: '0.15.9'
+          args: format --check
+          src: './evaluation'

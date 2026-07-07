@@ -5,21 +5,21 @@
 """Local ingest: source DB schema -> pgvector embeddings store.
 
 Vendored from ``../GSF/dev_tools/local_ingest.py`` and retargeted so the graph
-enrichment step reads this repo's ``evaluation/<database_name>/`` data files
+enrichment step reads this repo's ``datasets/<database_name>/`` data files
 (``metadata.json`` / ``custom_analyses.json``) instead of GSF's copy.
 
 Run after the Neo4j + Postgres (pgvector) services are up (see GSF's
 ``docker-compose.yml``) and ``CONNECTION_STRINGS`` points at the source DB::
 
-    uv run python -m evaluation.local_ingest
+    uv run python -m evaluation.ingestion.pipeline
 """
 
 from __future__ import annotations
 
 import logging
 import os
+from dotenv import load_dotenv
 
-from gsf.utils import get_embed_params
 from nemo_retriever.graph import Graph
 from nemo_retriever.tabular_data.operators.tabular_schema_extract_operator import (
     TabularSchemaExtractOp,
@@ -30,16 +30,14 @@ from nemo_retriever.tabular_data.operators.tabular_fetch_embeddings_operator imp
 from nemo_retriever.operators.embed.operators import _BatchEmbedActor
 from nemo_retriever.operators.vdb import IngestVdbOperator
 from nemo_retriever.common.params.models import TabularExtractParams
+from gsf.utils import get_embed_params
 from gsf.vdb import get_data_vdb, get_semantic_vdb
 from gsf.connectors.registry import create_connector
-
-from dotenv import load_dotenv
-
-from evaluation.enrich_graph import add_custom_analyses, apply_metadata
+from evaluation.ingestion.enrich_graph import add_custom_analyses, apply_metadata
 
 load_dotenv()
 
-logger = logging.getLogger("evaluation.local_ingest")
+logger = logging.getLogger(__name__)
 
 
 def run_ingest(connection_string: str) -> None:
@@ -114,5 +112,5 @@ if __name__ == "__main__":
     try:
         run_ingest(_CONNECTION_STRINGS[0])
     except KeyboardInterrupt:
-        logger.info("local_ingest: shutting down")
+        logger.info("ingestion: shutting down")
         raise SystemExit(0)
