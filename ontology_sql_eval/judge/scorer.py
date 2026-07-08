@@ -10,8 +10,8 @@ import logging
 from functools import lru_cache
 from typing import TYPE_CHECKING
 
-from evaluation.judge.config import Settings
-from evaluation.judge.models import SQL_SCORING_PROMPT, SqlScore
+from ontology_sql_eval.judge.config import Settings
+from ontology_sql_eval.judge.models import SQL_SCORING_PROMPT, SqlScore
 
 if TYPE_CHECKING:
     from langchain_core.language_models.chat_models import BaseChatModel

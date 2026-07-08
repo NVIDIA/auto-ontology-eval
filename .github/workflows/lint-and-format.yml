@@ -10,7 +10,7 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - 'evaluation/**'
+      - 'ontology_sql_eval/**'
       - 'main.py'
 
 jobs:
@@ -29,11 +29,11 @@ jobs:
         with:
           version: '0.15.9'
           args: check
-          src: './evaluation'
+          src: './ontology_sql_eval'
 
       - name: Ruff format check
         uses: astral-sh/ruff-action@v3
         with:
           version: '0.15.9'
           args: format --check
-          src: './evaluation'
+          src: './ontology_sql_eval'

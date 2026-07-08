@@ -21,7 +21,7 @@ result)), this script:
 
 Usage::
 
-    uv run python -m evaluation.retrieval.eval_chatbot \
+    uv run python -m ontology_sql_eval.retrieval.eval_chatbot \
         --database-name <name> [--input PATH] [--output PATH]
 """
 
@@ -44,7 +44,7 @@ from gsf.retrieval.text_to_sql.state import TextToSQLPayload
 from gsf.connectors import get_connectors
 from gsf.utils import get_data_objects_retriever, get_semantic_objects_retriever
 
-from evaluation.retrieval.scoring import (
+from ontology_sql_eval.retrieval.scoring import (
     score_answer,
     score_sql,
     stringify_db_result,

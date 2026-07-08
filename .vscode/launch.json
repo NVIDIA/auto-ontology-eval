@@ -5,7 +5,7 @@
       "name": "Judge (score CSVs)",
       "type": "debugpy",
       "request": "launch",
-      "module": "evaluation.judge.main",
+      "module": "ontology_sql_eval.judge.main",
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
@@ -16,7 +16,7 @@
       "name": "Ingest",
       "type": "debugpy",
       "request": "launch",
-      "module": "evaluation.ingestion.pipeline",
+      "module": "ontology_sql_eval.ingestion.pipeline",
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
@@ -48,7 +48,7 @@
       "name": "Eval",
       "type": "debugpy",
       "request": "launch",
-      "module": "evaluation.retrieval.eval_chatbot",
+      "module": "ontology_sql_eval.retrieval.eval_chatbot",
       "args": [
         "--database-name",
         "${input:databaseName}"
@@ -66,7 +66,7 @@
       "name": "Eval (single query)",
       "type": "debugpy",
       "request": "launch",
-      "module": "evaluation.retrieval.eval_chatbot",
+      "module": "ontology_sql_eval.retrieval.eval_chatbot",
       "args": [
         "--single",
         "--database-name",
