@@ -31,7 +31,10 @@
       "type": "debugpy",
       "request": "launch",
       "module": "gsf.semantic",
-      "args": ["--database-name", "${input:databaseName}"],
+      "args": [
+        "--database-name",
+        "${input:databaseName}"
+      ],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
@@ -46,7 +49,10 @@
       "type": "debugpy",
       "request": "launch",
       "module": "evaluation.retrieval.eval_chatbot",
-      "args": ["--database-name", "${input:databaseName}"],
+      "args": [
+        "--database-name",
+        "${input:databaseName}"
+      ],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
@@ -61,25 +67,8 @@
       "type": "debugpy",
       "request": "launch",
       "module": "evaluation.retrieval.eval_chatbot",
-      "args": ["--single", "--database-name", "${input:databaseName}"],
-      "console": "integratedTerminal",
-      "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/bin/python",
-      "envFile": "${workspaceFolder}/.env",
-      "env": {
-        "PYTHONPATH": "${workspaceFolder}/../GSF"
-      },
-      "justMyCode": false
-    },
-    {
-      "name": "Eval (consistency)",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "evaluation.retrieval.eval_chatbot",
       "args": [
-        "--consistency",
-        "--runs",
-        "${input:runs}",
+        "--single",
         "--database-name",
         "${input:databaseName}"
       ],
@@ -98,14 +87,11 @@
       "id": "databaseName",
       "type": "pickString",
       "description": "Database name",
-      "options": ["wideworldimporters", "bird"],
+      "options": [
+        "wideworldimporters",
+        "bird"
+      ],
       "default": "wideworldimporters"
-    },
-    {
-      "id": "runs",
-      "type": "promptString",
-      "description": "Number of consistency runs",
-      "default": "10"
     }
   ]
 }
