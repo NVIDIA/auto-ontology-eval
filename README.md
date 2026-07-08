@@ -9,7 +9,7 @@ dataset and scoring the results. It bundles three workflows in one project:
 2. **retrieval eval** — run the text-to-SQL agent against an evaluation set and
    score its generated SQL and answers deterministically.
 3. **sql judge** — a standalone, LLM-powered re-scorer for Text-to-SQL
-   evaluation CSVs (works on its own, no database or sibling repos required).
+   evaluation CSVs (works on its own, no database or GSF/NeMo install required).
 
 The typical lifecycle is **ingest → eval → judge**: you ingest a database so the
 agent can retrieve its schema, run an evaluation to produce a results CSV, then
@@ -41,9 +41,9 @@ flowchart LR
   end
 ```
 
-The ingestion and retrieval-eval workflows reuse the `gsf` and `nemo_retriever`
-code from the sibling repos rather than re-implementing it. The judge is fully
-self-contained.
+The ingestion and retrieval-eval workflows reuse the `gsf` (from the sibling
+`../GSF` checkout) and `nemo_retriever` (installed from GitHub) code rather than
+re-implementing it. The judge is fully self-contained.
 
 ## Layout
 
@@ -75,16 +75,19 @@ it needs nothing beyond this repo and an LLM API key.
 | Requirement | Ingestion | Retrieval eval | Judge |
 | ----------------------------------------- | :-------: | :------------: | :---: |
 | [uv](https://docs.astral.sh/uv/) + Python 3.12 (3.12–3.13) | yes | yes | yes |
-| Sibling repos `../GSF` and `../NeMo-Retriever` | yes | yes | no |
+| Sibling repo `../GSF` checkout | yes | yes | no |
+| GitHub access to `NVIDIA/NeMo-Retriever` | yes | yes | no |
 | Neo4j + Postgres (pgvector) services | yes | yes | no |
 | Reachable source database | yes | yes | no |
 | LLM API key | embed only | yes | yes |
 
-The sibling repos must be checked out next to this one:
+The two dependencies are provided differently:
 
-- `../GSF` — provides the `gsf` package and `dev_tools`.
-- `../NeMo-Retriever` — provides `nemo_retriever`, installed as an editable path
-  dependency (see `[tool.uv.sources]` in [pyproject.toml](pyproject.toml)).
+- `../GSF` — provides the `gsf` package. Check it out next to this repo; it is
+  imported via `PYTHONPATH` (not installed — see below).
+- `nemo-retriever` (`https://github.com/NVIDIA/NeMo-Retriever.git`) — provides
+  `nemo_retriever`, installed from GitHub by `uv sync` (see `[tool.uv.sources]`
+  in [pyproject.toml](pyproject.toml)).
 
 For ingestion and retrieval eval you also need live **Neo4j** and **Postgres
 (pgvector)** services, plus a reachable source DB. The easiest way to start the
@@ -97,18 +100,14 @@ cd ../GSF && docker compose up -d
 ## Setup
 
 ```bash
-uv sync                # creates the unified .venv (Python 3.12)
+uv sync                # creates the unified .venv (Python 3.12), pulling nemo_retriever from GitHub
 cp .env.example .env   # then fill in your values
 ```
 
-GSF is `package = false`, so `gsf` / `dev_tools` are not installed into the venv
-— they import only when `../GSF` is on `PYTHONPATH`. The VS Code launch configs
-set this automatically. For command-line runs of the ingestion / eval scripts,
-prefix the command with `PYTHONPATH=../GSF` (the judge does not need it).
-
-> Note: GSF's own `gsf.semantic` entrypoint loads `../GSF/.env` (not this repo's
-> `.env`). Keep the two files in sync — for example, symlink them:
-> `ln -sf "$PWD/.env" ../GSF/.env`.
+GSF is `package = false`, so `gsf` is not installed into the venv — it imports
+only when `../GSF` is on `PYTHONPATH`. The VS Code launch configs set this
+automatically. For command-line runs of the ingestion / eval scripts, prefix the
+command with `PYTHONPATH=../GSF` (the judge does not need it).
 
 ## Configuration
 
@@ -275,8 +274,6 @@ CLI flags:
 | `--input PATH`      | derived | Override the input JSON path. |
 | `--output PATH`     | derived | Override the output CSV path. |
 | `--single`          | off     | Run one example query (`SINGLE_QUERY` in the script) and print the result. |
-| `--consistency`     | off     | Repeat each question multiple times and report SQL/answer stability. |
-| `--runs N`          | 10      | Number of runs in consistency mode. |
 
 The output CSV (`datasets/<database_name>/<model>.csv`, where `<model>` is the
 last segment of `MODEL_NAME`) has these columns:
@@ -290,15 +287,14 @@ answer_text_similarity, answer_numbers_match, runtime_seconds, error
 
 These column names are compatible with the judge's input contract (`question`,
 `expected_sql`, `returned_sql`, `returned_answer`), so the CSV can be re-scored
-directly. Consistency mode instead writes `<model>_consistency.csv` with per-run
-SQL/answer columns and consistency ratios.
+directly.
 
 ### 3. SQL judge (standalone)
 
 Re-scores evaluation CSVs with an LLM that rates each row's SQL on logic,
 semantics, and similarity to the ground truth. This workflow is fully
-self-contained — no `PYTHONPATH`, sibling repos, database, or vector stores
-required, only a judge LLM API key.
+self-contained — no GSF/NeMo install, database, or vector stores required, only
+a judge LLM API key.
 
 Drop one or more CSV files into `input/`. Each file must contain `question`,
 `expected_sql`, and `returned_sql` columns (and optionally `returned_answer`,
@@ -348,9 +344,9 @@ uv run evaluation-judge      # writes output/<name>_scores.csv
 ## Development
 
 VS Code launch configurations for all of the above (Judge, Ingest, Semantic
-compile, Eval, Eval single-query, Eval consistency) are provided in
-[.vscode/launch.json](.vscode/launch.json); they set `PYTHONPATH` and load
-`.env` automatically. Type-checker paths for the sibling repos are configured in
+compile, Eval, Eval single-query) are provided in
+[.vscode/launch.json](.vscode/launch.json); they set `PYTHONPATH=../GSF` and load
+`.env` automatically. The type-checker path for `../GSF` is configured in
 [pyrightconfig.json](pyrightconfig.json).
 
 ## License and security

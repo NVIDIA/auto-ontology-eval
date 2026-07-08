@@ -1,8 +1,5 @@
 {
   "venvPath": ".",
   "venv": ".venv",
-  "extraPaths": [
-    "../GSF",
-    "../NeMo-Retriever/nemo_retriever/src"
-  ]
+  "extraPaths": ["../GSF"]
 }

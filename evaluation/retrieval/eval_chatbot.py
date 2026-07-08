@@ -45,7 +45,6 @@ from gsf.connectors import get_connectors
 from gsf.utils import get_data_objects_retriever, get_semantic_objects_retriever
 
 from evaluation.retrieval.scoring import (
-    normalize_text,
     score_answer,
     score_sql,
     stringify_db_result,
@@ -269,158 +268,6 @@ def run_evaluation(
     logger.info("Wrote scores to %s", output_path)
 
 
-def run_evaluation_consistency(
-    input_path: Path,
-    output_path: Path,
-    start_index: int = 0,
-    end_index: int | None = None,
-    runs: int = 10,
-) -> None:
-    """Run each question multiple times and report SQL/answer consistency."""
-    all_questions = _load_questions(input_path)
-    questions = all_questions[start_index:end_index]
-    logger.info(
-        "Consistency eval: %d questions, %d runs each, output=%s",
-        len(questions),
-        runs,
-        output_path,
-    )
-
-    data_retriever = get_data_objects_retriever()
-    semantic_retriever = get_semantic_objects_retriever()
-    connectors = get_connectors()
-
-    results: Dict[int, list] = {i: [] for i in range(len(questions))}
-
-    for run_num in range(1, runs + 1):
-        logger.info("RUN %d/%d", run_num, runs)
-
-        for q_idx, item in enumerate(questions):
-            qid = item.get("question_id", start_index + q_idx)
-            question = item.get("question", "")
-            logger.info("[Run %d] q%s: %s", run_num, qid, question)
-
-            try:
-                payload: TextToSQLPayload = {
-                    "question": question,
-                    "data_retriever": data_retriever,
-                    "semantic_retriever": semantic_retriever,
-                    "connectors": connectors,
-                    "path_state": {},
-                    "custom_prompts": "",
-                    "acronyms": [],
-                }
-                agent_result = get_agent_response(payload)
-                returned_sql = normalize_text(
-                    (agent_result or {}).get("sql_code", "") or ""
-                )
-                returned_db = (agent_result or {}).get(_DB_RESULT_KEY)
-                returned_db_str = stringify_db_result(returned_db)
-            except Exception as exc:
-                logger.exception("Run %d, question %s failed", run_num, qid)
-                returned_sql = f"ERROR: {exc}"
-                returned_db_str = ""
-
-            results[q_idx].append({"sql": returned_sql, "answer": returned_db_str})
-
-        logger.info("After run %d:", run_num)
-        for q_idx, item in enumerate(questions):
-            qid = item.get("question_id", start_index + q_idx)
-            run_results = results[q_idx]
-            sqls = [r["sql"] for r in run_results]
-            answers = [r["answer"] for r in run_results]
-            logger.info(
-                "  q%s: %d runs -> %d unique SQLs, %d unique answers",
-                qid,
-                len(sqls),
-                len(set(sqls)),
-                len(set(answers)),
-            )
-
-        fieldnames = ["question_id", "question"]
-        for r in range(1, run_num + 1):
-            fieldnames.extend([f"sql_run_{r}", f"answer_run_{r}"])
-        fieldnames.extend(["sql_consistency", "answer_consistency"])
-
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        with output_path.open("w", encoding="utf-8", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            writer.writeheader()
-
-            for q_idx, item in enumerate(questions):
-                qid = item.get("question_id", start_index + q_idx)
-                question = item.get("question", "")
-                run_results = results[q_idx]
-
-                row: Dict[str, Any] = {"question_id": qid, "question": question}
-
-                first_sql: Dict[str, int] = {}
-                first_answer: Dict[str, int] = {}
-
-                for r_idx, r in enumerate(run_results):
-                    run_col = r_idx + 1
-                    sql_val = r["sql"]
-                    ans_val = r["answer"]
-
-                    if sql_val in first_sql:
-                        row[f"sql_run_{run_col}"] = f"same as run {first_sql[sql_val]}"
-                    else:
-                        first_sql[sql_val] = run_col
-                        row[f"sql_run_{run_col}"] = sql_val
-
-                    if ans_val in first_answer:
-                        row[f"answer_run_{run_col}"] = (
-                            f"same as run {first_answer[ans_val]}"
-                        )
-                    else:
-                        first_answer[ans_val] = run_col
-                        row[f"answer_run_{run_col}"] = ans_val
-
-                sql_counts = {}
-                answer_counts = {}
-                for r in run_results:
-                    sql_counts[r["sql"]] = sql_counts.get(r["sql"], 0) + 1
-                    answer_counts[r["answer"]] = answer_counts.get(r["answer"], 0) + 1
-                row["sql_consistency"] = (
-                    f"{max(sql_counts.values())}/{run_num}" if sql_counts else ""
-                )
-                row["answer_consistency"] = (
-                    f"{max(answer_counts.values())}/{run_num}" if answer_counts else ""
-                )
-
-                writer.writerow(row)
-
-        logger.info("Updated consistency CSV: %s (after run %d)", output_path, run_num)
-
-    logger.info("CONSISTENCY SUMMARY (%d runs)", runs)
-
-    for q_idx, item in enumerate(questions):
-        qid = item.get("question_id", start_index + q_idx)
-        question = item.get("question", "")
-        run_results = results[q_idx]
-
-        sql_counts: Dict[str, int] = {}
-        answer_counts: Dict[str, int] = {}
-        sql_to_answer: Dict[str, str] = {}
-
-        for r in run_results:
-            sql_counts[r["sql"]] = sql_counts.get(r["sql"], 0) + 1
-            answer_counts[r["answer"]] = answer_counts.get(r["answer"], 0) + 1
-            sql_to_answer[r["sql"]] = r["answer"]
-
-        logger.info("q%s: %s", qid, question)
-        for sql, count in sorted(sql_counts.items(), key=lambda x: -x[1]):
-            logger.info("  SQL (%d/%d): %s", count, runs, sql[:500])
-            logger.info("  Answer: %s", sql_to_answer[sql][:500])
-
-        most_common_sql = max(sql_counts.values())
-        most_common_answer = max(answer_counts.values())
-        logger.info("  -> SQL consistency:    %d/%d", most_common_sql, runs)
-        logger.info("  -> Answer consistency: %d/%d", most_common_answer, runs)
-
-    logger.info("Final consistency CSV: %s", output_path)
-
-
 def run_single_question(question: str) -> None:
     """Run a single question through the agent and print the result."""
     data_retriever = get_data_objects_retriever()
@@ -448,8 +295,6 @@ SINGLE_QUERY = "calculate the customer count by state province name"
 
 START_INDEX = 0
 END_INDEX = None  # None = run to the end
-CONSISTENCY_RUNS = 10
-RUN_CONSISTENCY = False
 
 
 def _parse_args() -> argparse.Namespace:
@@ -474,18 +319,6 @@ def _parse_args() -> argparse.Namespace:
         help="Output CSV path (overrides --database-name default).",
     )
     parser.add_argument(
-        "--consistency",
-        action="store_true",
-        default=False,
-        help="Run consistency evaluation (repeat N times and report SQL/answer stability).",
-    )
-    parser.add_argument(
-        "--runs",
-        type=int,
-        default=10,
-        help="Number of runs for consistency evaluation (default: 10).",
-    )
-    parser.add_argument(
         "--single",
         action="store_true",
         default=False,
@@ -505,18 +338,6 @@ if __name__ == "__main__":
     )
     if args.single:
         run_single_question(SINGLE_QUERY)
-    elif RUN_CONSISTENCY or args.consistency:
-        num_runs = args.runs if args.consistency else CONSISTENCY_RUNS
-        consistency_output = output_path.with_name(
-            f"{output_path.stem}_consistency.csv"
-        )
-        run_evaluation_consistency(
-            input_path=input_path,
-            output_path=consistency_output,
-            start_index=START_INDEX,
-            end_index=END_INDEX,
-            runs=num_runs,
-        )
     else:
         run_evaluation(
             input_path=input_path,
