@@ -23,3 +23,6 @@ venv/
 # Datasets kept local only (not tracked on remote)
 /datasets/bird/
 /datasets/dor_prod/
+
+# Bulk seed CSV data (too large for git; supply/seed locally). DDL is tracked.
+/datasets/*/data/
