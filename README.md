@@ -1,4 +1,4 @@
-# ontology-sql-eval
+# Ontology SQL Eeval
 
 A Text-to-SQL evaluation toolkit for benchmarking a text-to-SQL agent against a
 dataset and scoring the results. It bundles three workflows in one project:
@@ -62,9 +62,14 @@ ontology_sql_eval/          single namespace package
   retrieval/                GSF-backed retrieval eval
     eval_chatbot.py         retrieval eval driver
     scoring.py              SQL/answer scoring helpers
+scripts/
+  seed_postgres.py          seed a local Postgres from datasets/<db>/{ddl,data}
 datasets/
   <database_name>/          evaluation.json, metadata.json, custom_analyses.json
-input/, output/             judge working dirs (created on demand, gitignored)
+    ddl/                    seed DDL (schemas, sequences, tables, indexes, fkeys, views)
+    data/                   seed CSV data (COPYed into the tables)
+input/                      judge input CSVs to score (created on demand, gitignored)
+output/                     judge scored CSVs (<name>_scores.csv; gitignored)
 ```
 
 ## Prerequisites
@@ -72,14 +77,14 @@ input/, output/             judge working dirs (created on demand, gitignored)
 Different workflows have different requirements. The **judge** is the lightest —
 it needs nothing beyond this repo and an LLM API key.
 
-| Requirement | Ingestion | Retrieval eval | Judge |
-| ----------------------------------------- | :-------: | :------------: | :---: |
-| [uv](https://docs.astral.sh/uv/) + Python 3.12 (3.12–3.13) | yes | yes | yes |
-| Sibling repo `../GSF` checkout | yes | yes | no |
-| GitHub access to `NVIDIA/NeMo-Retriever` | yes | yes | no |
-| Neo4j + Postgres (pgvector) services | yes | yes | no |
-| Reachable source database | yes | yes | no |
-| LLM API key | embed only | yes | yes |
+| Requirement                                                | Ingestion  | Retrieval eval | Judge |
+| ---------------------------------------------------------- | :--------: | :------------: | :---: |
+| [uv](https://docs.astral.sh/uv/) + Python 3.12 (3.12–3.13) |    yes     |      yes       |  yes  |
+| Sibling repo `../GSF` checkout                             |    yes     |      yes       |  no   |
+| GitHub access to `NVIDIA/NeMo-Retriever`                   |    yes     |      yes       |  no   |
+| Neo4j + Postgres (pgvector) services                       |    yes     |      yes       |  no   |
+| Reachable source database                                  |    yes     |      yes       |  no   |
+| LLM API key                                                | embed only |      yes       |  yes  |
 
 The two dependencies are provided differently:
 
@@ -114,25 +119,25 @@ command with `PYTHONPATH=../GSF` (the judge does not need it).
 All settings are read from `.env` (see [.env.example](.env.example) for the full
 list). Variables are grouped by the workflow that uses them:
 
-| Variable | Used by | Description |
-| --------------------------------------- | ---------------------- | --------------------------------------------- |
-| `NVIDIA_API_KEY`, `BASE_URL`, `MODEL_NAME` | agent (eval) | LLM that the text-to-SQL agent generates with. |
-| `JUDGE_API_KEY`, `JUDGE_BASE_URL`, `JUDGE_MODEL_NAME` | judge | LLM that the judge scores with (falls back to the shared vars above). |
-| `EMBED_API_KEY`, `EMBED_ENDPOINT`, `EMBED_MODEL` | ingest + eval | Embedding endpoint (must be identical for ingest and query). |
-| `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD` | ingest + eval | Graph store connection. |
-| `POSTGRES_*` | ingest + eval | pgvector store connection. |
-| `CONNECTION_STRINGS` | ingest + eval | Source DB to extract schema from / execute SQL against. |
+| Variable                                              | Used by       | Description                                                           |
+| ----------------------------------------------------- | ------------- | --------------------------------------------------------------------- |
+| `NVIDIA_API_KEY`, `BASE_URL`, `MODEL_NAME`            | agent (eval)  | LLM that the text-to-SQL agent generates with.                        |
+| `JUDGE_API_KEY`, `JUDGE_BASE_URL`, `JUDGE_MODEL_NAME` | judge         | LLM that the judge scores with (falls back to the shared vars above). |
+| `EMBED_API_KEY`, `EMBED_ENDPOINT`, `EMBED_MODEL`      | ingest + eval | Embedding endpoint (must be identical for ingest and query).          |
+| `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`       | ingest + eval | Graph store connection.                                               |
+| `POSTGRES_*`                                          | ingest + eval | pgvector store connection.                                            |
+| `CONNECTION_STRINGS`                                  | ingest + eval | Source DB to extract schema from / execute SQL against.               |
 
 Which variables each workflow strictly needs:
 
-| Variable group | Ingestion | Retrieval eval | Judge |
-| --------------------- | :-------: | :------------: | :---: |
-| `CONNECTION_STRINGS`  | yes       | yes            |       |
-| `EMBED_*`             | yes       | yes            |       |
-| `NEO4J_*`             | yes       | yes            |       |
-| `POSTGRES_*`          | yes       | yes            |       |
-| `NVIDIA_API_KEY` / `BASE_URL` / `MODEL_NAME` | mock only | yes (agent) | fallback for `JUDGE_*` |
-| `JUDGE_*`             |           |                | yes   |
+| Variable group                               | Ingestion | Retrieval eval |         Judge          |
+| -------------------------------------------- | :-------: | :------------: | :--------------------: |
+| `CONNECTION_STRINGS`                         |    yes    |      yes       |                        |
+| `EMBED_*`                                    |    yes    |      yes       |                        |
+| `NEO4J_*`                                    |    yes    |      yes       |                        |
+| `POSTGRES_*`                                 |    yes    |      yes       |                        |
+| `NVIDIA_API_KEY` / `BASE_URL` / `MODEL_NAME` | mock only |  yes (agent)   | fallback for `JUDGE_*` |
+| `JUDGE_*`                                    |           |                |          yes           |
 
 ## Datasets
 
@@ -154,13 +159,13 @@ examples below use it throughout.
 
 A JSON **array** of question objects. Fields consumed by the retrieval eval:
 
-| Field | Required | Purpose |
-| ------------- | :------: | ------------------------------------------- |
-| `question_id` | no       | Identifier for logging and the CSV row. Falls back to the array index. |
-| `question`    | yes      | Natural-language question sent to the agent. |
-| `SQL`         | yes      | Expected (ground-truth) SQL. |
-| `answer_raw`  | no       | Expected user-facing answer, compared against the agent's DB result. |
-| `difficulty`  | no       | Passed through to the output CSV. |
+| Field         | Required | Purpose                                                                |
+| ------------- | :------: | ---------------------------------------------------------------------- |
+| `question_id` |    no    | Identifier for logging and the CSV row. Falls back to the array index. |
+| `question`    |   yes    | Natural-language question sent to the agent.                           |
+| `SQL`         |   yes    | Expected (ground-truth) SQL.                                           |
+| `answer_raw`  |    no    | Expected user-facing answer, compared against the agent's DB result.   |
+| `difficulty`  |    no    | Passed through to the output CSV.                                      |
 
 ```json
 [
@@ -216,6 +221,35 @@ embedded into the semantic vector store. Optional.
 
 ## Usage
 
+### 0. Seed the local source DB (optional)
+
+Ingestion and retrieval eval need a reachable source database. If you don't
+already have one, `scripts/seed_postgres.py` loads a pre-generated schema + data
+into your local Postgres. Seed artifacts live alongside the eval artifacts under
+`datasets/<database_name>/`, in a `ddl/` folder and a `data/` folder of CSVs. The
+bundled example is `wideworldimporters`:
+
+```bash
+uv run python scripts/seed_postgres.py --database-name wideworldimporters --drop
+```
+
+This creates the database (using `POSTGRES_*` from `.env`, with
+`POSTGRES_DATABASE` as the admin connection), applies the DDL, `COPY`s the CSVs,
+then adds foreign keys and views. Afterwards, point `CONNECTION_STRINGS` at the
+seeded DB (see [Configuration](#configuration)).
+
+Flags:
+
+- `--database-name <name>` — selects `datasets/<name>/` and names the target DB
+  (default `wideworldimporters`).
+- `--drop` — drop and recreate the database first (uses `WITH (FORCE)` to
+  terminate any lingering sessions).
+- `--refresh-collation` — run `ALTER DATABASE ... REFRESH COLLATION VERSION` on
+  `template1` and the admin DB before creating. Use this if Postgres reports a
+  `collation version mismatch` (common after an OS `libc`/ICU change, e.g. when
+  the pgvector container image is updated).
+- `--log-level {DEBUG,INFO,WARNING,ERROR}` — logging verbosity (default `INFO`).
+
 ### 1. Ingestion
 
 Populates the Neo4j graph and pgvector stores from a source database so the
@@ -243,10 +277,10 @@ PYTHONPATH=../GSF uv run python -m gsf.semantic --database-name <database_name> 
 
 Data destinations:
 
-| Destination | Content |
-| ----------- | ------- |
-| Neo4j (`NEO4J_*`) | Schema graph (Database → Schema → Table → Column), metadata properties, custom-analysis nodes. |
-| Postgres pgvector (`POSTGRES_*`) | Schema embeddings (data store) + custom-analysis embeddings (semantic store). |
+| Destination                      | Content                                                                                        |
+| -------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Neo4j (`NEO4J_*`)                | Schema graph (Database → Schema → Table → Column), metadata properties, custom-analysis nodes. |
+| Postgres pgvector (`POSTGRES_*`) | Schema embeddings (data store) + custom-analysis embeddings (semantic store).                  |
 
 For a quick, DB-free smoke test of the embed pipeline (uses an in-memory
 4-table `mock_shop` schema; needs `NVIDIA_API_KEY` for embeddings):
@@ -268,12 +302,12 @@ PYTHONPATH=../GSF uv run python -m ontology_sql_eval.retrieval.eval_chatbot --da
 
 CLI flags:
 
-| Flag | Default | Purpose |
-| ------------------- | ------- | ------------------------------------------------- |
-| `--database-name`   | —       | Derives input `datasets/<name>/evaluation.json` and output `datasets/<name>/<model>.csv`. |
-| `--input PATH`      | derived | Override the input JSON path. |
-| `--output PATH`     | derived | Override the output CSV path. |
-| `--single`          | off     | Run one example query (`SINGLE_QUERY` in the script) and print the result. |
+| Flag              | Default | Purpose                                                                                   |
+| ----------------- | ------- | ----------------------------------------------------------------------------------------- |
+| `--database-name` | —       | Derives input `datasets/<name>/evaluation.json` and output `datasets/<name>/<model>.csv`. |
+| `--input PATH`    | derived | Override the input JSON path.                                                             |
+| `--output PATH`   | derived | Override the output CSV path.                                                             |
+| `--single`        | off     | Run one example query (`SINGLE_QUERY` in the script) and print the result.                |
 
 The output CSV (`datasets/<database_name>/<model>.csv`, where `<model>` is the
 last segment of `MODEL_NAME`) has these columns:
@@ -324,7 +358,20 @@ The scoring model is configured via `JUDGE_MODEL_NAME` / `JUDGE_BASE_URL` /
 ## End-to-end example
 
 Using the bundled `wideworldimporters` dataset (assumes the stores are up and
-`.env` is filled in):
+`.env` is filled in).
+
+**One shot** — `main.py` runs all four stages (ingest -> semantic compile ->
+eval -> judge) in sequence, writing `datasets/<db>/<model>_scores.csv`:
+
+```bash
+PYTHONPATH=../GSF uv run python main.py --database-name wideworldimporters
+```
+
+Individual stages can be skipped with `--skip-ingest`, `--skip-semantic`,
+`--skip-eval`, `--skip-judge` (e.g. to re-judge an existing eval CSV:
+`--skip-ingest --skip-semantic --skip-eval`).
+
+**Manual** — the equivalent step-by-step invocation:
 
 ```bash
 # 1. Ingest the source DB schema into Neo4j + pgvector, then compile semantics.
@@ -343,8 +390,8 @@ uv run ontology-sql-eval      # writes output/<name>_scores.csv
 
 ## Development
 
-VS Code launch configurations for all of the above (Judge, Ingest, Semantic
-compile, Eval, Eval single-query) are provided in
+VS Code launch configurations for all of the above (Run full pipeline, Judge,
+Ingest, Semantic compile, Eval, Eval single-query) are provided in
 [.vscode/launch.json](.vscode/launch.json); they set `PYTHONPATH=../GSF` and load
 `.env` automatically. The type-checker path for `../GSF` is configured in
 [pyrightconfig.json](pyrightconfig.json).

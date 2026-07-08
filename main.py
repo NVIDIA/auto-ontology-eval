@@ -2,9 +2,159 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Convenience entry point so the tool can be run with ``python main.py``."""
+"""End-to-end pipeline entry point.
 
-from ontology_sql_eval.judge.main import main
+Runs the full evaluation pipeline for a dataset, in order:
+
+1. Ingest      source DB schema -> Neo4j + pgvector (``CONNECTION_STRINGS``)
+2. Semantic    compile the semantic layer (``gsf.semantic``)
+3. Eval        run the text-to-SQL agent -> ``datasets/<db>/<model>.csv``
+4. Judge       LLM re-score the eval CSV -> ``datasets/<db>/<model>_scores.csv``
+
+Stages 1-3 import GSF, so run with the sibling checkout on the path::
+
+    PYTHONPATH=../GSF uv run python main.py --database-name wideworldimporters
+
+Any stage can be skipped with ``--skip-ingest`` / ``--skip-semantic`` /
+``--skip-eval`` / ``--skip-judge`` (skipped stages don't import their deps).
+"""
+
+from __future__ import annotations
+
+import argparse
+import logging
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+logger = logging.getLogger("pipeline")
+
+DEFAULT_DB = "wideworldimporters"
+
+
+def _banner(step: int, title: str) -> None:
+    sep = "=" * 70
+    logger.info("%s", sep)
+    logger.info("STAGE %d: %s", step, title)
+    logger.info("%s", sep)
+
+
+def stage_ingest() -> None:
+    """Ingest the source DB schema into Neo4j + pgvector."""
+    _banner(1, "Ingest (source DB -> pgvector + Neo4j)")
+    connection_strings = [
+        s for s in os.environ.get("CONNECTION_STRINGS", "").split(",") if s.strip()
+    ]
+    if not connection_strings:
+        raise EnvironmentError(
+            "CONNECTION_STRINGS is not set. Add it to your .env, e.g.:\n\n"
+            "    CONNECTION_STRINGS=postgresql://user:password@host:5432/dbname"
+        )
+
+    from ontology_sql_eval.ingestion.pipeline import run_ingest
+
+    run_ingest(connection_strings[0])
+
+
+def stage_semantic(database_name: str) -> None:
+    """Compile the semantic layer via ``gsf.semantic``."""
+    _banner(2, "Semantic compile (gsf.semantic)")
+    subprocess.run(
+        [sys.executable, "-m", "gsf.semantic", "--database-name", database_name],
+        check=True,
+    )
+
+
+def stage_eval(database_name: str) -> Path:
+    """Run the retrieval eval; return the path of the model CSV it wrote."""
+    _banner(3, "Retrieval eval (text-to-SQL agent)")
+    from ontology_sql_eval.retrieval.eval_chatbot import _resolve_paths, run_evaluation
+
+    input_path, output_path = _resolve_paths(database_name, None, None)
+    run_evaluation(input_path=input_path, output_path=output_path)
+    return output_path
+
+
+def stage_judge(eval_csv: Path, workers: int = 1) -> Path:
+    """LLM re-score ``eval_csv``; return the scored CSV path."""
+    _banner(4, "LLM judge (re-score eval CSV)")
+    from ontology_sql_eval.judge.runner import run
+
+    scored_path = eval_csv.with_name(f"{eval_csv.stem}_scores.csv")
+    run(eval_csv, scored_path, workers=workers)
+    return scored_path
+
+
+def _eval_output_path(database_name: str) -> Path:
+    """Resolve the eval CSV path without running eval (for --skip-eval)."""
+    from ontology_sql_eval.retrieval.eval_chatbot import _resolve_paths
+
+    _, output_path = _resolve_paths(database_name, None, None)
+    return output_path
+
+
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        prog="ontology-sql-eval-pipeline",
+        description=(
+            "Run the full evaluation pipeline: ingest -> semantic compile -> "
+            "retrieval eval -> LLM judge."
+        ),
+    )
+    parser.add_argument(
+        "--database-name",
+        default=DEFAULT_DB,
+        help=f"Dataset / database name (default: {DEFAULT_DB}).",
+    )
+    parser.add_argument("--skip-ingest", action="store_true", help="Skip the ingest stage.")
+    parser.add_argument(
+        "--skip-semantic", action="store_true", help="Skip the semantic-compile stage."
+    )
+    parser.add_argument("--skip-eval", action="store_true", help="Skip the retrieval-eval stage.")
+    parser.add_argument("--skip-judge", action="store_true", help="Skip the LLM-judge stage.")
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="Number of concurrent judge scoring workers (default: 1).",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+    args = _parse_args(argv)
+    db = args.database_name
+
+    from dotenv import load_dotenv
+
+    load_dotenv()
+
+    if not args.skip_ingest:
+        stage_ingest()
+
+    if not args.skip_semantic:
+        stage_semantic(db)
+
+    if not args.skip_eval:
+        eval_csv = stage_eval(db)
+    else:
+        eval_csv = _eval_output_path(db)
+        logger.info("Skipping eval; using existing %s", eval_csv)
+
+    if not args.skip_judge:
+        if not eval_csv.exists():
+            raise SystemExit(
+                f"Eval CSV not found: {eval_csv}\n"
+                "Run without --skip-eval, or ensure the file exists before judging."
+            )
+        scored = stage_judge(eval_csv, workers=args.workers)
+        logger.info("Pipeline complete. Scored output: %s", scored)
+
 
 if __name__ == "__main__":
     main()

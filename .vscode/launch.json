@@ -2,6 +2,41 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "Run full pipeline",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/main.py",
+      "args": [
+        "--database-name",
+        "wideworldimporters"
+      ],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/../GSF"
+      },
+      "justMyCode": false
+    },
+    {
+      "name": "Seed local Postgres",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/seed_postgres.py",
+      "args": [
+        "--database-name",
+        "wideworldimporters",
+        "--drop",
+        "--refresh-collation"
+      ],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "envFile": "${workspaceFolder}/.env",
+      "justMyCode": false
+    },
+    {
       "name": "Judge (score CSVs)",
       "type": "debugpy",
       "request": "launch",
@@ -33,7 +68,7 @@
       "module": "gsf.semantic",
       "args": [
         "--database-name",
-        "${input:databaseName}"
+        "wideworldimporters"
       ],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
@@ -51,7 +86,7 @@
       "module": "ontology_sql_eval.retrieval.eval_chatbot",
       "args": [
         "--database-name",
-        "${input:databaseName}"
+        "wideworldimporters"
       ],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
@@ -70,7 +105,7 @@
       "args": [
         "--single",
         "--database-name",
-        "${input:databaseName}"
+        "wideworldimporters"
       ],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
@@ -80,18 +115,6 @@
         "PYTHONPATH": "${workspaceFolder}/../GSF"
       },
       "justMyCode": false
-    }
-  ],
-  "inputs": [
-    {
-      "id": "databaseName",
-      "type": "pickString",
-      "description": "Database name",
-      "options": [
-        "wideworldimporters",
-        "bird"
-      ],
-      "default": "wideworldimporters"
     }
   ]
 }
