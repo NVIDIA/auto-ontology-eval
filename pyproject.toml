@@ -1,5 +1,5 @@
 [project]
-name = "evaluation-judge"
+name = "ontology-sql-eval"
 version = "0.1.0"
 description = "LLM-powered re-scoring of Text-to-SQL evaluation CSVs, plus GSF-backed ingestion and retrieval evaluation."
 readme = "README.md"
@@ -11,8 +11,9 @@ dependencies = [
     "pandas>=2.0,<3",
     "pydantic>=2.0",
     "python-dotenv",
-    # GSF + NeMo-Retriever runtime deps (mirrors ../GSF/pyproject.toml) so the
-    # ingestion and retrieval-eval scripts can run from this repo's venv.
+    # GSF is imported from the sibling ../GSF checkout via PYTHONPATH (not
+    # installed). These mirror ../GSF/pyproject.toml so its runtime deps are in
+    # this repo's venv.
     "nemo-retriever[tabular]",
     "neo4j>=6.1.0",
     "psycopg[binary]>=3.3.3",
@@ -25,10 +26,11 @@ dependencies = [
     "httpx>=0.28.1",
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.32.0",
+    "importlib-metadata>=9.0.0",
 ]
 
 [project.scripts]
-evaluation-judge = "evaluation.judge.main:main"
+ontology-sql-eval = "ontology_sql_eval.judge.main:main"
 
 [dependency-groups]
 dev = ["ruff==0.15.9"]
@@ -38,7 +40,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["evaluation"]
+packages = ["ontology_sql_eval"]
 
 [tool.uv.sources]
-nemo-retriever = { path = "../NeMo-Retriever/nemo_retriever", editable = true }
+nemo-retriever = { git = "https://github.com/NVIDIA/NeMo-Retriever.git", subdirectory = "nemo_retriever" }

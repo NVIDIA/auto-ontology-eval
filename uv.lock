@@ -617,59 +617,6 @@ wheels = [
 ]
 
 [[package]]
-name = "evaluation-judge"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "duckdb" },
-    { name = "fastapi" },
-    { name = "httpx" },
-    { name = "hvac" },
-    { name = "langchain-nvidia-ai-endpoints" },
-    { name = "langchain-openai" },
-    { name = "langchain-postgres" },
-    { name = "nemo-retriever", extra = ["tabular"] },
-    { name = "neo4j" },
-    { name = "pandas" },
-    { name = "psycopg", extra = ["binary"] },
-    { name = "psycopg-pool" },
-    { name = "pydantic" },
-    { name = "pyheavydb" },
-    { name = "python-dotenv" },
-    { name = "snowflake-connector-python" },
-    { name = "uvicorn", extra = ["standard"] },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "ruff" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "duckdb", specifier = ">=1.5.2" },
-    { name = "fastapi", specifier = ">=0.115.0" },
-    { name = "httpx", specifier = ">=0.28.1" },
-    { name = "hvac", specifier = ">=2.4.0" },
-    { name = "langchain-nvidia-ai-endpoints" },
-    { name = "langchain-openai", specifier = ">=1.3.2" },
-    { name = "langchain-postgres", specifier = ">=0.0.17" },
-    { name = "nemo-retriever", extras = ["tabular"], editable = "../NeMo-Retriever/nemo_retriever" },
-    { name = "neo4j", specifier = ">=6.1.0" },
-    { name = "pandas", specifier = ">=2.0,<3" },
-    { name = "psycopg", extras = ["binary"], specifier = ">=3.3.3" },
-    { name = "psycopg-pool", specifier = ">=3.3.1" },
-    { name = "pydantic", specifier = ">=2.0" },
-    { name = "pyheavydb", specifier = ">=8.0.1.post1" },
-    { name = "python-dotenv" },
-    { name = "snowflake-connector-python", specifier = ">=4.6.0" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.32.0" },
-]
-
-[package.metadata.requires-dev]
-dev = [{ name = "ruff", specifier = "==0.15.9" }]
-
-[[package]]
 name = "exceptiongroup"
 version = "1.3.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1112,6 +1059,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/cd/63/9496c57188a2ee585e0f1db071d75089a11e98aa86eb99d9d7618fc1edce/idna-3.18.tar.gz", hash = "sha256:ffb385a7e039654cef1ab9ef32c6fafe283c0c0467bba1d9029738ce4a14a848", size = 196711, upload-time = "2026-06-02T14:34:07.794Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/1e/5e/d4e9f1a599fb8e573b7b87160658329fbf28d19eac2718f51fc3def3aa5a/idna-3.18-py3-none-any.whl", hash = "sha256:7f952cbe720b688055e3f87de14f5c3e5fdaa8bc3928985c4077ca689de849a2", size = 65455, upload-time = "2026-06-02T14:34:06.319Z" },
+]
+
+[[package]]
+name = "importlib-metadata"
+version = "9.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "zipp" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a9/01/15bb152d77b21318514a96f43af312635eb2500c96b55398d020c93d86ea/importlib_metadata-9.0.0.tar.gz", hash = "sha256:a4f57ab599e6a2e3016d7595cfd72eb4661a5106e787a95bcc90c7105b831efc", size = 56405, upload-time = "2026-03-20T06:42:56.999Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/38/3d/2d244233ac4f76e38533cfcb2991c9eb4c7bf688ae0a036d30725b8faafe/importlib_metadata-9.0.0-py3-none-any.whl", hash = "sha256:2d21d1cc5a017bd0559e36150c21c830ab1dc304dedd1b7ea85d20f45ef3edd7", size = 27789, upload-time = "2026-03-20T06:42:55.665Z" },
 ]
 
 [[package]]
@@ -1733,7 +1692,8 @@ wheels = [
 
 [[package]]
 name = "nemo-retriever"
-source = { editable = "../NeMo-Retriever/nemo_retriever" }
+version = "2026.7.8.dev20260708091011"
+source = { git = "https://github.com/NVIDIA/NeMo-Retriever.git?subdirectory=nemo_retriever#b0a4ce1f295d1457c89ae01bd806966ee05c8307" }
 dependencies = [
     { name = "backoff" },
     { name = "click" },
@@ -1777,109 +1737,6 @@ tabular = [
     { name = "duckdb-engine" },
     { name = "langgraph" },
     { name = "neo4j" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "accelerate", marker = "extra == 'local'", specifier = "==1.12.0" },
-    { name = "addict", marker = "extra == 'local'" },
-    { name = "addict", marker = "extra == 'service'" },
-    { name = "albumentations", marker = "extra == 'local'", specifier = "==2.0.8" },
-    { name = "apscheduler", marker = "extra == 'local'", specifier = ">=3.10" },
-    { name = "apscheduler", marker = "extra == 'service'", specifier = ">=3.10" },
-    { name = "backoff" },
-    { name = "backoff", marker = "extra == 'service'" },
-    { name = "build", marker = "extra == 'dev'", specifier = ">=1.2.2" },
-    { name = "cairosvg", marker = "extra == 'multimedia'", specifier = ">=2.7.0" },
-    { name = "click", specifier = ">=8.2.0" },
-    { name = "datasets", marker = "extra == 'benchmarks'", specifier = ">=4.8.2" },
-    { name = "debugpy", specifier = ">=1.8.0" },
-    { name = "duckdb", marker = "extra == 'tabular'", specifier = ">=1.2.0" },
-    { name = "duckdb-engine", marker = "extra == 'tabular'", specifier = ">=0.13.0" },
-    { name = "easydict", marker = "extra == 'local'" },
-    { name = "easydict", marker = "extra == 'service'" },
-    { name = "einops", marker = "extra == 'local'" },
-    { name = "fastapi", specifier = ">=0.114.0" },
-    { name = "fastmcp", specifier = ">=2.0.0" },
-    { name = "ffmpeg-python" },
-    { name = "flashinfer-cubin", marker = "sys_platform == 'linux' and extra == 'local'", specifier = "==0.6.8.post1" },
-    { name = "flashinfer-python", marker = "sys_platform == 'linux' and extra == 'local'", specifier = "==0.6.8.post1" },
-    { name = "fsspec", specifier = ">=2025.5.1" },
-    { name = "glom", marker = "extra == 'local'" },
-    { name = "glom", marker = "extra == 'service'" },
-    { name = "httpx", specifier = ">=0.27.0" },
-    { name = "lancedb" },
-    { name = "langchain-nvidia-ai-endpoints", specifier = ">=1.4.0" },
-    { name = "langgraph", marker = "extra == 'tabular'", specifier = ">=1.2.0" },
-    { name = "librosa", marker = "extra == 'multimedia'", specifier = ">=0.10.2" },
-    { name = "librosa", marker = "extra == 'service'", specifier = ">=0.10.2" },
-    { name = "litellm", marker = "extra == 'llm'", specifier = ">=1.86.0,<2" },
-    { name = "litellm", marker = "extra == 'service'", specifier = ">=1.86.0,<2" },
-    { name = "markitdown" },
-    { name = "nemo-retriever", extras = ["benchmarks", "llm", "local", "multimedia", "nemotron-parse", "service", "tabular"], marker = "extra == 'all'" },
-    { name = "nemotron-graphic-elements-v1", marker = "extra == 'local'", specifier = ">=1.0.0,<2" },
-    { name = "nemotron-ocr", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux' and extra == 'local') or (platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'local')", specifier = ">=2.0.0,<3" },
-    { name = "nemotron-page-elements-v3", marker = "extra == 'local'", specifier = ">=3.0.1,<4" },
-    { name = "nemotron-table-structure-v1", marker = "extra == 'local'", specifier = ">=1.0.0,<2" },
-    { name = "neo4j", marker = "extra == 'tabular'", specifier = ">=5.0" },
-    { name = "nltk", specifier = "==3.9.4" },
-    { name = "numba", marker = "extra == 'multimedia'", specifier = ">=0.59" },
-    { name = "numba", marker = "extra == 'service'", specifier = ">=0.59" },
-    { name = "numpy", specifier = ">=1.26.0" },
-    { name = "nvidia-ml-py", marker = "extra == 'local'" },
-    { name = "nvidia-riva-client", specifier = ">=2.25.1" },
-    { name = "open-clip-torch", marker = "extra == 'benchmarks'", specifier = "==3.2.0" },
-    { name = "open-clip-torch", marker = "extra == 'nemotron-parse'", specifier = "==3.2.0" },
-    { name = "opencv-python-headless", marker = "extra == 'local'", specifier = ">=4.8.0" },
-    { name = "opentelemetry-api", specifier = ">=1.41.1" },
-    { name = "opentelemetry-exporter-otlp-proto-grpc", specifier = ">=1.41.1" },
-    { name = "opentelemetry-sdk", specifier = ">=1.41.1" },
-    { name = "pandas", specifier = ">=2.0,<3" },
-    { name = "pillow", specifier = "==12.2.0" },
-    { name = "prometheus-fastapi-instrumentator", specifier = ">=7.0,<8" },
-    { name = "psutil", marker = "extra == 'local'", specifier = ">=5.9.0" },
-    { name = "psutil", marker = "extra == 'service'", specifier = ">=5.9.0" },
-    { name = "pydantic", specifier = ">=2.8.0" },
-    { name = "pypdfium2", specifier = "==4.30.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.2" },
-    { name = "python-multipart", specifier = ">=0.0.9" },
-    { name = "pyyaml", specifier = ">=6.0" },
-    { name = "ray", extras = ["data", "serve"], specifier = ">=2.49.0" },
-    { name = "requests", specifier = ">=2.32.5" },
-    { name = "rich", specifier = ">=13.7.0" },
-    { name = "s3fs", specifier = ">=2025.5.1" },
-    { name = "scikit-learn", marker = "extra == 'local'", specifier = ">=1.6.0" },
-    { name = "scikit-learn", marker = "extra == 'service'", specifier = ">=1.6.0" },
-    { name = "scipy", marker = "extra == 'multimedia'", specifier = ">=1.11.0" },
-    { name = "soundfile", marker = "extra == 'multimedia'", specifier = ">=0.12.0" },
-    { name = "sqlglot", specifier = ">=30.0.0" },
-    { name = "timm", marker = "extra == 'local'", specifier = "==1.0.22" },
-    { name = "tokenizers", marker = "extra == 'local'", specifier = ">=0.21.1" },
-    { name = "torch", marker = "sys_platform == 'darwin' and extra == 'local'", specifier = "==2.11.0" },
-    { name = "torch", marker = "sys_platform == 'linux' and extra == 'local'", specifier = "==2.11.0", index = "https://download.pytorch.org/whl/cu130" },
-    { name = "torch", marker = "sys_platform == 'win32' and extra == 'local'", specifier = "==2.11.0", index = "https://download.pytorch.org/whl/cu130" },
-    { name = "torchvision", marker = "sys_platform == 'darwin' and extra == 'local'", specifier = "==0.26.0" },
-    { name = "torchvision", marker = "sys_platform == 'linux' and extra == 'local'", specifier = "==0.26.0", index = "https://download.pytorch.org/whl/cu130" },
-    { name = "torchvision", marker = "sys_platform == 'win32' and extra == 'local'", specifier = "==0.26.0", index = "https://download.pytorch.org/whl/cu130" },
-    { name = "tqdm", specifier = ">=4.66.0" },
-    { name = "transformers", marker = "extra == 'local'", specifier = ">=4.57.6,<5" },
-    { name = "tritonclient", marker = "extra == 'local'" },
-    { name = "typer", specifier = ">=0.12.0" },
-    { name = "universal-pathlib", specifier = ">=0.2.0" },
-    { name = "urllib3", specifier = "==2.7.0" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.30.0" },
-    { name = "vllm", marker = "sys_platform == 'linux' and extra == 'local'", specifier = "==0.20.0" },
-]
-provides-extras = ["service", "local", "multimedia", "nemotron-parse", "tabular", "benchmarks", "llm", "dev", "all"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "nemo-retriever", extras = ["all"] },
-    { name = "nemo-retriever", extras = ["dev"] },
-    { name = "nemotron-graphic-elements-v1", specifier = ">=1.0.1.dev0,!=1.0.1,<2" },
-    { name = "nemotron-ocr", marker = "(platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux')", specifier = ">=2.0.1.dev0,!=2.0.1,<3" },
-    { name = "nemotron-page-elements-v3", specifier = ">=3.0.1.dev0,!=3.0.1,!=3.0.2,<4" },
-    { name = "nemotron-table-structure-v1", specifier = ">=1.0.1.dev0,!=1.0.1,<2" },
 ]
 
 [[package]]
@@ -1988,6 +1845,61 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/d8/55/3821c5fd60b52a6c82a00bba18531793c93c4addfe64fbf061e235c5617a/onnxruntime-1.20.1-cp313-cp313t-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:c9158465745423b2b5d97ed25aa7740c7d38d2993ee2e5c3bfacb0c4145c49d8", size = 11950342, upload-time = "2024-11-21T00:49:34.164Z" },
     { url = "https://files.pythonhosted.org/packages/14/56/fd990ca222cef4f9f4a9400567b9a15b220dee2eafffb16b2adbc55c8281/onnxruntime-1.20.1-cp313-cp313t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:0df6f2df83d61f46e842dbcde610ede27218947c33e994545a22333491e72a3b", size = 13337040, upload-time = "2024-11-21T00:49:37.271Z" },
 ]
+
+[[package]]
+name = "ontology-sql-eval"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "duckdb" },
+    { name = "fastapi" },
+    { name = "httpx" },
+    { name = "hvac" },
+    { name = "importlib-metadata" },
+    { name = "langchain-nvidia-ai-endpoints" },
+    { name = "langchain-openai" },
+    { name = "langchain-postgres" },
+    { name = "nemo-retriever", extra = ["tabular"] },
+    { name = "neo4j" },
+    { name = "pandas" },
+    { name = "psycopg", extra = ["binary"] },
+    { name = "psycopg-pool" },
+    { name = "pydantic" },
+    { name = "pyheavydb" },
+    { name = "python-dotenv" },
+    { name = "snowflake-connector-python" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "duckdb", specifier = ">=1.5.2" },
+    { name = "fastapi", specifier = ">=0.115.0" },
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "hvac", specifier = ">=2.4.0" },
+    { name = "importlib-metadata", specifier = ">=9.0.0" },
+    { name = "langchain-nvidia-ai-endpoints" },
+    { name = "langchain-openai", specifier = ">=1.3.2" },
+    { name = "langchain-postgres", specifier = ">=0.0.17" },
+    { name = "nemo-retriever", extras = ["tabular"], git = "https://github.com/NVIDIA/NeMo-Retriever.git?subdirectory=nemo_retriever" },
+    { name = "neo4j", specifier = ">=6.1.0" },
+    { name = "pandas", specifier = ">=2.0,<3" },
+    { name = "psycopg", extras = ["binary"], specifier = ">=3.3.3" },
+    { name = "psycopg-pool", specifier = ">=3.3.1" },
+    { name = "pydantic", specifier = ">=2.0" },
+    { name = "pyheavydb", specifier = ">=8.0.1.post1" },
+    { name = "python-dotenv" },
+    { name = "snowflake-connector-python", specifier = ">=4.6.0" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.32.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [{ name = "ruff", specifier = "==0.15.9" }]
 
 [[package]]
 name = "openai"
@@ -3815,6 +3727,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/92/dd/3ae5fe417e9d1c353a548553326eb9935e76b6b727161563b424cc296df3/yarl-1.24.2-cp313-cp313-win_amd64.whl", hash = "sha256:7d37fb7c38f2b6edab0f845c4f85148d4c44204f52bc127021bd2bc9fdbf1656", size = 92667, upload-time = "2026-05-19T21:29:52.743Z" },
     { url = "https://files.pythonhosted.org/packages/10/cc/a7beb239f78f27fca1b053c8e8595e4179c02e62249b4687ec218c370c50/yarl-1.24.2-cp313-cp313-win_arm64.whl", hash = "sha256:1e831894be7c2954240e49791fa4b50c05a0dc881de2552cfe3ffd8631c7f461", size = 87069, upload-time = "2026-05-19T21:29:54.442Z" },
     { url = "https://files.pythonhosted.org/packages/fd/4d/4b880086bd0d3e034d25647be1d830afc3e3f610e98c4ab3490af6b1b6d5/yarl-1.24.2-py3-none-any.whl", hash = "sha256:2783d9226db8797636cd6896e4de81feed252d1db72265686c9558d97a4d94b9", size = 53576, upload-time = "2026-05-19T21:31:03.909Z" },
+]
+
+[[package]]
+name = "zipp"
+version = "4.1.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/b9/d8/eab98a517c14134c0b2eb4e2387bc5f457334293ec5d2dd3857ec2966802/zipp-4.1.0.tar.gz", hash = "sha256:4cb57381f544315db7688e976e922a2b18cdb513d21cc194eb42232ba2a3e602", size = 26214, upload-time = "2026-05-18T20:08:57.967Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3a/13/547360d81e6d88d58492968ffda9f9542854f11310ee556fef14260cc886/zipp-4.1.0-py3-none-any.whl", hash = "sha256:25ad4e16390cd314347dd8f1de67a2ac538ae658ed4ab9db16029c07c188e97f", size = 10238, upload-time = "2026-05-18T20:08:57.045Z" },
 ]
 
 [[package]]
