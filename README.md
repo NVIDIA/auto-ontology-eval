@@ -1,4 +1,4 @@
-# evaluation-judge
+# ontology-sql-eval
 
 A Text-to-SQL evaluation toolkit for benchmarking a text-to-SQL agent against a
 dataset and scoring the results. It bundles three workflows in one project:
@@ -48,13 +48,13 @@ re-implementing it. The judge is fully self-contained.
 ## Layout
 
 ```
-evaluation/                 single namespace package
+ontology_sql_eval/          single namespace package
   judge/                    standalone LLM scorer (no GSF dependency)
     config.py               resolves JUDGE_* settings from .env
     scorer.py               per-row LLM scoring call
     runner.py               batch/directory orchestration
     models.py               Pydantic score model + scoring prompt
-    main.py                 CLI entry point (evaluation-judge)
+    main.py                 CLI entry point (ontology-sql-eval)
   ingestion/                GSF-backed ingestion pipeline
     pipeline.py             source DB -> pgvector ingest (calls enrich_graph)
     enrich_graph.py         graph metadata + custom-analysis enrichment
@@ -225,7 +225,7 @@ read from `datasets/<database_name>/`, where `<database_name>` comes from the
 connector), then run the pipeline.
 
 ```bash
-PYTHONPATH=../GSF uv run python -m evaluation.ingestion.pipeline                 # extract + embed + enrich graph
+PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.pipeline                 # extract + embed + enrich graph
 PYTHONPATH=../GSF uv run python -m gsf.semantic --database-name <database_name>  # compile semantic layer
 ```
 
@@ -252,7 +252,7 @@ For a quick, DB-free smoke test of the embed pipeline (uses an in-memory
 4-table `mock_shop` schema; needs `NVIDIA_API_KEY` for embeddings):
 
 ```bash
-PYTHONPATH=../GSF uv run python -m evaluation.ingestion.mock_ingest
+PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.mock_ingest
 ```
 
 ### 2. Retrieval eval
@@ -263,7 +263,7 @@ both executed against the live source DB and their result sets compared, and the
 returned answer is compared against `answer_raw`.
 
 ```bash
-PYTHONPATH=../GSF uv run python -m evaluation.retrieval.eval_chatbot --database-name <database_name>
+PYTHONPATH=../GSF uv run python -m ontology_sql_eval.retrieval.eval_chatbot --database-name <database_name>
 ```
 
 CLI flags:
@@ -303,7 +303,7 @@ CSVs are written to `output/<name>_scores.csv`. Both folders are created on
 demand (relative to the current directory) and are not tracked in git.
 
 ```bash
-uv run evaluation-judge     # or: uv run python main.py
+uv run ontology-sql-eval     # or: uv run python main.py
 ```
 
 Options: `--input-dir` (default `input`), `--output-dir` (default `output`),
@@ -328,17 +328,17 @@ Using the bundled `wideworldimporters` dataset (assumes the stores are up and
 
 ```bash
 # 1. Ingest the source DB schema into Neo4j + pgvector, then compile semantics.
-PYTHONPATH=../GSF uv run python -m evaluation.ingestion.pipeline
+PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.pipeline
 PYTHONPATH=../GSF uv run python -m gsf.semantic --database-name wideworldimporters
 
 # 2. Run the agent against the eval set -> datasets/wideworldimporters/<model>.csv
-PYTHONPATH=../GSF uv run python -m evaluation.retrieval.eval_chatbot \
+PYTHONPATH=../GSF uv run python -m ontology_sql_eval.retrieval.eval_chatbot \
     --database-name wideworldimporters
 
 # 3. Re-score the eval CSV with the LLM judge.
 mkdir -p input
 cp datasets/wideworldimporters/*.csv input/
-uv run evaluation-judge      # writes output/<name>_scores.csv
+uv run ontology-sql-eval      # writes output/<name>_scores.csv
 ```
 
 ## Development

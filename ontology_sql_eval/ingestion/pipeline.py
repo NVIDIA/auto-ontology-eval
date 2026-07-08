@@ -11,7 +11,7 @@ enrichment step reads this repo's ``datasets/<database_name>/`` data files
 Run after the Neo4j + Postgres (pgvector) services are up (see GSF's
 ``docker-compose.yml``) and ``CONNECTION_STRINGS`` points at the source DB::
 
-    uv run python -m evaluation.ingestion.pipeline
+    uv run python -m ontology_sql_eval.ingestion.pipeline
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ from nemo_retriever.common.params.models import TabularExtractParams
 from gsf.utils import get_embed_params
 from gsf.vdb import get_data_vdb, get_semantic_vdb
 from gsf.connectors.registry import create_connector
-from evaluation.ingestion.enrich_graph import add_custom_analyses, apply_metadata
+from ontology_sql_eval.ingestion.enrich_graph import add_custom_analyses, apply_metadata
 
 load_dotenv()
 

@@ -18,9 +18,9 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from evaluation.judge.config import Settings, load_settings
-from evaluation.judge.models import LLM_SCORE_FIELDS, SqlScore
-from evaluation.judge.scorer import score_sql
+from ontology_sql_eval.judge.config import Settings, load_settings
+from ontology_sql_eval.judge.models import LLM_SCORE_FIELDS, SqlScore
+from ontology_sql_eval.judge.scorer import score_sql
 
 csv.field_size_limit(sys.maxsize)
 

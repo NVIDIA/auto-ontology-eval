@@ -4,7 +4,7 @@
 
 """Convenience entry point so the tool can be run with ``python main.py``."""
 
-from evaluation.judge.main import main
+from ontology_sql_eval.judge.main import main
 
 if __name__ == "__main__":
     main()
