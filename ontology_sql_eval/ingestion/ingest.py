@@ -11,7 +11,7 @@ enrichment step reads this repo's ``datasets/<database_name>/`` data files
 Run after the Neo4j + Postgres (pgvector) services are up (see GSF's
 ``docker-compose.yml``) and ``CONNECTION_STRINGS`` points at the source DB::
 
-    uv run python -m ontology_sql_eval.ingestion.pipeline
+    uv run python -m ontology_sql_eval.ingestion.ingest
 """
 
 from __future__ import annotations
