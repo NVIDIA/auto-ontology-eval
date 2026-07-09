@@ -15,13 +15,10 @@ The typical lifecycle is **ingest → eval → judge**: you ingest a database so
 agent can retrieve its schema, run an evaluation to produce a results CSV, then
 optionally re-score that CSV with the LLM judge.
 
-The ingestion and retrieval-eval workflows reuse the `gsf` (from the sibling
-`../GSF` checkout) and `nemo_retriever` (installed from GitHub) code rather than
-re-implementing it. The judge is fully self-contained.
-
 > [!IMPORTANT]
-> **You need GSF.** The ingestion and retrieval-eval workflows import the `gsf`
-> package from a **sibling `../GSF` checkout**
+> **You need [GSF](https://github.com/NVIDIA/GSF).** The ingestion and
+> retrieval-eval workflows import the `gsf` package from a **sibling `../GSF`
+> checkout** ([NVIDIA/GSF](https://github.com/NVIDIA/GSF))
 >
 > It must live right next to this
 > repo on the same machine (i.e. `../GSF` relative to this repo's root) and be on
@@ -34,18 +31,18 @@ re-implementing it. The judge is fully self-contained.
 
 ## Prerequisites
 
-| Requirement                                                | Ingestion  | Retrieval eval | Judge |
-| ---------------------------------------------------------- | :--------: | :------------: | :---: |
-| [uv](https://docs.astral.sh/uv/) + Python 3.12 (3.12–3.13) |    yes     |      yes       |  yes  |
-| Sibling repo `../GSF` checkout                             |    yes     |      yes       |  no   |
-| GitHub access to `NVIDIA/NeMo-Retriever`                   |    yes     |      yes       |  no   |
-| Neo4j + Postgres (pgvector) services                       |    yes     |      yes       |  no   |
-| Reachable source database                                  |    yes     |      yes       |  no   |
-| LLM API key                                                | embed only |      yes       |  yes  |
+| Requirement                                                                  | Ingestion  | Retrieval eval | Judge |
+| ---------------------------------------------------------------------------- | :--------: | :------------: | :---: |
+| [uv](https://docs.astral.sh/uv/) + Python 3.12 (3.12–3.13)                   |    yes     |      yes       |  yes  |
+| Sibling repo `../GSF` checkout ([NVIDIA/GSF](https://github.com/NVIDIA/GSF)) |    yes     |      yes       |  no   |
+| GitHub access to `NVIDIA/NeMo-Retriever`                                     |    yes     |      yes       |  no   |
+| Neo4j + Postgres (pgvector) services                                         |    yes     |      yes       |  no   |
+| Reachable source database                                                    |    yes     |      yes       |  no   |
+| LLM API key                                                                  | embed only |      yes       |  yes  |
 
 The two external dependencies are provided differently:
 
-- `../GSF` — provides the `gsf` package. **Check it out next to this repo** so it
+- `../GSF` (`https://github.com/NVIDIA/GSF`) — provides the `gsf` package. **Check it out next to this repo** so it
   resolves as `../GSF`; it is imported via `PYTHONPATH` (not installed — see
   below).
 - `nemo-retriever` (`https://github.com/NVIDIA/NeMo-Retriever.git`) — provides
@@ -113,12 +110,14 @@ Or use the **Seed local Postgres** configuration in
 [.vscode/launch.json](.vscode/launch.json).
 
 This creates the database (using `POSTGRES_*` from `.env`, with
-`POSTGRES_DATABASE` as the admin connection), applies the DDL, `COPY`s the CSVs,
-then adds foreign keys and views. Afterwards, point `CONNECTION_STRINGS` at the
-seeded DB, e.g.:
+`POSTGRES_DATABASE` as the admin connection). Afterwards, point
+`CONNECTION_STRINGS` at the seeded DB.
+
+Replace `<password>` with your Postgres password — the same one GSF's
+`docker-compose` uses (i.e. the value of `POSTGRES_PASSWORD` in your `.env`):
 
 ```bash
-CONNECTION_STRINGS=postgresql://postgres:password@localhost:5432/wideworldimporters
+CONNECTION_STRINGS=postgresql://postgres:<password>@localhost:5432/wideworldimporters
 ```
 
 Flags:
@@ -160,8 +159,8 @@ Use the **Run full pipeline** configuration in
 
 ```bash
 # 1. Ingest the source DB schema into Neo4j + pgvector, then compile semantics.
-PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.pipeline
-PYTHONPATH=../GSF uv run python -m gsf.semantic --database-name wideworldimporters
+PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.ingest
+PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.semantic --database-name wideworldimporters
 
 # 2. Run the agent against the eval set -> input/wideworldimporters_<model>.csv
 PYTHONPATH=../GSF uv run python -m ontology_sql_eval.retrieval.eval_chatbot \
