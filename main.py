@@ -7,7 +7,7 @@
 Runs the full evaluation pipeline for a dataset, in order:
 
 1. Ingest      source DB schema -> Neo4j + pgvector (``CONNECTION_STRINGS``)
-2. Semantic    compile the semantic layer (``gsf.semantic``)
+2. Semantic    compile the semantic layer (``ingestion.semantic``)
 3. Eval        run the text-to-SQL agent -> ``datasets/<db>/<model>.csv``
 4. Judge       LLM re-score the eval CSV -> ``datasets/<db>/<model>_scores.csv``
 
@@ -24,8 +24,6 @@ from __future__ import annotations
 import argparse
 import logging
 import os
-import subprocess
-import sys
 from pathlib import Path
 
 logger = logging.getLogger("pipeline")
@@ -52,21 +50,20 @@ def stage_ingest() -> None:
     if not connection_strings:
         raise EnvironmentError(
             "CONNECTION_STRINGS is not set. Add it to your .env, e.g.:\n\n"
-            "    CONNECTION_STRINGS=postgresql://user:password@host:5432/dbname"
+            "    CONNECTION_STRINGS=postgresql://user:password@host:5432/wideworldimporters"
         )
 
-    from ontology_sql_eval.ingestion.pipeline import run_ingest
+    from ontology_sql_eval.ingestion.ingest import run_ingest
 
     run_ingest(connection_strings[0])
 
 
 def stage_semantic(database_name: str) -> None:
-    """Compile the semantic layer via ``gsf.semantic``."""
-    _banner(2, "Semantic compile (gsf.semantic)")
-    subprocess.run(
-        [sys.executable, "-m", "gsf.semantic", "--database-name", database_name],
-        check=True,
-    )
+    """Compile the semantic layer in-process via ``run_semantic``."""
+    _banner(2, "Semantic compile (ingestion.semantic)")
+    from ontology_sql_eval.ingestion.semantic import run_semantic
+
+    run_semantic(database_name)
 
 
 def stage_eval(database_name: str) -> Path:
