@@ -32,6 +32,9 @@ logger = logging.getLogger("pipeline")
 
 DEFAULT_DB = "wideworldimporters"
 
+_REPO_ROOT = Path(__file__).resolve().parent
+OUTPUT_DIR = _REPO_ROOT / "output"
+
 
 def _banner(step: int, title: str) -> None:
     sep = "=" * 70
@@ -67,7 +70,11 @@ def stage_semantic(database_name: str) -> None:
 
 
 def stage_eval(database_name: str) -> Path:
-    """Run the retrieval eval; return the path of the model CSV it wrote."""
+    """Run the retrieval eval; return the path of the model CSV it wrote.
+
+    The CSV lands in the repo-root ``input/`` folder so the judge stage (and the
+    standalone judge) can pick it up directly.
+    """
     _banner(3, "Retrieval eval (text-to-SQL agent)")
     from ontology_sql_eval.retrieval.eval_chatbot import _resolve_paths, run_evaluation
 
@@ -77,11 +84,11 @@ def stage_eval(database_name: str) -> Path:
 
 
 def stage_judge(eval_csv: Path, workers: int = 1) -> Path:
-    """LLM re-score ``eval_csv``; return the scored CSV path."""
+    """LLM re-score ``eval_csv`` from ``input/``; write scores to ``output/``."""
     _banner(4, "LLM judge (re-score eval CSV)")
     from ontology_sql_eval.judge.runner import run
 
-    scored_path = eval_csv.with_name(f"{eval_csv.stem}_scores.csv")
+    scored_path = OUTPUT_DIR / f"{eval_csv.stem}_scores.csv"
     run(eval_csv, scored_path, workers=workers)
     return scored_path
 

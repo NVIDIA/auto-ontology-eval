@@ -71,7 +71,11 @@ if not _NVIDIA_API_KEY:
 # and pgvector store. Anything else here and scoring stops being apples-to-apples
 # with production.
 
-_EVAL_DIR = Path(__file__).resolve().parents[2] / "datasets"
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_EVAL_DIR = _REPO_ROOT / "datasets"
+# Eval writes its results CSV straight into the judge's input folder so the
+# judge can pick it up without a manual copy.
+_INPUT_DIR = _REPO_ROOT / "input"
 
 _DEFAULT_MODEL_NAME = os.environ.get("MODEL_NAME", "nemotron")
 
@@ -81,20 +85,25 @@ def _resolve_paths(
     input_override: Path | None,
     output_override: Path | None,
 ) -> tuple[Path, Path]:
-    """Derive input/output paths from *database_name* when not explicitly set."""
+    """Derive input/output paths from *database_name* when not explicitly set.
+
+    The eval *input* is the dataset's ``evaluation.json``; the eval *output* CSV
+    is written to the repo-root ``input/`` folder (the judge's input directory),
+    named ``<db>_<model>.csv`` so results from different datasets/models don't
+    collide.
+    """
     if input_override and output_override:
         return input_override, output_override
 
+    model_slug = _DEFAULT_MODEL_NAME.rsplit("/", 1)[-1]
     if database_name:
         db_dir = _EVAL_DIR / database_name
         db_dir.mkdir(parents=True, exist_ok=True)
         default_input = db_dir / "evaluation.json"
-        model_slug = _DEFAULT_MODEL_NAME.rsplit("/", 1)[-1]
-        default_output = db_dir / f"{model_slug}.csv"
+        default_output = _INPUT_DIR / f"{database_name}_{model_slug}.csv"
     else:
         default_input = _EVAL_DIR / "evaluation.json"
-        model_slug = _DEFAULT_MODEL_NAME.rsplit("/", 1)[-1]
-        default_output = _EVAL_DIR / f"{model_slug}.csv"
+        default_output = _INPUT_DIR / f"{model_slug}.csv"
 
     return input_override or default_input, output_override or default_output
 
@@ -243,6 +252,7 @@ def run_evaluation(
                     "custom_prompts": "",
                     "acronyms": [],
                 }
+                logger.info("Running question %s", payload["question"])
                 agent_result = get_agent_response(payload)
                 _print_agent_result(qid, question, agent_result, expected_sql)
                 returned_sql = (agent_result or {}).get("sql_code", "") or ""

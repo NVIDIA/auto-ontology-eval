@@ -7,11 +7,13 @@ semantics, and similarity to the ground truth. This workflow is fully
 self-contained — no GSF/NeMo install, database, or vector stores required, only
 a judge LLM API key.
 
-Drop one or more CSV files into `input/`. Each file must contain `question`,
-`expected_sql`, and `returned_sql` columns (and optionally `returned_answer`,
-used as a result preview). Rows with an empty `returned_sql` are skipped. Scored
-CSVs are written to `output/<name>_scores.csv`. Both folders are created on
-demand (relative to the current directory) and are not tracked in git.
+The judge scores every CSV in `input/`. The retrieval eval writes its results
+straight into `input/` (as `input/<db>_<model>.csv`), so after an eval run you
+can judge with no manual copy. You can also drop in any CSV by hand. Each file
+must contain `question`, `expected_sql`, and `returned_sql` columns (and
+optionally `returned_answer`, used as a result preview). Rows with an empty
+`returned_sql` are skipped. Scored CSVs are written to
+`output/<name>_scores.csv`.
 
 ## Run
 
