@@ -36,8 +36,10 @@ Use the **Eval** configuration in
 
 ## Output
 
-The output CSV (`datasets/<database_name>/<model>.csv`, where `<model>` is the
-last segment of `MODEL_NAME`) has these columns:
+The output CSV is written to the repo-root `input/` folder (the judge's input
+directory) as `input/<database_name>_<model>.csv`, where `<model>` is the last
+segment of `MODEL_NAME`. This means the judge can pick it up directly — no manual
+copy needed. It has these columns:
 
 ```
 row_index, question_id, difficulty, question, expected_sql, returned_sql,
