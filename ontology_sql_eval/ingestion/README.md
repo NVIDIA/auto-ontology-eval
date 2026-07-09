@@ -16,8 +16,8 @@ connector), then run the pipeline.
 ### Via script
 
 ```bash
-PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.pipeline                 # extract + embed + enrich graph
-PYTHONPATH=../GSF uv run python -m gsf.semantic --database-name <database_name>  # compile semantic layer
+PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.ingest                                    # extract + embed + enrich graph
+PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.semantic --database-name <database_name>  # compile semantic layer
 ```
 
 ### Via launch.json
