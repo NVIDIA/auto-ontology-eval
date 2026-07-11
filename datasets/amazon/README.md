@@ -74,9 +74,10 @@ uv run python scripts/convert_stark_eval.py
 ```
 
 This writes `datasets/amazon/evaluation.json`, using each row's `query` as the
-question and `answer_ids_source` as the human-curated gold product IDs (stored
-in both `answer_raw` and `evidence`). STaRK has no ground-truth SQL, so the
-`SQL` field is left empty.
+question and `answer_ids_source` as the human-curated gold product IDs in
+`answer_raw`. Only fields present in the source CSV are mapped; `SQL`,
+`evidence`, and `difficulty` are left empty. The full source CSV (including
+`answer_ids`) is kept as `stark_qa_human_generated_eval.csv`.
 
 Run retrieval eval after ingest + semantic compile:
 

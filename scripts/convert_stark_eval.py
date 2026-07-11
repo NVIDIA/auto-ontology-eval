@@ -11,7 +11,8 @@ maps those rows into the evaluation JSON format consumed by
 
 Gold answers use ``answer_ids_source`` (human-curated product IDs). STaRK has
 no ground-truth SQL, so the ``SQL`` field is left empty and the gold product
-IDs are recorded in ``answer_raw`` (and ``evidence``) for scoring.
+IDs are recorded in ``answer_raw``. Fields not present in the source CSV
+(``evidence``, ``difficulty``, etc.) are left empty.
 
 Usage::
 
@@ -63,7 +64,6 @@ def convert(input_path: Path, output_path: Path) -> int:
         for row in reader:
             question_id = int(row["id"])
             question = row["query"].strip()
-            answer_ids = _parse_id_list(row.get("answer_ids", ""))
             gold_ids = _parse_id_list(row.get("answer_ids_source", ""))
 
             rows.append(
@@ -71,16 +71,9 @@ def convert(input_path: Path, output_path: Path) -> int:
                     "question_id": question_id,
                     "db_id": "amazon",
                     "question": question,
-                    "evidence": json.dumps(
-                        {
-                            "answer_ids": answer_ids,
-                            "answer_ids_source": gold_ids,
-                            "split": "human_generated_eval",
-                        },
-                        ensure_ascii=False,
-                    ),
+                    "evidence": "",
                     "SQL": "",
-                    "difficulty": "human_generated",
+                    "difficulty": "",
                     "answer_raw": _gold_answer_raw(gold_ids),
                     "answer": "",
                 }
