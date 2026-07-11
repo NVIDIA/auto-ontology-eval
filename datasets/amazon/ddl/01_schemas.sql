@@ -1,0 +1,2 @@
+-- Schemas
+CREATE SCHEMA IF NOT EXISTS amazon;

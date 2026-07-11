@@ -21,9 +21,9 @@ import logging
 
 from dotenv import load_dotenv
 
-from gsf.semantic.compile import run_semantic_compilation
-
 load_dotenv()
+
+from gsf.semantic.compile import run_semantic_compilation
 
 logger = logging.getLogger(__name__)
 

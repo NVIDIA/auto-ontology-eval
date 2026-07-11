@@ -1,0 +1,22 @@
+[
+  {
+    "name": "Products by Brand",
+    "description": "List products for a given brand name.",
+    "sql": "SELECT p.product_id, p.title, b.brand_name FROM amazon.products p JOIN amazon.brands b ON p.brand_id = b.brand_id WHERE b.brand_name ILIKE '%Simms%' LIMIT 20"
+  },
+  {
+    "name": "Products in Category",
+    "description": "Products belonging to a specific category.",
+    "sql": "SELECT p.product_id, p.title, c.category_name FROM amazon.products p JOIN amazon.product_categories pc ON p.product_id = pc.product_id JOIN amazon.categories c ON pc.category_id = c.category_id WHERE c.category_name ILIKE '%yoga%' LIMIT 20"
+  },
+  {
+    "name": "Also Bought Recommendations",
+    "description": "Products frequently bought together with a given product.",
+    "sql": "SELECT ab.product_id, p.title AS source_title, ab.related_product_id, rp.title AS related_title FROM amazon.also_buy ab JOIN amazon.products p ON ab.product_id = p.product_id JOIN amazon.products rp ON ab.related_product_id = rp.product_id LIMIT 20"
+  },
+  {
+    "name": "Top Rated Products",
+    "description": "Products with high average review ratings.",
+    "sql": "SELECT p.product_id, p.title, AVG(r.overall) AS avg_rating, COUNT(*) AS review_count FROM amazon.products p JOIN amazon.reviews r ON p.product_id = r.product_id GROUP BY p.product_id, p.title HAVING COUNT(*) >= 5 ORDER BY avg_rating DESC LIMIT 20"
+  }
+]

@@ -1,0 +1,197 @@
+{
+  "amazon.products": {
+    "description": "Amazon product catalog entries with titles, descriptions, features, pricing, and brand links.",
+    "columns": [
+      {
+        "name": "product_id",
+        "description": "STaRK SKB node ID for the product (matches gold answer IDs in the benchmark).",
+        "value_examples": ["601168", "947318"]
+      },
+      {
+        "name": "asin",
+        "description": "Amazon Standard Identification Number.",
+        "value_examples": ["B00ABC1234"]
+      },
+      {
+        "name": "title",
+        "description": "Product title as listed on Amazon.",
+        "value_examples": ["Women's Yoga Pants with Screen Print"]
+      },
+      {
+        "name": "description",
+        "description": "Product description text.",
+        "value_examples": []
+      },
+      {
+        "name": "feature",
+        "description": "Bullet-point product features.",
+        "value_examples": []
+      },
+      {
+        "name": "price",
+        "description": "Listed price (raw string from source data).",
+        "value_examples": ["29.99"]
+      },
+      {
+        "name": "global_category",
+        "description": "Top-level Amazon product category.",
+        "value_examples": ["Sports and Outdoors"]
+      },
+      {
+        "name": "brand_id",
+        "description": "Foreign key to amazon.brands.",
+        "value_examples": []
+      }
+    ]
+  },
+  "amazon.brands": {
+    "description": "Product brands referenced by amazon.products.",
+    "columns": [
+      {
+        "name": "brand_id",
+        "description": "STaRK SKB node ID for the brand.",
+        "value_examples": []
+      },
+      {
+        "name": "brand_name",
+        "description": "Brand display name.",
+        "value_examples": ["Simms", "Harbringer", "RunBreeze"]
+      }
+    ]
+  },
+  "amazon.categories": {
+    "description": "Product categories (hierarchical taxonomy subset).",
+    "columns": [
+      {
+        "name": "category_id",
+        "description": "STaRK SKB node ID for the category.",
+        "value_examples": []
+      },
+      {
+        "name": "category_name",
+        "description": "Category name.",
+        "value_examples": ["yoga", "fishing", "weightlifting gloves"]
+      }
+    ]
+  },
+  "amazon.colors": {
+    "description": "Product colors extracted from review style metadata.",
+    "columns": [
+      {
+        "name": "color_id",
+        "description": "STaRK SKB node ID for the color.",
+        "value_examples": []
+      },
+      {
+        "name": "color_name",
+        "description": "Color name.",
+        "value_examples": ["black", "navy", "red"]
+      }
+    ]
+  },
+  "amazon.product_categories": {
+    "description": "Many-to-many link between products and categories.",
+    "columns": [
+      {
+        "name": "product_id",
+        "description": "Foreign key to amazon.products.",
+        "value_examples": []
+      },
+      {
+        "name": "category_id",
+        "description": "Foreign key to amazon.categories.",
+        "value_examples": []
+      }
+    ]
+  },
+  "amazon.product_colors": {
+    "description": "Many-to-many link between products and colors.",
+    "columns": [
+      {
+        "name": "product_id",
+        "description": "Foreign key to amazon.products.",
+        "value_examples": []
+      },
+      {
+        "name": "color_id",
+        "description": "Foreign key to amazon.colors.",
+        "value_examples": []
+      }
+    ]
+  },
+  "amazon.also_buy": {
+    "description": "Products frequently bought together (complementary items).",
+    "columns": [
+      {
+        "name": "product_id",
+        "description": "Source product.",
+        "value_examples": []
+      },
+      {
+        "name": "related_product_id",
+        "description": "Related product also purchased.",
+        "value_examples": []
+      }
+    ]
+  },
+  "amazon.also_view": {
+    "description": "Products frequently viewed together (substitute or related items).",
+    "columns": [
+      {
+        "name": "product_id",
+        "description": "Source product.",
+        "value_examples": []
+      },
+      {
+        "name": "related_product_id",
+        "description": "Related product also viewed.",
+        "value_examples": []
+      }
+    ]
+  },
+  "amazon.reviews": {
+    "description": "Customer reviews for products.",
+    "columns": [
+      {
+        "name": "product_id",
+        "description": "Foreign key to amazon.products.",
+        "value_examples": []
+      },
+      {
+        "name": "summary",
+        "description": "Review headline.",
+        "value_examples": []
+      },
+      {
+        "name": "review_text",
+        "description": "Full review body.",
+        "value_examples": []
+      },
+      {
+        "name": "overall",
+        "description": "Star rating (1-5).",
+        "value_examples": ["5.0", "4.0"]
+      }
+    ]
+  },
+  "amazon.qa": {
+    "description": "Customer Q&A for products.",
+    "columns": [
+      {
+        "name": "product_id",
+        "description": "Foreign key to amazon.products.",
+        "value_examples": []
+      },
+      {
+        "name": "question",
+        "description": "Customer question.",
+        "value_examples": []
+      },
+      {
+        "name": "answer",
+        "description": "Answer to the question.",
+        "value_examples": []
+      }
+    ]
+  }
+}

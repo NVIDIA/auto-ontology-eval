@@ -18,7 +18,10 @@ from __future__ import annotations
 
 import logging
 import os
+
 from dotenv import load_dotenv
+
+load_dotenv()
 
 from nemo_retriever.graph import Graph
 from nemo_retriever.tabular_data.operators.tabular_schema_extract_operator import (
@@ -34,8 +37,6 @@ from gsf.utils import get_embed_params
 from gsf.vdb import get_data_vdb, get_semantic_vdb
 from gsf.connectors.registry import create_connector
 from ontology_sql_eval.ingestion.enrich_graph import add_custom_analyses, apply_metadata
-
-load_dotenv()
 
 logger = logging.getLogger(__name__)
 

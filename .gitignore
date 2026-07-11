@@ -25,3 +25,7 @@ venv/
 # Datasets kept local only (not tracked on remote)
 /datasets/bird/
 /datasets/dor_prod/
+
+# STaRK-Amazon seed CSVs are multi-GB and regenerable via
+# scripts/convert_stark_amazon.py — keep them local only.
+/datasets/amazon/data/
