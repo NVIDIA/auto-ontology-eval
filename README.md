@@ -192,6 +192,11 @@ can score it directly.
 The repo ships with `wideworldimporters` as a public worked example; the
 examples below use it throughout.
 
+`datasets/amazon/` contains a reproducible STaRK-Amazon schema and converter.
+Its generated seed CSVs are multi-GB and are kept local-only; see
+[`datasets/amazon/README.md`](datasets/amazon/README.md) for regeneration,
+seeding, ingestion, and semantic-compile commands.
+
 ### `evaluation.json`
 
 A JSON **array** of question objects. Fields consumed by the retrieval eval:
