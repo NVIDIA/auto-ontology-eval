@@ -62,3 +62,29 @@ PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.semantic --databa
 This prepares the schema graph and semantic layer only. STaRK QA evaluation
 requires a separate conversion from STaRK gold product IDs to an evaluation
 format/scorer and is not part of this dataset folder yet.
+
+## Evaluation Questions
+
+The human-generated STaRK-Amazon eval set is stored as
+`datasets/amazon/stark_qa_human_generated_eval.csv` (81 questions). Convert it
+to the retrieval-eval input format with:
+
+```bash
+uv run python scripts/convert_stark_eval.py
+```
+
+This writes `datasets/amazon/evaluation.json`, using each row's `query` as the
+question and `answer_ids_source` as the human-curated gold product IDs (stored
+in both `answer_raw` and `evidence`). STaRK has no ground-truth SQL, so the
+`SQL` field is left empty.
+
+Run retrieval eval after ingest + semantic compile:
+
+```bash
+PYTHONPATH=../GSF uv run python -m ontology_sql_eval.retrieval.eval_chatbot \
+    --database-name amazon
+```
+
+Note: STaRK's native metric is retrieval over product IDs (Hit@k / Recall@k),
+not SQL row-set equality. With no expected SQL, the SQL-execution score is not
+meaningful here; a dedicated STaRK retrieval metric still needs to be added.
