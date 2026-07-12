@@ -215,13 +215,6 @@ def _print_summary(dest: Path, db_ids: list[str]) -> None:
     print("Add this to your .env (all databases, comma-separated):")
     print()
     print(f"CONNECTION_STRINGS={','.join(conn_strings)}")
-    print()
-    print("Then ingest with:")
-    print()
-    print(
-        "  PYTHONPATH=../GSF uv run python main.py "
-        "--database-name bird --skip-eval --skip-judge"
-    )
 
 
 def download_bird(
