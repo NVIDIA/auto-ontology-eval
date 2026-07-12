@@ -41,12 +41,19 @@ def _banner(step: int, title: str) -> None:
     logger.info("%s", sep)
 
 
+def _connection_strings() -> list[str]:
+    """Return non-empty entries from the comma-separated ``CONNECTION_STRINGS`` env var."""
+    return [
+        s.strip()
+        for s in os.environ.get("CONNECTION_STRINGS", "").split(",")
+        if s.strip()
+    ]
+
+
 def stage_ingest() -> None:
     """Ingest the source DB schema into Neo4j + pgvector."""
     _banner(1, "Ingest (source DB -> pgvector + Neo4j)")
-    connection_strings = [
-        s for s in os.environ.get("CONNECTION_STRINGS", "").split(",") if s.strip()
-    ]
+    connection_strings = _connection_strings()
     if not connection_strings:
         raise EnvironmentError(
             "CONNECTION_STRINGS is not set. Add it to your .env, e.g.:\n\n"
@@ -55,7 +62,11 @@ def stage_ingest() -> None:
 
     from ontology_sql_eval.ingestion.ingest import run_ingest
 
-    run_ingest(connection_strings[0])
+    for i, connection_string in enumerate(connection_strings, start=1):
+        logger.info(
+            "Ingesting database %d/%d: %s", i, len(connection_strings), connection_string
+        )
+        run_ingest(connection_string)
 
 
 def stage_semantic(database_name: str) -> None:
@@ -63,7 +74,18 @@ def stage_semantic(database_name: str) -> None:
     _banner(2, "Semantic compile (ingestion.semantic)")
     from ontology_sql_eval.ingestion.semantic import run_semantic
 
-    run_semantic(database_name)
+    connection_strings = _connection_strings()
+    if len(connection_strings) > 1:
+        from ontology_sql_eval.ingestion.ingest import database_name_for
+
+        for i, connection_string in enumerate(connection_strings, start=1):
+            db_name = database_name_for(connection_string)
+            logger.info(
+                "Compiling semantic layer %d/%d: %s", i, len(connection_strings), db_name
+            )
+            run_semantic(db_name)
+    else:
+        run_semantic(database_name)
 
 
 def stage_eval(database_name: str) -> Path:
