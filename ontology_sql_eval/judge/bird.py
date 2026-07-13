@@ -24,8 +24,9 @@ import multiprocessing as mp
 import sqlite3
 import time
 from dataclasses import dataclass
+from itertools import permutations
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 from func_timeout import FunctionTimedOut, func_timeout
@@ -38,6 +39,7 @@ _DEFAULT_DB_ROOT = _REPO_ROOT / "datasets" / "bird"
 
 BIRD_SCORE_FIELDS = [
     "bird_ex_match",
+    "bird_ex_extra_col_nearmiss",
     "bird_ves_ratio",
     "bird_pred_error",
     "bird_gold_error",
@@ -62,6 +64,7 @@ class ExResult:
     res: int
     pred_error: str = ""
     gold_error: str = ""
+    extra_col_nearmiss: bool = False
 
 
 @dataclass(frozen=True)
@@ -96,15 +99,59 @@ def sqlite_path(db_root: Path, db_id: str) -> Path:
 # ---------------------------------------------------------------------------
 
 
-def execute_sql(predicted_sql: str, ground_truth_sql: str, db_path: str) -> int:
+# Bounds keep the extra-column near-miss check (permutation search) cheap; it
+# only runs on EX failures and is a diagnostic, not part of official scoring.
+_NEARMISS_MAX_PRED_COLS = 6
+_NEARMISS_MAX_GOLD_COLS = 4
+
+
+def _extra_col_nearmiss(
+    predicted_res: list[tuple],
+    ground_truth_res: list[tuple],
+    pred_ncols: int,
+    gold_ncols: int,
+) -> bool:
+    """True if some ordered subset of predicted columns reproduces gold exactly.
+
+    Diagnostic only: flags EX failures where the predicted query returns the
+    right data plus extra columns (e.g. ``SELECT id, SUM(x)`` vs gold
+    ``SELECT id``). Does not affect ``bird_ex_match``.
+    """
+    if gold_ncols == 0 or pred_ncols <= gold_ncols:
+        return False
+    if pred_ncols > _NEARMISS_MAX_PRED_COLS or gold_ncols > _NEARMISS_MAX_GOLD_COLS:
+        return False
+
+    gold_set = set(ground_truth_res)
+    for idxs in permutations(range(pred_ncols), gold_ncols):
+        projected = {tuple(row[i] for i in idxs) for row in predicted_res}
+        if projected == gold_set:
+            return True
+    return False
+
+
+def execute_sql(
+    predicted_sql: str, ground_truth_sql: str, db_path: str
+) -> tuple[int, bool]:
+    """Return ``(match, extra_col_nearmiss)``.
+
+    ``match`` is the official BIRD EX (unordered set equality of result rows).
+    ``extra_col_nearmiss`` is a diagnostic flag; see ``_extra_col_nearmiss``.
+    """
     conn = sqlite3.connect(db_path)
     try:
         cursor = conn.cursor()
         cursor.execute(predicted_sql)
         predicted_res = cursor.fetchall()
+        pred_ncols = len(cursor.description) if cursor.description else 0
         cursor.execute(ground_truth_sql)
         ground_truth_res = cursor.fetchall()
-        return 1 if set(predicted_res) == set(ground_truth_res) else 0
+        gold_ncols = len(cursor.description) if cursor.description else 0
+        match = 1 if set(predicted_res) == set(ground_truth_res) else 0
+        nearmiss = match == 0 and _extra_col_nearmiss(
+            predicted_res, ground_truth_res, pred_ncols, gold_ncols
+        )
+        return match, nearmiss
     finally:
         conn.close()
 
@@ -117,12 +164,15 @@ def _execute_ex_model(
     meta_time_out: float,
 ) -> ExResult:
     try:
-        res = func_timeout(
-            meta_time_out,
-            execute_sql,
-            args=(predicted_sql, ground_truth_sql, db_path),
+        res, nearmiss = cast(
+            "tuple[int, bool]",
+            func_timeout(
+                meta_time_out,
+                execute_sql,
+                args=(predicted_sql, ground_truth_sql, db_path),
+            ),
         )
-        return ExResult(sql_idx=sql_idx, res=int(res))
+        return ExResult(sql_idx=sql_idx, res=int(res), extra_col_nearmiss=bool(nearmiss))
     except FunctionTimedOut:
         return ExResult(sql_idx=sql_idx, res=0, pred_error="timeout")
     except Exception as exc:
@@ -160,16 +210,19 @@ def iterated_execute_sql(
     ground_truth_sql: str,
     db_path: str,
     iterate_num: int,
+    *,
+    require_ex_match: bool = True,
 ) -> float:
     conn = sqlite3.connect(db_path)
     try:
-        cursor = conn.cursor()
-        cursor.execute(predicted_sql)
-        predicted_res = cursor.fetchall()
-        cursor.execute(ground_truth_sql)
-        ground_truth_res = cursor.fetchall()
-        if set(predicted_res) != set(ground_truth_res):
-            return 0.0
+        if require_ex_match:
+            cursor = conn.cursor()
+            cursor.execute(predicted_sql)
+            predicted_res = cursor.fetchall()
+            cursor.execute(ground_truth_sql)
+            ground_truth_res = cursor.fetchall()
+            if set(predicted_res) != set(ground_truth_res):
+                return 0.0
 
         diff_list: list[float] = []
         for _ in range(iterate_num):
@@ -192,12 +245,18 @@ def _execute_ves_model(
     sql_idx: int,
     iterate_num: int,
     meta_time_out: float,
+    *,
+    require_ex_match: bool = True,
 ) -> VesResult:
     try:
-        time_ratio = func_timeout(
-            meta_time_out * iterate_num,
-            iterated_execute_sql,
-            args=(predicted_sql, ground_truth_sql, db_path, iterate_num),
+        time_ratio = cast(
+            float,
+            func_timeout(
+                meta_time_out * iterate_num,
+                iterated_execute_sql,
+                args=(predicted_sql, ground_truth_sql, db_path, iterate_num),
+                kwargs={"require_ex_match": require_ex_match},
+            ),
         )
         return VesResult(sql_idx=sql_idx, time_ratio=float(time_ratio))
     except FunctionTimedOut:
@@ -214,6 +273,8 @@ def _execute_ves_model(
 def compute_acc_by_diff(
     exec_results: list[ExResult],
     difficulties: list[str],
+    *,
+    inclusive: bool = False,
 ) -> tuple[float, float, float, float, list[int]]:
     num_queries = len(exec_results)
     simple_results: list[ExResult] = []
@@ -228,15 +289,20 @@ def compute_acc_by_diff(
         elif difficulty == "challenging":
             challenging_results.append(result)
 
+    def _passes(result: ExResult) -> bool:
+        if result.res:
+            return True
+        return inclusive and result.extra_col_nearmiss
+
     def _acc(results: list[ExResult]) -> float:
         if not results:
             return 0.0
-        return sum(r.res for r in results) / len(results) * 100
+        return sum(_passes(r) for r in results) / len(results) * 100
 
     simple_acc = _acc(simple_results)
     moderate_acc = _acc(moderate_results)
     challenging_acc = _acc(challenging_results)
-    all_acc = sum(r.res for r in exec_results) / num_queries * 100 if num_queries else 0.0
+    all_acc = sum(_passes(r) for r in exec_results) / num_queries * 100 if num_queries else 0.0
     count_lists = [
         len(simple_results),
         len(moderate_results),
@@ -246,28 +312,46 @@ def compute_acc_by_diff(
     return simple_acc, moderate_acc, challenging_acc, all_acc, count_lists
 
 
-def compute_ves(ves_results: list[VesResult]) -> float:
+def compute_ves(ves_results: list[VesResult], eligible: list[bool] | None = None) -> float:
     if not ves_results:
         return 0.0
-    total = sum(math.sqrt(r.time_ratio) * 100 for r in ves_results if r.time_ratio != 0)
+    total = 0.0
+    for i, result in enumerate(ves_results):
+        if eligible is not None and not eligible[i]:
+            continue
+        if result.time_ratio != 0:
+            total += math.sqrt(result.time_ratio) * 100
     return total / len(ves_results)
 
 
 def compute_ves_by_diff(
     ves_results: list[VesResult],
     difficulties: list[str],
+    *,
+    ex_results: list[ExResult] | None = None,
+    inclusive: bool = False,
 ) -> tuple[float, float, float, float, list[int]]:
     simple_results: list[VesResult] = []
     moderate_results: list[VesResult] = []
     challenging_results: list[VesResult] = []
+    simple_eligible: list[bool] = []
+    moderate_eligible: list[bool] = []
+    challenging_eligible: list[bool] = []
+    all_eligible: list[bool] = []
 
-    for result, difficulty in zip(ves_results, difficulties):
+    for i, (result, difficulty) in enumerate(zip(ves_results, difficulties)):
+        ex = ex_results[i] if ex_results else None
+        passes = bool(ex and (ex.res or (inclusive and ex.extra_col_nearmiss)))
+        all_eligible.append(passes)
         if difficulty == "simple":
             simple_results.append(result)
+            simple_eligible.append(passes)
         elif difficulty == "moderate":
             moderate_results.append(result)
+            moderate_eligible.append(passes)
         elif difficulty == "challenging":
             challenging_results.append(result)
+            challenging_eligible.append(passes)
 
     count_lists = [
         len(simple_results),
@@ -276,10 +360,10 @@ def compute_ves_by_diff(
         len(ves_results),
     ]
     return (
-        compute_ves(simple_results),
-        compute_ves(moderate_results),
-        compute_ves(challenging_results),
-        compute_ves(ves_results),
+        compute_ves(simple_results, simple_eligible),
+        compute_ves(moderate_results, moderate_eligible),
+        compute_ves(challenging_results, challenging_eligible),
+        compute_ves(ves_results, all_eligible),
         count_lists,
     )
 
@@ -295,25 +379,28 @@ _VES_DESCRIPTION = (
     "sqrt(gold_time / pred_time) * 100, averaged by difficulty. "
     "Failed EX questions count as 0."
 )
+_INCL_EX_DESCRIPTION = (
+    "incl. accuracy % counts extra-column near-misses as correct "
+    "(right data + extra columns; diagnostic only, not official BIRD)."
+)
+_INCL_VES_DESCRIPTION = (
+    "incl. ves also times extra-column near-misses (same formula; diagnostic only)."
+)
 
 
 def _format_score_table(
     title: str,
     description: str,
-    metric_label: str,
-    score_lists: list[float],
+    metric_rows: list[tuple[str, list[float], str]],
     count_lists: list[int],
-    *,
-    suffix: str = "",
 ) -> str:
     columns = ["simple", "moderate", "challenging", "total"]
-    rows = [
-        ("count", [str(n) for n in count_lists]),
-        (metric_label, [f"{v:.2f}{suffix}" for v in score_lists]),
-    ]
+    rows: list[tuple[str, list[str]]] = [("count", [str(n) for n in count_lists])]
+    for label, scores, suffix in metric_rows:
+        rows.append((label, [f"{v:.2f}{suffix}" for v in scores]))
 
     col_width = max(12, max(len(c) for c in columns))
-    label_width = max(len(metric_label), len("count")) + 2
+    label_width = max(len(label) for label, _ in rows) + 2
 
     def _row(label: str, values: list[str]) -> str:
         cells = "".join(f"{v:>{col_width}}" for v in values)
@@ -326,28 +413,42 @@ def _format_score_table(
     return f"\n{title}\n{desc}{divider}\n{header}\n{divider}\n{body}\n"
 
 
-def _print_ex_table(score_lists: list[float], count_lists: list[int]) -> None:
+def _print_ex_table(
+    score_lists: list[float],
+    count_lists: list[int],
+    inclusive_score_lists: list[float],
+) -> None:
     print(
         _format_score_table(
             "Execution Accuracy (EX)",
             _EX_DESCRIPTION,
-            "accuracy %",
-            score_lists,
+            [
+                ("accuracy %", score_lists, ""),
+                ("incl. accuracy %", inclusive_score_lists, ""),
+            ],
             count_lists,
-        ),
+        )
+        + f"  {_INCL_EX_DESCRIPTION}\n",
         flush=True,
     )
 
 
-def _print_ves_table(score_lists: list[float], count_lists: list[int]) -> None:
+def _print_ves_table(
+    score_lists: list[float],
+    count_lists: list[int],
+    inclusive_score_lists: list[float],
+) -> None:
     print(
         _format_score_table(
             "Valid Efficiency Score (VES)",
             _VES_DESCRIPTION,
-            "ves",
-            score_lists,
+            [
+                ("ves", score_lists, ""),
+                ("incl. ves", inclusive_score_lists, ""),
+            ],
             count_lists,
-        ),
+        )
+        + f"  {_INCL_VES_DESCRIPTION}\n",
         flush=True,
     )
 
@@ -423,10 +524,19 @@ def _run_ves_parallel(
     num_cpus: int,
     meta_time_out: float,
     iterate_num: int,
+    include_nearmiss: bool = False,
 ) -> list[VesResult]:
     ex_by_idx = {r.sql_idx: r for r in ex_results}
+
+    def _eligible(ex: ExResult) -> bool:
+        if ex.res:
+            return True
+        return include_nearmiss and ex.extra_col_nearmiss
+
     ves_rows = [
-        row for row in bird_rows if ex_by_idx.get(row.sql_idx, ExResult(row.sql_idx, 0)).res
+        row
+        for row in bird_rows
+        if _eligible(ex_by_idx.get(row.sql_idx, ExResult(row.sql_idx, 0)))
     ]
 
     worker_args = [
@@ -437,6 +547,7 @@ def _run_ves_parallel(
             row.sql_idx,
             iterate_num,
             meta_time_out,
+            ex_by_idx.get(row.sql_idx, ExResult(row.sql_idx, 0)).res == 1,
         )
         for row in ves_rows
     ]
@@ -445,10 +556,18 @@ def _run_ves_parallel(
         return []
 
     if num_cpus <= 1:
-        results = [_execute_ves_model(*args) for args in worker_args]
+        results = [_execute_ves_model(*args, require_ex_match=req) for *args, req in worker_args]
     else:
         with mp.Pool(processes=num_cpus) as pool:
-            results = pool.starmap(_execute_ves_model, worker_args)
+            results = [
+                pool.apply_async(
+                    _execute_ves_model,
+                    args=args[:-1],
+                    kwds={"require_ex_match": args[-1]},
+                )
+                for args in worker_args
+            ]
+            results = [r.get() for r in results]
     return sorted(results, key=lambda r: r.sql_idx)
 
 
@@ -477,18 +596,27 @@ def run(
     simple_acc, moderate_acc, challenging_acc, all_acc, ex_counts = compute_acc_by_diff(
         ex_results, difficulties
     )
+    (
+        incl_simple,
+        incl_moderate,
+        incl_challenging,
+        incl_all,
+        _,
+    ) = compute_acc_by_diff(ex_results, difficulties, inclusive=True)
     _print_ex_table(
         [simple_acc, moderate_acc, challenging_acc, all_acc],
         ex_counts,
+        [incl_simple, incl_moderate, incl_challenging, incl_all],
     )
 
     ves_by_idx: dict[int, VesResult] = {}
     if not skip_ves:
         ex_pass = sum(r.res for r in ex_results)
+        ex_nearmiss = sum(1 for r in ex_results if r.res == 0 and r.extra_col_nearmiss)
         logger.info(
-            "Running VES on %d / %d EX-passing questions (iterate_num=%d, timeout=%.1fs each)",
+            "Running VES on %d EX-passing + %d near-miss questions (iterate_num=%d, timeout=%.1fs each)",
             ex_pass,
-            len(bird_rows),
+            ex_nearmiss,
             iterate_num,
             meta_time_out * iterate_num,
         )
@@ -498,6 +626,7 @@ def run(
             num_cpus=num_cpus,
             meta_time_out=meta_time_out,
             iterate_num=iterate_num,
+            include_nearmiss=True,
         )
         ves_by_idx = {r.sql_idx: r for r in ves_results}
         ves_aligned = [
@@ -505,11 +634,21 @@ def run(
             for i in range(len(bird_rows))
         ]
         simple_ves, moderate_ves, challenging_ves, all_ves, ves_counts = compute_ves_by_diff(
-            ves_aligned, difficulties
+            ves_aligned, difficulties, ex_results=ex_results, inclusive=False
+        )
+        (
+            incl_simple_ves,
+            incl_moderate_ves,
+            incl_challenging_ves,
+            incl_all_ves,
+            _,
+        ) = compute_ves_by_diff(
+            ves_aligned, difficulties, ex_results=ex_results, inclusive=True
         )
         _print_ves_table(
             [simple_ves, moderate_ves, challenging_ves, all_ves],
             ves_counts,
+            [incl_simple_ves, incl_moderate_ves, incl_challenging_ves, incl_all_ves],
         )
 
     if output_path is None:
@@ -530,6 +669,7 @@ def run(
             ex = ex_by_idx.get(sql_idx, ExResult(sql_idx=sql_idx, res=0))
             ves = ves_by_idx.get(sql_idx, VesResult(sql_idx=sql_idx, time_ratio=0.0))
             row["bird_ex_match"] = ex.res
+            row["bird_ex_extra_col_nearmiss"] = int(ex.extra_col_nearmiss)
             row["bird_ves_ratio"] = round(ves.time_ratio, 6) if ves.time_ratio else 0
             row["bird_pred_error"] = ex.pred_error
             row["bird_gold_error"] = ex.gold_error
