@@ -810,6 +810,12 @@ wheels = [
 ]
 
 [[package]]
+name = "func-timeout"
+version = "4.3.5"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/b3/0d/bf0567477f7281d9a3926c582bfef21bff7498fc0ffd3e9de21811896a0b/func_timeout-4.3.5.tar.gz", hash = "sha256:74cd3c428ec94f4edfba81f9b2f14904846d5ffccc27c92433b8b5939b5575dd", size = 44264, upload-time = "2019-08-19T21:32:07.43Z" }
+
+[[package]]
 name = "future"
 version = "1.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1692,7 +1698,7 @@ wheels = [
 
 [[package]]
 name = "nemo-retriever"
-version = "2026.7.8.dev20260708091011"
+version = "2026.7.13.dev20260713131714"
 source = { git = "https://github.com/NVIDIA/NeMo-Retriever.git?subdirectory=nemo_retriever#b0a4ce1f295d1457c89ae01bd806966ee05c8307" }
 dependencies = [
     { name = "backoff" },
@@ -1853,6 +1859,7 @@ source = { editable = "." }
 dependencies = [
     { name = "duckdb" },
     { name = "fastapi" },
+    { name = "func-timeout" },
     { name = "httpx" },
     { name = "hvac" },
     { name = "importlib-metadata" },
@@ -1861,6 +1868,7 @@ dependencies = [
     { name = "langchain-postgres" },
     { name = "nemo-retriever", extra = ["tabular"] },
     { name = "neo4j" },
+    { name = "numpy" },
     { name = "pandas" },
     { name = "psycopg", extra = ["binary"] },
     { name = "psycopg-pool" },
@@ -1880,6 +1888,7 @@ dev = [
 requires-dist = [
     { name = "duckdb", specifier = ">=1.5.2" },
     { name = "fastapi", specifier = ">=0.115.0" },
+    { name = "func-timeout", specifier = ">=4.3.5" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "hvac", specifier = ">=2.4.0" },
     { name = "importlib-metadata", specifier = ">=9.0.0" },
@@ -1888,6 +1897,7 @@ requires-dist = [
     { name = "langchain-postgres", specifier = ">=0.0.17" },
     { name = "nemo-retriever", extras = ["tabular"], git = "https://github.com/NVIDIA/NeMo-Retriever.git?subdirectory=nemo_retriever" },
     { name = "neo4j", specifier = ">=6.1.0" },
+    { name = "numpy", specifier = ">=2.0" },
     { name = "pandas", specifier = ">=2.0,<3" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.3.3" },
     { name = "psycopg-pool", specifier = ">=3.3.1" },

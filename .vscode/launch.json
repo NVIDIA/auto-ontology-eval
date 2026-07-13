@@ -48,6 +48,20 @@
       "justMyCode": false
     },
     {
+      "name": "Judge BIRD (EX + VES)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "ontology_sql_eval.judge.bird",
+      "args": [
+        "--input",
+        "input/bird_nemotron-3-nano-30b-a3b.csv"
+      ],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "justMyCode": false
+    },
+    {
       "name": "Ingest",
       "type": "debugpy",
       "request": "launch",
