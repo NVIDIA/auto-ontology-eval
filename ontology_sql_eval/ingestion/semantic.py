@@ -9,21 +9,24 @@ routine as ``python -m gsf.semantic``) so it can be imported, called, and
 stepped through in a debugger without spawning a subprocess.
 
 Run after :mod:`ontology_sql_eval.ingestion.ingest` has populated the schema
-graph and embeddings::
+graph and embeddings. Compile a single database, or omit ``--database-name``
+to compile every database in ``CONNECTION_STRINGS`` (same source as ingest)::
 
-    uv run python -m ontology_sql_eval.ingestion.semantic --database-name <database_name>
+    uv run python -m ontology_sql_eval.ingestion.semantic                            # all CONNECTION_STRINGS
+    uv run python -m ontology_sql_eval.ingestion.semantic --database-name <name>     # a single database
 """
 
 from __future__ import annotations
 
 import argparse
 import logging
+import os
 
 from dotenv import load_dotenv
 
-from gsf.semantic.compile import run_semantic_compilation
-
 load_dotenv()
+
+from gsf.semantic.compile import run_semantic_compilation
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +44,18 @@ def run_semantic(database_name: str) -> int:
     return run_semantic_compilation(database_name)
 
 
+def database_names_from_env() -> list[str]:
+    """Resolve database names from ``CONNECTION_STRINGS`` (same source as ingest)."""
+    from ontology_sql_eval.ingestion.ingest import database_name_for
+
+    connection_strings = [
+        s.strip()
+        for s in os.environ.get("CONNECTION_STRINGS", "").split(",")
+        if s.strip()
+    ]
+    return [database_name_for(cs) for cs in connection_strings]
+
+
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="ontology-sql-eval-semantic",
@@ -49,8 +64,9 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--database-name",
-        required=True,
-        help="Database name — must match the SQL connector and tabular ingest.",
+        default=None,
+        help="Database name — must match the SQL connector and tabular ingest. "
+        "When omitted, every database in CONNECTION_STRINGS is compiled in turn.",
     )
     return parser.parse_args(argv)
 
@@ -62,7 +78,20 @@ if __name__ == "__main__":
     )
     args = _parse_args()
     try:
-        run_semantic(args.database_name)
+        if args.database_name:
+            run_semantic(args.database_name)
+        else:
+            database_names = database_names_from_env()
+            if not database_names:
+                raise EnvironmentError(
+                    "No --database-name given and CONNECTION_STRINGS is not set. "
+                    "Pass --database-name, or add CONNECTION_STRINGS to your .env."
+                )
+            for i, db_name in enumerate(database_names, start=1):
+                logger.info(
+                    "Compiling semantic layer %d/%d: %s", i, len(database_names), db_name
+                )
+                run_semantic(db_name)
     except KeyboardInterrupt:
         logger.info("semantic: shutting down")
         raise SystemExit(0)

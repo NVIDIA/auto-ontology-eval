@@ -63,7 +63,6 @@
       "type": "debugpy",
       "request": "launch",
       "module": "ontology_sql_eval.ingestion.semantic",
-      "args": ["--database-name", "wideworldimporters"],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
