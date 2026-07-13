@@ -28,8 +28,6 @@ from pathlib import Path
 
 logger = logging.getLogger("pipeline")
 
-DEFAULT_DB = "wideworldimporters"
-
 _REPO_ROOT = Path(__file__).resolve().parent
 OUTPUT_DIR = _REPO_ROOT / "output"
 
@@ -88,7 +86,7 @@ def stage_semantic(database_name: str) -> None:
         run_semantic(database_name)
 
 
-def stage_eval(database_name: str) -> Path:
+def stage_eval(*, database_name: str) -> Path:
     """Run the retrieval eval; return the path of the model CSV it wrote.
 
     The CSV lands in the repo-root ``input/`` folder so the judge stage (and the
@@ -98,7 +96,10 @@ def stage_eval(database_name: str) -> Path:
     from ontology_sql_eval.retrieval.eval_chatbot import _resolve_paths, run_evaluation
 
     input_path, output_path = _resolve_paths(database_name, None, None)
-    run_evaluation(input_path=input_path, output_path=output_path)
+    run_evaluation(
+        input_path=input_path,
+        output_path=output_path,
+    )
     return output_path
 
 
@@ -112,7 +113,7 @@ def stage_judge(eval_csv: Path, workers: int = 1) -> Path:
     return scored_path
 
 
-def _eval_output_path(database_name: str) -> Path:
+def _eval_output_path(*, database_name: str) -> Path:
     """Resolve the eval CSV path without running eval (for --skip-eval)."""
     from ontology_sql_eval.retrieval.eval_chatbot import _resolve_paths
 
@@ -130,8 +131,9 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--database-name",
-        default=DEFAULT_DB,
-        help=f"Dataset / database name (default: {DEFAULT_DB}).",
+        required=True,
+        help="Dataset / database name. "
+        "Selects datasets/<name>/evaluation.json; per-question db_id routes the connector.",
     )
     parser.add_argument("--skip-ingest", action="store_true", help="Skip the ingest stage.")
     parser.add_argument(
@@ -167,9 +169,9 @@ def main(argv: list[str] | None = None) -> None:
         stage_semantic(db)
 
     if not args.skip_eval:
-        eval_csv = stage_eval(db)
+        eval_csv = stage_eval(database_name=db)
     else:
-        eval_csv = _eval_output_path(db)
+        eval_csv = _eval_output_path(database_name=db)
         logger.info("Skipping eval; using existing %s", eval_csv)
 
     if not args.skip_judge:

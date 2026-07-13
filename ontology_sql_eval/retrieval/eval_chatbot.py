@@ -19,10 +19,22 @@ result)), this script:
    logged, recorded in the ``error`` column, and scored 0 — execution
    continues with the next question.
 
+Each question is iterated independently. When a question carries a ``db_id``,
+it selects the matching connector from ``CONNECTION_STRINGS`` (``db_id`` equals
+the connector's ``database_name``) and scopes retrieval to that database via the
+connector passed in ``connectors``. Any ``evidence`` is appended to the
+question. Questions without a ``db_id`` fall back to the first configured
+connector.
+
 Usage::
 
+    uv run python -m ontology_sql_eval.retrieval.eval_chatbot
+    uv run python -m ontology_sql_eval.retrieval.eval_chatbot --database-name <name>
     uv run python -m ontology_sql_eval.retrieval.eval_chatbot \
         --database-name <name> [--input PATH] [--output PATH]
+
+When ``--database-name`` is omitted, the dataset folder is inferred from
+``CONNECTION_STRINGS`` (same source as ingest / semantic compile).
 """
 
 from __future__ import annotations
@@ -78,6 +90,70 @@ _EVAL_DIR = _REPO_ROOT / "datasets"
 _INPUT_DIR = _REPO_ROOT / "input"
 
 _DEFAULT_MODEL_NAME = os.environ.get("MODEL_NAME", "nemotron")
+
+
+def _connection_strings() -> list[str]:
+    return [
+        s.strip()
+        for s in os.environ.get("CONNECTION_STRINGS", "").split(",")
+        if s.strip()
+    ]
+
+
+def _evaluation_dataset_dir_for_connection(connection_string: str) -> Path | None:
+    """Return ``datasets/<name>/`` when ``evaluation.json`` exists for *connection_string*."""
+    from urllib.parse import unquote, urlparse
+
+    from ontology_sql_eval.ingestion.ingest import database_name_for
+
+    if connection_string.startswith("sqlite:"):
+        db_path = Path(unquote(urlparse(connection_string).path)).resolve()
+        cur = db_path.parent
+        eval_dir = _EVAL_DIR.resolve()
+        while eval_dir in cur.parents:
+            if (cur / "evaluation.json").exists():
+                return cur
+            cur = cur.parent
+        return None
+
+    candidate = _EVAL_DIR / database_name_for(connection_string)
+    if (candidate / "evaluation.json").exists():
+        return candidate
+    return None
+
+
+def dataset_name_from_env() -> str:
+    """Infer the eval dataset folder name from ``CONNECTION_STRINGS``."""
+    from ontology_sql_eval.ingestion.ingest import database_name_for
+
+    connection_strings = _connection_strings()
+    if not connection_strings:
+        raise EnvironmentError(
+            "No --database-name given and CONNECTION_STRINGS is not set. "
+            "Pass --database-name, or add CONNECTION_STRINGS to your .env."
+        )
+
+    dataset_dirs = {
+        ds_dir.resolve()
+        for cs in connection_strings
+        if (ds_dir := _evaluation_dataset_dir_for_connection(cs)) is not None
+    }
+    if len(dataset_dirs) == 1:
+        return next(iter(dataset_dirs)).name
+    if len(dataset_dirs) > 1:
+        names = sorted(d.name for d in dataset_dirs)
+        raise ValueError(
+            f"CONNECTION_STRINGS point to multiple evaluation datasets: {names}. "
+            "Pass --database-name explicitly."
+        )
+
+    if len(connection_strings) == 1:
+        return database_name_for(connection_strings[0])
+
+    raise ValueError(
+        "Could not infer evaluation dataset from CONNECTION_STRINGS. "
+        "Pass --database-name or ensure datasets/<name>/evaluation.json exists."
+    )
 
 
 def _resolve_paths(
@@ -204,6 +280,11 @@ def run_evaluation(
     data_retriever = get_data_objects_retriever()
     semantic_retriever = get_semantic_objects_retriever()
     connectors = get_connectors()
+    connectors_by_name: dict[str, Any] = {}
+    for connector in connectors:
+        name = getattr(connector, "database_name", None)
+        if name:
+            connectors_by_name[name] = connector
 
     resuming = start_index > 0 and output_path.exists()
     mode = "a" if resuming else "w"
@@ -220,7 +301,19 @@ def run_evaluation(
             expected_sql = item.get("SQL", "")
             expected_answer = item.get("answer_raw", "")
             difficulty = item.get("difficulty", "")
+
+            # Each question may carry its own db_id / evidence; both are
+            # optional so single-dataset eval files without them still work.
+            evidence = item.get("evidence", "")
+            db_id = item.get("db_id", "")
+
+            agent_question = question
+            if evidence:
+                agent_question = f"{question}\n\nEvidence: {evidence}"
+
             logger.info("[%d/%d] q%s: %s", idx + 1, len(questions), qid, question)
+            if db_id:
+                logger.info("  db_id=%s  evidence=%s", db_id, evidence[:120])
 
             row: Dict[str, Any] = {
                 "row_index": idx,
@@ -241,13 +334,20 @@ def run_evaluation(
                 "error": "",
             }
 
+            # Route to the connector matching this question's db_id; fall back
+            # to the first connector when the question is not db-scoped.
+            active_connector = connectors_by_name.get(db_id) if db_id else None
+            if active_connector is None:
+                active_connector = connectors[0]
+            active_connectors = [active_connector]
+
             t0 = time.perf_counter()
             try:
                 payload: TextToSQLPayload = {
-                    "question": question,
+                    "question": agent_question,
                     "data_retriever": data_retriever,
                     "semantic_retriever": semantic_retriever,
-                    "connectors": connectors,
+                    "connectors": active_connectors,
                     "path_state": {},
                     "custom_prompts": "",
                     "acronyms": [],
@@ -262,7 +362,9 @@ def run_evaluation(
                 row["returned_sql"] = returned_sql
                 row["returned_answer"] = returned_db_str
 
-                row.update(score_sql(connectors[0], expected_sql, returned_sql))
+                row.update(
+                    score_sql(active_connector, expected_sql, returned_sql, schema=db_id)
+                )
                 row.update(score_answer(expected_answer, returned_db_str))
             except Exception as exc:
                 logger.exception("Question %s failed", qid)
@@ -313,8 +415,9 @@ def _parse_args() -> argparse.Namespace:
         "--database-name",
         type=str,
         default=None,
-        help="Database name (e.g. wideworldimporters). "
-        "Derives input from <db>/evaluation.json and output from <db>/<model>.csv.",
+        help="Dataset / database name. "
+        "When omitted, inferred from CONNECTION_STRINGS (same as semantic compile). "
+        "Derives input from <name>/evaluation.json and output from <name>/<model>.csv.",
     )
     parser.add_argument(
         "--input",
@@ -343,8 +446,12 @@ if __name__ == "__main__":
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     args = _parse_args()
+    dataset_name = args.database_name
+    if not dataset_name and not (args.input and args.output):
+        dataset_name = dataset_name_from_env()
+        logger.info("Resolved dataset name from CONNECTION_STRINGS: %s", dataset_name)
     input_path, output_path = _resolve_paths(
-        args.database_name, args.input, args.output
+        dataset_name, args.input, args.output
     )
     if args.single:
         run_single_question(SINGLE_QUERY)

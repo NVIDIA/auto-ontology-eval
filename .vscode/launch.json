@@ -6,7 +6,10 @@
       "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/main.py",
-      "args": ["--database-name", "wideworldimporters"],
+      "args": [
+        "--database-name",
+        "wideworldimporters"
+      ],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
@@ -77,7 +80,10 @@
       "type": "debugpy",
       "request": "launch",
       "module": "ontology_sql_eval.retrieval.eval_chatbot",
-      "args": ["--database-name", "wideworldimporters"],
+      "args": [
+        "--database-name",
+        "bird"
+      ],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
@@ -92,7 +98,11 @@
       "type": "debugpy",
       "request": "launch",
       "module": "ontology_sql_eval.retrieval.eval_chatbot",
-      "args": ["--single", "--database-name", "wideworldimporters"],
+      "args": [
+        "--single",
+        "--database-name",
+        "wideworldimporters"
+      ],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
