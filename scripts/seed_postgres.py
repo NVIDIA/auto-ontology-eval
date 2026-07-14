@@ -77,7 +77,9 @@ def _ensure_database(database_name: str, *, drop: bool = False) -> None:
                 # WITH (FORCE) terminates lingering sessions so the drop doesn't
                 # fail with "database is being accessed by other users".
                 cur.execute(f'DROP DATABASE IF EXISTS "{database_name}" WITH (FORCE)')
-            cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (database_name,))
+            cur.execute(
+                "SELECT 1 FROM pg_database WHERE datname = %s", (database_name,)
+            )
             if cur.fetchone():
                 logger.info("Database %s already exists.", database_name)
                 return
@@ -118,7 +120,9 @@ def _load_csvs(database_name: str, data_dir: Path) -> int:
                 schema_table = csv_path.stem
                 parts = schema_table.split(".", 1)
                 if len(parts) != 2:
-                    logger.warning("  Skipping %s (unexpected name format)", csv_path.name)
+                    logger.warning(
+                        "  Skipping %s (unexpected name format)", csv_path.name
+                    )
                     continue
                 schema, table = parts[0].lower(), parts[1].lower()
                 qn = f"{schema}.{table}"
@@ -137,9 +141,7 @@ def _load_csvs(database_name: str, data_dir: Path) -> int:
                     total_rows += cnt
                     logger.info("  %s.%-40s %10d rows", schema, table, cnt)
                 except Exception:
-                    logger.error(
-                        "  FAILED to load %s", csv_path.name, exc_info=True
-                    )
+                    logger.error("  FAILED to load %s", csv_path.name, exc_info=True)
 
     return total_rows
 

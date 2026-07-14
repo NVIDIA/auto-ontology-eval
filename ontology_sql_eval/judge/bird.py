@@ -172,11 +172,15 @@ def _execute_ex_model(
                 args=(predicted_sql, ground_truth_sql, db_path),
             ),
         )
-        return ExResult(sql_idx=sql_idx, res=int(res), extra_col_nearmiss=bool(nearmiss))
+        return ExResult(
+            sql_idx=sql_idx, res=int(res), extra_col_nearmiss=bool(nearmiss)
+        )
     except FunctionTimedOut:
         return ExResult(sql_idx=sql_idx, res=0, pred_error="timeout")
     except Exception as exc:
-        return ExResult(sql_idx=sql_idx, res=0, pred_error=f"{type(exc).__name__}: {exc}")
+        return ExResult(
+            sql_idx=sql_idx, res=0, pred_error=f"{type(exc).__name__}: {exc}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -302,7 +306,11 @@ def compute_acc_by_diff(
     simple_acc = _acc(simple_results)
     moderate_acc = _acc(moderate_results)
     challenging_acc = _acc(challenging_results)
-    all_acc = sum(_passes(r) for r in exec_results) / num_queries * 100 if num_queries else 0.0
+    all_acc = (
+        sum(_passes(r) for r in exec_results) / num_queries * 100
+        if num_queries
+        else 0.0
+    )
     count_lists = [
         len(simple_results),
         len(moderate_results),
@@ -312,7 +320,9 @@ def compute_acc_by_diff(
     return simple_acc, moderate_acc, challenging_acc, all_acc, count_lists
 
 
-def compute_ves(ves_results: list[VesResult], eligible: list[bool] | None = None) -> float:
+def compute_ves(
+    ves_results: list[VesResult], eligible: list[bool] | None = None
+) -> float:
     if not ves_results:
         return 0.0
     total = 0.0
@@ -556,7 +566,10 @@ def _run_ves_parallel(
         return []
 
     if num_cpus <= 1:
-        results = [_execute_ves_model(*args, require_ex_match=req) for *args, req in worker_args]
+        results = [
+            _execute_ves_model(*args, require_ex_match=req)
+            for *args, req in worker_args
+        ]
     else:
         with mp.Pool(processes=num_cpus) as pool:
             results = [
@@ -588,9 +601,13 @@ def run(
         logger.warning("No rows to score in %s", input_path)
         return
 
-    logger.info("Scoring %d questions (EX%s)", len(bird_rows), "" if skip_ves else " + VES")
+    logger.info(
+        "Scoring %d questions (EX%s)", len(bird_rows), "" if skip_ves else " + VES"
+    )
     print(f"\nBIRD official evaluation — {len(bird_rows)} questions", flush=True)
-    ex_results = _run_ex_parallel(bird_rows, num_cpus=num_cpus, meta_time_out=meta_time_out)
+    ex_results = _run_ex_parallel(
+        bird_rows, num_cpus=num_cpus, meta_time_out=meta_time_out
+    )
     difficulties = [row.difficulty for row in bird_rows]
 
     simple_acc, moderate_acc, challenging_acc, all_acc, ex_counts = compute_acc_by_diff(
@@ -633,8 +650,10 @@ def run(
             ves_by_idx.get(i, VesResult(sql_idx=i, time_ratio=0.0))
             for i in range(len(bird_rows))
         ]
-        simple_ves, moderate_ves, challenging_ves, all_ves, ves_counts = compute_ves_by_diff(
-            ves_aligned, difficulties, ex_results=ex_results, inclusive=False
+        simple_ves, moderate_ves, challenging_ves, all_ves, ves_counts = (
+            compute_ves_by_diff(
+                ves_aligned, difficulties, ex_results=ex_results, inclusive=False
+            )
         )
         (
             incl_simple_ves,
@@ -660,7 +679,9 @@ def run(
         original_fields = list(reader.fieldnames or [])
         in_rows = list(reader)
 
-    out_fields = original_fields + [f for f in BIRD_SCORE_FIELDS if f not in original_fields]
+    out_fields = original_fields + [
+        f for f in BIRD_SCORE_FIELDS if f not in original_fields
+    ]
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", encoding="utf-8", newline="") as f_out:
         writer = csv.DictWriter(f_out, fieldnames=out_fields, extrasaction="ignore")
@@ -706,7 +727,9 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=_DEFAULT_DB_ROOT,
         help=f"Root folder containing <db_id>/<db_id>.sqlite (default: {_DEFAULT_DB_ROOT}).",
     )
-    parser.add_argument("--num-cpus", type=int, default=1, help="Parallel workers (default: 1).")
+    parser.add_argument(
+        "--num-cpus", type=int, default=1, help="Parallel workers (default: 1)."
+    )
     parser.add_argument(
         "--meta-time-out",
         type=float,
@@ -738,8 +761,10 @@ def main(argv: list[str] | None = None) -> None:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     args = _parse_args(argv)
-    output_path = None if args.no_output_csv else (
-        args.output or Path("output") / f"{args.input.stem}_bird_scores.csv"
+    output_path = (
+        None
+        if args.no_output_csv
+        else (args.output or Path("output") / f"{args.input.stem}_bird_scores.csv")
     )
     run(
         input_path=args.input,

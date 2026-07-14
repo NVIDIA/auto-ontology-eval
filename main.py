@@ -62,7 +62,10 @@ def stage_ingest() -> None:
 
     for i, connection_string in enumerate(connection_strings, start=1):
         logger.info(
-            "Ingesting database %d/%d: %s", i, len(connection_strings), connection_string
+            "Ingesting database %d/%d: %s",
+            i,
+            len(connection_strings),
+            connection_string,
         )
         run_ingest(connection_string)
 
@@ -79,7 +82,10 @@ def stage_semantic(database_name: str) -> None:
         for i, connection_string in enumerate(connection_strings, start=1):
             db_name = database_name_for(connection_string)
             logger.info(
-                "Compiling semantic layer %d/%d: %s", i, len(connection_strings), db_name
+                "Compiling semantic layer %d/%d: %s",
+                i,
+                len(connection_strings),
+                db_name,
             )
             run_semantic(db_name)
     else:
@@ -135,12 +141,18 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Dataset / database name. "
         "Selects datasets/<name>/evaluation.json; per-question db_id routes the connector.",
     )
-    parser.add_argument("--skip-ingest", action="store_true", help="Skip the ingest stage.")
+    parser.add_argument(
+        "--skip-ingest", action="store_true", help="Skip the ingest stage."
+    )
     parser.add_argument(
         "--skip-semantic", action="store_true", help="Skip the semantic-compile stage."
     )
-    parser.add_argument("--skip-eval", action="store_true", help="Skip the retrieval-eval stage.")
-    parser.add_argument("--skip-judge", action="store_true", help="Skip the LLM-judge stage.")
+    parser.add_argument(
+        "--skip-eval", action="store_true", help="Skip the retrieval-eval stage."
+    )
+    parser.add_argument(
+        "--skip-judge", action="store_true", help="Skip the LLM-judge stage."
+    )
     parser.add_argument(
         "--workers",
         type=int,

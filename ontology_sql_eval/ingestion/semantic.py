@@ -23,10 +23,9 @@ import logging
 import os
 
 from dotenv import load_dotenv
+from gsf.semantic.compile import run_semantic_compilation
 
 load_dotenv()
-
-from gsf.semantic.compile import run_semantic_compilation
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +88,10 @@ if __name__ == "__main__":
                 )
             for i, db_name in enumerate(database_names, start=1):
                 logger.info(
-                    "Compiling semantic layer %d/%d: %s", i, len(database_names), db_name
+                    "Compiling semantic layer %d/%d: %s",
+                    i,
+                    len(database_names),
+                    db_name,
                 )
                 run_semantic(db_name)
     except KeyboardInterrupt:

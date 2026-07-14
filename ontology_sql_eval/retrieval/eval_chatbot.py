@@ -363,7 +363,9 @@ def run_evaluation(
                 row["returned_answer"] = returned_db_str
 
                 row.update(
-                    score_sql(active_connector, expected_sql, returned_sql, schema=db_id)
+                    score_sql(
+                        active_connector, expected_sql, returned_sql, schema=db_id
+                    )
                 )
                 row.update(score_answer(expected_answer, returned_db_str))
             except Exception as exc:
@@ -450,9 +452,7 @@ if __name__ == "__main__":
     if not dataset_name and not (args.input and args.output):
         dataset_name = dataset_name_from_env()
         logger.info("Resolved dataset name from CONNECTION_STRINGS: %s", dataset_name)
-    input_path, output_path = _resolve_paths(
-        dataset_name, args.input, args.output
-    )
+    input_path, output_path = _resolve_paths(dataset_name, args.input, args.output)
     if args.single:
         run_single_question(SINGLE_QUERY)
     else:
