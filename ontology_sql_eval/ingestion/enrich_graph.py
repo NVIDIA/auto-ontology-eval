@@ -86,7 +86,7 @@ def apply_metadata(database_name: str) -> None:
         raw = json.load(f)
 
     table_rows: list[dict[str, str]] = []
-    column_rows: list[dict[str, str | list[str] | None]] = []
+    column_rows: list[dict[str, str | None]] = []
     samples_count = 0
     for table_name, table_meta in raw.items():
         table_desc = table_meta.get("description")
@@ -96,8 +96,11 @@ def apply_metadata(database_name: str) -> None:
         for col in table_meta.get("columns", []) or []:
             col_desc = col.get("description")
             value_examples = col.get("value_examples")
-            sample_values: list[str] | None = (
-                [str(v) for v in value_examples]
+            # Store as a JSON string to match the semantic-compile writer
+            # (gsf.dal.datasources.store_column_sample_values), so every
+            # Column.sample_values property has a single consistent format.
+            sample_values: str | None = (
+                json.dumps([str(v) for v in value_examples])
                 if isinstance(value_examples, list) and value_examples
                 else None
             )
@@ -257,7 +260,9 @@ def backfill_sample_values(
                 {
                     "table_name": str(table_name),
                     "column_name": col_name,
-                    "sample_values": values,
+                    # JSON string to match the semantic-compile writer
+                    # (gsf.dal.datasources.store_column_sample_values).
+                    "sample_values": json.dumps(values),
                 }
             )
 
