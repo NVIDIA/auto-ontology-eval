@@ -284,7 +284,7 @@
     "db_id": "WIDEWORLDIMPORTERS",
     "question": "which customers order more than 130 times?",
     "evidence": "",
-    "SQL": "select customername, total_orders as ordercount \nfrom reports.customer_order_summaries\nwhere total_orders > 130;",
+    "SQL": "select c.customername, count(o.orderid) as ordercount\nfrom sales.customers c\njoin sales.orders o on c.customerid = o.customerid\ngroup by c.customerid, c.customername\nhaving count(o.orderid) > 130;",
     "difficulty": "",
     "answer_raw": "",
     "answer": ""
