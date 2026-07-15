@@ -21,6 +21,8 @@ import pandas as pd
 
 from nemo_retriever.tabular_data.sql_database import SQLDatabase
 
+from ontology_sql_eval.spider2_gold import gold_dfs_to_expected_result
+
 _NUM_RE = re.compile(r"-?\d+(?:\.\d+)?")
 _SCORE_STR_LIMIT = 8000
 _STRINGIFY_ROW_LIMIT = 200
@@ -79,21 +81,53 @@ def _execute_sql(
         return None, f"{type(exc).__name__}: {exc}"
 
 
-def score_sql(connector: SQLDatabase, expected: str, actual: str) -> Dict[str, Any]:
+def score_sql(
+    connector: SQLDatabase,
+    expected: str,
+    actual: str,
+    *,
+    expected_gold_dfs: list[pd.DataFrame] | None = None,
+) -> Dict[str, Any]:
+    """Score *actual* SQL against *expected* SQL and/or gold result CSV(s).
+
+    When *expected* is empty but *expected_gold_dfs* is provided (Spider2
+    instances whose upstream gold ``*.sql`` is missing), the expected side is
+    taken from the pre-computed gold ``exec_result`` CSV(s) instead of executing
+    gold SQL. A match against **any** variant counts as correct (same as the
+    official suite's multi-gold handling).
+    """
     text_sim = _sql_text_similarity(expected, actual)
-    expected_df, expected_err = _execute_sql(connector, expected)
     actual_df, actual_err = _execute_sql(connector, actual)
-    exec_match = 0
-    if expected_df is not None and actual_df is not None:
-        exec_match = 1 if _df_values_equal(expected_df, actual_df) else 0
+
+    if (expected or "").strip():
+        expected_df, expected_err = _execute_sql(connector, expected)
+        exec_match = 0
+        if expected_df is not None and actual_df is not None:
+            exec_match = 1 if _df_values_equal(expected_df, actual_df) else 0
+        expected_result = (
+            stringify_db_result(expected_df) if expected_df is not None else ""
+        )
+    elif expected_gold_dfs:
+        expected_err = ""
+        exec_match = 0
+        if actual_df is not None:
+            exec_match = (
+                1
+                if any(_df_values_equal(gold_df, actual_df) for gold_df in expected_gold_dfs)
+                else 0
+            )
+        expected_result = gold_dfs_to_expected_result(expected_gold_dfs)
+    else:
+        expected_err = "empty SQL"
+        exec_match = 0
+        expected_result = ""
+
     return {
         "sql_text_similarity": round(text_sim, 4),
         "sql_exec_match": exec_match,
         "expected_sql_error": expected_err,
         "returned_sql_error": actual_err,
-        "expected_sql_result": stringify_db_result(expected_df)
-        if expected_df is not None
-        else "",
+        "expected_sql_result": expected_result,
     }
 
 

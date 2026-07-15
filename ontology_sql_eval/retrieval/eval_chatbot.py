@@ -49,6 +49,11 @@ from ontology_sql_eval.retrieval.scoring import (
     score_sql,
     stringify_db_result,
 )
+from ontology_sql_eval.spider2_gold import (
+    gold_dfs_to_answer_raw,
+    is_spider2_instance_id,
+    load_gold_exec_result_dfs,
+)
 
 
 load_dotenv()
@@ -220,6 +225,13 @@ def run_evaluation(
             expected_sql = item.get("SQL", "")
             expected_answer = item.get("answer_raw", "")
             difficulty = item.get("difficulty", "")
+            evidence = item.get("evidence", "") or ""
+
+            expected_gold_dfs = None
+            if not (expected_sql or "").strip() and is_spider2_instance_id(str(qid)):
+                expected_gold_dfs = load_gold_exec_result_dfs(str(qid))
+                if expected_gold_dfs and not (expected_answer or "").strip():
+                    expected_answer = gold_dfs_to_answer_raw(expected_gold_dfs)
             logger.info("[%d/%d] q%s: %s", idx + 1, len(questions), qid, question)
 
             row: Dict[str, Any] = {
@@ -251,6 +263,7 @@ def run_evaluation(
                     "path_state": {},
                     "custom_prompts": "",
                     "acronyms": [],
+                    "evidence": evidence,
                 }
                 logger.info("Running question %s", payload["question"])
                 agent_result = get_agent_response(payload)
@@ -262,7 +275,14 @@ def run_evaluation(
                 row["returned_sql"] = returned_sql
                 row["returned_answer"] = returned_db_str
 
-                row.update(score_sql(connectors[0], expected_sql, returned_sql))
+                row.update(
+                    score_sql(
+                        connectors[0],
+                        expected_sql,
+                        returned_sql,
+                        expected_gold_dfs=expected_gold_dfs,
+                    )
+                )
                 row.update(score_answer(expected_answer, returned_db_str))
             except Exception as exc:
                 logger.exception("Question %s failed", qid)

@@ -97,16 +97,15 @@ list). Variables are grouped by the workflow that uses them:
 > [Configuration](#configuration)). Only the standalone judge can run without a
 > source DB.
 
-`scripts/seed_postgres.py` loads a pre-generated schema + data into your local
-Postgres. Seed artifacts live alongside the eval artifacts under
-`datasets/<database_name>/`, in a `ddl/` folder and a `data/` folder of CSVs. The
-bundled example is `wideworldimporters`:
+`scripts/seed_wwi.py` loads a pre-generated schema + data into your local
+Postgres. Seed artifacts live under `datasets/wideworldimporters/`, in a `ddl/`
+folder and a `data/` folder of CSVs:
 
 ```bash
-uv run python scripts/seed_postgres.py --database-name wideworldimporters --drop
+uv run python scripts/seed_wwi.py --drop
 ```
 
-Or use the **Seed local Postgres** configuration in
+Or use the **Seed WWI Postgres** configuration in
 [.vscode/launch.json](.vscode/launch.json).
 
 This creates the database (using `POSTGRES_*` from `.env`, with
@@ -291,7 +290,7 @@ ontology_sql_eval/          single namespace package
     scoring.py              SQL/answer scoring helpers
 main.py                     end-to-end pipeline entry point (ingest -> judge)
 scripts/
-  seed_postgres.py          seed a local Postgres from datasets/<db>/{ddl,data}
+  seed_wwi.py               seed WWI into a local Postgres from datasets/wideworldimporters/{ddl,data}
 datasets/
   <database_name>/          evaluation.json, metadata.json, custom_analyses.json
     ddl/                    seed DDL (schemas, sequences, tables, indexes, fkeys, views)

@@ -1,5 +1,6 @@
 # Secrets / local environment
 .env
+third_party/*
 
 # Python
 __pycache__/
@@ -25,3 +26,6 @@ venv/
 # Datasets kept local only (not tracked on remote)
 /datasets/bird/
 /datasets/dor_prod/
+
+# Spider2 local SQLite databases (large, not tracked)
+/datasets/spider2/
