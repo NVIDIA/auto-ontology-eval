@@ -19,8 +19,10 @@ Usage::
     uv run python scripts/download_bird.py
     uv run python scripts/download_bird.py --force
 
-The default download URL is the direct Aliyun OSS link from the BIRD Mini-Dev
-README. A Google Drive mirror is also available (see ``--help``).
+The default download URL is the Google Drive "Complete Package" from the BIRD
+Mini-Dev README's 2025-07-04 update — the corrected 500-question set (no
+duplicate rows, fixed gold SQL). The older Aliyun OSS ``minidev.zip`` is kept
+as ``LEGACY_OSS_URL`` for reference but is stale; pass ``--url`` to override.
 
 After download, ingest a single database into Neo4j via::
 
@@ -42,10 +44,20 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_URL = "https://bird-bench.oss-cn-beijing.aliyuncs.com/minidev.zip"
+GOOGLE_DRIVE_FILE_ID = "13VLWIwpw5E3d5DUkMvzw7hvHE67a4XkG"
 GOOGLE_DRIVE_URL = (
-    "https://drive.google.com/file/d/13VLWIwpw5E3d5DUkMvzw7hvHE67a4XkG/view?usp=sharing"
+    f"https://drive.google.com/file/d/{GOOGLE_DRIVE_FILE_ID}/view?usp=sharing"
 )
+# Direct-download form that streams the raw bytes (the ``confirm=t`` token
+# bypasses Google Drive's large-file virus-scan interstitial).
+DEFAULT_URL = (
+    "https://drive.usercontent.google.com/download"
+    f"?id={GOOGLE_DRIVE_FILE_ID}&export=download&confirm=t"
+)
+# Legacy Aliyun OSS mirror linked from the top README badge. Kept for reference
+# only: it serves the stale 2024 snapshot (duplicate question_ids 137/138,
+# missing 119/120, wrong gold SQL for 1322).
+LEGACY_OSS_URL = "https://bird-bench.oss-cn-beijing.aliyuncs.com/minidev.zip"
 ARCHIVE_NAME = "minidev.zip"
 CHUNK_SIZE = 1024 * 1024  # 1 MiB
 
@@ -72,7 +84,8 @@ def _download(url: str, dest_path: Path, *, force: bool = False) -> None:
     logger.info("Downloading %s ...", url)
 
     try:
-        with urllib.request.urlopen(url) as response:
+        request = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(request) as response:
             total = int(response.headers.get("Content-Length", 0))
             downloaded = 0
             last_pct = -1
@@ -261,7 +274,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "with SQLite databases, schema descriptions, question JSONs, and gold SQL."
         ),
         epilog=(
-            f"Google Drive mirror (manual download): {GOOGLE_DRIVE_URL}\n"
+            f"Default source (corrected 2025-07-04 set): {GOOGLE_DRIVE_URL}\n"
+            f"Legacy Aliyun OSS mirror (stale 2024 data): {LEGACY_OSS_URL}\n"
             "Pass --url if you host a local copy of the zip."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
