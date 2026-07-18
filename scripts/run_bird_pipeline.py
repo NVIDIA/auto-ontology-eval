@@ -35,7 +35,6 @@ import csv
 import json
 import logging
 import os
-import subprocess
 import sys
 from pathlib import Path
 from urllib.parse import quote
@@ -47,7 +46,6 @@ csv.field_size_limit(sys.maxsize)
 logger = logging.getLogger("bird-pipeline")
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-MAIN_PY = REPO_ROOT / "main.py"
 BIRD_DIR = REPO_ROOT / "datasets" / "bird"
 MASTER_EVAL_PATH = BIRD_DIR / "evaluation.json"
 INPUT_DIR = REPO_ROOT / "input"
@@ -204,37 +202,56 @@ def reset_between_datasets() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _subprocess_env(db_id: str) -> dict[str, str]:
-    env = os.environ.copy()
-    env["CONNECTION_STRINGS"] = _connection_string(db_id)
-    gsf_path = str((REPO_ROOT.parent / "GSF").resolve())
-    existing = env.get("PYTHONPATH", "")
-    if gsf_path not in existing.split(os.pathsep):
-        env["PYTHONPATH"] = os.pathsep.join(p for p in (gsf_path, existing) if p)
-    return env
+def _activate_db(db_id: str) -> None:
+    """Point env + GSF caches at *db_id* for an in-process stage run.
+
+    Sets ``CONNECTION_STRINGS`` for this database and drops GSF's cached
+    connectors and retrievers so the next stage rebuilds them against this
+    database's freshly ingested Neo4j + pgvector data. This is what makes it
+    safe to run several databases sequentially in one process (the subprocess
+    isolation the runner used to rely on).
+    """
+    os.environ["CONNECTION_STRINGS"] = _connection_string(db_id)
+
+    from gsf.connectors import invalidate_connectors_cache
+    from gsf.utils import invalidate_retrievers_cache
+
+    invalidate_connectors_cache()
+    invalidate_retrievers_cache()
+
+
+def _load_pipeline():
+    """Import the repo-root ``main.py`` pipeline module (adds repo root to path)."""
+    if str(REPO_ROOT) not in sys.path:
+        sys.path.insert(0, str(REPO_ROOT))
+    import main as pipeline
+
+    return pipeline
 
 
 def run_eval_only(db_id: str) -> Path | None:
-    """Run retrieval eval only (skip ingest, semantic, store resets)."""
+    """Run retrieval eval only (skip ingest, semantic, store resets), in-process."""
     logger.info("=" * 70)
     logger.info("EVAL ONLY: bird/%s", db_id)
     logger.info("=" * 70)
 
     ensure_per_db_evaluation(db_id)
+    _activate_db(db_id)
 
-    cmd = [
-        sys.executable,
-        str(MAIN_PY),
-        "--database-name",
-        _dataset_name(db_id),
-        "--skip-ingest",
-        "--skip-semantic",
-        "--skip-judge",
-    ]
-    logger.info("Running: CONNECTION_STRINGS=<%s> %s", db_id, " ".join(cmd))
-    result = subprocess.run(cmd, cwd=str(REPO_ROOT), env=_subprocess_env(db_id))
-    if result.returncode != 0:
-        logger.error("bird/%s eval FAILED (exit code %d).", db_id, result.returncode)
+    logger.info("Running in-process: CONNECTION_STRINGS=<%s> eval-only", db_id)
+    pipeline = _load_pipeline()
+    try:
+        pipeline.main(
+            [
+                "--database-name",
+                _dataset_name(db_id),
+                "--skip-ingest",
+                "--skip-semantic",
+                "--skip-judge",
+            ]
+        )
+    except SystemExit as exc:
+        logger.error("bird/%s eval aborted: %s", db_id, exc)
         return None
 
     csv_path = _eval_csv_path(db_id)
@@ -246,25 +263,27 @@ def run_eval_only(db_id: str) -> Path | None:
 
 
 def run_database(db_id: str) -> Path | None:
-    """Reset stores and run ingest->semantic->eval for one BIRD database."""
+    """Reset stores and run ingest->semantic->eval for one BIRD database, in-process."""
     logger.info("=" * 70)
     logger.info("DATABASE: bird/%s", db_id)
     logger.info("=" * 70)
 
     ensure_per_db_evaluation(db_id)
+    _activate_db(db_id)
     reset_between_datasets()
 
-    cmd = [
-        sys.executable,
-        str(MAIN_PY),
-        "--database-name",
-        _dataset_name(db_id),
-        "--skip-judge",
-    ]
-    logger.info("Running: CONNECTION_STRINGS=<%s> %s", db_id, " ".join(cmd))
-    result = subprocess.run(cmd, cwd=str(REPO_ROOT), env=_subprocess_env(db_id))
-    if result.returncode != 0:
-        logger.error("bird/%s FAILED (exit code %d).", db_id, result.returncode)
+    logger.info("Running in-process: CONNECTION_STRINGS=<%s> ingest->semantic->eval", db_id)
+    pipeline = _load_pipeline()
+    try:
+        pipeline.main(
+            [
+                "--database-name",
+                _dataset_name(db_id),
+                "--skip-judge",
+            ]
+        )
+    except SystemExit as exc:
+        logger.error("bird/%s aborted: %s", db_id, exc)
         return None
 
     csv_path = _eval_csv_path(db_id)
