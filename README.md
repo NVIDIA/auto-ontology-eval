@@ -72,10 +72,12 @@ command with `PYTHONPATH=../GSF` (the judge does not need it).
 ## Configuration
 
 > This project was tested with LLMs served from
-> [https://integrate.api.nvidia.com](https://integrate.api.nvidia.com), and we
-> recommend using the models specified in [.env.example](.env.example)
-> (`nvidia/nemotron-3-nano-30b-a3b` for the agent and
-> `nvidia/llama-nemotron-embed-1b-v2` for embeddings).
+> [https://integrate.api.nvidia.com](https://integrate.api.nvidia.com) (judge,
+> embeddings) and [https://inference-api.nvidia.com](https://inference-api.nvidia.com)
+> (agent); see [.env.example](.env.example) for the exact models used for each
+> role.
+>
+> **Use only models that support structured output.**
 
 All settings are read from `.env` (see [.env.example](.env.example) for the full
 list). Variables are grouped by the workflow that uses them:
@@ -92,86 +94,37 @@ list). Variables are grouped by the workflow that uses them:
 ## Seed the local source DB (required)
 
 > **Required to run this project.** Ingestion and retrieval eval need a reachable
-> source database. You must **(1) initialize the database** with the seed script
-> below, then **(2) set `CONNECTION_STRINGS`** in your `.env` to point at it (see
-> [Configuration](#configuration)). Only the standalone judge can run without a
-> source DB.
+> source database. Only the standalone judge can run without a source DB.
 
-`scripts/seed_wwi_postgres.py` loads a pre-generated schema + data into your local
-Postgres. Seed artifacts live alongside the eval artifacts under
-`datasets/<database_name>/`, in a `ddl/` folder and a `data/` folder of CSVs. The
-bundled example is `wideworldimporters`:
+Each bundled dataset's README documents how to stand up its source DB and set
+`CONNECTION_STRINGS` (see [Configuration](#configuration)):
 
-```bash
-uv run python scripts/seed_wwi_postgres.py --database-name wideworldimporters --drop
-```
-
-Or use the **Seed local Postgres (WWI)** configuration in
-[.vscode/launch.json](.vscode/launch.json).
-
-This creates the database (using `POSTGRES_*` from `.env`, with
-`POSTGRES_DATABASE` as the admin connection). Afterwards, point
-`CONNECTION_STRINGS` at the seeded DB.
-
-Replace `<password>` with your Postgres password — the same one GSF's
-`docker-compose` uses (i.e. the value of `POSTGRES_PASSWORD` in your `.env`):
-
-```bash
-CONNECTION_STRINGS=postgresql://postgres:<password>@localhost:5432/wideworldimporters
-```
-
-Flags:
-
-- `--database-name <name>` — selects `datasets/<name>/` and names the target DB
-  (default `wideworldimporters`).
-- `--drop` — drop and recreate the database first (uses `WITH (FORCE)` to
-  terminate any lingering sessions).
-- `--refresh-collation` — run `ALTER DATABASE ... REFRESH COLLATION VERSION` on
-  `template1` and the admin DB before creating. Use this if Postgres reports a
-  `collation version mismatch` (common after an OS `libc`/ICU change, e.g. when
-  the pgvector container image is updated).
-- `--log-level {DEBUG,INFO,WARNING,ERROR}` — logging verbosity (default `INFO`).
+- **[WideWorldImporters](datasets/wideworldimporters/README.md)** — seed a
+  local Postgres from pre-generated DDL + CSVs.
+- **[BIRD Mini-Dev](datasets/bird/README.md)** — download per-database SQLite
+  files.
 
 ## Full pipeline (end-to-end example)
 
 `main.py` runs the entire lifecycle for a dataset in one shot — ingest →
-semantic compile → eval → judge — writing `datasets/<db>/<model>_scores.csv`.
-Using the bundled `wideworldimporters` dataset (assumes the stores are up and
-`.env` is filled in):
-
-### Via script
+semantic compile → eval → judge — writing `output/<model>_scores.csv`
+(assumes the stores are up and `.env` is filled in):
 
 ```bash
-PYTHONPATH=../GSF uv run python main.py --database-name wideworldimporters
+PYTHONPATH=../GSF uv run python main.py --database-name <database_name>
 ```
 
 Individual stages can be skipped with `--skip-ingest`, `--skip-semantic`,
 `--skip-eval`, `--skip-judge` (e.g. to re-judge an existing eval CSV:
-`--skip-ingest --skip-semantic --skip-eval`).
+`--skip-ingest --skip-semantic --skip-eval`). Or use the **Run full pipeline**
+configuration in [.vscode/launch.json](.vscode/launch.json), which sets
+`PYTHONPATH=../GSF` and loads `.env` automatically.
 
-### Via launch.json
-
-Use the **Run full pipeline** configuration in
-[.vscode/launch.json](.vscode/launch.json); it sets `PYTHONPATH=../GSF` and loads
-`.env` automatically.
-
-### Manual (per-stage) equivalent
-
-```bash
-# 1. Ingest the source DB schema into Neo4j + pgvector, then compile semantics.
-PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.ingest
-PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.semantic --database-name wideworldimporters
-
-# 2. Run the agent against the eval set -> input/wideworldimporters_<model>.csv
-PYTHONPATH=../GSF uv run python -m ontology_sql_eval.retrieval.eval_chatbot \
-    --database-name wideworldimporters
-
-# 3. Re-score every CSV in input/ with the LLM judge -> output/<name>_scores.csv
-uv run ontology-sql-eval
-```
-
-See the per-workflow READMEs under [Workflows](#workflows) for the details of
-each stage.
+For concrete, copy-pasteable walkthroughs (including the manual per-stage
+commands), see the per-dataset READMEs:
+[WideWorldImporters](datasets/wideworldimporters/README.md),
+[BIRD Mini-Dev](datasets/bird/README.md). See the per-workflow READMEs under
+[Workflows](#workflows) for the details of each stage.
 
 ## Datasets
 
@@ -189,8 +142,24 @@ The retrieval eval writes its results CSV to the repo-root `input/` folder
 (`input/<database_name>_<model>.csv`), not into the dataset folder, so the judge
 can score it directly.
 
-The repo ships with `wideworldimporters` as a public worked example; the
-examples below use it throughout.
+The repo ships with two public worked examples:
+
+### BIRD (Mini-Dev)
+
+The [BIRD](https://bird-bench.github.io/) Mini-Dev subset — 11 SQLite
+databases, 500 questions, plus the official EX/VES scoring script. See
+**[datasets/bird/README.md](datasets/bird/README.md)** for how to download
+the dataset and run the full pipeline.
+
+### WideWorldImporters (WWI)
+
+Microsoft's WideWorldImporters sample OLTP database, ported to Postgres and
+seeded from pre-generated DDL + CSVs. See
+**[datasets/wideworldimporters/README.md](datasets/wideworldimporters/README.md)**
+for how to seed the database and run the full pipeline.
+
+The schemas below (`evaluation.json`, `metadata.json`, `custom_analyses.json`)
+are generic across datasets; the examples use `wideworldimporters` throughout.
 
 ### `evaluation.json`
 
@@ -292,10 +261,13 @@ ontology_sql_eval/          single namespace package
 main.py                     end-to-end pipeline entry point (ingest -> judge)
 scripts/
   seed_wwi_postgres.py      seed a local Postgres from datasets/<db>/{ddl,data}
+  download_bird.py          download the BIRD Mini-Dev dataset into datasets/bird/
 datasets/
   <database_name>/          evaluation.json, metadata.json, custom_analyses.json
     ddl/                    seed DDL (schemas, sequences, tables, indexes, fkeys, views)
     data/                   seed CSV data (COPYed into the tables)
+  bird/                     README.md, evaluation.json, <db_id>/<db_id>.sqlite (11 DBs)
+  wideworldimporters/       README.md, evaluation.json, custom_analyses.json, ddl/, data/
 input/                      judge input CSVs to score (contents gitignored)
 output/                     judge scored CSVs (<name>_scores.csv; contents gitignored)
 ```
