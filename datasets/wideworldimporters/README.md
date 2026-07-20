@@ -15,8 +15,7 @@ uv run python scripts/seed_wwi.py --database-name wideworldimporters --drop
 
 This creates the database (using `POSTGRES_*` from `.env`, with
 `POSTGRES_DATABASE` as the admin connection), then applies DDL from `ddl/` and
-loads CSVs from `data/` in this folder. Or use the **Seed local WWI**
-configuration in [.vscode/launch.json](../../.vscode/launch.json).
+loads CSVs from `data/` in this folder.
 
 Flags (see [scripts/seed_wwi.py](../../scripts/seed_wwi.py)):
 
@@ -51,12 +50,6 @@ PYTHONPATH=../GSF uv run python main.py --database-name wideworldimporters
 Individual stages can be skipped with `--skip-ingest`, `--skip-semantic`,
 `--skip-eval`, `--skip-judge` (e.g. to re-judge an existing eval CSV:
 `--skip-ingest --skip-semantic --skip-eval`).
-
-### Via launch.json
-
-Use the **Run full pipeline** configuration in
-[.vscode/launch.json](../../.vscode/launch.json); it sets `PYTHONPATH=../GSF`
-and loads `.env` automatically.
 
 ### Manual (per-stage) equivalent
 

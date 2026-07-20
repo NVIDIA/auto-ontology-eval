@@ -12,18 +12,9 @@ returned answer is compared against `answer_raw`.
 
 ## Run
 
-### Via script
-
 ```bash
 PYTHONPATH=../GSF uv run python -m ontology_sql_eval.retrieval.eval_chatbot --database-name <database_name>
 ```
-
-### Via launch.json
-
-Use the **Eval** configuration in
-[.vscode/launch.json](../../.vscode/launch.json) for a full run, or **Eval
-(single query)** to run one example query and print the result. Both set
-`PYTHONPATH=../GSF` and load `.env` automatically.
 
 ## CLI flags
 

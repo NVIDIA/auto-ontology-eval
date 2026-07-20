@@ -17,20 +17,12 @@ optionally `returned_answer`, used as a result preview). Rows with an empty
 
 ## Run
 
-### Via script
-
 ```bash
 uv run ontology-sql-eval     # or: uv run python -m ontology_sql_eval.judge.main
 ```
 
 Options: `--input-dir` (default `input`), `--output-dir` (default `output`),
 `--workers` (default `1`).
-
-### Via launch.json
-
-Use the **Judge (score CSVs)** configuration in
-[.vscode/launch.json](../../.vscode/launch.json); it loads `.env` automatically
-(no `PYTHONPATH` needed — the judge is standalone).
 
 ## Output
 

@@ -15,9 +15,6 @@ SQLite files (no Postgres seeding step) and each question carries its own
 uv run python scripts/seed_bird.py
 ```
 
-Or use the **Seed local BIRD** configuration in
-[.vscode/launch.json](../../.vscode/launch.json).
-
 This fetches the official Mini-Dev zip and writes:
 
 ```
@@ -53,12 +50,6 @@ layer, runs the agent against `datasets/bird/evaluation.json`
 (→ `input/bird_<model>.csv`), then LLM-judges the result
 (→ `output/bird_<model>_scores.csv`).
 
-To run the eval stage on its own (e.g. after ingesting), use the **Eval**
-configuration in [.vscode/launch.json](../../.vscode/launch.json) — it's
-already set to `--database-name bird`. There's no dedicated "Run full
-pipeline (BIRD)" launch config yet, so the CLI command above is the primary
-way to run the whole thing for BIRD.
-
 ## Official scoring (EX + VES)
 
 In addition to the generic LLM judge from `main.py`, BIRD ships its own
@@ -71,8 +62,7 @@ uv run python -m ontology_sql_eval.judge.bird \
   --skip-ves   # omit to also compute VES (slower — runs timing on EX-passing rows)
 ```
 
-This writes `output/<name>_bird_scores.csv`. Or use the **Judge BIRD (EX + VES)**
-configuration in [.vscode/launch.json](../../.vscode/launch.json). See
+This writes `output/<name>_bird_scores.csv`. See
 [ontology_sql_eval/judge/bird.py](../../ontology_sql_eval/judge/bird.py) for the
 full flag reference (`--evaluation-json`, `--db-root`, `--num-cpus`,
 `--meta-time-out`, `--iterate-num`, `--no-output-csv`).

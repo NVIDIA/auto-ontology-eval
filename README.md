@@ -16,7 +16,9 @@ agent can retrieve its schema, run an evaluation to produce a results CSV, then
 optionally re-score that CSV with the LLM judge.
 
 > [!IMPORTANT]
-> **You need [GSF](https://github.com/NVIDIA/GSF).** The ingestion and
+> **You need [GSF](https://github.com/NVIDIA/GSF).**
+>
+> The ingestion and
 > retrieval-eval workflows import the `gsf` package from a **sibling `../GSF`
 > checkout** ([NVIDIA/GSF](https://github.com/NVIDIA/GSF))
 >
@@ -71,16 +73,28 @@ command with `PYTHONPATH=../GSF` (the judge does not need it).
 
 ## Configuration
 
-> This project was tested with LLMs served from
-> [https://integrate.api.nvidia.com](https://integrate.api.nvidia.com) (judge,
-> embeddings) and [https://inference-api.nvidia.com](https://inference-api.nvidia.com)
-> (agent); see [.env.example](.env.example) for the exact models used for each
-> role.
+> **Disclaimer — model compatibility is not optional.**
+>
+> This project was tested
+> with **GPT 5.5** (agent, via
+> [https://inference-api.nvidia.com](https://inference-api.nvidia.com))
+>
+> and
+> **Nemotron** (judge / embeddings, via
+> [https://integrate.api.nvidia.com](https://integrate.api.nvidia.com)). See
+> [.env.example](.env.example) for the exact model IDs used for each role.
 >
 > **Use only models that support structured output.**
-
-All settings are read from `.env` (see [.env.example](.env.example) for the full
-list). Variables are grouped by the workflow that uses them:
+>
+> Other models may fail at
+> runtime or produce invalid scores. In particular,
+>
+> **Opus on
+> integrate.api.nvidia.com was tested and did not support structured
+> output**.
+>
+> All settings are read from `.env` (see [.env.example](.env.example) for the full
+> list). Variables are grouped by the workflow that uses them:
 
 | Variable                                              | Used by       | Description                                                           |
 | ----------------------------------------------------- | ------------- | --------------------------------------------------------------------- |
@@ -117,9 +131,7 @@ PYTHONPATH=../GSF uv run python main.py --database-name <database_name>
 
 Individual stages can be skipped with `--skip-ingest`, `--skip-semantic`,
 `--skip-eval`, `--skip-judge` (e.g. to re-judge an existing eval CSV:
-`--skip-ingest --skip-semantic --skip-eval`). Or use the **Run full pipeline**
-configuration in [.vscode/launch.json](.vscode/launch.json), which sets
-`PYTHONPATH=../GSF` and loads `.env` automatically.
+`--skip-ingest --skip-semantic --skip-eval`).
 
 For concrete, copy-pasteable walkthroughs (including the manual per-stage
 commands), see the per-dataset READMEs:
@@ -228,8 +240,7 @@ embedded into the semantic vector store. Optional.
 
 ## Workflows
 
-Each workflow has its own README with purpose, run instructions (script and
-launch.json), and outputs:
+Each workflow has its own README with purpose, run instructions, and outputs:
 
 - **[Ingestion](ontology_sql_eval/ingestion/README.md)** — extract + embed a
   source DB's schema into Neo4j + pgvector and enrich the graph (requires GSF).
