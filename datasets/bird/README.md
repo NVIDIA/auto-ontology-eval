@@ -12,8 +12,11 @@ SQLite files (no Postgres seeding step) and each question carries its own
 ## Download
 
 ```bash
-uv run python scripts/download_bird.py
+uv run python scripts/seed_bird.py
 ```
+
+Or use the **Seed local BIRD** configuration in
+[.vscode/launch.json](../../.vscode/launch.json).
 
 This fetches the official Mini-Dev zip and writes:
 
@@ -26,7 +29,7 @@ datasets/bird/evaluation.json
 Only the SQLite dialect is kept (the MySQL/PostgreSQL JSONs and `*_gold.sql`
 files are ignored). Options: `--force` (re-download and overwrite), `--keep-archive`
 (keep the cached zip), `--url` (use a different/local zip), `--dest` (default
-`datasets/bird/`), `--log-level`. See [scripts/download_bird.py](../../scripts/download_bird.py).
+`datasets/bird/`), `--log-level`. See [scripts/seed_bird.py](../../scripts/seed_bird.py).
 
 ## Configure
 

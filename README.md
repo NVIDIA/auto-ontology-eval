@@ -107,8 +107,9 @@ Each bundled dataset's README documents how to stand up its source DB and set
 ## Full pipeline (end-to-end example)
 
 `main.py` runs the entire lifecycle for a dataset in one shot — ingest →
-semantic compile → eval → judge — writing `output/<model>_scores.csv`
-(assumes the stores are up and `.env` is filled in):
+semantic compile → eval → judge — writing
+`output/<database_name>_<model>_scores.csv` (assumes the stores are up and
+`.env` is filled in):
 
 ```bash
 PYTHONPATH=../GSF uv run python main.py --database-name <database_name>
@@ -249,9 +250,11 @@ ontology_sql_eval/          single namespace package
     runner.py               batch/directory orchestration
     models.py               Pydantic score model + scoring prompt
     main.py                 CLI entry point (ontology-sql-eval)
+    bird.py                 BIRD official EX + VES scoring (separate from the LLM judge)
   ingestion/                GSF-backed ingestion pipeline
     README.md               ingestion workflow guide
-    pipeline.py             source DB -> pgvector ingest (calls enrich_graph)
+    ingest.py               source DB -> pgvector ingest (calls enrich_graph)
+    semantic.py             compile the semantic layer over the ingested graph
     enrich_graph.py         graph metadata + custom-analysis enrichment
     mock_ingest.py          in-memory 4-table demo ingest (mock_shop)
   retrieval/                GSF-backed retrieval eval
@@ -260,8 +263,8 @@ ontology_sql_eval/          single namespace package
     scoring.py              SQL/answer scoring helpers
 main.py                     end-to-end pipeline entry point (ingest -> judge)
 scripts/
-  seed_wwi_postgres.py      seed a local Postgres from datasets/<db>/{ddl,data}
-  download_bird.py          download the BIRD Mini-Dev dataset into datasets/bird/
+  seed_wwi.py               seed a local Postgres from datasets/<db>/{ddl,data}
+  seed_bird.py              download the BIRD Mini-Dev dataset into datasets/bird/
 datasets/
   <database_name>/          evaluation.json, metadata.json, custom_analyses.json
     ddl/                    seed DDL (schemas, sequences, tables, indexes, fkeys, views)
@@ -275,8 +278,8 @@ output/                     judge scored CSVs (<name>_scores.csv; contents gitig
 ## Development
 
 VS Code launch configurations for all of the above (Run full pipeline, Judge,
-Ingest, Semantic compile, Eval, Eval single-query, Seed local Postgres (WWI)) are
-provided in [.vscode/launch.json](.vscode/launch.json); they set
+Ingest, Semantic compile, Eval, Eval single-query, Seed local WWI,
+Seed local BIRD) are provided in [.vscode/launch.json](.vscode/launch.json); they set
 `PYTHONPATH=../GSF` where needed and load `.env` automatically. The type-checker
 path for `../GSF` is configured in [pyrightconfig.json](pyrightconfig.json).
 

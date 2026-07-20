@@ -29,7 +29,7 @@ Use the **Eval** configuration in
 
 | Flag              | Default | Purpose                                                                                   |
 | ----------------- | ------- | ----------------------------------------------------------------------------------------- |
-| `--database-name` | —       | Derives input `datasets/<name>/evaluation.json` and output `datasets/<name>/<model>.csv`. |
+| `--database-name` | —       | Derives input `datasets/<name>/evaluation.json` and output `input/<name>_<model>.csv`.    |
 | `--input PATH`    | derived | Override the input JSON path.                                                             |
 | `--output PATH`   | derived | Override the output CSV path.                                                             |
 | `--single`        | off     | Run one example query (`SINGLE_QUERY` in the script) and print the result.                |

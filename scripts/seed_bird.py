@@ -16,8 +16,8 @@ The MySQL / PostgreSQL JSONs and the ``*_gold.sql`` files are ignored.
 
 Usage::
 
-    uv run python scripts/download_bird.py
-    uv run python scripts/download_bird.py --force
+    uv run python scripts/seed_bird.py
+    uv run python scripts/seed_bird.py --force
 
 The default download URL is the Google Drive "Complete Package" from the BIRD
 Mini-Dev README's 2025-07-04 update — the corrected 500-question set (no
