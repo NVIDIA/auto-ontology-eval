@@ -13,18 +13,10 @@ connector), then run the pipeline.
 
 ## Run
 
-### Via script
-
 ```bash
 PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.ingest                                    # extract + embed + enrich graph
 PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.semantic --database-name <database_name>  # compile semantic layer
 ```
-
-### Via launch.json
-
-Use the **Ingest** and **Semantic compile** configurations in
-[.vscode/launch.json](../../.vscode/launch.json); they set `PYTHONPATH=../GSF`
-and load `.env` automatically.
 
 ## What `run_ingest()` does
 

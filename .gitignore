@@ -22,8 +22,10 @@ venv/
 # OS / editor
 .DS_Store
 
-# Datasets kept local only (not tracked on remote)
-/datasets/bird/
+# Datasets kept local only (not tracked on remote) — keep the folders, ignore their contents
+/datasets/bird/*
+!/datasets/bird/.gitkeep
+!/datasets/bird/README.md
 /datasets/dor_prod/
 
 # STaRK-Amazon seed CSVs are multi-GB and regenerable via

@@ -41,10 +41,16 @@ from ontology_sql_eval.ingestion.enrich_graph import add_custom_analyses, apply_
 logger = logging.getLogger(__name__)
 
 
+def database_name_for(connection_string: str) -> str:
+    """Return the database name a connection string resolves to."""
+    return create_connector(connection_string).database_name
+
+
 def run_ingest(connection_string: str) -> None:
     """Build the tabular ingest graph, run it, and write embeddings to pgvector."""
     connector = create_connector(connection_string)
     database_name = connector.database_name
+    logger.info("Starting ingest for database %r", database_name)
 
     TABULAR_PARAMS = TabularExtractParams(
         connector=connector,
@@ -104,14 +110,25 @@ if __name__ == "__main__":
     )
     # Remote source DB to extract tabular schema/embeddings from. Kept separate
     # from the local POSTGRES_* vars (which point at the pgvector store).
-    _CONNECTION_STRINGS = os.environ.get("CONNECTION_STRINGS", "").split(",")
-    if not _CONNECTION_STRINGS:
+    connection_strings = [
+        s.strip()
+        for s in os.environ.get("CONNECTION_STRINGS", "").split(",")
+        if s.strip()
+    ]
+    if not connection_strings:
         raise EnvironmentError(
             "CONNECTION_STRINGS is not set. Add it to your .env, e.g.:\n\n"
             "    CONNECTION_STRINGS=postgresql://user:password@host:5432/dbname"
         )
     try:
-        run_ingest(_CONNECTION_STRINGS[0])
+        for i, connection_string in enumerate(connection_strings, start=1):
+            logger.info(
+                "Ingesting database %d/%d: %s",
+                i,
+                len(connection_strings),
+                connection_string,
+            )
+            run_ingest(connection_string)
     except KeyboardInterrupt:
         logger.info("ingestion: shutting down")
         raise SystemExit(0)

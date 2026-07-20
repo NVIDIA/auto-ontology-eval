@@ -20,16 +20,27 @@
       "justMyCode": false
     },
     {
-      "name": "Seed local Postgres",
+      "name": "Seed local WWI",
       "type": "debugpy",
       "request": "launch",
-      "program": "${workspaceFolder}/scripts/seed_postgres.py",
+      "program": "${workspaceFolder}/scripts/seed_wwi.py",
       "args": [
         "--database-name",
         "amazon",
         "--drop",
         "--refresh-collation"
       ],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "envFile": "${workspaceFolder}/.env",
+      "justMyCode": false
+    },
+    {
+      "name": "Seed local BIRD",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/seed_bird.py",
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
@@ -45,6 +56,21 @@
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
       "envFile": "${workspaceFolder}/.env",
+      "justMyCode": false
+    },
+    {
+      "name": "Judge BIRD (EX + VES)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "ontology_sql_eval.judge.bird",
+      "args": [
+        "--input",
+        "input/bird_nemotron-3-nano-30b-a3b.csv",
+        "--skip-ves"
+      ],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python",
       "justMyCode": false
     },
     {
@@ -66,24 +92,6 @@
       "type": "debugpy",
       "request": "launch",
       "module": "ontology_sql_eval.ingestion.semantic",
-      "args": [
-        "--database-name",
-        "amazon"
-      ],
-      "console": "integratedTerminal",
-      "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/bin/python",
-      "envFile": "${workspaceFolder}/.env",
-      "env": {
-        "PYTHONPATH": "${workspaceFolder}/../GSF"
-      },
-      "justMyCode": false
-    },
-    {
-      "name": "Eval",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "ontology_sql_eval.retrieval.eval_chatbot",
       "args": [
         "--database-name",
         "amazon"
