@@ -9,10 +9,10 @@ The human-generated STaRK-Amazon eval set ships as a CSV with columns
 maps those rows into the evaluation JSON format consumed by
 :mod:`ontology_sql_eval.retrieval.eval_chatbot`.
 
-Gold answers use ``answer_ids_source`` (human-curated product IDs). STaRK has
-no ground-truth SQL, so the ``SQL`` field is left empty and the gold product
-IDs are recorded in ``answer_raw``. Fields not present in the source CSV
-(``evidence``, ``difficulty``, etc.) are left empty.
+Gold answers use ``answer_ids`` (the full relevant product-ID set, which can be
+an array of many IDs). STaRK has no ground-truth SQL, so the ``SQL`` field is
+left empty and the gold product IDs are recorded in ``answer_raw``. Fields not
+present in the source CSV (``evidence``, ``difficulty``, etc.) are left empty.
 
 Usage::
 
@@ -64,7 +64,7 @@ def convert(input_path: Path, output_path: Path) -> int:
         for row in reader:
             question_id = int(row["id"])
             question = row["query"].strip()
-            gold_ids = _parse_id_list(row.get("answer_ids_source", ""))
+            gold_ids = _parse_id_list(row.get("answer_ids", ""))
 
             rows.append(
                 {

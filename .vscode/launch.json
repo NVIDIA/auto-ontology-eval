@@ -6,7 +6,10 @@
       "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/main.py",
-      "args": ["--database-name", "wideworldimporters"],
+      "args": [
+        "--database-name",
+        "amazon"
+      ],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
@@ -23,7 +26,7 @@
       "program": "${workspaceFolder}/scripts/seed_postgres.py",
       "args": [
         "--database-name",
-        "wideworldimporters",
+        "amazon",
         "--drop",
         "--refresh-collation"
       ],
@@ -63,7 +66,10 @@
       "type": "debugpy",
       "request": "launch",
       "module": "ontology_sql_eval.ingestion.semantic",
-      "args": ["--database-name", "wideworldimporters"],
+      "args": [
+        "--database-name",
+        "amazon"
+      ],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
@@ -78,7 +84,10 @@
       "type": "debugpy",
       "request": "launch",
       "module": "ontology_sql_eval.retrieval.eval_chatbot",
-      "args": ["--database-name", "wideworldimporters"],
+      "args": [
+        "--database-name",
+        "amazon"
+      ],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
@@ -93,7 +102,48 @@
       "type": "debugpy",
       "request": "launch",
       "module": "ontology_sql_eval.retrieval.eval_chatbot",
-      "args": ["--single", "--database-name", "wideworldimporters"],
+      "args": [
+        "--single",
+        "--database-name",
+        "amazon"
+      ],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/../GSF"
+      },
+      "justMyCode": false
+    },
+    {
+      "name": "Eval rerank",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "ontology_sql_eval.retrieval.eval_rerank",
+      "args": [
+        "--database-name",
+        "amazon"
+      ],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/../GSF"
+      },
+      "justMyCode": false
+    },
+    {
+      "name": "Eval rerank (single query)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "ontology_sql_eval.retrieval.eval_rerank",
+      "args": [
+        "--single",
+        "--database-name",
+        "amazon"
+      ],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
