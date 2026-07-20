@@ -73,7 +73,7 @@ command with `PYTHONPATH=../GSF` (the judge does not need it).
 
 ## Configuration
 
-> **Disclaimer — model compatibility is not optional.**
+> **Disclaimer**
 >
 > This project was tested
 > with **GPT 5.5** (agent, via
