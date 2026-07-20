@@ -97,16 +97,16 @@ list). Variables are grouped by the workflow that uses them:
 > [Configuration](#configuration)). Only the standalone judge can run without a
 > source DB.
 
-`scripts/seed_postgres.py` loads a pre-generated schema + data into your local
+`scripts/seed_wwi_postgres.py` loads a pre-generated schema + data into your local
 Postgres. Seed artifacts live alongside the eval artifacts under
 `datasets/<database_name>/`, in a `ddl/` folder and a `data/` folder of CSVs. The
 bundled example is `wideworldimporters`:
 
 ```bash
-uv run python scripts/seed_postgres.py --database-name wideworldimporters --drop
+uv run python scripts/seed_wwi_postgres.py --database-name wideworldimporters --drop
 ```
 
-Or use the **Seed local Postgres** configuration in
+Or use the **Seed local Postgres (WWI)** configuration in
 [.vscode/launch.json](.vscode/launch.json).
 
 This creates the database (using `POSTGRES_*` from `.env`, with
@@ -291,7 +291,7 @@ ontology_sql_eval/          single namespace package
     scoring.py              SQL/answer scoring helpers
 main.py                     end-to-end pipeline entry point (ingest -> judge)
 scripts/
-  seed_postgres.py          seed a local Postgres from datasets/<db>/{ddl,data}
+  seed_wwi_postgres.py      seed a local Postgres from datasets/<db>/{ddl,data}
 datasets/
   <database_name>/          evaluation.json, metadata.json, custom_analyses.json
     ddl/                    seed DDL (schemas, sequences, tables, indexes, fkeys, views)
@@ -303,7 +303,7 @@ output/                     judge scored CSVs (<name>_scores.csv; contents gitig
 ## Development
 
 VS Code launch configurations for all of the above (Run full pipeline, Judge,
-Ingest, Semantic compile, Eval, Eval single-query, Seed local Postgres) are
+Ingest, Semantic compile, Eval, Eval single-query, Seed local Postgres (WWI)) are
 provided in [.vscode/launch.json](.vscode/launch.json); they set
 `PYTHONPATH=../GSF` where needed and load `.env` automatically. The type-checker
 path for `../GSF` is configured in [pyrightconfig.json](pyrightconfig.json).

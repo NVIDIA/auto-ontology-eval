@@ -10,7 +10,7 @@ pre-generated, so no source (e.g. MSSQL) connection is required.
 
 Usage::
 
-    uv run python scripts/seed_postgres.py --database-name wideworldimporters
+    uv run python scripts/seed_wwi_postgres.py --database-name wideworldimporters
 
 The ``--database-name`` value both selects the source folder
 ``datasets/<name>/`` and names the target database (default

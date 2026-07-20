@@ -20,10 +20,10 @@
       "justMyCode": false
     },
     {
-      "name": "Seed local Postgres",
+      "name": "Seed local Postgres (WWI)",
       "type": "debugpy",
       "request": "launch",
-      "program": "${workspaceFolder}/scripts/seed_postgres.py",
+      "program": "${workspaceFolder}/scripts/seed_wwi_postgres.py",
       "args": [
         "--database-name",
         "wideworldimporters",
