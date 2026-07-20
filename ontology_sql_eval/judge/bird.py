@@ -427,18 +427,22 @@ def _print_ex_table(
     score_lists: list[float],
     count_lists: list[int],
     inclusive_score_lists: list[float],
+    *,
+    debug: bool = False,
 ) -> None:
+    metric_rows = [("accuracy %", score_lists, "")]
+    footer = ""
+    if debug:
+        metric_rows.append(("incl. accuracy %", inclusive_score_lists, ""))
+        footer = f"  {_INCL_EX_DESCRIPTION}\n"
     print(
         _format_score_table(
             "Execution Accuracy (EX)",
             _EX_DESCRIPTION,
-            [
-                ("accuracy %", score_lists, ""),
-                ("incl. accuracy %", inclusive_score_lists, ""),
-            ],
+            metric_rows,
             count_lists,
         )
-        + f"  {_INCL_EX_DESCRIPTION}\n",
+        + footer,
         flush=True,
     )
 
@@ -447,18 +451,22 @@ def _print_ves_table(
     score_lists: list[float],
     count_lists: list[int],
     inclusive_score_lists: list[float],
+    *,
+    debug: bool = False,
 ) -> None:
+    metric_rows = [("ves", score_lists, "")]
+    footer = ""
+    if debug:
+        metric_rows.append(("incl. ves", inclusive_score_lists, ""))
+        footer = f"  {_INCL_VES_DESCRIPTION}\n"
     print(
         _format_score_table(
             "Valid Efficiency Score (VES)",
             _VES_DESCRIPTION,
-            [
-                ("ves", score_lists, ""),
-                ("incl. ves", inclusive_score_lists, ""),
-            ],
+            metric_rows,
             count_lists,
         )
-        + f"  {_INCL_VES_DESCRIPTION}\n",
+        + footer,
         flush=True,
     )
 
@@ -594,6 +602,7 @@ def run(
     meta_time_out: float = 30.0,
     iterate_num: int = 100,
     skip_ves: bool = False,
+    debug: bool = False,
 ) -> None:
     """Score ``input_path`` with official BIRD EX (+ VES) and optionally write CSV."""
     bird_rows = _prepare_rows(input_path, evaluation_json, db_root)
@@ -624,6 +633,7 @@ def run(
         [simple_acc, moderate_acc, challenging_acc, all_acc],
         ex_counts,
         [incl_simple, incl_moderate, incl_challenging, incl_all],
+        debug=debug,
     )
 
     ves_by_idx: dict[int, VesResult] = {}
@@ -668,6 +678,7 @@ def run(
             [simple_ves, moderate_ves, challenging_ves, all_ves],
             ves_counts,
             [incl_simple_ves, incl_moderate_ves, incl_challenging_ves, incl_all_ves],
+            debug=debug,
         )
 
     if output_path is None:
@@ -752,6 +763,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Print summary only; do not write scored CSV.",
     )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Also print the extra-column near-miss diagnostic rows "
+        "(incl. accuracy % / incl. ves) in the summary tables.",
+    )
     return parser.parse_args(argv)
 
 
@@ -775,6 +792,7 @@ def main(argv: list[str] | None = None) -> None:
         meta_time_out=args.meta_time_out,
         iterate_num=args.iterate_num,
         skip_ves=args.skip_ves,
+        debug=args.debug,
     )
 
 

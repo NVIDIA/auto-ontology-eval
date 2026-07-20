@@ -208,8 +208,36 @@ def _write_evaluation_file(extract_dir: Path, dest: Path) -> None:
     logger.info("  evaluation.json (%d question(s))", len(rows))
 
 
-def _print_summary(dest: Path, db_ids: list[str]) -> None:
-    """Log a summary and print ingest command hints."""
+def _update_env_file(env_path: Path, connection_strings_value: str) -> bool:
+    """Set ``CONNECTION_STRINGS`` in *env_path*, preserving everything else.
+
+    Replaces the first uncommented ``CONNECTION_STRINGS=...`` line if one
+    exists, otherwise appends a new line. Returns ``True`` if *env_path* was
+    written, ``False`` if it doesn't exist (nothing is created).
+    """
+    if not env_path.exists():
+        return False
+
+    new_line = f"CONNECTION_STRINGS={connection_strings_value}"
+    lines = env_path.read_text().splitlines()
+
+    for i, line in enumerate(lines):
+        if line.startswith("CONNECTION_STRINGS="):
+            lines[i] = new_line
+            break
+    else:
+        if lines and lines[-1] != "":
+            lines.append("")
+        lines.append(new_line)
+
+    env_path.write_text("\n".join(lines) + "\n")
+    return True
+
+
+def _print_summary(
+    dest: Path, db_ids: list[str], *, write_env: bool = True
+) -> None:
+    """Log a summary, write ``CONNECTION_STRINGS`` to ``.env``, and print it."""
     logger.info("=" * 60)
     logger.info("BIRD Mini-Dev download complete.")
     logger.info("  Destination : %s", dest)
@@ -224,10 +252,14 @@ def _print_summary(dest: Path, db_ids: list[str]) -> None:
     conn_strings = [
         f"sqlite:///{(dest / db_id / f'{db_id}.sqlite').resolve()}" for db_id in db_ids
     ]
-    print()
-    print("Add this to your .env (all databases, comma-separated):")
-    print()
-    print(f"CONNECTION_STRINGS={','.join(conn_strings)}")
+    connection_strings_value = ",".join(conn_strings)
+
+    env_path = _repo_root() / ".env"
+    if write_env and _update_env_file(env_path, connection_strings_value):
+        logger.info("Wrote CONNECTION_STRINGS to %s", env_path)
+    else:
+        logger.info("Add this to your .env (all databases, comma-separated):")
+        logger.info("CONNECTION_STRINGS=%s", connection_strings_value)
 
 
 def download_bird(
@@ -236,6 +268,7 @@ def download_bird(
     dest: Path | None = None,
     force: bool = False,
     keep_archive: bool = False,
+    write_env: bool = True,
 ) -> list[str]:
     """Download and organize the BIRD Mini-Dev dataset.
 
@@ -263,7 +296,7 @@ def download_bird(
     elif keep_archive:
         logger.info("Kept cached archive at %s", archive_path)
 
-    _print_summary(target, db_ids)
+    _print_summary(target, db_ids, write_env=write_env)
     return db_ids
 
 
@@ -302,6 +335,14 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Keep the downloaded zip cached under the destination directory.",
     )
     parser.add_argument(
+        "--no-write-env",
+        action="store_true",
+        help=(
+            "Don't write CONNECTION_STRINGS into .env; just print it for "
+            "manual copy-paste instead."
+        ),
+    )
+    parser.add_argument(
         "--log-level",
         default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
@@ -320,6 +361,7 @@ def main(argv: list[str] | None = None) -> None:
         dest=args.dest,
         force=args.force,
         keep_archive=args.keep_archive,
+        write_env=not args.no_write_env,
     )
 
 
