@@ -22,6 +22,8 @@ venv/
 # OS / editor
 .DS_Store
 
-# Datasets kept local only (not tracked on remote)
-/datasets/bird/
-/datasets/dor_prod/
+# Datasets kept local only (not tracked on remote) — keep the folders, ignore their contents
+/datasets/bird/*
+/datasets/dor_prod
+!/datasets/bird/.gitkeep
+!/datasets/bird/README.md

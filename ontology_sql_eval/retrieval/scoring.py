@@ -66,11 +66,13 @@ def _canonical(value: Any) -> Any:
 
 
 def _execute_sql(
-    connector: SQLDatabase, sql: str
+    connector: SQLDatabase, sql: str, schema: str = ""
 ) -> Tuple[Optional[pd.DataFrame], str]:
     if not sql or not sql.strip():
         return None, "empty SQL"
     try:
+        if schema and getattr(connector, "dialect", "") == "duckdb":
+            connector.execute(f"SET schema = '{schema}'")
         df = connector.execute(sql)
         if not isinstance(df, pd.DataFrame):
             df = pd.DataFrame(df)
@@ -79,10 +81,12 @@ def _execute_sql(
         return None, f"{type(exc).__name__}: {exc}"
 
 
-def score_sql(connector: SQLDatabase, expected: str, actual: str) -> Dict[str, Any]:
+def score_sql(
+    connector: SQLDatabase, expected: str, actual: str, schema: str = ""
+) -> Dict[str, Any]:
     text_sim = _sql_text_similarity(expected, actual)
-    expected_df, expected_err = _execute_sql(connector, expected)
-    actual_df, actual_err = _execute_sql(connector, actual)
+    expected_df, expected_err = _execute_sql(connector, expected, schema=schema)
+    actual_df, actual_err = _execute_sql(connector, actual, schema=schema)
     exec_match = 0
     if expected_df is not None and actual_df is not None:
         exec_match = 1 if _df_values_equal(expected_df, actual_df) else 0

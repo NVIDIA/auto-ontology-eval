@@ -17,20 +17,12 @@ optionally `returned_answer`, used as a result preview). Rows with an empty
 
 ## Run
 
-### Via script
-
 ```bash
-uv run ontology-sql-eval     # or: uv run python main.py
+uv run ontology-sql-eval     # or: uv run python -m ontology_sql_eval.judge.main
 ```
 
 Options: `--input-dir` (default `input`), `--output-dir` (default `output`),
 `--workers` (default `1`).
-
-### Via launch.json
-
-Use the **Judge (score CSVs)** configuration in
-[.vscode/launch.json](../../.vscode/launch.json); it loads `.env` automatically
-(no `PYTHONPATH` needed — the judge is standalone).
 
 ## Output
 
@@ -45,3 +37,10 @@ llm_logic_issues
 The scoring model is configured via `JUDGE_MODEL_NAME` / `JUDGE_BASE_URL` /
 `JUDGE_API_KEY`, each falling back to the shared `MODEL_NAME` / `BASE_URL` /
 `NVIDIA_API_KEY` when unset.
+
+## BIRD official scoring (EX + VES)
+
+For the BIRD dataset, `bird.py` in this package additionally ports BIRD's own
+deterministic Execution Accuracy / Valid Efficiency Score metrics — a separate
+step from the generic LLM scoring above. See
+[datasets/bird/README.md](../../datasets/bird/README.md#official-scoring-ex--ves).

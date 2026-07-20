@@ -28,8 +28,6 @@ from pathlib import Path
 
 logger = logging.getLogger("pipeline")
 
-DEFAULT_DB = "wideworldimporters"
-
 _REPO_ROOT = Path(__file__).resolve().parent
 OUTPUT_DIR = _REPO_ROOT / "output"
 
@@ -41,12 +39,19 @@ def _banner(step: int, title: str) -> None:
     logger.info("%s", sep)
 
 
+def _connection_strings() -> list[str]:
+    """Return non-empty entries from the comma-separated ``CONNECTION_STRINGS`` env var."""
+    return [
+        s.strip()
+        for s in os.environ.get("CONNECTION_STRINGS", "").split(",")
+        if s.strip()
+    ]
+
+
 def stage_ingest() -> None:
     """Ingest the source DB schema into Neo4j + pgvector."""
     _banner(1, "Ingest (source DB -> pgvector + Neo4j)")
-    connection_strings = [
-        s for s in os.environ.get("CONNECTION_STRINGS", "").split(",") if s.strip()
-    ]
+    connection_strings = _connection_strings()
     if not connection_strings:
         raise EnvironmentError(
             "CONNECTION_STRINGS is not set. Add it to your .env, e.g.:\n\n"
@@ -55,7 +60,14 @@ def stage_ingest() -> None:
 
     from ontology_sql_eval.ingestion.ingest import run_ingest
 
-    run_ingest(connection_strings[0])
+    for i, connection_string in enumerate(connection_strings, start=1):
+        logger.info(
+            "Ingesting database %d/%d: %s",
+            i,
+            len(connection_strings),
+            connection_string,
+        )
+        run_ingest(connection_string)
 
 
 def stage_semantic(database_name: str) -> None:
@@ -63,10 +75,24 @@ def stage_semantic(database_name: str) -> None:
     _banner(2, "Semantic compile (ingestion.semantic)")
     from ontology_sql_eval.ingestion.semantic import run_semantic
 
-    run_semantic(database_name)
+    connection_strings = _connection_strings()
+    if len(connection_strings) > 1:
+        from ontology_sql_eval.ingestion.ingest import database_name_for
+
+        for i, connection_string in enumerate(connection_strings, start=1):
+            db_name = database_name_for(connection_string)
+            logger.info(
+                "Compiling semantic layer %d/%d: %s",
+                i,
+                len(connection_strings),
+                db_name,
+            )
+            run_semantic(db_name)
+    else:
+        run_semantic(database_name)
 
 
-def stage_eval(database_name: str) -> Path:
+def stage_eval(*, database_name: str) -> Path:
     """Run the retrieval eval; return the path of the model CSV it wrote.
 
     The CSV lands in the repo-root ``input/`` folder so the judge stage (and the
@@ -76,7 +102,10 @@ def stage_eval(database_name: str) -> Path:
     from ontology_sql_eval.retrieval.eval_chatbot import _resolve_paths, run_evaluation
 
     input_path, output_path = _resolve_paths(database_name, None, None)
-    run_evaluation(input_path=input_path, output_path=output_path)
+    run_evaluation(
+        input_path=input_path,
+        output_path=output_path,
+    )
     return output_path
 
 
@@ -90,7 +119,7 @@ def stage_judge(eval_csv: Path, workers: int = 1) -> Path:
     return scored_path
 
 
-def _eval_output_path(database_name: str) -> Path:
+def _eval_output_path(*, database_name: str) -> Path:
     """Resolve the eval CSV path without running eval (for --skip-eval)."""
     from ontology_sql_eval.retrieval.eval_chatbot import _resolve_paths
 
@@ -108,15 +137,22 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--database-name",
-        default=DEFAULT_DB,
-        help=f"Dataset / database name (default: {DEFAULT_DB}).",
+        required=True,
+        help="Dataset / database name. "
+        "Selects datasets/<name>/evaluation.json; per-question db_id routes the connector.",
     )
-    parser.add_argument("--skip-ingest", action="store_true", help="Skip the ingest stage.")
+    parser.add_argument(
+        "--skip-ingest", action="store_true", help="Skip the ingest stage."
+    )
     parser.add_argument(
         "--skip-semantic", action="store_true", help="Skip the semantic-compile stage."
     )
-    parser.add_argument("--skip-eval", action="store_true", help="Skip the retrieval-eval stage.")
-    parser.add_argument("--skip-judge", action="store_true", help="Skip the LLM-judge stage.")
+    parser.add_argument(
+        "--skip-eval", action="store_true", help="Skip the retrieval-eval stage."
+    )
+    parser.add_argument(
+        "--skip-judge", action="store_true", help="Skip the LLM-judge stage."
+    )
     parser.add_argument(
         "--workers",
         type=int,
@@ -145,9 +181,9 @@ def main(argv: list[str] | None = None) -> None:
         stage_semantic(db)
 
     if not args.skip_eval:
-        eval_csv = stage_eval(db)
+        eval_csv = stage_eval(database_name=db)
     else:
-        eval_csv = _eval_output_path(db)
+        eval_csv = _eval_output_path(database_name=db)
         logger.info("Skipping eval; using existing %s", eval_csv)
 
     if not args.skip_judge:

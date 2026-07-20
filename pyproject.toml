@@ -19,6 +19,8 @@ dependencies = [
     "psycopg[binary]>=3.3.3",
     "psycopg-pool>=3.3.1",
     "snowflake-connector-python>=4.6.0",
+    "databricks-sql-connector>=4.3.0",
+    "kumoai>=2.22.0",
     "langchain-postgres>=0.0.17",
     "duckdb>=1.5.2",
     "pyheavydb>=8.0.1.post1",
@@ -27,6 +29,8 @@ dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.32.0",
     "importlib-metadata>=9.0.0",
+    "func-timeout>=4.3.5",
+    "numpy>=2.0",
 ]
 
 [project.scripts]
