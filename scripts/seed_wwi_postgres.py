@@ -46,7 +46,6 @@ DDL_FILES_PRE_DATA = [
 DDL_FILES_POST_DATA = [
     "05_fkeys.sql",
     "06_views.sql",
-    "07_custom_tables.sql",
 ]
 
 
