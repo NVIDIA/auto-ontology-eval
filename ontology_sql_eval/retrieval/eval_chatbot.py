@@ -439,6 +439,26 @@ def _parse_args() -> argparse.Namespace:
         default=False,
         help="Run a single hardcoded query (edit SINGLE_QUERY in the script).",
     )
+    parser.add_argument(
+        "--start-index",
+        type=int,
+        default=START_INDEX,
+        help=(
+            "Index (0-based) of the first question to run (default: 0). "
+            "Combine with --end-index to chunk a large evaluation.json "
+            "(e.g. the full BIRD Dev/Train splits) into resumable batches. "
+            f"When > 0, appends to an existing --output CSV (default: {START_INDEX})."
+        ),
+    )
+    parser.add_argument(
+        "--end-index",
+        type=int,
+        default=END_INDEX,
+        help=(
+            "Index (0-based, exclusive) of the last question to run "
+            "(default: run to the end)."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -459,6 +479,6 @@ if __name__ == "__main__":
         run_evaluation(
             input_path=input_path,
             output_path=output_path,
-            start_index=START_INDEX,
-            end_index=END_INDEX,
+            start_index=args.start_index,
+            end_index=args.end_index,
         )

@@ -18,12 +18,19 @@ PYTHONPATH=../GSF uv run python -m ontology_sql_eval.retrieval.eval_chatbot --da
 
 ## CLI flags
 
-| Flag              | Default | Purpose                                                                                   |
-| ----------------- | ------- | ----------------------------------------------------------------------------------------- |
-| `--database-name` | —       | Derives input `datasets/<name>/evaluation.json` and output `input/<name>_<model>.csv`.    |
-| `--input PATH`    | derived | Override the input JSON path.                                                             |
-| `--output PATH`   | derived | Override the output CSV path.                                                             |
-| `--single`        | off     | Run one example query (`SINGLE_QUERY` in the script) and print the result.                |
+| Flag                | Default    | Purpose                                                                                   |
+| ------------------- | ---------- | ----------------------------------------------------------------------------------------- |
+| `--database-name`   | —          | Derives input `datasets/<name>/evaluation.json` and output `input/<name>_<model>.csv`.    |
+| `--input PATH`      | derived    | Override the input JSON path.                                                             |
+| `--output PATH`     | derived    | Override the output CSV path.                                                             |
+| `--single`          | off        | Run one example query (`SINGLE_QUERY` in the script) and print the result.                |
+| `--start-index N`   | 0          | Index (0-based) of the first question to run. When > 0, appends to an existing `--output` CSV instead of overwriting it — use to resume a chunked run. |
+| `--end-index N`     | run to end | Index (0-based, exclusive) of the last question to run.                                   |
+
+`--start-index`/`--end-index` are mainly useful for chunking/resuming large
+evaluation sets (e.g. the full BIRD Dev/Train splits — see
+[datasets/bird/README.md](../../datasets/bird/README.md)) that are impractical
+to run start-to-finish in one unattended shot.
 
 ## Output
 
