@@ -89,10 +89,6 @@ command with `PYTHONPATH=../GSF` (the judge does not need it).
 > Other models may fail at
 > runtime or produce invalid scores. In particular,
 >
-> **Opus on
-> integrate.api.nvidia.com was tested and did not support structured
-> output**.
->
 > All settings are read from `.env` (see [.env.example](.env.example) for the full
 > list). Variables are grouped by the workflow that uses them:
 
@@ -157,12 +153,14 @@ can score it directly.
 
 The repo ships with two public worked examples:
 
-### BIRD (Mini-Dev)
+### BIRD
 
-The [BIRD](https://bird-bench.github.io/) Mini-Dev subset — 11 SQLite
-databases, 500 questions, plus the official EX/VES scoring script. See
+The [BIRD](https://bird-bench.github.io/) benchmark, plus the official
+EX/VES scoring script. Defaults to the **Mini-Dev** subset (11 SQLite
+databases, 500 questions); the full **Dev** (1,534 questions) and **Train**
+(~69 additional databases) splits are also available. See
 **[datasets/bird/README.md](datasets/bird/README.md)** for how to download
-the dataset and run the full pipeline.
+the dataset(s) and run the full pipeline.
 
 ### WideWorldImporters (WWI)
 
@@ -275,7 +273,7 @@ ontology_sql_eval/          single namespace package
 main.py                     end-to-end pipeline entry point (ingest -> judge)
 scripts/
   seed_wwi.py               seed a local Postgres from datasets/<db>/{ddl,data}
-  seed_bird.py              download the BIRD Mini-Dev dataset into datasets/bird/
+  seed_bird.py              download BIRD split(s) (mini-dev/dev/train) into datasets/bird/
 datasets/
   <database_name>/          evaluation.json, metadata.json, custom_analyses.json
     ddl/                    seed DDL (schemas, sequences, tables, indexes, fkeys, views)
