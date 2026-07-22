@@ -34,8 +34,17 @@ from func_timeout import FunctionTimedOut, func_timeout
 logger = logging.getLogger(__name__)
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-_DEFAULT_EVAL_JSON = _REPO_ROOT / "datasets" / "bird" / "evaluation.json"
-_DEFAULT_DB_ROOT = _REPO_ROOT / "datasets" / "bird"
+_DATASETS_DIR = _REPO_ROOT / "datasets"
+
+
+def paths_for_dataset(dataset_name: str) -> tuple[Path, Path]:
+    """Return ``(evaluation.json, db_root)`` under ``datasets/<dataset_name>/``.
+
+    Convention: questions live in ``evaluation.json``; SQLite files under
+    ``dev/<db_id>/<db_id>.sqlite`` (BIRD layout after ``seed_bird.py``).
+    """
+    root = _DATASETS_DIR / dataset_name
+    return root / "evaluation.json", root / "dev"
 
 BIRD_SCORE_FIELDS = [
     "bird_ex_match",
@@ -596,8 +605,8 @@ def run(
     input_path: Path,
     output_path: Path | None = None,
     *,
-    evaluation_json: Path = _DEFAULT_EVAL_JSON,
-    db_root: Path = _DEFAULT_DB_ROOT,
+    evaluation_json: Path,
+    db_root: Path,
     num_cpus: int = 1,
     meta_time_out: float = 30.0,
     iterate_num: int = 100,
@@ -727,16 +736,24 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Output CSV path (default: output/<input_stem>_bird_scores.csv).",
     )
     parser.add_argument(
+        "--dataset-name",
+        required=True,
+        help=(
+            "Dataset folder under datasets/ "
+            "(resolves evaluation.json and dev/ SQLite root)."
+        ),
+    )
+    parser.add_argument(
         "--evaluation-json",
         type=Path,
-        default=_DEFAULT_EVAL_JSON,
-        help=f"BIRD evaluation JSON for question_id → db_id (default: {_DEFAULT_EVAL_JSON}).",
+        default=None,
+        help="Override path to evaluation JSON (question_id → db_id).",
     )
     parser.add_argument(
         "--db-root",
         type=Path,
-        default=_DEFAULT_DB_ROOT,
-        help=f"Root folder containing <db_id>/<db_id>.sqlite (default: {_DEFAULT_DB_ROOT}).",
+        default=None,
+        help="Override root folder containing <db_id>/<db_id>.sqlite.",
     )
     parser.add_argument(
         "--num-cpus", type=int, default=1, help="Parallel workers (default: 1)."
@@ -778,6 +795,11 @@ def main(argv: list[str] | None = None) -> None:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     args = _parse_args(argv)
+    evaluation_json, db_root = paths_for_dataset(args.dataset_name)
+    if args.evaluation_json is not None:
+        evaluation_json = args.evaluation_json
+    if args.db_root is not None:
+        db_root = args.db_root
     output_path = (
         None
         if args.no_output_csv
@@ -786,8 +808,8 @@ def main(argv: list[str] | None = None) -> None:
     run(
         input_path=args.input,
         output_path=output_path,
-        evaluation_json=args.evaluation_json,
-        db_root=args.db_root,
+        evaluation_json=evaluation_json,
+        db_root=db_root,
         num_cpus=args.num_cpus,
         meta_time_out=args.meta_time_out,
         iterate_num=args.iterate_num,

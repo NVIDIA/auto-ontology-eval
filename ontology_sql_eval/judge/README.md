@@ -40,7 +40,12 @@ The scoring model is configured via `JUDGE_MODEL_NAME` / `JUDGE_BASE_URL` /
 
 ## BIRD official scoring (EX + VES)
 
-For the BIRD dataset, `bird.py` in this package additionally ports BIRD's own
-deterministic Execution Accuracy / Valid Efficiency Score metrics — a separate
-step from the generic LLM scoring above. See
-[datasets/bird/README.md](../../datasets/bird/README.md#official-scoring-ex--ves).
+`bird.py` ports BIRD's deterministic EX / VES metrics (separate from the LLM
+judge). Pass ``--dataset-name`` so paths resolve under ``datasets/<name>/``
+(``evaluation.json`` + ``dev/`` SQLite root); optional ``--evaluation-json`` /
+``--db-root`` override those:
+
+```bash
+uv run python -m ontology_sql_eval.judge.bird \
+  --input input/bird_gpt-5.5.csv --dataset-name bird --skip-ves
+```

@@ -37,12 +37,12 @@ Custom analyses (optional, ``<database_name>/custom_analyses.json``)::
         },
         ...
     ]
-"""
-
+    """
 from __future__ import annotations
 
 import json
 import logging
+import hashlib
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -54,6 +54,143 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 DEFAULT_DIR = Path(__file__).resolve().parents[2] / "datasets"
+
+
+def train_json_for_dataset(dataset_name: str) -> Path:
+    """Return ``datasets/<dataset_name>/train/train.json``."""
+    return DEFAULT_DIR / dataset_name / "train" / "train.json"
+
+
+def _existing_few_shot_questions(vdb, label: str, database_name: str) -> set[str]:
+    """Return normalized questions already stored in the semantic VDB."""
+    import psycopg
+    from psycopg import sql
+
+    if not vdb._table_exists():
+        return set()
+
+    query = sql.SQL(
+        """
+        SELECT langchain_metadata ->> 'question'
+        FROM {table}
+        WHERE {db_col} = %s AND {label_col} = %s
+        """
+    ).format(
+        table=sql.Identifier(vdb.schema_name, vdb.collection_name),
+        db_col=sql.Identifier("database_name"),
+        label_col=sql.Identifier("label"),
+    )
+    with psycopg.connect(vdb.connection_string) as conn:
+        with conn.cursor() as cur:
+            cur.execute(query, (database_name, label))
+            return {
+                str(row[0]).strip().casefold()
+                for row in cur.fetchall()
+                if row[0] and str(row[0]).strip()
+            }
+
+
+def add_few_shot_examples(
+    *,
+    train_json: Path,
+    embed_params: "EmbedParams",
+    vdb: "VDB",
+    batch_size: int = 64,
+) -> int:
+    """Mask and embed new Train Q→SQL examples into ``semantic_layer``.
+
+    *train_json* must be an explicit corpus file (typically
+    ``datasets/<dataset>/train/train.json``). Existing questions are read from
+    Postgres and skipped, so repeated ingest runs are incremental.
+    """
+    from gsf.retrieval.text_to_sql.question_masking import mask_question
+    from gsf.semantic.constants import FEW_SHOT_DATABASE_NAME, LABEL_FEW_SHOT_QA
+    from gsf.utils.embedding import embed_docs_into_vdb
+
+    if not train_json.is_file():
+        logger.info("Few-shot corpus not found at %s; skipping.", train_json)
+        return 0
+
+    with train_json.open(encoding="utf-8") as f:
+        rows = json.load(f)
+    if not isinstance(rows, list):
+        raise ValueError(f"{train_json} must contain a JSON list")
+
+    existing = _existing_few_shot_questions(
+        vdb,
+        LABEL_FEW_SHOT_QA,
+        FEW_SHOT_DATABASE_NAME,
+    )
+    docs: list[dict] = []
+    skipped_existing = 0
+    skipped_empty = 0
+    dataset_name = (
+        train_json.parents[1].name
+        if train_json.parent.name == "train"
+        else train_json.stem
+    )
+
+    for row in rows:
+        question = str(row.get("question") or "").strip()
+        sql = str(row.get("SQL") or row.get("sql") or "").strip()
+        if not question or not sql:
+            skipped_empty += 1
+            continue
+
+        normalized = question.casefold()
+        if normalized in existing:
+            skipped_existing += 1
+            continue
+        existing.add(normalized)
+
+        masked = mask_question(question) or question
+        digest = hashlib.sha256(question.encode("utf-8")).hexdigest()[:24]
+        docs.append(
+            {
+                "id": f"{dataset_name}:train:{digest}",
+                "name": question,
+                "label": LABEL_FEW_SHOT_QA,
+                "text": masked,
+                "masked_question": masked,
+                "question": question,
+                "sql": sql,
+                "evidence": str(row.get("evidence") or ""),
+                "db_id": str(row.get("db_id") or ""),
+            }
+        )
+
+    if not docs:
+        logger.info(
+            "Few-shot enrichment: nothing new from %s (%d existing, %d empty).",
+            train_json,
+            skipped_existing,
+            skipped_empty,
+        )
+        return 0
+
+    logger.info(
+        "Few-shot enrichment: embedding %d new question(s) from %s "
+        "(skipped %d existing, %d empty).",
+        len(docs),
+        train_json,
+        skipped_existing,
+        skipped_empty,
+    )
+    written = 0
+    for start in range(0, len(docs), batch_size):
+        chunk = docs[start : start + batch_size]
+        written += embed_docs_into_vdb(
+            chunk,
+            embed_params,
+            vdb,
+            database_name=FEW_SHOT_DATABASE_NAME,
+        )
+        logger.info(
+            "Few-shot enrichment progress: %d/%d",
+            min(start + len(chunk), len(docs)),
+            len(docs),
+        )
+    return written
 
 
 def apply_metadata(database_name: str) -> None:

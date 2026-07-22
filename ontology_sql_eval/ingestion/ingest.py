@@ -11,11 +11,14 @@ enrichment step reads this repo's ``datasets/<database_name>/`` data files
 Run after the Neo4j + Postgres (pgvector) services are up (see GSF's
 ``docker-compose.yml``) and ``CONNECTION_STRINGS`` points at the source DB::
 
-    uv run python -m ontology_sql_eval.ingestion.ingest
+    PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.ingest
+    PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.ingest \\
+      --dataset-name bird
 """
 
 from __future__ import annotations
 
+import argparse
 import logging
 import os
 
@@ -33,7 +36,13 @@ from nemo_retriever.common.params.models import TabularExtractParams
 from gsf.utils import get_embed_params
 from gsf.vdb import get_data_vdb, get_semantic_vdb
 from gsf.connectors.registry import create_connector
-from ontology_sql_eval.ingestion.enrich_graph import add_custom_analyses, apply_metadata
+from gsf.semantic.constants import FEW_SHOT_DATABASE_NAME
+from ontology_sql_eval.ingestion.enrich_graph import (
+    add_custom_analyses,
+    add_few_shot_examples,
+    apply_metadata,
+    train_json_for_dataset,
+)
 
 load_dotenv()
 
@@ -102,11 +111,31 @@ def run_ingest(connection_string: str) -> None:
     )
 
 
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Ingest source DB schema(s) into Neo4j + pgvector, then optionally "
+            "embed a dataset's Train few-shot corpus."
+        )
+    )
+    parser.add_argument(
+        "--dataset-name",
+        default=None,
+        help=(
+            "Dataset folder under datasets/ whose Train corpus to embed "
+            "(e.g. bird → datasets/bird/train/train.json). "
+            "Omit to skip few-shot enrichment."
+        ),
+    )
+    return parser.parse_args(argv)
+
+
 if __name__ == "__main__":
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
+    args = _parse_args()
     # Remote source DB to extract tabular schema/embeddings from. Kept separate
     # from the local POSTGRES_* vars (which point at the pgvector store).
     connection_strings = [
@@ -128,6 +157,15 @@ if __name__ == "__main__":
                 connection_string,
             )
             run_ingest(connection_string)
+
+        # Train few-shots are dataset-scoped (e.g. BIRD), not per SQLite DB.
+        # Only run when the caller names the dataset; missing train.json is a no-op.
+        if args.dataset_name:
+            add_few_shot_examples(
+                train_json=train_json_for_dataset(args.dataset_name),
+                embed_params=get_embed_params(),
+                vdb=get_semantic_vdb(database_name=FEW_SHOT_DATABASE_NAME),
+            )
     except KeyboardInterrupt:
         logger.info("ingestion: shutting down")
         raise SystemExit(0)

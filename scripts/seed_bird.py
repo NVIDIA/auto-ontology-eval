@@ -6,26 +6,24 @@
 
 Fetches the official zip(s) for one or more BIRD splits and writes::
 
-    datasets/bird/<db_id>/<db_id>.sqlite
-    datasets/bird/<db_id>/database_description/*.csv
-    datasets/bird/evaluation.json
+    datasets/bird/evaluation.json                 # Mini-Dev / Dev questions only
+    datasets/bird/dev/<db_id>/<db_id>.sqlite      # evaluation databases
+    datasets/bird/dev/<db_id>/database_description/*.csv
+    datasets/bird/train/train.json                # full Train Q/evidence/SQL rows
 
-Only the SQLite dialect is kept. Each split's question JSON is merged into a
-single combined ``evaluation.json`` (each row carries its own ``db_id``). The
-MySQL / PostgreSQL JSONs and the ``*_gold.sql`` files are ignored.
+Dev and Train stay in separate trees. Mini-Dev / Dev SQLite DBs land under
+``dev/`` and drive evaluation as before. Train does **not** install SQLite
+files — its complete question rows are preserved in ``train/train.json`` for
+few-shot retrieval (Train and Dev DB sets are disjoint).
 
-Three splits are available via ``--splits`` (default: ``mini-dev``):
+Three splits are available via ``--splits`` (default: ``dev``):
 
-- ``mini-dev`` — 500 questions, 11 SQLite DBs. Lite/cheap default for
-  day-to-day development.
-- ``dev`` — the full 1,534-question Dev split, same 11 DBs as mini-dev.
-- ``train`` — the 9,428-question Train split, ~69 additional DBs. Rows have
-  no ``difficulty`` label (fine-tuning split, not part of the official
-  EX/VES leaderboard).
+- ``mini-dev`` — 500 questions, 11 SQLite DBs under ``dev/``.
+- ``dev`` — the full 1,534-question Dev split, same 11 DBs under ``dev/``.
+- ``train`` — 9,428 question/evidence/SQL rows in ``train/train.json``.
 
-Pass more than one split to combine them into one shared ``datasets/bird/``
-(e.g. ``--splits dev train``); when combining splits, each split's
-``question_id`` values are offset so they don't collide across splits.
+Pass ``--splits dev train`` to keep Dev as the evaluation set and Train as
+the few-shot example corpus.
 
 Usage::
 
@@ -40,9 +38,9 @@ from the BIRD Mini-Dev README's 2025-07-04 update — the corrected
 ``minidev.zip`` is kept as ``LEGACY_OSS_URL`` for reference but is stale; pass
 ``--url`` to override (only valid with exactly one ``--splits`` value).
 
-After download, ingest a single database into Neo4j via::
+After download, ingest a Dev database into Neo4j via::
 
-    CONNECTION_STRINGS=sqlite:///<abs-path>/datasets/bird/<db_id>/<db_id>.sqlite \\
+    CONNECTION_STRINGS=sqlite:///<abs-path>/datasets/bird/dev/<db_id>/<db_id>.sqlite \\
       PYTHONPATH=../GSF uv run python main.py --database-name bird --skip-eval --skip-judge
 """
 
@@ -123,6 +121,23 @@ def _archive_cache_path(dest: Path, archive_name: str) -> Path:
     return dest / f".{archive_name}"
 
 
+def _eval_db_root(dest: Path) -> Path:
+    """SQLite evaluation databases live under ``datasets/bird/dev/``."""
+    return dest / "dev"
+
+
+def _train_root(dest: Path) -> Path:
+    """Train question rows live under ``datasets/bird/train/`` (no SQLite)."""
+    return dest / "train"
+
+
+def _is_macos_junk(path: Path) -> bool:
+    """True for AppleDouble / ``__MACOSX`` sidecar paths."""
+    return "__MACOSX" in path.parts or any(
+        part.startswith("._") for part in path.parts
+    )
+
+
 def _download(url: str, dest_path: Path, *, force: bool = False) -> None:
     """Stream-download *url* to *dest_path*, logging progress."""
     if dest_path.exists() and not force:
@@ -176,6 +191,29 @@ def _extract(archive_path: Path, extract_dir: Path) -> None:
     logger.info("Extraction complete.")
 
 
+def _extract_train_questions(archive_path: Path, extract_dir: Path) -> None:
+    """Extract only ``train.json`` from the Train archive (skip DB zips)."""
+    logger.info(
+        "Extracting Train questions only from %s (skipping database archives) ...",
+        archive_path.name,
+    )
+    with zipfile.ZipFile(archive_path, "r") as zf:
+        members = [
+            name
+            for name in zf.namelist()
+            if Path(name).name == "train.json" and not _is_macos_junk(Path(name))
+        ]
+        if not members:
+            raise RuntimeError(
+                f"No train.json found in {archive_path}. "
+                "The archive layout may have changed."
+            )
+        for name in members:
+            zf.extract(name, extract_dir)
+            logger.info("  extracted %s", name)
+    logger.info("Train question extraction complete.")
+
+
 def _extract_nested_zips(root: Path) -> None:
     """Recursively extract any nested zip archives found under *root*.
 
@@ -185,7 +223,13 @@ def _extract_nested_zips(root: Path) -> None:
     """
     seen: set[Path] = set()
     while True:
-        nested = [p for p in root.rglob("*.zip") if p not in seen]
+        # Skip AppleDouble / __MACOSX sidecar stubs (e.g. ._train_databases.zip),
+        # which match *.zip but are not valid archives.
+        nested = [
+            p
+            for p in root.rglob("*.zip")
+            if p not in seen and not _is_macos_junk(p)
+        ]
         if not nested:
             return
         for zip_path in nested:
@@ -218,7 +262,9 @@ def _organize_extracted(extract_dir: Path, dest: Path) -> list[str]:
     """
     dest.mkdir(parents=True, exist_ok=True)
 
-    sqlite_files = sorted(extract_dir.rglob("*.sqlite"))
+    sqlite_files = sorted(
+        p for p in extract_dir.rglob("*.sqlite") if not _is_macos_junk(p)
+    )
     if not sqlite_files:
         raise RuntimeError(
             f"No .sqlite files found under {extract_dir}. "
@@ -296,11 +342,92 @@ def _offset_question_ids(
 
 
 def _write_evaluation_file(dest: Path, rows: list[dict[str, Any]]) -> None:
-    """Write the combined question set to ``datasets/bird/evaluation.json``."""
+    """Write Mini-Dev / Dev questions to ``datasets/bird/evaluation.json``."""
     eval_path = dest / "evaluation.json"
     with eval_path.open("w") as f:
         json.dump(rows, f, indent=2)
     logger.info("  evaluation.json (%d question(s))", len(rows))
+
+
+def _write_train_file(dest: Path, rows: list[dict[str, Any]]) -> None:
+    """Preserve the complete BIRD Train rows for few-shot retrieval."""
+    dest.mkdir(parents=True, exist_ok=True)
+    train_path = dest / "train.json"
+    with train_path.open("w", encoding="utf-8") as f:
+        json.dump(rows, f, indent=2, ensure_ascii=False)
+    logger.info("  train/train.json (%d question(s))", len(rows))
+
+
+def _cleanup_legacy_flat_layout(dest: Path) -> None:
+    """Remove pre-split flat ``datasets/bird/<db_id>/`` entries if present."""
+    keep_names = {"dev", "train", "evaluation.json", "README.md", ".gitkeep"}
+    removed = 0
+    for child in dest.iterdir():
+        if child.name.startswith(".") or child.name in keep_names:
+            continue
+        is_legacy_db = child.is_dir() and (
+            (child / f"{child.name}.sqlite").exists() or child.name.startswith("._")
+        )
+        if is_legacy_db or (child.is_dir() and child.name.startswith("._")):
+            shutil.rmtree(child)
+            removed += 1
+        elif child.is_file() and child.name.startswith("._"):
+            child.unlink()
+            removed += 1
+    if removed:
+        logger.info("Removed %d legacy flat entry(ies) under %s", removed, dest)
+
+
+def _migrate_legacy_flat_layout(dest: Path) -> None:
+    """Move a pre-split flat ``datasets/bird/<db_id>/`` tree into ``dev/``.
+
+    Evaluation DB ids are taken from ``evaluation.json`` when present; their
+    SQLite folders move under ``dev/``. Remaining flat DB folders (Train-only
+    SQLite or leftover history dirs) are deleted.
+    """
+    if not dest.is_dir():
+        return
+
+    eval_path = dest / "evaluation.json"
+    eval_db_ids: set[str] = set()
+    if eval_path.exists():
+        with eval_path.open() as f:
+            rows = json.load(f)
+        eval_db_ids = {
+            str(row.get("db_id") or "").strip()
+            for row in rows
+            if str(row.get("db_id") or "").strip()
+        }
+
+    eval_root = _eval_db_root(dest)
+    keep_names = {"dev", "train", "evaluation.json", "README.md", ".gitkeep"}
+    moved_dev = 0
+
+    for child in sorted(dest.iterdir()):
+        if child.name.startswith(".") or child.name in keep_names or not child.is_dir():
+            continue
+        if child.name.startswith("._"):
+            shutil.rmtree(child)
+            continue
+
+        sqlite_src = child / f"{child.name}.sqlite"
+        if child.name in eval_db_ids and sqlite_src.exists():
+            db_dest = eval_root / child.name
+            if not (db_dest / f"{child.name}.sqlite").exists():
+                _copy_tree(child, db_dest)
+                leftover_history = db_dest / "query_history.csv"
+                if leftover_history.exists():
+                    leftover_history.unlink()
+                moved_dev += 1
+
+        shutil.rmtree(child)
+
+    if moved_dev:
+        logger.info(
+            "Migrated legacy flat layout: %d eval DB(s) -> %s",
+            moved_dev,
+            eval_root,
+        )
 
 
 def _update_env_file(env_path: Path, connection_strings_value: str) -> bool:
@@ -336,20 +463,28 @@ def _print_summary(
     splits: list[str],
     write_env: bool = True,
 ) -> None:
-    """Log a summary, write ``CONNECTION_STRINGS`` to ``.env``, and print it."""
+    """Log a summary, write ``CONNECTION_STRINGS`` to ``.env``, and print it.
+
+    Connection strings always point at evaluation SQLite files under
+    ``datasets/bird/dev/`` — Train is not a connection target.
+    """
+    eval_root = _eval_db_root(dest)
     logger.info("=" * 60)
     logger.info("BIRD download complete (splits: %s).", ", ".join(splits))
     logger.info("  Destination : %s", dest)
-    logger.info("  Databases   : %d", len(db_ids))
+    logger.info("  Eval DBs    : %s (%d)", eval_root, len(db_ids))
     for db_id in db_ids:
         logger.info("    - %s", db_id)
+    if "train" in splits:
+        logger.info("  Train Qs    : %s/train.json", _train_root(dest))
     logger.info("=" * 60)
 
     if not db_ids:
         return
 
     conn_strings = [
-        f"sqlite:///{(dest / db_id / f'{db_id}.sqlite').resolve()}" for db_id in db_ids
+        f"sqlite:///{(eval_root / db_id / f'{db_id}.sqlite').resolve()}"
+        for db_id in db_ids
     ]
     connection_strings_value = ",".join(conn_strings)
 
@@ -357,7 +492,7 @@ def _print_summary(
     if write_env and _update_env_file(env_path, connection_strings_value):
         logger.info("Wrote CONNECTION_STRINGS to %s", env_path)
     else:
-        logger.info("Add this to your .env (all databases, comma-separated):")
+        logger.info("Add this to your .env (Dev evaluation databases only):")
         logger.info("CONNECTION_STRINGS=%s", connection_strings_value)
 
 
@@ -370,10 +505,10 @@ def download_bird(
     keep_archive: bool = False,
     write_env: bool = True,
 ) -> list[str]:
-    """Download and organize one or more BIRD splits into a shared *dest*.
+    """Download and organize one or more BIRD splits under *dest*.
 
-    Returns the sorted list of ``db_id`` values installed under *dest*,
-    merged across every requested split.
+    Returns the sorted list of evaluation ``db_id`` values installed under
+    ``dest/dev/``. Train contributes ``dest/train/train.json`` only.
     """
     split_names = splits or [DEFAULT_SPLIT]
     if url and len(split_names) != 1:
@@ -381,15 +516,21 @@ def download_bird(
 
     target = dest or _default_dest()
     multi = len(split_names) > 1
+    eval_root = _eval_db_root(target)
+    train_root = _train_root(target)
 
     logger.info("=" * 60)
     logger.info("Downloading BIRD split(s) [%s] to %s", ", ".join(split_names), target)
     logger.info("=" * 60)
 
-    all_db_ids: set[str] = set()
-    all_rows: list[dict[str, Any]] = []
+    _migrate_legacy_flat_layout(target)
 
-    for i, split_name in enumerate(split_names):
+    all_db_ids: set[str] = set()
+    evaluation_rows: list[dict[str, Any]] = []
+    evaluation_split_index = 0
+    train_row_count = 0
+
+    for split_name in split_names:
         config = _SPLITS[split_name]
         effective_url = url or config.url
         archive_path = _archive_cache_path(target, config.archive_name)
@@ -399,15 +540,25 @@ def download_bird(
 
         with tempfile.TemporaryDirectory(prefix=f"bird_{split_name}_") as tmp:
             extract_dir = Path(tmp)
-            _extract(archive_path, extract_dir)
+            if split_name == "train":
+                _extract_train_questions(archive_path, extract_dir)
+                rows = _load_eval_rows(extract_dir, config.json_names)
+                _write_train_file(train_root, rows)
+                train_row_count = len(rows)
+            else:
+                _extract(archive_path, extract_dir)
+                logger.info("Organizing evaluation DBs into %s ...", eval_root)
+                db_ids = _organize_extracted(extract_dir, eval_root)
+                all_db_ids.update(db_ids)
 
-            logger.info("Organizing files into %s ...", target)
-            db_ids = _organize_extracted(extract_dir, target)
-            all_db_ids.update(db_ids)
-
-            rows = _load_eval_rows(extract_dir, config.json_names)
-            offset = i * _SPLIT_ID_OFFSET if multi else 0
-            all_rows.extend(_offset_question_ids(rows, offset))
+                rows = _load_eval_rows(extract_dir, config.json_names)
+                offset = (
+                    evaluation_split_index * _SPLIT_ID_OFFSET
+                    if multi and evaluation_split_index
+                    else 0
+                )
+                evaluation_rows.extend(_offset_question_ids(rows, offset))
+                evaluation_split_index += 1
 
         if not keep_archive and archive_path.exists():
             archive_path.unlink()
@@ -415,13 +566,18 @@ def download_bird(
         elif keep_archive:
             logger.info("Kept cached archive at %s", archive_path)
 
-    if all_rows:
-        _write_evaluation_file(target, all_rows)
+    if evaluation_rows:
+        _write_evaluation_file(target, evaluation_rows)
     else:
         logger.warning(
-            "No eval rows collected across split(s) [%s]; evaluation.json not written.",
+            "No Mini-Dev / Dev rows collected across split(s) [%s]; "
+            "evaluation.json not written.",
             ", ".join(split_names),
         )
+    if "train" in split_names:
+        logger.info("Train few-shot corpus: %d question(s).", train_row_count)
+
+    _cleanup_legacy_flat_layout(target)
 
     db_ids = sorted(all_db_ids)
     _print_summary(target, db_ids, splits=split_names, write_env=write_env)
@@ -432,8 +588,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Download BIRD split(s) (mini-dev / dev / train) and populate "
-            "datasets/bird/ with SQLite databases, schema descriptions, and "
-            "a merged evaluation.json."
+            "datasets/bird/dev/ (evaluation SQLite) plus "
+            "datasets/bird/train/train.json (Train few-shot questions)."
         ),
         epilog=(
             f"mini-dev source (corrected 2025-07-04 set): {GOOGLE_DRIVE_URL}\n"
@@ -451,12 +607,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         choices=sorted(_SPLITS),
         default=[DEFAULT_SPLIT],
         help=(
-            "Which BIRD split(s) to download, merged into one datasets/bird/ "
-            f"(default: {DEFAULT_SPLIT}, 500 Qs / 11 DBs). 'dev' is the full "
-            "1,534-question Dev split (same 11 DBs as mini-dev); 'train' is "
-            "the 9,428-question Train split (~69 additional DBs, no "
-            "difficulty labels). Pass more than one to combine them, e.g. "
-            "--splits dev train."
+            "Which BIRD split(s) to install (default: "
+            f"{DEFAULT_SPLIT}). mini-dev/dev write SQLite under "
+            "datasets/bird/dev/ and evaluation.json; train writes "
+            "datasets/bird/train/train.json. "
+            "Pass --splits dev train to evaluate on Dev and keep Train "
+            "as a few-shot example corpus."
         ),
     )
     parser.add_argument(
