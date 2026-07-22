@@ -2,42 +2,19 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Download Spider2-lite and populate ``datasets/spider2/``.
+"""Shared implementation for the Spider2 SQLite and Snow seeders.
 
-Clones (or updates) the upstream Spider2 repository, downloads the local SQLite
-database bundle, and writes::
-
-    datasets/spider2/<slug>/<slug>.sqlite
-    datasets/spider2/<slug>/evaluation.json
-    datasets/spider2/manifest.json
-
-Only the SQLite dialect is kept. Gold SQL from upstream is stored as ``SQL`` in
-each per-database ``evaluation.json``; a Postgres transpilation is also written
-to ``SQL_postgres`` when possible.
-
-Usage::
-
-    uv run python scripts/seed_spider2.py
-    uv run python scripts/seed_spider2.py --force
-
-The SQLite bundle is distributed via Google Drive (see upstream
-``spider2-lite/README.md``). Pass ``--keep-archive`` to retain the cached zip.
-
-After download, run the full pipeline for a single database via::
-
-    CONNECTION_STRINGS=sqlite:///<abs-path>/datasets/spider2/<slug>/<slug>.sqlite?metadata_database=spider2/<slug> \\
-      PYTHONPATH=../GSF uv run python main.py --database-name spider2/<slug>
+Use ``seed_spider2_sqlite.py`` or ``seed_spider2_snow.py`` rather than
+executing this module directly.
 """
 
 from __future__ import annotations
 
-import argparse
 import json
 import logging
 import re
 import shutil
 import subprocess
-import sys
 import tempfile
 import zipfile
 from collections import defaultdict
@@ -57,11 +34,16 @@ DEFAULT_UPSTREAM_REF = "main"
 # spider2-lite/spider2-lite.jsonl) trims the working tree from ~900M to ~2M by
 # excluding resource/databases (the SQLite bundle comes from Google Drive) and
 # the large gold/ execution-result files.
-_SPARSE_PATHS = (
+_SQLITE_SPARSE_PATHS = (
     "spider2-lite/evaluation_suite/gold/sql",
     "spider2-lite/evaluation_suite/gold/exec_result",
     "spider2-lite/resource/documents",
+)
+_SNOW_SPARSE_PATHS = (
+    "spider2-snow/evaluation_suite/gold/sql",
+    "spider2-snow/evaluation_suite/gold/exec_result",
     "spider2-snow/resource/databases",
+    "spider2-lite/resource/documents",
 )
 
 # Spider2-lite local SQLite bundle (see spider2-lite/README.md).
@@ -104,8 +86,16 @@ def _spider2_jsonl() -> Path:
     return _spider2_lite_root() / "spider2-lite.jsonl"
 
 
+def _spider2_snow_jsonl() -> Path:
+    return _spider2_snow_root() / "spider2-snow.jsonl"
+
+
 def _gold_sql_dir() -> Path:
     return _spider2_lite_root() / "evaluation_suite" / "gold" / "sql"
+
+
+def _snow_gold_sql_dir() -> Path:
+    return _spider2_snow_root() / "evaluation_suite" / "gold" / "sql"
 
 
 def _documents_dir() -> Path:
@@ -160,24 +150,31 @@ def _current_ref(repo_dir: Path) -> str:
     return result.stdout.strip()
 
 
-def _bootstrap_upstream(ref: str = DEFAULT_UPSTREAM_REF) -> str:
-    """Clone or update the upstream Spider2 checkout. Returns the resolved commit.
+def _bootstrap_upstream(
+    ref: str = DEFAULT_UPSTREAM_REF,
+    *,
+    mode: str,
+) -> str:
+    """Clone/update only the upstream paths required by the selected seeder."""
+    if mode == "sqlite":
+        sparse_paths = _SQLITE_SPARSE_PATHS
+    elif mode == "snow":
+        sparse_paths = _SNOW_SPARSE_PATHS
+    else:
+        raise ValueError(f"Unsupported Spider2 seed mode: {mode!r}")
 
-    Only the spider2-lite subpaths this script reads are materialized on disk (a
-    shallow, blobless sparse checkout scoped to :data:`_SPARSE_PATHS`).
-    """
     upstream = _upstream_root()
     upstream.parent.mkdir(parents=True, exist_ok=True)
 
     if upstream.exists():
         logger.info("Updating existing checkout at %s", upstream)
-        # Ensure sparse-checkout stays scoped (no-op if already set).
-        _run(["git", "sparse-checkout", "set", *_SPARSE_PATHS], cwd=upstream)
+        # Preserve paths materialized by the other seeder.
+        _run(["git", "sparse-checkout", "add", *sparse_paths], cwd=upstream)
         _run(["git", "fetch", "--depth", "1", "origin", ref], cwd=upstream)
         _run(["git", "checkout", ref], cwd=upstream)
         _run(["git", "pull", "--ff-only", "origin", ref], cwd=upstream)
     else:
-        logger.info("Cloning %s (sparse spider2-lite) into %s", UPSTREAM_REPO, upstream)
+        logger.info("Cloning %s (sparse %s) into %s", UPSTREAM_REPO, mode, upstream)
         _run(
             [
                 "git",
@@ -192,26 +189,33 @@ def _bootstrap_upstream(ref: str = DEFAULT_UPSTREAM_REF) -> str:
                 str(upstream),
             ]
         )
-        _run(["git", "sparse-checkout", "set", *_SPARSE_PATHS], cwd=upstream)
+        _run(["git", "sparse-checkout", "set", *sparse_paths], cwd=upstream)
 
     commit = _current_ref(upstream)
     logger.info("Upstream Spider2 at %s", commit)
 
     required = (
-        _spider2_jsonl(),
-        _gold_sql_dir(),
-        _documents_dir(),
-        _snow_databases_dir(),
+        (
+            _spider2_jsonl(),
+            _gold_sql_dir(),
+            _gold_exec_result_dir(),
+            _documents_dir(),
+        )
+        if mode == "sqlite"
+        else (
+            _spider2_snow_jsonl(),
+            _snow_gold_sql_dir(),
+            _snow_gold_exec_result_dir(),
+            _snow_databases_dir(),
+            _documents_dir(),
+        )
     )
     missing = [path for path in required if not path.exists()]
     if missing:
         missing_list = "\n".join(f"  - {path}" for path in missing)
         raise SystemExit(
-            f"Upstream checkout is missing required spider2-lite paths:\n{missing_list}"
+            f"Upstream checkout is missing required Spider2 {mode} paths:\n{missing_list}"
         )
-
-    if not _spider2_lite_root().exists():
-        raise SystemExit(f"Expected spider2-lite directory at {_spider2_lite_root()}")
 
     return commit
 
@@ -242,19 +246,32 @@ def _gold_exec_result_dir() -> Path:
     return _spider2_lite_root() / "evaluation_suite" / "gold" / "exec_result"
 
 
-def _load_gold_exec_result_answer(instance_id: str) -> str:
+def _snow_gold_exec_result_dir() -> Path:
+    return _spider2_snow_root() / "evaluation_suite" / "gold" / "exec_result"
+
+
+def _load_gold_exec_result_answer(
+    instance_id: str,
+    exec_result_dir: Path | None = None,
+) -> str:
     """Gold ``exec_result`` CSV text when upstream ``gold/sql`` is absent."""
     from ontology_sql_eval.spider2_gold import (
         gold_dfs_to_answer_raw,
         load_gold_exec_result_dfs,
     )
 
-    dfs = load_gold_exec_result_dfs(instance_id, _gold_exec_result_dir())
+    dfs = load_gold_exec_result_dfs(
+        instance_id,
+        exec_result_dir or _gold_exec_result_dir(),
+    )
     return gold_dfs_to_answer_raw(dfs) if dfs else ""
 
 
-def _load_gold_sql(instance_id: str) -> tuple[str, str | None]:
-    sql_path = _gold_sql_dir() / f"{instance_id}.sql"
+def _load_gold_sql(
+    instance_id: str,
+    gold_sql_dir: Path | None = None,
+) -> tuple[str, str | None]:
+    sql_path = (gold_sql_dir or _gold_sql_dir()) / f"{instance_id}.sql"
     if not sql_path.exists():
         return "", f"missing gold SQL file: {sql_path.name}"
     return sql_path.read_text(encoding="utf-8").strip(), None
@@ -422,7 +439,25 @@ def _transpile_sqlite_to_postgres(sql: str) -> tuple[str, str | None]:
     return results[0], None
 
 
-def _build_datasets(*, upstream_commit: str | None = None) -> Path:
+def _write_manifest(filename: str, manifest: dict[str, Any]) -> Path:
+    dest = _spider2_datasets_dir()
+    dest.mkdir(parents=True, exist_ok=True)
+    manifest_path = dest / filename
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    logger.info(
+        "Manifest: %s (%d databases, %d questions)",
+        manifest_path,
+        manifest["database_count"],
+        manifest["question_count"],
+    )
+    return manifest_path
+
+
+def _build_sqlite_datasets(*, upstream_commit: str | None = None) -> Path:
+    """Build evaluations and a manifest for Spider2-lite local SQLite DBs."""
     jsonl_path = _spider2_jsonl()
     if not jsonl_path.exists():
         raise SystemExit(
@@ -438,12 +473,10 @@ def _build_datasets(*, upstream_commit: str | None = None) -> Path:
     for row in local_rows:
         grouped[row["db"]].append(row)
 
-    dest = _spider2_datasets_dir()
     manifest_databases: list[dict[str, Any]] = []
     transpile_failures: list[dict[str, str]] = []
     missing_gold_sql: list[dict[str, str]] = []
     gold_csv_fallbacks: list[dict[str, str]] = []
-    metadata_summary = _build_snow_metadata()
 
     for spider2_db_name in sorted(grouped):
         slug = slugify(spider2_db_name)
@@ -524,82 +557,6 @@ def _build_datasets(*, upstream_commit: str | None = None) -> Path:
         )
         logger.info("Wrote %s (%d questions) -> %s", f"spider2/{slug}", len(evaluation), eval_path)
 
-    snowflake_rows = [
-        row for row in rows if _is_snowflake_instance(row.get("instance_id", ""))
-    ]
-    for spider2_db_name in sorted({row["db"] for row in snowflake_rows}):
-        slug = slugify(spider2_db_name)
-        out_dir = dataset_dir(slug)
-        out_dir.mkdir(parents=True, exist_ok=True)
-
-        db_rows = [row for row in snowflake_rows if row["db"] == spider2_db_name]
-        evaluation: list[dict[str, Any]] = []
-        question_ids: list[str] = []
-
-        for row in sorted(db_rows, key=lambda r: r["instance_id"]):
-            instance_id = row["instance_id"]
-            question_ids.append(instance_id)
-            gold_sql, missing_sql = _load_gold_sql(instance_id)
-            if missing_sql:
-                missing_gold_sql.append(
-                    {
-                        "instance_id": instance_id,
-                        "database": spider2_db_name,
-                        "reason": missing_sql,
-                    }
-                )
-
-            answer_raw = ""
-            if not gold_sql:
-                answer_raw = _load_gold_exec_result_answer(instance_id)
-                if answer_raw:
-                    gold_csv_fallbacks.append(
-                        {
-                            "instance_id": instance_id,
-                            "database": spider2_db_name,
-                        }
-                    )
-
-            evaluation.append(
-                {
-                    "question_id": instance_id,
-                    "db_id": spider2_db_name,
-                    "question": row.get("question", ""),
-                    "evidence": _load_evidence(row.get("external_knowledge")),
-                    "SQL": gold_sql,
-                    "SQL_postgres": "",
-                    "difficulty": "",
-                    "answer_raw": answer_raw,
-                    "answer": "",
-                }
-            )
-
-        eval_path = out_dir / "evaluation.json"
-        with eval_path.open("w", encoding="utf-8") as f:
-            json.dump(evaluation, f, indent=2, ensure_ascii=False)
-            f.write("\n")
-
-        manifest_databases.append(
-            {
-                "slug": slug,
-                "dialect": "snowflake",
-                "snowflake_database": spider2_db_name,
-                "spider2_db_name": spider2_db_name,
-                "dataset_name": f"spider2/{slug}",
-                "postgres_database_name": f"spider2_{slug}",
-                "dataset_dir": str(out_dir.relative_to(_datasets_dir())),
-                "evaluation_json": str(eval_path.relative_to(_datasets_dir())),
-                "question_count": len(evaluation),
-                "question_ids": question_ids,
-            }
-        )
-        logger.info(
-            "Wrote snowflake %s (%d questions) -> %s",
-            f"spider2/{slug}",
-            len(evaluation),
-            eval_path,
-        )
-
     manifest = {
         "source": {
             "repository": UPSTREAM_REPO,
@@ -608,28 +565,14 @@ def _build_datasets(*, upstream_commit: str | None = None) -> Path:
             "upstream_commit": upstream_commit,
             "jsonl": str(_spider2_jsonl().relative_to(_upstream_root())),
         },
-        "scope": "local_sqlite,snowflake",
-        "question_count": len(local_rows) + len(snowflake_rows),
+        "scope": "local_sqlite",
+        "question_count": len(local_rows),
         "database_count": len(manifest_databases),
         "databases": manifest_databases,
         "transpile_failures": transpile_failures,
         "missing_gold_sql": missing_gold_sql,
         "gold_csv_fallbacks": gold_csv_fallbacks,
-        "metadata": metadata_summary,
     }
-
-    dest.mkdir(parents=True, exist_ok=True)
-    manifest_path = dest / "manifest.json"
-    with manifest_path.open("w", encoding="utf-8") as f:
-        json.dump(manifest, f, indent=2, ensure_ascii=False)
-        f.write("\n")
-
-    logger.info(
-        "Manifest: %s (%d databases, %d questions)",
-        manifest_path,
-        len(manifest_databases),
-        len(local_rows),
-    )
     if missing_gold_sql:
         logger.warning(
             "%d question(s) have no published gold SQL in upstream (see manifest.missing_gold_sql)",
@@ -645,7 +588,120 @@ def _build_datasets(*, upstream_commit: str | None = None) -> Path:
             "%d question(s) failed SQLite->Postgres transpile",
             len(transpile_failures),
         )
-    return manifest_path
+    return _write_manifest("manifest_sqlite.json", manifest)
+
+
+def _build_snow_datasets(*, upstream_commit: str | None = None) -> Path:
+    """Build all 547 Spider2-Snow evaluations plus enrichment metadata."""
+    jsonl_path = _spider2_snow_jsonl()
+    if not jsonl_path.exists():
+        raise SystemExit(f"Missing {jsonl_path}. Upstream bootstrap may have failed.")
+
+    rows = _load_jsonl(jsonl_path)
+    if not rows:
+        raise SystemExit("No Spider2-Snow questions found in spider2-snow.jsonl")
+
+    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        grouped[str(row["db_id"])].append(row)
+
+    manifest_databases: list[dict[str, Any]] = []
+    missing_gold_sql: list[dict[str, str]] = []
+    gold_csv_fallbacks: list[dict[str, str]] = []
+    metadata_summary = _build_snow_metadata()
+
+    for database_name in sorted(grouped):
+        slug = slugify(database_name)
+        out_dir = dataset_dir(slug)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        evaluation: list[dict[str, Any]] = []
+        question_ids: list[str] = []
+
+        for row in sorted(grouped[database_name], key=lambda item: item["instance_id"]):
+            instance_id = str(row["instance_id"])
+            question_ids.append(instance_id)
+            gold_sql, missing_sql = _load_gold_sql(
+                instance_id,
+                _snow_gold_sql_dir(),
+            )
+            if missing_sql:
+                missing_gold_sql.append(
+                    {
+                        "instance_id": instance_id,
+                        "database": database_name,
+                        "reason": missing_sql,
+                    }
+                )
+
+            answer_raw = ""
+            if not gold_sql:
+                answer_raw = _load_gold_exec_result_answer(
+                    instance_id,
+                    _snow_gold_exec_result_dir(),
+                )
+                if answer_raw:
+                    gold_csv_fallbacks.append(
+                        {"instance_id": instance_id, "database": database_name}
+                    )
+
+            evaluation.append(
+                {
+                    "question_id": instance_id,
+                    "db_id": database_name,
+                    "question": row.get("instruction", ""),
+                    "evidence": _load_evidence(row.get("external_knowledge")),
+                    "SQL": gold_sql,
+                    "SQL_postgres": "",
+                    "difficulty": "",
+                    "answer_raw": answer_raw,
+                    "answer": "",
+                }
+            )
+
+        eval_path = out_dir / "evaluation.json"
+        eval_path.write_text(
+            json.dumps(evaluation, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        manifest_databases.append(
+            {
+                "slug": slug,
+                "dialect": "snowflake",
+                "snowflake_database": database_name,
+                "spider2_db_name": database_name,
+                "dataset_name": f"spider2/{slug}",
+                "dataset_dir": str(out_dir.relative_to(_datasets_dir())),
+                "evaluation_json": str(eval_path.relative_to(_datasets_dir())),
+                "question_count": len(evaluation),
+                "question_ids": question_ids,
+            }
+        )
+        logger.info(
+            "Wrote Snowflake %s (%d questions) -> %s",
+            database_name,
+            len(evaluation),
+            eval_path,
+        )
+
+    manifest = {
+        "source": {
+            "repository": UPSTREAM_REPO,
+            "path": "spider2-snow",
+            "upstream_root": str(_upstream_root()),
+            "upstream_commit": upstream_commit,
+            "jsonl": str(jsonl_path.relative_to(_upstream_root())),
+        },
+        "scope": "snowflake",
+        "question_count": len(rows),
+        "database_count": len(manifest_databases),
+        "databases": manifest_databases,
+        "missing_gold_sql": missing_gold_sql,
+        "gold_csv_fallbacks": gold_csv_fallbacks,
+        "metadata": metadata_summary,
+    }
+    if missing_gold_sql:
+        logger.warning("%d Snow questions have no published gold SQL", len(missing_gold_sql))
+    return _write_manifest("manifest_snow.json", manifest)
 
 
 def _load_manifest_entries(manifest_path: Path) -> list[dict[str, Any]]:
@@ -722,10 +778,12 @@ def _install_sqlite_databases(
 ) -> dict[str, Any]:
     if not archive_path.exists():
         raise FileNotFoundError(
-            f"Missing {archive_path}. Run seed_spider2() first."
+            f"Missing {archive_path}. Run seed_spider2_sqlite.py first."
         )
 
-    manifest_file = manifest_path or (_spider2_datasets_dir() / "manifest.json")
+    manifest_file = manifest_path or (
+        _spider2_datasets_dir() / "manifest_sqlite.json"
+    )
     slug_map = _build_slug_map(_load_manifest_entries(manifest_file))
 
     installed: list[str] = []
@@ -811,7 +869,7 @@ def _print_summary(dest: Path, slugs: list[str]) -> None:
     )
 
 
-def seed_spider2(
+def seed_spider2_sqlite(
     *,
     ref: str = DEFAULT_UPSTREAM_REF,
     dest: Path | None = None,
@@ -830,13 +888,13 @@ def seed_spider2(
     logger.info("Downloading Spider2-lite to %s", target)
     logger.info("=" * 60)
 
-    commit = _bootstrap_upstream(ref=ref)
+    commit = _bootstrap_upstream(ref=ref, mode="sqlite")
     logger.info("Upstream Spider2 commit: %s", commit)
 
     if skip_build:
         logger.info("Skipping evaluation.json / manifest build (--skip-build).")
     else:
-        manifest_path = _build_datasets(upstream_commit=commit)
+        manifest_path = _build_sqlite_datasets(upstream_commit=commit)
         logger.info("Wrote manifest: %s", manifest_path)
 
     _download_sqlite_archive(archive_path, force=force)
@@ -864,7 +922,7 @@ def seed_spider2(
     elif keep_archive:
         logger.info("Kept cached archive at %s", archive_path)
 
-    manifest_entries = _load_manifest_entries(target / "manifest.json")
+    manifest_entries = _load_manifest_entries(target / "manifest_sqlite.json")
     slugs = sorted(
         {
             entry["slug"]
@@ -877,67 +935,16 @@ def seed_spider2(
     return slugs
 
 
-def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description=(
-            "Download Spider2-lite and populate datasets/spider2/ with SQLite "
-            "databases and per-database evaluation.json files."
-        ),
-        epilog=(
-            "Manual fallback for the SQLite bundle: download local_sqlite.zip "
-            "from upstream spider2-lite/README.md and place it at "
-            "datasets/spider2/.local_sqlite.zip, then re-run with --force."
-        ),
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    parser.add_argument(
-        "--ref",
-        default=DEFAULT_UPSTREAM_REF,
-        help=f"Git ref to checkout in the upstream Spider2 repository (default: {DEFAULT_UPSTREAM_REF}).",
-    )
-    parser.add_argument(
-        "--dest",
-        type=Path,
-        default=None,
-        help="Destination directory (default: datasets/spider2/ in the repo root).",
-    )
-    parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Re-download the SQLite archive and overwrite existing database files.",
-    )
-    parser.add_argument(
-        "--keep-archive",
-        action="store_true",
-        help="Keep the downloaded zip cached under the destination directory.",
-    )
-    parser.add_argument(
-        "--skip-build",
-        action="store_true",
-        help="Only clone upstream and install SQLite files; skip evaluation.json build.",
-    )
-    parser.add_argument(
-        "--log-level",
-        default="INFO",
-        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
-    )
-    return parser.parse_args(argv)
-
-
-def main(argv: list[str] | None = None) -> None:
-    args = _parse_args(argv)
-    logging.basicConfig(
-        level=getattr(logging, args.log_level),
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
-    seed_spider2(
-        ref=args.ref,
-        dest=args.dest,
-        force=args.force,
-        keep_archive=args.keep_archive,
-        skip_build=args.skip_build,
-    )
-
-
-if __name__ == "__main__":
-    main(sys.argv[1:])
+def seed_spider2_snow(
+    *,
+    ref: str = DEFAULT_UPSTREAM_REF,
+    skip_build: bool = False,
+) -> Path | None:
+    """Seed Spider2-Snow evaluations and metadata without downloading SQLite."""
+    logger.info("Seeding Spider2-Snow under %s", _spider2_datasets_dir())
+    commit = _bootstrap_upstream(ref=ref, mode="snow")
+    logger.info("Upstream Spider2 commit: %s", commit)
+    if skip_build:
+        logger.info("Skipping evaluation.json / metadata build (--skip-build).")
+        return None
+    return _build_snow_datasets(upstream_commit=commit)
