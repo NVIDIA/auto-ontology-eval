@@ -64,7 +64,10 @@ def run_ingest(connection_string: str) -> None:
             f"got {type(schema_data).__name__}."
         )
 
-    apply_metadata(database_name)
+    dataset = None
+    if "bird" in connection_string:
+        dataset = "bird"
+    apply_metadata(database_name, dataset=dataset)
     embed_params = get_embed_params()
 
     embed_graph = (
