@@ -100,6 +100,7 @@ def run_ingest(connection_string: str) -> None:
         embed_params=embed_params,
         vdb=get_semantic_vdb(database_name=connector.database_name),
     )
+    connector.close()
 
 
 if __name__ == "__main__":

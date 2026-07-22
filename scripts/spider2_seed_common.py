@@ -250,23 +250,6 @@ def _snow_gold_exec_result_dir() -> Path:
     return _spider2_snow_root() / "evaluation_suite" / "gold" / "exec_result"
 
 
-def _load_gold_exec_result_answer(
-    instance_id: str,
-    exec_result_dir: Path | None = None,
-) -> str:
-    """Gold ``exec_result`` CSV text when upstream ``gold/sql`` is absent."""
-    from ontology_sql_eval.spider2_gold import (
-        gold_dfs_to_answer_raw,
-        load_gold_exec_result_dfs,
-    )
-
-    dfs = load_gold_exec_result_dfs(
-        instance_id,
-        exec_result_dir or _gold_exec_result_dir(),
-    )
-    return gold_dfs_to_answer_raw(dfs) if dfs else ""
-
-
 def _load_gold_sql(
     instance_id: str,
     gold_sql_dir: Path | None = None,
@@ -476,7 +459,6 @@ def _build_sqlite_datasets(*, upstream_commit: str | None = None) -> Path:
     manifest_databases: list[dict[str, Any]] = []
     transpile_failures: list[dict[str, str]] = []
     missing_gold_sql: list[dict[str, str]] = []
-    gold_csv_fallbacks: list[dict[str, str]] = []
 
     for spider2_db_name in sorted(grouped):
         slug = slugify(spider2_db_name)
@@ -511,17 +493,6 @@ def _build_sqlite_datasets(*, upstream_commit: str | None = None) -> Path:
                         }
                     )
 
-            answer_raw = ""
-            if not sqlite_sql:
-                answer_raw = _load_gold_exec_result_answer(instance_id)
-                if answer_raw:
-                    gold_csv_fallbacks.append(
-                        {
-                            "instance_id": instance_id,
-                            "database": spider2_db_name,
-                        }
-                    )
-
             evaluation.append(
                 {
                     "question_id": instance_id,
@@ -531,7 +502,7 @@ def _build_sqlite_datasets(*, upstream_commit: str | None = None) -> Path:
                     "SQL": sqlite_sql,
                     "SQL_postgres": postgres_sql,
                     "difficulty": "",
-                    "answer_raw": answer_raw,
+                    "answer_raw": "",
                     "answer": "",
                 }
             )
@@ -571,17 +542,11 @@ def _build_sqlite_datasets(*, upstream_commit: str | None = None) -> Path:
         "databases": manifest_databases,
         "transpile_failures": transpile_failures,
         "missing_gold_sql": missing_gold_sql,
-        "gold_csv_fallbacks": gold_csv_fallbacks,
     }
     if missing_gold_sql:
         logger.warning(
             "%d question(s) have no published gold SQL in upstream (see manifest.missing_gold_sql)",
             len(missing_gold_sql),
-        )
-    if gold_csv_fallbacks:
-        logger.info(
-            "%d question(s) use gold exec_result CSV as answer_raw fallback",
-            len(gold_csv_fallbacks),
         )
     if transpile_failures:
         logger.warning(
@@ -607,7 +572,6 @@ def _build_snow_datasets(*, upstream_commit: str | None = None) -> Path:
 
     manifest_databases: list[dict[str, Any]] = []
     missing_gold_sql: list[dict[str, str]] = []
-    gold_csv_fallbacks: list[dict[str, str]] = []
     metadata_summary = _build_snow_metadata()
 
     for database_name in sorted(grouped):
@@ -633,17 +597,6 @@ def _build_snow_datasets(*, upstream_commit: str | None = None) -> Path:
                     }
                 )
 
-            answer_raw = ""
-            if not gold_sql:
-                answer_raw = _load_gold_exec_result_answer(
-                    instance_id,
-                    _snow_gold_exec_result_dir(),
-                )
-                if answer_raw:
-                    gold_csv_fallbacks.append(
-                        {"instance_id": instance_id, "database": database_name}
-                    )
-
             evaluation.append(
                 {
                     "question_id": instance_id,
@@ -653,7 +606,7 @@ def _build_snow_datasets(*, upstream_commit: str | None = None) -> Path:
                     "SQL": gold_sql,
                     "SQL_postgres": "",
                     "difficulty": "",
-                    "answer_raw": answer_raw,
+                    "answer_raw": "",
                     "answer": "",
                 }
             )
@@ -696,7 +649,6 @@ def _build_snow_datasets(*, upstream_commit: str | None = None) -> Path:
         "database_count": len(manifest_databases),
         "databases": manifest_databases,
         "missing_gold_sql": missing_gold_sql,
-        "gold_csv_fallbacks": gold_csv_fallbacks,
         "metadata": metadata_summary,
     }
     if missing_gold_sql:
