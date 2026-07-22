@@ -47,6 +47,7 @@ After download, ingest a Dev database into Neo4j via::
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import logging
 import shutil
@@ -255,6 +256,96 @@ def _copy_tree(src: Path, dst: Path) -> None:
     shutil.copytree(src, dst)
 
 
+def _clean_cell(text: str | None) -> str:
+    """Collapse a CSV cell's internal whitespace/newlines into one line."""
+    if not text:
+        return ""
+    return " ".join(str(text).split())
+
+
+def _read_description_csv(csv_path: Path) -> list[dict[str, Any]]:
+    """Parse one BIRD ``database_description`` CSV into column metadata.
+
+    BIRD ships one CSV per table with the columns ``original_column_name``
+    (the real DB column), ``column_name`` (a friendlier/expanded label),
+    ``column_description``, ``data_format`` and ``value_description``. A handful
+    of these CSVs are Windows-1252 rather than UTF-8 encoded, so decoding falls
+    back to cp1252.
+
+    Each returned entry matches the ``columns`` shape ``apply_metadata`` reads:
+    ``name`` is the real DB column (so it matches the graph's ``Column`` nodes),
+    ``description`` is ``column_description`` and ``value_description`` joined by
+    a comma, and ``value_examples`` is left ``None`` (BIRD gives prose, not
+    discrete values). A ``value_description`` that is exactly ``not useful``
+    (case-insensitive) is dropped from the description — it's an annotator note
+    with no signal — but the column entry is still kept.
+    """
+    try:
+        raw = csv_path.read_text(encoding="utf-8-sig")
+    except UnicodeDecodeError:
+        raw = csv_path.read_text(encoding="cp1252")
+
+    columns: list[dict[str, Any]] = []
+    for row in csv.DictReader(raw.splitlines()):
+        # Normalise header keys (strip stray BOM/whitespace) for stable lookups.
+        norm = {(k or "").strip().lstrip("\ufeff"): v for k, v in row.items()}
+        original = _clean_cell(norm.get("original_column_name"))
+        friendly = _clean_cell(norm.get("column_name"))
+        name = original or friendly
+        if not name:
+            continue
+
+        col_desc = _clean_cell(norm.get("column_description"))
+        val_desc = _clean_cell(norm.get("value_description"))
+        # Drop annotator "not useful" notes: they carry no signal (they flag
+        # opaque ID/redundant columns), but the column itself must stay — some
+        # (e.g. card_games.cards.uuid) are join keys used by many gold queries.
+        if val_desc.lower() == "not useful":
+            val_desc = ""
+        description = ", ".join(p for p in (col_desc, val_desc) if p) or None
+
+        columns.append(
+            {"name": name, "description": description, "value_examples": None}
+        )
+    return columns
+
+
+def _write_metadata_json(db_dest: Path) -> int:
+    """Generate ``<db_dest>/metadata.json`` from that DB's description CSVs.
+
+    Writes an object keyed by table name (one CSV = one table, the file stem is
+    the table name), each with a ``description`` and a list of ``columns`` —
+    exactly the shape ``enrich_graph.apply_metadata`` consumes. Returns the
+    number of tables written (0 when there is no ``database_description`` folder
+    or nothing parseable in it). A malformed CSV is logged and skipped rather
+    than failing the whole download.
+    """
+    desc_dir = db_dest / "database_description"
+    if not desc_dir.is_dir():
+        return 0
+
+    metadata: dict[str, Any] = {}
+    for csv_path in sorted(desc_dir.glob("*.csv")):
+        try:
+            columns = _read_description_csv(csv_path)
+        except Exception as exc:
+            logger.warning("  could not parse %s: %s", csv_path.name, exc)
+            continue
+        if columns:
+            # BIRD has no table-level description; leave it blank so enrichment
+            # coalesces to the existing graph value instead of overwriting it.
+            metadata[csv_path.stem] = {"description": "", "columns": columns}
+
+    if not metadata:
+        return 0
+
+    (db_dest / "metadata.json").write_text(
+        json.dumps(metadata, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    return len(metadata)
+
+
 def _organize_extracted(extract_dir: Path, dest: Path) -> list[str]:
     """Copy SQLite DBs and metadata from *extract_dir* into *dest*.
 
@@ -292,6 +383,15 @@ def _organize_extracted(extract_dir: Path, dest: Path) -> list[str]:
                 db_id,
                 csv_count,
             )
+            # Derive metadata.json from the description CSVs so the ingest
+            # enrichment step can stamp column meanings onto the graph.
+            table_count = _write_metadata_json(db_dest)
+            if table_count:
+                logger.info(
+                    "  %s/metadata.json (%d table(s) from descriptions)",
+                    db_id,
+                    table_count,
+                )
 
         db_ids.append(db_id)
 

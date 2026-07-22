@@ -54,7 +54,7 @@ def database_name_for(connection_string: str) -> str:
     return create_connector(connection_string).database_name
 
 
-def run_ingest(connection_string: str) -> None:
+def run_ingest(connection_string: str, dataset_name: str | None = None) -> None:
     """Build the tabular ingest graph, run it, and write embeddings to pgvector."""
     connector = create_connector(connection_string)
     database_name = connector.database_name
@@ -73,7 +73,7 @@ def run_ingest(connection_string: str) -> None:
             f"got {type(schema_data).__name__}."
         )
 
-    apply_metadata(database_name)
+    apply_metadata(database_name, dataset=dataset_name)
     embed_params = get_embed_params()
 
     embed_graph = (
@@ -156,7 +156,7 @@ if __name__ == "__main__":
                 len(connection_strings),
                 connection_string,
             )
-            run_ingest(connection_string)
+            run_ingest(connection_string, dataset_name=args.dataset_name)
 
         # Train few-shots are dataset-scoped (e.g. BIRD), not per SQLite DB.
         # Only run when the caller names the dataset; missing train.json is a no-op.

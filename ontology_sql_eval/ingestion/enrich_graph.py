@@ -193,7 +193,7 @@ def add_few_shot_examples(
     return written
 
 
-def apply_metadata(database_name: str) -> None:
+def apply_metadata(database_name: str, dataset: str | None = None) -> None:
     """Stamp table/column metadata onto the Neo4j graph.
 
     Reads ``<this dir>/<database_name>/metadata.json`` (keyed by table name) and
@@ -212,6 +212,8 @@ def apply_metadata(database_name: str) -> None:
     from nemo_retriever.tabular_data.neo4j import get_neo4j_conn
 
     metadata_path = DEFAULT_DIR / database_name / "metadata.json"
+    if dataset:
+        metadata_path = DEFAULT_DIR / dataset / database_name / "metadata.json"
 
     if not metadata_path.exists():
         logger.info("No metadata file at %s — skipping enrichment.", metadata_path)
