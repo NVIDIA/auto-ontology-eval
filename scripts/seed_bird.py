@@ -9,12 +9,18 @@ Fetches the official zip(s) for one or more BIRD splits and writes::
     datasets/bird/evaluation.json                 # Mini-Dev / Dev questions only
     datasets/bird/dev/<db_id>/<db_id>.sqlite      # evaluation databases
     datasets/bird/dev/<db_id>/database_description/*.csv
+    datasets/bird/dev/<db_id>/metadata.json       # derived column descriptions
     datasets/bird/train/train.json                # full Train Q/evidence/SQL rows
 
 Dev and Train stay in separate trees. Mini-Dev / Dev SQLite DBs land under
 ``dev/`` and drive evaluation as before. Train does **not** install SQLite
 files — its complete question rows are preserved in ``train/train.json`` for
 few-shot retrieval (Train and Dev DB sets are disjoint).
+
+The per-database ``metadata.json`` is derived from BIRD's own
+``database_description/*.csv`` files and written in the shape consumed by the
+ingest enrichment step (``enrich_graph.apply_metadata``), so column meanings /
+value descriptions reach the text-to-SQL prompt at eval time.
 
 Three splits are available via ``--splits`` (default: ``dev``):
 

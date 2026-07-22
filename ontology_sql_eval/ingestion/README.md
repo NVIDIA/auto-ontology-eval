@@ -34,7 +34,7 @@ PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.semantic --databa
    `CustomAnalysis` nodes, and embed them into the pgvector **semantic** store.
 After all source DBs finish, if ``--dataset-name <name>`` was passed, embed
 that dataset's Train few-shot corpus from ``datasets/<name>/train/train.json``
-into the pgvector **semantic** store (incremental; existing questions skipped).
+into the pgvector **train_qa** store (incremental; existing questions skipped).
 Omit ``--dataset-name`` to skip few-shot enrichment.
 
 Data destinations:
@@ -42,7 +42,7 @@ Data destinations:
 | Destination                      | Content                                                                                        |
 | -------------------------------- | ---------------------------------------------------------------------------------------------- |
 | Neo4j (`NEO4J_*`)                | Schema graph (Database → Schema → Table → Column), metadata properties, custom-analysis nodes. |
-| Postgres pgvector (`POSTGRES_*`) | Schema embeddings (data store) + custom-analysis and Train Q→SQL embeddings (semantic store). |
+| Postgres pgvector (`POSTGRES_*`) | Schema embeddings (data store) + custom-analysis embeddings (semantic store) + Train Q→SQL embeddings (``train_qa`` store). |
 
 ## Quick smoke test (DB-free)
 

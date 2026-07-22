@@ -61,6 +61,28 @@ def train_json_for_dataset(dataset_name: str) -> Path:
     return DEFAULT_DIR / dataset_name / "train" / "train.json"
 
 
+def metadata_json_path(database_name: str, dataset: str | None = None) -> Path:
+    """Resolve ``metadata.json`` for *database_name*, preferring paths that exist.
+
+    When *dataset* is set and ``datasets/<dataset>/dev/`` exists, look under
+    ``dev/<database_name>/`` first. Otherwise (or if that file is missing) use
+    the usual layouts: ``datasets/<dataset>/<database_name>/`` then
+    ``datasets/<database_name>/``.
+    """
+    candidates: list[Path] = []
+    if dataset:
+        dev_root = DEFAULT_DIR / dataset / "dev"
+        if dev_root.is_dir():
+            candidates.append(dev_root / database_name / "metadata.json")
+        candidates.append(DEFAULT_DIR / dataset / database_name / "metadata.json")
+    candidates.append(DEFAULT_DIR / database_name / "metadata.json")
+
+    for path in candidates:
+        if path.is_file():
+            return path
+    return candidates[0]
+
+
 def _existing_few_shot_questions(vdb, label: str, database_name: str) -> set[str]:
     """Return normalized questions already stored in the semantic VDB."""
     import psycopg
@@ -97,7 +119,7 @@ def add_few_shot_examples(
     vdb: "VDB",
     batch_size: int = 64,
 ) -> int:
-    """Mask and embed new Train Q→SQL examples into ``semantic_layer``.
+    """Mask and embed new Train Q→SQL examples into ``train_qa``.
 
     *train_json* must be an explicit corpus file (typically
     ``datasets/<dataset>/train/train.json``). Existing questions are read from
@@ -211,9 +233,7 @@ def apply_metadata(database_name: str, dataset: str | None = None) -> None:
     """
     from nemo_retriever.tabular_data.neo4j import get_neo4j_conn
 
-    metadata_path = DEFAULT_DIR / database_name / "metadata.json"
-    if dataset:
-        metadata_path = DEFAULT_DIR / dataset / database_name / "metadata.json"
+    metadata_path = metadata_json_path(database_name, dataset=dataset)
 
     if not metadata_path.exists():
         logger.info("No metadata file at %s — skipping enrichment.", metadata_path)

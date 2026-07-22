@@ -34,7 +34,7 @@ from nemo_retriever.operators.embed.operators import _BatchEmbedActor
 from nemo_retriever.operators.vdb import IngestVdbOperator
 from nemo_retriever.common.params.models import TabularExtractParams
 from gsf.utils import get_embed_params
-from gsf.vdb import get_data_vdb, get_semantic_vdb
+from gsf.vdb import get_data_vdb, get_semantic_vdb, get_train_qa_vdb
 from gsf.connectors.registry import create_connector
 from gsf.semantic.constants import FEW_SHOT_DATABASE_NAME
 from ontology_sql_eval.ingestion.enrich_graph import (
@@ -164,7 +164,7 @@ if __name__ == "__main__":
             add_few_shot_examples(
                 train_json=train_json_for_dataset(args.dataset_name),
                 embed_params=get_embed_params(),
-                vdb=get_semantic_vdb(database_name=FEW_SHOT_DATABASE_NAME),
+                vdb=get_train_qa_vdb(database_name=FEW_SHOT_DATABASE_NAME),
             )
     except KeyboardInterrupt:
         logger.info("ingestion: shutting down")
