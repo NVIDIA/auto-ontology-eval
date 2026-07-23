@@ -26,6 +26,8 @@ venv/
 # Datasets kept local only (not tracked on remote) — keep the folders, ignore their contents
 /datasets/spider2/*
 /datasets/bird/*
+/datasets/bird_interact/*
 /datasets/dor_prod/
 !/datasets/bird/.gitkeep
 !/datasets/bird/README.md
+!/datasets/bird_interact/.gitkeep

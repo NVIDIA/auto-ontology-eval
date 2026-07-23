@@ -6,28 +6,30 @@ Starts the ontology-sql-eval adapter on :6000, then invokes the official
 Bird c-Interact orchestrator against the merged GT jsonl, and writes a
 results CSV.
 
-Prerequisites (start separately BEFORE running this script):
-  VENV=/Users/ariellegeva/Desktop/GSF_and_Ontology/ontology-sql-eval/.venv/bin/python
-  PG_WRAPPERS=/tmp/pg_wrappers   # psql/createdb/dropdb shims (see setup notes below)
+Run scripts/seed_bird_interact.py first to clone the upstream repo and
+prepare datasets/bird_interact/.
+
+Prerequisites — start separately BEFORE running this script:
+  PG_WRAPPERS=/tmp/pg_wrappers   # psql/createdb/dropdb shims
 
   Bird :6001 (user_simulator):
-    cd /Users/ariellegeva/Desktop/BIRD-Interact/BIRD-Interact-ADK
-    PATH="$PG_WRAPPERS:$PATH" PYTHONPATH=. $VENV -m uvicorn user_simulator.server:app --host 127.0.0.1 --port 6001
+    cd third_party/BIRD-Interact/BIRD-Interact-ADK
+    PATH="$PG_WRAPPERS:$PATH" python -m uvicorn user_simulator.server:app --host 127.0.0.1 --port 6001
 
   Bird :6002 (db_environment — requires pg_wrappers in PATH for createdb/dropdb):
-    cd /Users/ariellegeva/Desktop/BIRD-Interact/BIRD-Interact-ADK
-    PATH="$PG_WRAPPERS:$PATH" PYTHONPATH=. $VENV -m uvicorn db_environment.server:app --host 127.0.0.1 --port 6002
+    cd third_party/BIRD-Interact/BIRD-Interact-ADK
+    PATH="$PG_WRAPPERS:$PATH" python -m uvicorn db_environment.server:app --host 127.0.0.1 --port 6002
 
   pg_wrappers setup (one-time, run from ontology-sql-eval/):
     python scripts/setup_pg_wrappers.py
 
   Bird PostgreSQL (task DBs, only needed for :6002 scoring):
-    cd /Users/ariellegeva/Desktop/BIRD-Interact/BIRD-Interact-ADK
-    docker compose up -d postgresql
+    cd third_party/BIRD-Interact/env
+    docker compose up -d bird_interact_postgresql
 
 Usage:
     python scripts/run_bird_interact_cinteract.py \\
-        --data /Users/ariellegeva/Desktop/BIRD-Interact/bird-interact-lite/bird_interact_data_with_gt.jsonl \\
+        --data datasets/bird_interact/bird_interact_data_with_gt.jsonl \\
         --output results/cinteract_lite.csv \\
         [--limit N]
 """
@@ -44,11 +46,9 @@ from pathlib import Path
 
 import httpx
 
-BIRD_ADK_DIR = Path("/Users/ariellegeva/Desktop/BIRD-Interact/BIRD-Interact-ADK")
-ONTOLOGY_DIR = Path(__file__).parent.parent
-DEFAULT_DATA = Path(
-    "/Users/ariellegeva/Desktop/BIRD-Interact/bird-interact-lite/bird_interact_data_with_gt.jsonl"
-)
+ONTOLOGY_DIR = Path(__file__).resolve().parents[1]
+BIRD_ADK_DIR = ONTOLOGY_DIR / "third_party" / "BIRD-Interact" / "BIRD-Interact-ADK"
+DEFAULT_DATA = ONTOLOGY_DIR / "datasets" / "bird_interact" / "bird_interact_data_with_gt.jsonl"
 
 
 def wait_for_health(url: str, timeout: int = 30, label: str = "") -> bool:
