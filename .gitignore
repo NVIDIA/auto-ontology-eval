@@ -29,4 +29,3 @@ venv/
 /datasets/dor_prod/
 !/datasets/bird/.gitkeep
 !/datasets/bird/README.md
-

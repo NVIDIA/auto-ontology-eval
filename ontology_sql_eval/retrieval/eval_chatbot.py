@@ -306,21 +306,26 @@ def run_evaluation(
             expected_sql = item.get("SQL", "")
             expected_answer = item.get("answer_raw", "")
             difficulty = item.get("difficulty", "")
+<<<<<<< HEAD
 
             # Each question may carry its own db_id / evidence; both are
             # optional so single-dataset eval files without them still work.
-            evidence = item.get("evidence", "") or ""
+            evidence = item.get("evidence", "")
             db_id = item.get("db_id", "")
 
             agent_question = question
             if evidence:
                 agent_question = f"{question}\n\nEvidence: {evidence}"
 
+=======
+            evidence = item.get("evidence", "") or ""
+
             expected_gold_dfs = None
             if not (expected_sql or "").strip() and is_spider2_instance_id(str(qid)):
                 expected_gold_dfs = load_gold_exec_result_dfs(str(qid))
                 if expected_gold_dfs and not (expected_answer or "").strip():
                     expected_answer = gold_dfs_to_answer_raw(expected_gold_dfs)
+>>>>>>> origin/add_spider2_eval
             logger.info("[%d/%d] q%s: %s", idx + 1, len(questions), qid, question)
             if db_id:
                 logger.info("  db_id=%s  evidence=%s", db_id, evidence[:120])
@@ -375,11 +380,14 @@ def run_evaluation(
 
                 row.update(
                     score_sql(
-                        active_connector,
+<<<<<<< HEAD
+                        active_connector, expected_sql, returned_sql, schema=db_id
+=======
+                        connectors[0],
                         expected_sql,
                         returned_sql,
-                        schema=db_id,
                         expected_gold_dfs=expected_gold_dfs,
+>>>>>>> origin/add_spider2_eval
                     )
                 )
                 row.update(score_answer(expected_answer, returned_db_str))

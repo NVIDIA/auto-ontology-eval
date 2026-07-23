@@ -84,11 +84,20 @@ def _execute_sql(
 
 
 def score_sql(
+<<<<<<< HEAD
+    connector: SQLDatabase, expected: str, actual: str, schema: str = ""
+) -> Dict[str, Any]:
+    text_sim = _sql_text_similarity(expected, actual)
+    expected_df, expected_err = _execute_sql(connector, expected, schema=schema)
+    actual_df, actual_err = _execute_sql(connector, actual, schema=schema)
+    exec_match = 0
+    if expected_df is not None and actual_df is not None:
+        exec_match = 1 if _df_values_equal(expected_df, actual_df) else 0
+=======
     connector: SQLDatabase,
     expected: str,
     actual: str,
     *,
-    schema: str = "",
     expected_gold_dfs: list[pd.DataFrame] | None = None,
 ) -> Dict[str, Any]:
     """Score *actual* SQL against *expected* SQL and/or gold result CSV(s).
@@ -100,10 +109,10 @@ def score_sql(
     official suite's multi-gold handling).
     """
     text_sim = _sql_text_similarity(expected, actual)
-    actual_df, actual_err = _execute_sql(connector, actual, schema=schema)
+    actual_df, actual_err = _execute_sql(connector, actual)
 
     if (expected or "").strip():
-        expected_df, expected_err = _execute_sql(connector, expected, schema=schema)
+        expected_df, expected_err = _execute_sql(connector, expected)
         exec_match = 0
         if expected_df is not None and actual_df is not None:
             exec_match = 1 if _df_values_equal(expected_df, actual_df) else 0
@@ -125,6 +134,7 @@ def score_sql(
         exec_match = 0
         expected_result = ""
 
+>>>>>>> origin/add_spider2_eval
     return {
         "sql_text_similarity": round(text_sim, 4),
         "sql_exec_match": exec_match,
