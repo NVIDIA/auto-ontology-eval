@@ -48,6 +48,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    import pandas as pd
+
     from nemo_retriever.common.params.models import EmbedParams
     from nemo_retriever.common.vdb.adt_vdb import VDB
 
@@ -84,7 +86,7 @@ def apply_metadata(database_name: str) -> None:
         raw = json.load(f)
 
     table_rows: list[dict[str, str]] = []
-    column_rows: list[dict[str, str | list[str] | None]] = []
+    column_rows: list[dict[str, str | None]] = []
     samples_count = 0
     for table_name, table_meta in raw.items():
         table_desc = table_meta.get("description")
@@ -94,8 +96,11 @@ def apply_metadata(database_name: str) -> None:
         for col in table_meta.get("columns", []) or []:
             col_desc = col.get("description")
             value_examples = col.get("value_examples")
-            sample_values: list[str] | None = (
-                [str(v) for v in value_examples]
+            # Store as a JSON string to match the semantic-compile writer
+            # (gsf.dal.datasources.store_column_sample_values), so every
+            # Column.sample_values property has a single consistent format.
+            sample_values: str | None = (
+                json.dumps([str(v) for v in value_examples])
                 if isinstance(value_examples, list) and value_examples
                 else None
             )
@@ -145,6 +150,141 @@ def apply_metadata(database_name: str) -> None:
         sum(1 for r in column_rows if r.get("description")),
         samples_count,
         metadata_path,
+    )
+
+
+def _format_sample_value(value: object, *, max_len: int = 60) -> str | None:
+    """Normalize a raw cell value to a short display string, or ``None`` to skip."""
+    import math
+
+    if value is None:
+        return None
+    if isinstance(value, float) and math.isnan(value):
+        return None
+    text = str(value).strip()
+    if not text or text.lower() in {"nan", "none", "null"}:
+        return None
+    if len(text) > max_len:
+        text = text[: max_len - 1] + "\u2026"
+    return text
+
+
+def _collect_column_samples(
+    frame: "pd.DataFrame", *, max_values: int
+) -> dict[str, list[str]]:
+    """Pull up to *max_values* distinct, non-null display values per column."""
+    samples: dict[str, list[str]] = {}
+    for column in frame.columns:
+        seen: list[str] = []
+        for raw in frame[column].tolist():
+            formatted = _format_sample_value(raw)
+            if formatted is None or formatted in seen:
+                continue
+            seen.append(formatted)
+            if len(seen) >= max_values:
+                break
+        if seen:
+            samples[str(column)] = seen
+    return samples
+
+
+def backfill_sample_values(
+    database_name: str,
+    connector: object,
+    *,
+    sample_row_limit: int = 200,
+    max_values_per_column: int = 5,
+) -> None:
+    """Sample real values from the source DB onto ``Column.sample_values`` nodes.
+
+    Tabular ingest records column names/types but no example values, so the
+    text-to-SQL prompt can't tell that e.g. a ``coordinates`` TEXT column holds
+    ``(lon,lat)`` tuples rather than JSON. This scans up to *sample_row_limit*
+    rows per table and stores a few distinct non-null values per column, giving
+    the model the actual value shape to parse against.
+
+    Existing sample values (e.g. curated ``value_examples`` from
+    ``metadata.json`` applied by :func:`apply_metadata`) are preserved — this
+    only fills columns that don't already have them.
+    """
+    from nemo_retriever.tabular_data.neo4j import get_neo4j_conn
+
+    dialect = str(getattr(connector, "dialect", "") or "").lower()
+    execute = getattr(connector, "execute", None)
+    get_columns = getattr(connector, "get_columns", None)
+    if not callable(execute) or not callable(get_columns):
+        logger.info(
+            "Connector for %s exposes no execute/get_columns; "
+            "skipping sample-value backfill.",
+            database_name,
+        )
+        return
+
+    try:
+        columns_df = get_columns()
+    except Exception:
+        logger.warning(
+            "Could not list columns for %s; skipping sample-value backfill.",
+            database_name,
+            exc_info=True,
+        )
+        return
+    if columns_df is None or columns_df.empty:
+        return
+
+    column_rows: list[dict[str, object]] = []
+    for (schema_name, table_name), _group in columns_df.groupby(
+        ["table_schema", "table_name"], sort=False
+    ):
+        if dialect == "sqlite":
+            ref = f'"{table_name}"'
+        elif schema_name:
+            ref = f'"{schema_name}"."{table_name}"'
+        else:
+            ref = f'"{table_name}"'
+
+        try:
+            frame = execute(f"SELECT * FROM {ref} LIMIT {int(sample_row_limit)}")
+        except Exception:
+            logger.debug(
+                "Sampling failed for %s; skipping table.", ref, exc_info=True
+            )
+            continue
+        if frame is None or frame.empty:
+            continue
+
+        for col_name, values in _collect_column_samples(
+            frame, max_values=max_values_per_column
+        ).items():
+            column_rows.append(
+                {
+                    "table_name": str(table_name),
+                    "column_name": col_name,
+                    # JSON string to match the semantic-compile writer
+                    # (gsf.dal.datasources.store_column_sample_values).
+                    "sample_values": json.dumps(values),
+                }
+            )
+
+    if not column_rows:
+        logger.info("No sample values collected for %s.", database_name)
+        return
+
+    conn = get_neo4j_conn()
+    conn.query_write(
+        query=(
+            "UNWIND $rows AS row "
+            "MATCH (d:Database {name: $database_name})-[:CONTAINS]->"
+            "(:Schema)-[:CONTAINS]->(t:Table {name: row.table_name})"
+            "-[:CONTAINS]->(c:Column {name: row.column_name}) "
+            "SET c.sample_values = coalesce(c.sample_values, row.sample_values)"
+        ),
+        parameters={"rows": column_rows, "database_name": database_name},
+    )
+    logger.info(
+        "Backfilled sample values for %d column(s) in %s.",
+        len(column_rows),
+        database_name,
     )
 
 

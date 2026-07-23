@@ -33,7 +33,11 @@ from nemo_retriever.common.params.models import TabularExtractParams
 from gsf.utils import get_embed_params
 from gsf.vdb import get_data_vdb, get_semantic_vdb
 from gsf.connectors.registry import create_connector
-from ontology_sql_eval.ingestion.enrich_graph import add_custom_analyses, apply_metadata
+from ontology_sql_eval.ingestion.enrich_graph import (
+    add_custom_analyses,
+    apply_metadata,
+    backfill_sample_values,
+)
 
 load_dotenv()
 
@@ -65,6 +69,10 @@ def run_ingest(connection_string: str) -> None:
         )
 
     apply_metadata(database_name)
+    # Curated value_examples (if any) win; this fills the rest with real values
+    # sampled from the DB so the model sees actual column shapes (e.g. that a
+    # `coordinates` TEXT column holds `(lon,lat)` tuples, not JSON).
+    backfill_sample_values(database_name, connector)
     embed_params = get_embed_params()
 
     embed_graph = (

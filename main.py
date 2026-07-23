@@ -32,6 +32,29 @@ _REPO_ROOT = Path(__file__).resolve().parent
 OUTPUT_DIR = _REPO_ROOT / "output"
 
 
+def _graph_database_name(fallback: str) -> str:
+    """Graph / pgvector database name used by ingest + semantic compile.
+
+    Ingest keys the Neo4j DB node and pgvector rows off the connector's
+    ``database_name`` (the ``metadata_database`` query param of
+    ``CONNECTION_STRINGS``). Semantic compile must filter by the *same* name, so
+    derive it from that param rather than from ``--database-name`` (which may
+    carry a dataset path prefix like ``spider2/<slug>`` used only for file
+    layout). Falls back to *fallback* when no ``metadata_database`` is present
+    (e.g. Postgres, where ``database_name`` equals the URL's database).
+    """
+    from urllib.parse import parse_qs, unquote, urlparse
+
+    conns = [s for s in os.environ.get("CONNECTION_STRINGS", "").split(",") if s.strip()]
+    if conns:
+        values = parse_qs(urlparse(conns[0]).query).get("metadata_database")
+        if values:
+            name = unquote(values[0]).strip()
+            if name:
+                return name
+    return fallback
+
+
 def _banner(step: int, title: str) -> None:
     sep = "=" * 70
     logger.info("%s", sep)
@@ -178,7 +201,7 @@ def main(argv: list[str] | None = None) -> None:
         stage_ingest()
 
     if not args.skip_semantic:
-        stage_semantic(db)
+        stage_semantic(_graph_database_name(db))
 
     if not args.skip_eval:
         eval_csv = stage_eval(database_name=db)
