@@ -24,10 +24,9 @@ venv/
 .DS_Store
 
 # Datasets kept local only (not tracked on remote) — keep the folders, ignore their contents
+/datasets/spider2/*
 /datasets/bird/*
 /datasets/dor_prod/
 !/datasets/bird/.gitkeep
 !/datasets/bird/README.md
 
-# Spider2 local SQLite databases (large, not tracked)
-/datasets/spider2/
