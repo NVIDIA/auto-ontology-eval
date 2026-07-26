@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 import uuid
+import warnings
 from contextlib import asynccontextmanager
 from typing import Any, Dict
 
@@ -21,11 +23,26 @@ from gsf.retrieval.interactive import (
 from . import bird_http
 from .session import AdapterSession, get_session, put_session
 
+# ── Logging setup ─────────────────────────────────────────────────────────────
+# Suppress noisy third-party warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="langchain")
+
+logging.basicConfig(
+    level=logging.WARNING,
+    format="%(asctime)s %(levelname)s %(message)s",
+    datefmt="%H:%M:%S",
+)
+# Our adapter logs at INFO; silence uvicorn access noise
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+logging.getLogger("gsf.retrieval.interactive.clarify").setLevel(logging.INFO)
+logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+logging.getLogger("uvicorn.error").setLevel(logging.WARNING)
+# ─────────────────────────────────────────────────────────────────────────────
 
 _DATA_RETRIEVER = None
 _SEMANTIC_RETRIEVER = None
-_CONNECTORS: dict[str, list] = {}   # db_name → [SQLDatabase]
+_CONNECTORS: dict[str, list] = {}
 
 
 @asynccontextmanager
@@ -34,6 +51,7 @@ async def lifespan(app: FastAPI):
     from gsf.utils import get_data_objects_retriever, get_semantic_objects_retriever
     from ontology_sql_eval.ingestion.ingest import database_name_for, create_connector
 
+    logger.info("[startup] loading retrievers...")
     _DATA_RETRIEVER = get_data_objects_retriever()
     _SEMANTIC_RETRIEVER = get_semantic_objects_retriever()
 
@@ -46,18 +64,17 @@ async def lifespan(app: FastAPI):
         db_name = database_name_for(cs)
         try:
             _CONNECTORS[db_name] = [create_connector(cs)]
-            logger.info("Loaded connector for %s", db_name)
         except Exception as e:
-            logger.warning("Failed to load connector for %s: %s", cs, e)
+            logger.warning("[startup] failed connector for %s: %s", cs, e)
 
-    logger.info("Adapter startup complete: %d connectors loaded", len(_CONNECTORS))
+    logger.info("[startup] ready — %d connectors loaded", len(_CONNECTORS))
     yield
 
 
 app = FastAPI(title="BIRD-Interact GSF Adapter", lifespan=lifespan)
 
 
-# ── Request models ───────────────────────────────────────────────────────────
+# ── Request models ────────────────────────────────────────────────────────────
 
 class InitSessionRequest(BaseModel):
     task_id: str
@@ -72,7 +89,7 @@ class RunSessionRequest(BaseModel):
     message: str
 
 
-# ── Endpoints ────────────────────────────────────────────────────────────────
+# ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @app.get("/health")
 async def health():
@@ -88,18 +105,20 @@ async def init_session(req: InitSessionRequest):
 
     connectors = _CONNECTORS.get(db_name, [])
     if not connectors:
-        logger.warning("No connector found for db_name=%r", db_name)
+        logger.warning("[session] no connector for db=%r", db_name)
 
+    max_turn = int(req.state.get("max_turn", 5))
     gsf_sess = gsf_create_session(
         session_id=session_id,
         task_id=req.task_id,
         db_name=db_name,
         db_schema=db_schema,
         external_kg=external_kg,
-        question="",            # extracted from first run_session message
+        question="",
         data_retriever=_DATA_RETRIEVER,
         semantic_retriever=_SEMANTIC_RETRIEVER,
         connectors=connectors,
+        max_clarify_turns=max_turn,
     )
 
     sess = AdapterSession(
@@ -110,6 +129,7 @@ async def init_session(req: InitSessionRequest):
         gsf_session=gsf_sess,
     )
     put_session(sess)
+    logger.info("[session] %s | init db=%s max_turn=%d", req.task_id, db_name, max_turn)
 
     return {
         "task_id": req.task_id,
@@ -132,16 +152,26 @@ async def run_session(req: RunSessionRequest):
     sess._submitted_this_phase = False
     import asyncio
 
+    turn = 0
+    t_start = time.time()
+
     while True:
-        # gsf_step and gsf_apply_user_answer make blocking HTTP calls to the LLM;
-        # run them in a thread so they don't block FastAPI's async event loop.
+        turn += 1
+        t0 = time.time()
         action = await asyncio.to_thread(gsf_step, sess.gsf_session, req.message)
+        elapsed = time.time() - t0
 
         if isinstance(action, AskUserAction):
+            logger.info(
+                "[turn %d | %.1fs] DECISION: ASK\n"
+                "  ┌─ question: %s",
+                turn, elapsed, action.question,
+            )
             try:
                 answer = await bird_http.ask_user(req.task_id, action.question)
+                logger.info("  └─ user answer: %s", answer)
             except Exception as e:
-                logger.error("ask_user failed for %s: %r", req.task_id, e)
+                logger.error("[turn %d] ask_user failed: %r", turn, e)
                 raise HTTPException(status_code=502, detail=f"ask_user error: {type(e).__name__}: {e}")
 
             sess.dialogue_history.append({"role": "agent", "content": action.question})
@@ -155,14 +185,25 @@ async def run_session(req: RunSessionRequest):
             continue
 
         if isinstance(action, SubmitSQLAction):
+            logger.info(
+                "[turn %d | %.1fs] DECISION: SUBMIT SQL\n"
+                "  ┌─ sql: %s",
+                turn, elapsed, action.sql,
+            )
             try:
                 result = await bird_http.submit_sql(req.task_id, action.sql)
+                reward = result.get("reward", 0)
+                phase = result.get("phase_completed")
+                msg = result.get("message", "")
+                logger.info(
+                    "  └─ result: reward=%.2f  phase_completed=%s  msg=%s",
+                    reward, phase, msg,
+                )
             except Exception as e:
-                logger.error("submit_sql failed for %s: %s", req.task_id, e)
+                logger.error("[turn %d] submit_sql failed: %s", turn, e)
                 raise HTTPException(status_code=502, detail=f"submit_sql error: {e}")
 
-            raw_msg = result.get("message", "")
-            sess._last_submit_raw = raw_msg
+            sess._last_submit_raw = result.get("message", "")
             sess.total_reward += float(result.get("reward", 0.0))
             sess.tool_trajectory.append({
                 "tool": "submit_sql",
@@ -180,6 +221,11 @@ async def run_session(req: RunSessionRequest):
             gsf_apply_submit_result(sess.gsf_session, result)
             sess._submitted_this_phase = True
             break
+
+        logger.warning("[turn %d] unexpected action type %s — aborting", turn, type(action))
+        break
+
+    logger.info("[done] %d turns in %.1fs | reward=%.2f", turn, time.time() - t_start, sess.total_reward)
 
     out_state = {
         **sess.bird_state,

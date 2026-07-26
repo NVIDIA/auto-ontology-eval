@@ -61,11 +61,6 @@ from ontology_sql_eval.retrieval.scoring import (
     score_sql,
     stringify_db_result,
 )
-from ontology_sql_eval.spider2_gold import (
-    gold_dfs_to_answer_raw,
-    is_spider2_instance_id,
-    load_gold_exec_result_dfs,
-)
 
 
 load_dotenv()
@@ -306,7 +301,6 @@ def run_evaluation(
             expected_sql = item.get("SQL", "")
             expected_answer = item.get("answer_raw", "")
             difficulty = item.get("difficulty", "")
-<<<<<<< HEAD
 
             # Each question may carry its own db_id / evidence; both are
             # optional so single-dataset eval files without them still work.
@@ -317,15 +311,6 @@ def run_evaluation(
             if evidence:
                 agent_question = f"{question}\n\nEvidence: {evidence}"
 
-=======
-            evidence = item.get("evidence", "") or ""
-
-            expected_gold_dfs = None
-            if not (expected_sql or "").strip() and is_spider2_instance_id(str(qid)):
-                expected_gold_dfs = load_gold_exec_result_dfs(str(qid))
-                if expected_gold_dfs and not (expected_answer or "").strip():
-                    expected_answer = gold_dfs_to_answer_raw(expected_gold_dfs)
->>>>>>> origin/add_spider2_eval
             logger.info("[%d/%d] q%s: %s", idx + 1, len(questions), qid, question)
             if db_id:
                 logger.info("  db_id=%s  evidence=%s", db_id, evidence[:120])
@@ -380,14 +365,7 @@ def run_evaluation(
 
                 row.update(
                     score_sql(
-<<<<<<< HEAD
                         active_connector, expected_sql, returned_sql, schema=db_id
-=======
-                        connectors[0],
-                        expected_sql,
-                        returned_sql,
-                        expected_gold_dfs=expected_gold_dfs,
->>>>>>> origin/add_spider2_eval
                     )
                 )
                 row.update(score_answer(expected_answer, returned_db_str))
@@ -428,7 +406,7 @@ def run_single_question(question: str) -> None:
     print(f"\n  Runtime: {elapsed}s")
 
 
-SINGLE_QUERY = "calculate the customer count by state province name"
+SINGLE_QUERY = "I want to analyze how the Signal-to-Noise Quality Indicator (SNQI) varies across different weather conditions. For each weather condition, give weather condition name, the average SNQI, the median SNQI, and count how many analyzable signals there are. Sort the result by average SNQI in descending order."
 
 START_INDEX = 0
 END_INDEX = None  # None = run to the end
