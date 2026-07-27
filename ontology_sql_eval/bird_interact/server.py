@@ -1,6 +1,7 @@
 """FastAPI service on port 6000 — Bird system agent interface for c-Interact."""
 from __future__ import annotations
 
+import json
 import logging
 import os
 import time
@@ -36,6 +37,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 logging.getLogger("gsf.retrieval.interactive.clarify").setLevel(logging.INFO)
+logging.getLogger("gsf.retrieval.interactive.coordinator").setLevel(logging.INFO)
 logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
 logging.getLogger("uvicorn.error").setLevel(logging.WARNING)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -74,6 +76,29 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="BIRD-Interact GSF Adapter", lifespan=lifespan)
 
 
+def _format_external_kg(raw_json: str) -> str:
+    """Parse Bird's knowledge JSON array into a human-readable bullet list."""
+    try:
+        items = json.loads(raw_json)
+    except (json.JSONDecodeError, TypeError):
+        return ""
+    if not items:
+        return ""
+    lines = []
+    for item in items:
+        name = item.get("knowledge", "")
+        desc = item.get("description", "")
+        defn = item.get("definition", "")
+        parts = [f"- {name}"] if name else []
+        if desc:
+            parts.append(f"  Description: {desc}")
+        if defn:
+            parts.append(f"  Definition: {defn}")
+        if parts:
+            lines.append("\n".join(parts))
+    return "\n".join(lines)
+
+
 # ── Request models ────────────────────────────────────────────────────────────
 
 class InitSessionRequest(BaseModel):
@@ -100,7 +125,7 @@ async def health():
 async def init_session(req: InitSessionRequest):
     db_name = req.state.get("db_name", "")
     db_schema = req.state.get("db_schema", "")
-    external_kg = req.state.get("external_kg", "[]")
+    external_kg = _format_external_kg(req.state.get("external_kg", "[]"))
     session_id = uuid.uuid4().hex
 
     connectors = _CONNECTORS.get(db_name, [])
@@ -164,12 +189,12 @@ async def run_session(req: RunSessionRequest):
         if isinstance(action, AskUserAction):
             logger.info(
                 "[turn %d | %.1fs] DECISION: ASK\n"
-                "  ┌─ question: %s",
+                "  ┌─ \033[1;35mquestion:\033[0m \033[35m%s\033[0m",
                 turn, elapsed, action.question,
             )
             try:
                 answer = await bird_http.ask_user(req.task_id, action.question)
-                logger.info("  └─ user answer: %s", answer)
+                logger.info("  └─ \033[1;35muser answer:\033[0m \033[35m%s\033[0m", answer)
             except Exception as e:
                 logger.error("[turn %d] ask_user failed: %r", turn, e)
                 raise HTTPException(status_code=502, detail=f"ask_user error: {type(e).__name__}: {e}")
@@ -187,7 +212,7 @@ async def run_session(req: RunSessionRequest):
         if isinstance(action, SubmitSQLAction):
             logger.info(
                 "[turn %d | %.1fs] DECISION: SUBMIT SQL\n"
-                "  ┌─ sql: %s",
+                "  ┌─ \033[1msql:\033[0m \033[1;35m%s\033[0m",
                 turn, elapsed, action.sql,
             )
             try:

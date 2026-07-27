@@ -321,3 +321,69 @@ def test_missing_session_404():
                 json={"task_id": "no-such-task", "message": "hello"},
             )
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# _format_external_kg
+# ---------------------------------------------------------------------------
+
+from ontology_sql_eval.bird_interact.server import _format_external_kg  # noqa: E402
+
+
+def test_format_empty_array():
+    assert _format_external_kg("[]") == ""
+
+
+def test_format_malformed_json():
+    assert _format_external_kg("not json") == ""
+
+
+def test_format_single_item():
+    raw = '[{"knowledge": "PPR", "description": "Panel Performance Ratio.", "definition": "PPR = A/B * 100%"}]'
+    result = _format_external_kg(raw)
+    assert "PPR" in result
+    assert "Panel Performance Ratio" in result
+    assert "PPR = A/B * 100%" in result
+
+
+def test_format_item_missing_optional_fields():
+    raw = '[{"knowledge": "ROI"}]'
+    result = _format_external_kg(raw)
+    assert "ROI" in result
+    assert "Description" not in result
+    assert "Definition" not in result
+
+
+def test_format_multiple_items():
+    raw = '[{"knowledge": "A", "description": "desc A"}, {"knowledge": "B", "description": "desc B"}]'
+    result = _format_external_kg(raw)
+    assert "- A" in result
+    assert "- B" in result
+
+
+def test_init_session_formats_external_kg():
+    """init_session with raw knowledge JSON stores formatted text on the GSF session."""
+    mock_sess = MagicMock()
+    create_mock = MagicMock(return_value=mock_sess)
+    raw_kg = '[{"knowledge": "PPR", "description": "Panel ratio.", "definition": "PPR = A/B"}]'
+
+    with (
+        patch.object(server_mod, "_DATA_RETRIEVER", MagicMock()),
+        patch.object(server_mod, "_SEMANTIC_RETRIEVER", MagicMock()),
+        patch.object(server_mod, "_CONNECTORS", {"alien": [MagicMock()]}),
+        patch.object(server_mod, "gsf_create_session", create_mock),
+        patch.object(app.router, "lifespan_context", _noop_lifespan),
+    ):
+        with TestClient(app) as client:
+            client.post(
+                "/init_session",
+                json={
+                    "task_id": "task-kg",
+                    "state": {"db_name": "alien", "external_kg": raw_kg},
+                },
+            )
+
+    passed_kg = create_mock.call_args.kwargs["external_kg"]
+    assert "PPR" in passed_kg
+    assert "Panel ratio" in passed_kg
+    assert raw_kg not in passed_kg  # raw JSON must NOT be passed through

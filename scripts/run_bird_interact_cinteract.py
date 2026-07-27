@@ -47,7 +47,7 @@ from pathlib import Path
 import httpx
 
 ONTOLOGY_DIR = Path(__file__).resolve().parents[1]
-BIRD_ADK_DIR = ONTOLOGY_DIR / "third_party" / "BIRD-Interact" / "BIRD-Interact-ADK"
+BIRD_ADK_DIR = ONTOLOGY_DIR.parent.parent / "BIRD-Interact" / "BIRD-Interact-ADK"
 DEFAULT_DATA = ONTOLOGY_DIR / "datasets" / "bird_interact" / "bird_interact_data_with_gt.jsonl"
 
 
