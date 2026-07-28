@@ -233,7 +233,7 @@ def main() -> None:
         print(f"\n-- Phase 1 (max {max_turn} clarification turns) --")
         resp  = post(f"{agent_url}/run_session",
                      {"task_id": task_id, "mode": "c-interact", "message": phase1_msg},
-                     timeout=600.0)
+                     timeout=1800.0)
         state = resp.get("state", {})
         p1_pass = state.get("phase1_completed", False)
         reward  = state.get("total_reward", 0.0)
@@ -257,9 +257,10 @@ def main() -> None:
                 f"Generate the PostgreSQL query and call submit_sql."
             )
             print("-- Phase 2 --")
+            print(f"Query:    {follow_up_query}")
             resp  = post(f"{agent_url}/run_session",
                          {"task_id": task_id, "mode": "c-interact", "message": fu_msg},
-                         timeout=600.0)
+                         timeout=1800.0)
             state = resp.get("state", {})
             p2_pass = state.get("phase2_completed", False)
             reward  = state.get("total_reward", 0.0)

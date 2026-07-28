@@ -124,6 +124,7 @@ def main() -> None:
     if existing_pythonpath:
         pythonpath_parts.append(existing_pythonpath)
     env = {**os.environ, **dotenv_vars, "PYTHONPATH": ":".join(pythonpath_parts)}
+    env.pop("VIRTUAL_ENV", None)
     adapter_proc = subprocess.Popen(
         [
             sys.executable, "-m", "uvicorn",
@@ -152,7 +153,7 @@ def main() -> None:
         if args.limit:
             cmd += ["--limit", str(args.limit)]
 
-        result = subprocess.run(cmd, cwd=str(BIRD_ADK_DIR))
+        result = subprocess.run(cmd, cwd=str(BIRD_ADK_DIR), env=env)
         if result.returncode != 0:
             print(f"Orchestrator exited with code {result.returncode}", file=sys.stderr)
             sys.exit(result.returncode)
