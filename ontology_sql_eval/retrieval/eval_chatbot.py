@@ -49,7 +49,16 @@ import traceback
 from pathlib import Path
 from typing import Any, Dict, List
 
+# ruff: noqa: E402 - file-scoped: the imports after load_dotenv() below are
+# deliberately late, for the reason described next.
+# Load .env BEFORE importing gsf: gsf.utils.embedding (and semantic_fk/embed)
+# capture EMBED_API_KEY / EMBED_ENDPOINT / EMBED_MODEL into module-level
+# constants at import time. Importing gsf first freezes those to the shell's
+# NVIDIA_API_KEY fallback (an sk- proxy key), causing 401s against the public
+# integrate.api.nvidia.com embeddings endpoint.
 from dotenv import load_dotenv
+
+load_dotenv()
 
 from gsf.retrieval.text_to_sql.main import get_agent_response
 from gsf.retrieval.text_to_sql.state import TextToSQLPayload
@@ -61,9 +70,6 @@ from ontology_sql_eval.retrieval.scoring import (
     score_sql,
     stringify_db_result,
 )
-
-
-load_dotenv()
 
 # The text-to-SQL agent stores executed-DB rows under this key on its result dict.
 _DB_RESULT_KEY = "sql_response_from_db"
@@ -211,6 +217,10 @@ CSV_FIELDS = [
     "question",
     "expected_sql",
     "returned_sql",
+    # JSON list of every candidate the generator produced, so oracle is
+    # computable from this file alone rather than from the generator's debug
+    # log, which is cleared between runs.
+    "candidate_sqls",
     "sql_text_similarity",
     "sql_exec_match",
     "expected_sql_error",
@@ -225,8 +235,105 @@ CSV_FIELDS = [
 ]
 
 
+def _clip(text: Any, limit: int = 1000) -> str:
+    """Stringify *text* and truncate to *limit* characters when longer."""
+    s = "" if text is None else str(text)
+    if len(s) <= limit:
+        return s
+    return s[:limit] + "…"
+
+
+def _format_db_result_for_display(value: Any, *, limit: int = 1000) -> str:
+    """Format a DB result for stdout, preferring cell values over long aliases.
+
+    Gold SQLs often omit aliases, so pandas names columns after the full
+    expression (``CAST(SUM(...))...``). Clipping that string hides the actual
+    numeric result. This renderer shortens long column names and keeps values.
+    """
+    import json as _json
+
+    import pandas as pd
+
+    from ontology_sql_eval.retrieval.scoring import stringify_db_result
+
+    if value is None:
+        return ""
+
+    df: pd.DataFrame | None = None
+    if isinstance(value, pd.DataFrame):
+        df = value
+    elif isinstance(value, list) and value and isinstance(value[0], dict):
+        try:
+            df = pd.DataFrame(value)
+        except Exception:
+            df = None
+    else:
+        text = stringify_db_result(value) if not isinstance(value, str) else value
+        text = str(text).strip()
+        # Agent path often wraps JSON as "['[{...}]']"
+        if text.startswith("[") and "'[" in text:
+            try:
+                outer = _json.loads(text.replace("'", '"'))
+                if (
+                    isinstance(outer, list)
+                    and len(outer) == 1
+                    and isinstance(outer[0], str)
+                ):
+                    text = outer[0]
+            except Exception:
+                pass
+        if text.startswith("[") or text.startswith("{"):
+            try:
+                parsed = _json.loads(text)
+                if isinstance(parsed, list) and parsed and isinstance(parsed[0], dict):
+                    df = pd.DataFrame(parsed)
+                elif isinstance(parsed, dict):
+                    df = pd.DataFrame([parsed])
+            except Exception:
+                pass
+        if df is None and "\n" in text:
+            # CSV from stringify_db_result(DataFrame). Single-column gold SQLs
+            # often have no comma in the header (the header IS the expression).
+            try:
+                from io import StringIO
+
+                parsed_df = pd.read_csv(StringIO(text))
+                if not parsed_df.empty or text.strip():
+                    df = parsed_df
+            except Exception:
+                pass
+        if df is None:
+            return _clip(text, limit)
+
+    assert df is not None
+    # Shorten huge expression-as-alias headers; keep values intact.
+    short_cols = []
+    for i, col in enumerate(df.columns):
+        name = str(col)
+        short_cols.append(name if len(name) <= 40 else f"c{i}")
+    view = df.head(50).copy()
+    view.columns = short_cols
+    # Compact: values-first one-liner when tiny; else short CSV
+    if len(view) <= 5 and len(short_cols) <= 4:
+        rows = [
+            [None if (isinstance(v, float) and pd.isna(v)) else v for v in row]
+            for row in view.values.tolist()
+        ]
+        rendered = _json.dumps(rows, default=str)
+        rendered = f"cols={short_cols} values={rendered}"
+    else:
+        rendered = view.to_csv(index=False)
+    return _clip(rendered, limit)
+
+
 def _print_agent_result(
-    qid: Any, question: str, agent_result: Dict[str, Any] | None, expected_sql: str = ""
+    qid: Any,
+    question: str,
+    agent_result: Dict[str, Any] | None,
+    expected_sql: str = "",
+    *,
+    expected_sql_result: str = "",
+    expected_sql_error: str = "",
 ) -> None:
     """Pretty-print the agent result to stdout for quick visual inspection."""
     sep = "=" * 80
@@ -237,6 +344,12 @@ def _print_agent_result(
         print("\n  [expected_sql]")
         for line in expected_sql.splitlines():
             print(f"    {line}")
+    if expected_sql_error:
+        print("\n  [expected_sql_error]")
+        print(f"    {_clip(expected_sql_error)}")
+    elif expected_sql_result or expected_sql:
+        print("\n  [expected_sql_result]")
+        print(f"    {_format_db_result_for_display(expected_sql_result)}")
     if not agent_result:
         print("  (no result)")
         print(sep)
@@ -246,7 +359,11 @@ def _print_agent_result(
         if val is None:
             continue
         print(f"\n  [{key}]")
-        for line in str(val).splitlines():
+        if key == "sql_response_from_db":
+            rendered = _format_db_result_for_display(val)
+        else:
+            rendered = str(val)
+        for line in rendered.splitlines():
             print(f"    {line}")
     remaining = {
         k: v
@@ -322,6 +439,7 @@ def run_evaluation(
                 "question": question,
                 "expected_sql": expected_sql,
                 "returned_sql": "",
+                "candidate_sqls": "",
                 "sql_text_similarity": 0.0,
                 "sql_exec_match": 0,
                 "expected_sql_error": "",
@@ -354,13 +472,14 @@ def run_evaluation(
                 }
                 logger.info("Running question %s", payload["question"])
                 agent_result = get_agent_response(payload)
-                _print_agent_result(qid, question, agent_result, expected_sql)
                 returned_sql = (agent_result or {}).get("sql_code", "") or ""
                 returned_db = (agent_result or {}).get(_DB_RESULT_KEY)
                 returned_db_str = stringify_db_result(returned_db)
 
                 row["returned_sql"] = returned_sql
                 row["returned_answer"] = returned_db_str
+                candidates = (agent_result or {}).get("sql_candidates") or []
+                row["candidate_sqls"] = json.dumps(candidates) if candidates else ""
 
                 row.update(
                     score_sql(
@@ -368,6 +487,14 @@ def run_evaluation(
                     )
                 )
                 row.update(score_answer(expected_answer, returned_db_str))
+                _print_agent_result(
+                    qid,
+                    question,
+                    agent_result,
+                    expected_sql,
+                    expected_sql_result=row.get("expected_sql_result", ""),
+                    expected_sql_error=row.get("expected_sql_error", ""),
+                )
             except Exception as exc:
                 logger.exception("Question %s failed", qid)
                 row["error"] = f"{type(exc).__name__}: {exc}"

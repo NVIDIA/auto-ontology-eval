@@ -22,10 +22,18 @@ import argparse
 import logging
 import os
 
+# ruff: noqa: E402 - file-scoped: the imports after load_dotenv() below are
+# deliberately late, for the reason described next.
+# Load .env BEFORE importing gsf: gsf.utils.embedding (and semantic_fk/embed)
+# capture EMBED_API_KEY / EMBED_ENDPOINT / EMBED_MODEL into module-level
+# constants at import time. Importing gsf first freezes those to the shell's
+# NVIDIA_API_KEY fallback (an sk- proxy key), causing 401s against the public
+# integrate.api.nvidia.com embeddings endpoint.
 from dotenv import load_dotenv
-from gsf.semantic.compile import run_semantic_compilation
 
 load_dotenv()
+
+from gsf.semantic.compile import run_semantic_compilation
 
 logger = logging.getLogger(__name__)
 

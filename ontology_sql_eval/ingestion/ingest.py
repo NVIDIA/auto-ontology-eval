@@ -22,7 +22,17 @@ import argparse
 import logging
 import os
 
+# ruff: noqa: E402 - file-scoped: the imports after load_dotenv() below are
+# deliberately late, for the reason described next.
+# Load .env BEFORE importing gsf: gsf.utils.embedding (and semantic_fk/embed)
+# capture EMBED_API_KEY / EMBED_ENDPOINT / EMBED_MODEL into module-level
+# constants at import time. Importing gsf first freezes those to the shell's
+# NVIDIA_API_KEY fallback (an sk- proxy key), causing 401s against the public
+# integrate.api.nvidia.com embeddings endpoint.
 from dotenv import load_dotenv
+
+load_dotenv()
+
 from nemo_retriever.graph import Graph
 from nemo_retriever.tabular_data.operators.tabular_schema_extract_operator import (
     TabularSchemaExtractOp,
@@ -43,8 +53,6 @@ from ontology_sql_eval.ingestion.enrich_graph import (
     apply_metadata,
     train_json_for_dataset,
 )
-
-load_dotenv()
 
 logger = logging.getLogger(__name__)
 

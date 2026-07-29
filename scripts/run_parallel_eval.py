@@ -28,6 +28,7 @@ import csv
 import json
 import logging
 import os
+import queue
 import shutil
 import subprocess
 import sys
@@ -136,6 +137,37 @@ def _write_slice(
         json.dump(questions[start:end], f)
 
 
+def _read_shard(path: Path) -> tuple[list[str], list[dict[str, str]]] | None:
+    """Return ``(fieldnames, rows)`` for a readable shard, else ``None``.
+
+    A worker killed mid-write can leave a truncated final row, which is
+    dropped so the row count reflects only usable answers.
+    """
+    if not path.exists():
+        return None
+    try:
+        with path.open("r", encoding="utf-8", newline="") as f:
+            reader = csv.DictReader(f)
+            if not reader.fieldnames:
+                return None
+            fieldnames = list(reader.fieldnames)
+            rows = list(reader)
+    except (OSError, csv.Error, UnicodeError):
+        return None
+    while rows and (None in rows[-1] or None in rows[-1].values()):
+        rows.pop()
+    return fieldnames, rows
+
+
+def _rewrite_shard(
+    path: Path, fieldnames: list[str], rows: list[dict[str, str]]
+) -> None:
+    with path.open("w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
 def _stream_output(proc: subprocess.Popen[str], prefix: str) -> None:
     """Stream one worker's combined stdout/stderr with a prefix."""
     assert proc.stdout is not None
@@ -153,14 +185,47 @@ def _run_range(
     database_name: str,
     slug: str,
     tmp_dir: Path,
+    resume: bool,
 ) -> tuple[int, Path, bool]:
     idx, start, end = job
     slice_input = tmp_dir / f"part{idx}_{start}_{end}.json"
     output_path = _shard_output(database_name, slug, idx, start, end)
+    expected = end - start
+
+    resume_from = 0
+    if resume:
+        shard = _read_shard(output_path)
+        if shard is not None:
+            fieldnames, rows = shard
+            if len(rows) == expected:
+                logger.info(
+                    "slot %d chunk %d: resuming completed shard (%d rows): %s",
+                    slot_idx,
+                    idx,
+                    len(rows),
+                    output_path,
+                )
+                return idx, output_path, True
+            if 0 < len(rows) < expected:
+                # Keep the answers already paid for and restart the worker at
+                # the first unanswered question; eval_chatbot appends when
+                # --start-index > 0.
+                _rewrite_shard(output_path, fieldnames, rows)
+                resume_from = len(rows)
+                logger.info(
+                    "slot %d chunk %d: resuming partial shard at %d/%d rows: %s",
+                    slot_idx,
+                    idx,
+                    resume_from,
+                    expected,
+                    output_path,
+                )
+
     _write_slice(questions, start, end, slice_input)
 
-    # Never merge a stale shard left by an earlier failed run.
-    output_path.unlink(missing_ok=True)
+    # An unreadable or over-long shard must be recomputed from scratch.
+    if resume_from == 0:
+        output_path.unlink(missing_ok=True)
 
     cmd = [
         sys.executable,
@@ -171,7 +236,7 @@ def _run_range(
         "--output",
         str(output_path),
         "--start-index",
-        "0",
+        str(resume_from),
     ]
     env = os.environ.copy()
     if api_key:
@@ -212,7 +277,6 @@ def _run_range(
     if output_path.exists():
         with output_path.open("r", encoding="utf-8", newline="") as f:
             row_count = sum(1 for _ in csv.DictReader(f))
-    expected = end - start
     if row_count != expected:
         logger.error(
             "chunk %d wrote %d/%d rows (%s)",
@@ -231,26 +295,35 @@ def _run_slot(
     *,
     slot_idx: int,
     api_key: str | None,
-    jobs: list[Job],
     questions: list[dict[str, Any]],
     database_name: str,
     slug: str,
     tmp_dir: Path,
+    job_queue: queue.Queue[Job],
+    resume: bool,
 ) -> list[tuple[int, Path, bool]]:
-    """Run one key's chunks sequentially."""
+    """Consume a shared job queue while retaining one subprocess per API key."""
     results: list[tuple[int, Path, bool]] = []
-    for job in jobs:
-        results.append(
-            _run_range(
-                job=job,
-                slot_idx=slot_idx,
-                api_key=api_key,
-                questions=questions,
-                database_name=database_name,
-                slug=slug,
-                tmp_dir=tmp_dir,
+    while True:
+        try:
+            job = job_queue.get_nowait()
+        except queue.Empty:
+            break
+        try:
+            results.append(
+                _run_range(
+                    job=job,
+                    slot_idx=slot_idx,
+                    api_key=api_key,
+                    questions=questions,
+                    database_name=database_name,
+                    slug=slug,
+                    tmp_dir=tmp_dir,
+                    resume=resume,
+                )
             )
-        )
+        finally:
+            job_queue.task_done()
     return results
 
 
@@ -317,6 +390,21 @@ def _parse_args() -> argparse.Namespace:
             "one when only NVIDIA_API_KEY is configured."
         ),
     )
+    parser.add_argument(
+        "--no-resume",
+        action="store_true",
+        help="Recompute every shard even when a complete shard CSV already exists.",
+    )
+    parser.add_argument(
+        "--questions-file",
+        type=Path,
+        default=None,
+        help=(
+            "Score this question file instead of the dataset's evaluation.json "
+            "(same format), for probe subsets. Shards and the merged CSV are "
+            "named after its stem so they never collide with a full run."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -327,7 +415,8 @@ def main() -> int:
     )
     args = _parse_args()
 
-    questions = _load_questions(_dataset_input_path(args.database_name))
+    questions_path = args.questions_file or _dataset_input_path(args.database_name)
+    questions = _load_questions(questions_path)
     total = len(questions)
     ranges = (
         _parse_ranges(args.ranges, total)
@@ -338,7 +427,8 @@ def main() -> int:
         (idx, start, end) for idx, (start, end) in enumerate(ranges)
     ]
 
-    keys: list[str | None] = _api_keys() or [None]
+    configured_keys = _api_keys()
+    keys: list[str | None] = list(configured_keys) if configured_keys else [None]
     if args.max_workers is not None:
         if args.max_workers <= 0:
             raise SystemExit("--max-workers must be positive.")
@@ -346,17 +436,25 @@ def main() -> int:
     slot_count = min(len(keys), len(jobs))
     keys = keys[:slot_count]
 
-    # Round-robin distribution keeps each key busy while guaranteeing that no
-    # key is used by more than one active subprocess.
-    slot_jobs = [jobs[slot_idx::slot_count] for slot_idx in range(slot_count)]
+    # A shared queue lets faster key slots steal pending chunks from slower
+    # slots, while one worker thread per key preserves key exclusivity.
+    job_queue: queue.Queue[Job] = queue.Queue()
+    for job in jobs:
+        job_queue.put(job)
     logger.info(
-        "%d questions, %d chunks, %d simultaneous key slot(s)",
+        "%d questions, %d chunks, %d simultaneous key slot(s), resume=%s",
         total,
         len(jobs),
         slot_count,
+        not args.no_resume,
     )
 
     slug = _model_slug()
+    # A probe run must never write over a completed full run's shards, so the
+    # question file's stem replaces the dataset name in every output path.
+    output_prefix = (
+        args.questions_file.stem if args.questions_file else args.database_name
+    )
     tmp_dir = Path(tempfile.mkdtemp(prefix="parallel_eval_"))
     results: list[tuple[int, Path, bool]] = []
     try:
@@ -366,11 +464,12 @@ def main() -> int:
                     _run_slot,
                     slot_idx=slot_idx,
                     api_key=keys[slot_idx],
-                    jobs=slot_jobs[slot_idx],
                     questions=questions,
-                    database_name=args.database_name,
+                    database_name=output_prefix,
                     slug=slug,
                     tmp_dir=tmp_dir,
+                    job_queue=job_queue,
+                    resume=not args.no_resume,
                 )
                 for slot_idx in range(slot_count)
             ]
@@ -390,7 +489,7 @@ def main() -> int:
         return 1
 
     shard_paths = [path for _, path, _ in results]
-    merged_path = INPUT_DIR / f"{args.database_name}_{slug}.csv"
+    merged_path = INPUT_DIR / f"{output_prefix}_{slug}.csv"
     _merge_shards(shard_paths, merged_path)
     logger.info("All %d chunks completed successfully.", len(jobs))
     return 0

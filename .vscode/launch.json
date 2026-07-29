@@ -85,10 +85,11 @@
       "module": "ontology_sql_eval.judge.bird",
       "args": [
         "--input",
-        "input/bird_gpt-5.5.csv",
+        "input/bird_bedrock-claude-opus-4-8.csv",
         "--dataset-name",
         "bird",
-        "--skip-ves"
+        "--skip-ves",
+        "--no-include-oracle"
       ],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
@@ -136,7 +137,7 @@
         "--database-name",
         "bird",
         "--chunk-size",
-        "100"
+        "64"
       ],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
