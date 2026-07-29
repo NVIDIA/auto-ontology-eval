@@ -120,6 +120,7 @@ if __name__ == "__main__":
             "CONNECTION_STRINGS is not set. Add it to your .env, e.g.:\n\n"
             "    CONNECTION_STRINGS=postgresql://user:password@host:5432/dbname"
         )
+    failures: list[tuple[str, Exception]] = []
     try:
         for i, connection_string in enumerate(connection_strings, start=1):
             logger.info(
@@ -128,7 +129,25 @@ if __name__ == "__main__":
                 len(connection_strings),
                 connection_string,
             )
-            run_ingest(connection_string)
+            try:
+                run_ingest(connection_string)
+            except Exception as exc:
+                logger.error(
+                    "Ingest FAILED for %s: %s — skipping",
+                    connection_string,
+                    exc,
+                )
+                failures.append((connection_string, exc))
     except KeyboardInterrupt:
         logger.info("ingestion: shutting down")
         raise SystemExit(0)
+
+    if failures:
+        logger.warning(
+            "%d/%d database(s) failed ingest:",
+            len(failures),
+            len(connection_strings),
+        )
+        for cs, exc in failures:
+            logger.warning("  %s: %s", cs, exc)
+        raise SystemExit(1)

@@ -459,6 +459,7 @@ def _build_sqlite_datasets(*, upstream_commit: str | None = None) -> Path:
     manifest_databases: list[dict[str, Any]] = []
     transpile_failures: list[dict[str, str]] = []
     missing_gold_sql: list[dict[str, str]] = []
+    all_questions: list[dict[str, Any]] = []
 
     for spider2_db_name in sorted(grouped):
         slug = slugify(spider2_db_name)
@@ -507,10 +508,7 @@ def _build_sqlite_datasets(*, upstream_commit: str | None = None) -> Path:
                 }
             )
 
-        eval_path = out_dir / "evaluation.json"
-        with eval_path.open("w", encoding="utf-8") as f:
-            json.dump(evaluation, f, indent=2, ensure_ascii=False)
-            f.write("\n")
+        all_questions.extend(evaluation)
 
         manifest_databases.append(
             {
@@ -519,14 +517,26 @@ def _build_sqlite_datasets(*, upstream_commit: str | None = None) -> Path:
                 "dataset_name": f"spider2/{slug}",
                 "postgres_database_name": f"spider2_{slug}",
                 "dataset_dir": str(out_dir.relative_to(_datasets_dir())),
-                "evaluation_json": str(eval_path.relative_to(_datasets_dir())),
                 "question_count": len(evaluation),
                 "question_ids": question_ids,
                 "sqlite_filename": f"{slug}.sqlite",
                 "sqlite_path": f"spider2/{slug}/{slug}.sqlite",
             }
         )
-        logger.info("Wrote %s (%d questions) -> %s", f"spider2/{slug}", len(evaluation), eval_path)
+        logger.debug("Collected %s (%d questions)", f"spider2/{slug}", len(evaluation))
+
+    # Write a single merged evaluation.json at datasets/spider2/evaluation.json so
+    # eval_chatbot.py --database-name spider2 can load all 135 questions in one shot.
+    merged_eval_path = _spider2_datasets_dir() / "evaluation.json"
+    all_questions_sorted = sorted(all_questions, key=lambda q: q["question_id"])
+    with merged_eval_path.open("w", encoding="utf-8") as f:
+        json.dump(all_questions_sorted, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+    logger.info(
+        "Wrote merged evaluation.json (%d questions) -> %s",
+        len(all_questions_sorted),
+        merged_eval_path,
+    )
 
     manifest = {
         "source": {
@@ -695,28 +705,31 @@ def _download_sqlite_archive(archive_path: Path, *, force: bool = False) -> None
 
     archive_path.parent.mkdir(parents=True, exist_ok=True)
     logger.info("Downloading Spider2-lite local SQLite archive to %s", archive_path)
-    logger.info("Source: %s", LOCAL_SQLITE_DRIVE_URL)
+    logger.info("Drive file ID: %s", LOCAL_SQLITE_DRIVE_ID)
 
-    result = subprocess.run(
-        ["curl", "-fL", LOCAL_SQLITE_DRIVE_URL, "-o", str(archive_path)],
-        check=False,
-        capture_output=True,
-        text=True,
+    try:
+        import gdown  # type: ignore[import-untyped]
+    except ImportError as exc:
+        raise SystemExit(
+            "gdown is required to download from Google Drive. "
+            "Install it with:  uv pip install gdown\n"
+            "Manual fallback: download local_sqlite.zip from spider2-lite/README.md "
+            f"and place it at {archive_path}"
+        ) from exc
+
+    # gdown handles the virus-scan confirmation redirect that plain curl misses.
+    gdown.download(
+        id=LOCAL_SQLITE_DRIVE_ID,
+        output=str(archive_path),
+        quiet=False,
     )
-    if result.returncode != 0:
-        raise RuntimeError(
-            "Failed to download local_sqlite.zip from Google Drive.\n"
-            f"curl exit {result.returncode}: {result.stderr.strip()}\n"
-            "Manual fallback: download from Spider2 spider2-lite/README.md and "
-            f"place the zip at {archive_path}"
-        ) from None
 
-    if not zipfile.is_zipfile(archive_path):
+    if not archive_path.exists() or not zipfile.is_zipfile(archive_path):
         archive_path.unlink(missing_ok=True)
         raise RuntimeError(
             f"Downloaded file is not a valid zip archive: {archive_path}\n"
-            "Google Drive may have returned an HTML confirmation page. "
-            "Try downloading manually from spider2-lite/README.md."
+            "Try downloading manually from spider2-lite/README.md and "
+            f"placing the zip at {archive_path}"
         )
 
     logger.info("Download complete (%d bytes).", archive_path.stat().st_size)
