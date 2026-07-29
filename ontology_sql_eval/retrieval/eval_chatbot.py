@@ -265,9 +265,22 @@ def run_evaluation(
     output_path: Path,
     start_index: int = 0,
     end_index: int | None = None,
+    question_id: str | None = None,
 ) -> None:
     all_questions = _load_questions(input_path)
-    questions = all_questions[start_index:end_index]
+    if question_id is not None:
+        matches = [
+            (i, item)
+            for i, item in enumerate(all_questions)
+            if str(item.get("question_id", "")).strip() == question_id
+        ]
+        if not matches:
+            raise SystemExit(f"question_id not found in {input_path}: {question_id}")
+        start_index, item = matches[0]
+        questions = [item]
+        end_index = start_index + 1
+    else:
+        questions = all_questions[start_index:end_index]
     logger.info(
         "Running questions %d–%d (%d of %d total) from %s",
         start_index,
@@ -439,6 +452,12 @@ def _parse_args() -> argparse.Namespace:
         default=False,
         help="Run a single hardcoded query (edit SINGLE_QUERY in the script).",
     )
+    parser.add_argument(
+        "--question-id",
+        type=str,
+        default=None,
+        help="Run only the evaluation entry with this question_id.",
+    )
     return parser.parse_args()
 
 
@@ -461,4 +480,5 @@ if __name__ == "__main__":
             output_path=output_path,
             start_index=START_INDEX,
             end_index=END_INDEX,
+            question_id=args.question_id,
         )
