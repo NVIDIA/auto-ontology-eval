@@ -482,6 +482,20 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help="Run only the evaluation entry with this question_id.",
     )
+    parser.add_argument(
+        "--start-index",
+        type=int,
+        default=None,
+        help="0-based index of the first question to run (appends to an existing "
+        "output CSV). Defaults to START_INDEX in this module.",
+    )
+    parser.add_argument(
+        "--end-index",
+        type=int,
+        default=None,
+        help="Exclusive 0-based end index (None = run to the end). "
+        "Defaults to END_INDEX in this module.",
+    )
     return parser.parse_args()
 
 
@@ -502,7 +516,7 @@ if __name__ == "__main__":
         run_evaluation(
             input_path=input_path,
             output_path=output_path,
-            start_index=START_INDEX,
-            end_index=END_INDEX,
+            start_index=START_INDEX if args.start_index is None else args.start_index,
+            end_index=END_INDEX if args.end_index is None else args.end_index,
             question_id=args.question_id,
         )
