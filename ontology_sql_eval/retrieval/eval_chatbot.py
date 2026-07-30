@@ -22,9 +22,10 @@ result)), this script:
 Each question is iterated independently. When a question carries a ``db_id``,
 it selects the matching connector from ``CONNECTION_STRINGS`` (``db_id`` equals
 the connector's ``database_name``) and scopes retrieval to that database via the
-connector passed in ``connectors``. Any ``evidence`` is appended to the
-question. Questions without a ``db_id`` fall back to the first configured
-connector.
+connector passed in ``connectors``. Every ``db_id`` is resolved before the first
+question runs, so an unroutable one aborts the run instead of quietly answering
+against the wrong database. Any ``evidence`` is appended to the question.
+Questions without a ``db_id`` use the first configured connector.
 
 Usage::
 
@@ -299,6 +300,24 @@ def run_evaluation(
         if name:
             connectors_by_name[name] = connector
 
+    # Resolve every db_id up front. A miss here used to fall through to
+    # connectors[0], so a naming-convention drift between the eval file and
+    # CONNECTION_STRINGS answered whole databases' questions against the wrong
+    # schema with nothing in the log to show it.
+    unresolved = sorted(
+        {
+            str(item["db_id"])
+            for item in questions
+            if item.get("db_id") and str(item["db_id"]) not in connectors_by_name
+        }
+    )
+    if unresolved:
+        raise SystemExit(
+            f"{len(unresolved)} db_id(s) in {input_path} have no connector in "
+            f"CONNECTION_STRINGS: {unresolved}\n"
+            f"Configured databases: {sorted(connectors_by_name)}"
+        )
+
     resuming = start_index > 0 and output_path.exists()
     mode = "a" if resuming else "w"
 
@@ -324,9 +343,21 @@ def run_evaluation(
             if evidence:
                 agent_question = f"{question}\n\nEvidence: {evidence}"
 
+            # Every db_id was resolved before the loop, so this lookup cannot
+            # miss; only questions that carry no db_id use the first connector.
+            active_connector = (
+                connectors_by_name[db_id] if db_id else connectors[0]
+            )
+            active_connectors = [active_connector]
+
             logger.info("[%d/%d] q%s: %s", idx + 1, len(questions), qid, question)
             if db_id:
-                logger.info("  db_id=%s  evidence=%s", db_id, evidence[:120])
+                logger.info(
+                    "  db_id=%s -> %s  evidence=%s",
+                    db_id,
+                    getattr(active_connector, "database_name", "?"),
+                    evidence[:120],
+                )
 
             row: Dict[str, Any] = {
                 "row_index": idx,
@@ -346,13 +377,6 @@ def run_evaluation(
                 "runtime_seconds": "",
                 "error": "",
             }
-
-            # Route to the connector matching this question's db_id; fall back
-            # to the first connector when the question is not db-scoped.
-            active_connector = connectors_by_name.get(db_id) if db_id else None
-            if active_connector is None:
-                active_connector = connectors[0]
-            active_connectors = [active_connector]
 
             t0 = time.perf_counter()
             try:

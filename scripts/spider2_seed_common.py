@@ -471,7 +471,7 @@ def _build_sqlite_datasets(*, upstream_commit: str | None = None) -> Path:
 
         for row in sorted(grouped[spider2_db_name], key=lambda r: r["instance_id"]):
             instance_id = row["instance_id"]
-            question_ids.append(instance_id)
+            question_ids.append(f"sf_{instance_id}")
             sqlite_sql, missing_sql = _load_gold_sql(instance_id)
             if missing_sql:
                 missing_gold_sql.append(
@@ -496,8 +496,13 @@ def _build_sqlite_datasets(*, upstream_commit: str | None = None) -> Path:
 
             evaluation.append(
                 {
-                    "question_id": instance_id,
-                    "db_id": spider2_db_name,
+                    # The judge and every historical result CSV key questions by
+                    # the Snowflake-style ``sf_local010``; the lite manifest omits
+                    # that prefix, so add it here rather than at every consumer.
+                    "question_id": f"sf_{instance_id}",
+                    # Match SQLite connector.database_name (file stem), not the
+                    # mixed-case Spider2-lite ``db`` field (``E_commerce``).
+                    "db_id": slug,
                     "question": row.get("question", ""),
                     "evidence": _load_evidence(row.get("external_knowledge")),
                     "SQL": sqlite_sql,
