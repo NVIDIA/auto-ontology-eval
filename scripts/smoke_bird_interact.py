@@ -18,6 +18,8 @@ Usage:
     python scripts/smoke_bird_interact.py --data /path/to/bird_interact_data_with_gt.jsonl
     python scripts/smoke_bird_interact.py --task-index 3
     python scripts/smoke_bird_interact.py --db alien       # pick first task for that DB
+    python scripts/smoke_bird_interact.py --random --category query
+    python scripts/smoke_bird_interact.py --random --category management
     python scripts/smoke_bird_interact.py --agent-port 6003
 """
 from __future__ import annotations
@@ -96,7 +98,7 @@ def post(url: str, payload: dict, timeout: float = 120.0) -> dict:
     return r.json()
 
 
-def load_task(data_path: Path, index: int, db_filter: str | None, random_pick: bool = False, instance_id: str | None = None) -> tuple[int, dict]:
+def load_task(data_path: Path, index: int, db_filter: str | None, random_pick: bool = False, instance_id: str | None = None, category_filter: str | None = None) -> tuple[int, dict]:
     if not data_path.exists():
         print(f"Data file not found: {data_path}", file=sys.stderr)
         sys.exit(1)
@@ -108,8 +110,11 @@ def load_task(data_path: Path, index: int, db_filter: str | None, random_pick: b
             sys.exit(1)
         return matches[0]
     pool = [(i, t) for i, t in enumerate(tasks) if t.get("selected_database") == db_filter] if db_filter else list(enumerate(tasks))
+    if category_filter:
+        pool = [(i, t) for i, t in pool if (t.get("category") or "").lower() == category_filter.lower()]
     if not pool:
-        print(f"No tasks found for db={db_filter!r}", file=sys.stderr)
+        qualifier = f"db={db_filter!r}, category={category_filter!r}" if db_filter and category_filter else (f"db={db_filter!r}" if db_filter else f"category={category_filter!r}")
+        print(f"No tasks found for {qualifier}", file=sys.stderr)
         sys.exit(1)
     if random_pick:
         # exclude vaccine and virtual by default as they may not be fully ready
@@ -150,6 +155,8 @@ def main() -> None:
     parser.add_argument("--instance-id", default=None, help="Pick task by instance_id (e.g. alien_1)")
     parser.add_argument("--db", default=None, help="Pick first task for this database name")
     parser.add_argument("--random", action="store_true", help="Pick a random task (skips vaccine/virtual)")
+    parser.add_argument("--category", default=None, choices=["query", "management"], type=str.lower,
+                        help="Restrict selection to 'query' or 'management' tasks (case-insensitive)")
     parser.add_argument("--agent-port", type=int, default=6003, help="Port to start the GSF adapter on")
     parser.add_argument("--timeout", type=int, default=10, help="Health-check timeout per service (s)")
     args = parser.parse_args()
@@ -174,7 +181,7 @@ def main() -> None:
             sys.exit(1)
 
         # ── 3. Load task ──────────────────────────────────────────────────────
-        idx, task = load_task(Path(args.data), args.task_index, args.db, random_pick=args.random, instance_id=args.instance_id)
+        idx, task = load_task(Path(args.data), args.task_index, args.db, random_pick=args.random, instance_id=args.instance_id, category_filter=args.category)
         task_id   = task["instance_id"]
         db_name   = task["selected_database"]
         amb_query = task.get("amb_user_query") or task.get("query", "")
@@ -257,7 +264,6 @@ def main() -> None:
                 f"Generate the PostgreSQL query and call submit_sql."
             )
             print("-- Phase 2 --")
-            print(f"Query:    {follow_up_query}")
             resp  = post(f"{agent_url}/run_session",
                          {"task_id": task_id, "mode": "c-interact", "message": fu_msg},
                          timeout=1800.0)

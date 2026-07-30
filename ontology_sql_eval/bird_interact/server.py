@@ -36,8 +36,10 @@ logging.basicConfig(
 # Our adapter logs at INFO; silence uvicorn access noise
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-logging.getLogger("gsf.retrieval.interactive.clarify").setLevel(logging.INFO)
+logging.getLogger("gsf.retrieval.interactive.clarify").setLevel(logging.DEBUG)
 logging.getLogger("gsf.retrieval.interactive.coordinator").setLevel(logging.INFO)
+logging.getLogger("gsf.retrieval.text_to_sql.agents.sql_execution").setLevel(logging.INFO)
+logging.getLogger("gsf.retrieval.text_to_sql.agents.sql_reconstruction").setLevel(logging.INFO)
 logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
 logging.getLogger("uvicorn.error").setLevel(logging.WARNING)
 # ─────────────────────────────────────────────────────────────────────────────
