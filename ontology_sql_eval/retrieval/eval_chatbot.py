@@ -62,7 +62,6 @@ from ontology_sql_eval.retrieval.scoring import (
     stringify_db_result,
 )
 
-
 load_dotenv()
 
 # The text-to-SQL agent stores executed-DB rows under this key on its result dict.
@@ -70,12 +69,15 @@ _DB_RESULT_KEY = "sql_response_from_db"
 
 logger = logging.getLogger(__name__)
 
-_NVIDIA_API_KEY = os.environ.get("NVIDIA_API_KEY", "")
-if not _NVIDIA_API_KEY:
+_DEFAULT_MODELS_API_KEY = os.environ.get(
+    "DEFAULT_MODELS_API_KEY", ""
+) or os.environ.get("NVIDIA_API_KEY", "")
+if not _DEFAULT_MODELS_API_KEY:
     raise EnvironmentError(
-        "NVIDIA_API_KEY is not set. "
+        "DEFAULT_MODELS_API_KEY is not set. "
         "Export it before running:\n\n"
-        "    export NVIDIA_API_KEY='nvapi-...'\n\n"
+        "    export DEFAULT_MODELS_API_KEY='nvapi-...'\n\n"
+        "Legacy NVIDIA_API_KEY is also supported as a fallback.\n\n"
         "Get your key at https://build.nvidia.com"
     )
 

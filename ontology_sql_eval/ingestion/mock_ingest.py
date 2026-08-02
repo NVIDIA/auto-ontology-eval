@@ -48,23 +48,26 @@ logger = logging.getLogger(__name__)
 MOCK_DATABASE_NAME = "mock_shop"
 MOCK_SCHEMA = "public"
 
-_NVIDIA_API_KEY = os.environ.get("NVIDIA_API_KEY", "")
+_DEFAULT_MODELS_API_KEY = os.environ.get(
+    "DEFAULT_MODELS_API_KEY", ""
+) or os.environ.get("NVIDIA_API_KEY", "")
 _EMBED_ENDPOINT = os.environ.get(
     "EMBED_ENDPOINT", "https://integrate.api.nvidia.com/v1"
 )
 _EMBED_MODEL = os.environ.get("EMBED_MODEL", "nvidia/llama-nemotron-embed-1b-v2")
 
-if not _NVIDIA_API_KEY:
+if not _DEFAULT_MODELS_API_KEY:
     raise EnvironmentError(
-        "NVIDIA_API_KEY is not set. Export it before running, e.g.:\n\n"
-        "    export NVIDIA_API_KEY='nvapi-...'\n"
+        "DEFAULT_MODELS_API_KEY is not set. Export it before running, e.g.:\n\n"
+        "    export DEFAULT_MODELS_API_KEY='nvapi-...'\n"
+        "Legacy NVIDIA_API_KEY is also supported as a fallback.\n"
     )
 
 
 EMBED_PARAMS = EmbedParams(
     embed_invoke_url=_EMBED_ENDPOINT,
     model_name=_EMBED_MODEL,
-    api_key=_NVIDIA_API_KEY,
+    api_key=_DEFAULT_MODELS_API_KEY,
     embed_modality="text",
 )
 
@@ -193,10 +196,12 @@ class MockDatabase(SQLDatabase):
         return pd.DataFrame(rows)
 
     def get_views(self) -> pd.DataFrame:
-        return pd.DataFrame(columns=["table_schema", "table_name", "view_definition"])
+        return pd.DataFrame(
+            columns=pd.Index(["table_schema", "table_name", "view_definition"])
+        )
 
     def get_queries(self, hours: int = 24) -> pd.DataFrame:
-        return pd.DataFrame(columns=["end_time", "query_text"])
+        return pd.DataFrame(columns=pd.Index(["end_time", "query_text"]))
 
     def close(self) -> None:
         pass
