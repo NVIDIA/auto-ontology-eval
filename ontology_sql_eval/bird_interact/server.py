@@ -78,16 +78,26 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="BIRD-Interact GSF Adapter", lifespan=lifespan)
 
 
-def _format_external_kg(raw_json: str) -> str:
-    """Parse Bird's knowledge JSON array into a human-readable bullet list."""
+_MAX_KG_CHILDREN = 5
+
+
+def _format_external_kg(raw_json: str) -> tuple[str, dict[str, list[str]]]:
+    """Parse Bird's knowledge JSON array into a formatted bullet list and a children map.
+
+    Returns (formatted_kg, children_map) where children_map maps each parent entry
+    name to the full formatted texts of its declared children_knowledge entries.
+    """
     try:
         items = json.loads(raw_json)
     except (json.JSONDecodeError, TypeError):
-        return ""
+        return "", {}
     if not items:
-        return ""
-    lines = []
+        return "", {}
+
+    id_to_name: dict[int, str] = {}
+    id_to_text: dict[int, str] = {}
     for item in items:
+        item_id = item.get("id")
         name = item.get("knowledge", "")
         desc = item.get("description", "")
         defn = item.get("definition", "")
@@ -96,9 +106,27 @@ def _format_external_kg(raw_json: str) -> str:
             parts.append(f"  Description: {desc}")
         if defn:
             parts.append(f"  Definition: {defn}")
-        if parts:
-            lines.append("\n".join(parts))
-    return "\n".join(lines)
+        if parts and item_id is not None:
+            id_to_name[item_id] = name
+            id_to_text[item_id] = "\n".join(parts)
+
+    formatted_kg = "\n".join(id_to_text.values())
+
+    children_map: dict[str, list[str]] = {}
+    for item in items:
+        name = item.get("knowledge", "")
+        raw_children = item.get("children_knowledge", -1)
+        if not name or raw_children == -1 or not isinstance(raw_children, list):
+            continue
+        child_texts = [
+            id_to_text[cid]
+            for cid in raw_children[:_MAX_KG_CHILDREN]
+            if cid in id_to_text
+        ]
+        if child_texts:
+            children_map[name] = child_texts
+
+    return formatted_kg, children_map
 
 
 # ── Request models ────────────────────────────────────────────────────────────
@@ -127,7 +155,7 @@ async def health():
 async def init_session(req: InitSessionRequest):
     db_name = req.state.get("db_name", "")
     db_schema = req.state.get("db_schema", "")
-    external_kg = _format_external_kg(req.state.get("external_kg", "[]"))
+    external_kg, external_kg_children_map = _format_external_kg(req.state.get("external_kg", "[]"))
     session_id = uuid.uuid4().hex
 
     connectors = _CONNECTORS.get(db_name, [])
@@ -146,6 +174,7 @@ async def init_session(req: InitSessionRequest):
         semantic_retriever=_SEMANTIC_RETRIEVER,
         connectors=connectors,
         max_clarify_turns=max_turn,
+        external_kg_children_map=external_kg_children_map,
     )
 
     sess = AdapterSession(
