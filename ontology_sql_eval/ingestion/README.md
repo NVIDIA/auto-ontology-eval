@@ -32,6 +32,17 @@ PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.semantic --databa
 5. `add_custom_analyses()` — parse `custom_analyses.json`, create
    `CustomAnalysis` nodes, and embed them into the pgvector **semantic** store.
 
+To (re)apply enrichment without re-running full ingest — glossary/prompts into
+GSF Postgres (same tables as `/semantic-input`), plus metadata and custom
+analyses when not already present — use:
+
+```bash
+PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.apply_enrichment \
+  --database-name <database_name>
+```
+
+Or the **"Apply dataset enrichment"** launch config.
+
 Data destinations:
 
 | Destination                      | Content                                                                                        |

@@ -6,7 +6,10 @@
       "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/main.py",
-      "args": ["--database-name", "wideworldimporters"],
+      "args": [
+        "--database-name",
+        "wideworldimporters"
+      ],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
@@ -85,6 +88,24 @@
       "justMyCode": false
     },
     {
+      "name": "Apply dataset enrichment",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "ontology_sql_eval.ingestion.apply_enrichment",
+      "args": [
+        "--database-name",
+        "kdc_ca1"
+      ],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}/../GSF"
+      },
+      "justMyCode": false
+    },
+    {
       "name": "Semantic compile",
       "type": "debugpy",
       "request": "launch",
@@ -103,7 +124,10 @@
       "type": "debugpy",
       "request": "launch",
       "module": "ontology_sql_eval.retrieval.eval_chatbot",
-      "args": ["--database-name", "bird"],
+      "args": [
+        "--database-name",
+        "bird"
+      ],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
@@ -118,7 +142,11 @@
       "type": "debugpy",
       "request": "launch",
       "module": "ontology_sql_eval.retrieval.eval_chatbot",
-      "args": ["--single", "--database-name", "wideworldimporters"],
+      "args": [
+        "--single",
+        "--database-name",
+        "wideworldimporters"
+      ],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
