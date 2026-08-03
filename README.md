@@ -295,9 +295,15 @@ Seed local BIRD) are provided in [.vscode/launch.json](.vscode/launch.json); the
 `PYTHONPATH=../GSF` where needed and load `.env` automatically. The type-checker
 path for `../GSF` is configured in [pyrightconfig.json](pyrightconfig.json).
 
+## Contributing
+
+This project is currently not accepting contributions.
+
 ## License and security
 
-This project is licensed under **Apache-2.0** (see the SPDX headers in the
-source files and the `license` field in [pyproject.toml](pyproject.toml)).
+This project is licensed under **Apache-2.0** (see [LICENSE](LICENSE), the SPDX
+headers in each source file, and the `license` field in
+[pyproject.toml](pyproject.toml)). Third-party dependency licenses are listed in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 To report a security vulnerability, follow the process in [SECURITY.md](SECURITY.md).
