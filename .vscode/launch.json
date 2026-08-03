@@ -6,10 +6,7 @@
       "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/main.py",
-      "args": [
-        "--database-name",
-        "wideworldimporters"
-      ],
+      "args": ["--database-name", "wideworldimporters"],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
