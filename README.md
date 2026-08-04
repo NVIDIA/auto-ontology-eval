@@ -304,4 +304,18 @@ headers in each source file, and the `license` field in
 [pyproject.toml](pyproject.toml)). Third-party dependency licenses are listed in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
+Two items of third-party content are included in this repository, both MIT
+licensed and documented in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md#included-third-party-content):
+
+- [`ontology_sql_eval/judge/bird.py`](ontology_sql_eval/judge/bird.py) — ports
+  evaluation logic from the BIRD benchmark
+  ([AlibabaResearch/DAMO-ConvAI](https://github.com/AlibabaResearch/DAMO-ConvAI),
+  Copyright (c) 2022 Alibaba Research).
+- [`datasets/wideworldimporters/`](datasets/wideworldimporters/) — a Postgres
+  port of Microsoft's WideWorldImporters sample database
+  ([microsoft/sql-server-samples](https://github.com/microsoft/sql-server-samples),
+  Copyright (c) Microsoft Corporation). Its upstream notice is reproduced in
+  [datasets/wideworldimporters/LICENSE](datasets/wideworldimporters/LICENSE).
+
 To report a security vulnerability, follow the process in [SECURITY.md](SECURITY.md).

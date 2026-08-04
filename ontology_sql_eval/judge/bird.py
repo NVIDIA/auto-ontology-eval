@@ -1,3 +1,10 @@
+# SPDX-FileCopyrightText: Copyright (c) 2022 Alibaba Research
+# SPDX-License-Identifier: MIT
+#
+# Portions of this file are ported from the BIRD benchmark's official
+# evaluation scripts (``evaluation.py`` and ``evaluation_ves.py``) in
+# https://github.com/AlibabaResearch/DAMO-ConvAI, used under the MIT License.
+#
 # SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES.
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0

@@ -1,3 +1,9 @@
+-- SPDX-FileCopyrightText: Copyright (c) Microsoft Corporation
+-- SPDX-License-Identifier: MIT
+--
+-- Ported to PostgreSQL from Microsoft's WideWorldImporters sample database
+-- (https://github.com/microsoft/sql-server-samples), used under the MIT License.
+
 -- Foreign keys (run AFTER data load)
 ALTER TABLE Application.Cities ADD CONSTRAINT FK_Application_Cities_Application_People FOREIGN KEY (LastEditedBy) REFERENCES Application.People (PersonID);
 ALTER TABLE Application.Cities ADD CONSTRAINT FK_Application_Cities_StateProvinceID_Application_StateProvinces FOREIGN KEY (StateProvinceID) REFERENCES Application.StateProvinces (StateProvinceID);
