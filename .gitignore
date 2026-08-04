@@ -31,3 +31,6 @@ venv/
 !/datasets/bird/.gitkeep
 !/datasets/bird/README.md
 !/datasets/bird_interact/.gitkeep
+!/datasets/bird_interact/gt/
+/datasets/bird_interact/gt/*
+!/datasets/bird_interact/gt/.gitkeep

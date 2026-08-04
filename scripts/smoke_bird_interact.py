@@ -37,7 +37,7 @@ import httpx
 
 ONTOLOGY_DIR = Path(__file__).resolve().parents[1]
 GSF_DIR      = ONTOLOGY_DIR.parent / "GSF"
-DEFAULT_DATA = Path("/Users/ariellegeva/Desktop/BIRD-Interact/bird-interact-lite/bird_interact_data_with_gt.jsonl")
+DEFAULT_DATA = ONTOLOGY_DIR / "datasets" / "bird_interact" / "bird_interact_data_with_gt.jsonl"
 
 USER_SIM_URL = "http://127.0.0.1:6001"
 DB_ENV_URL   = "http://127.0.0.1:6002"
