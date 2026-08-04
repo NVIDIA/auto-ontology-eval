@@ -1,8 +1,13 @@
 # Third-Party Notices
 
-This project uses the following third-party packages. All are consumed as
+This project uses the third-party packages listed below. They are consumed as
 standard Python package dependencies (dynamic linking via the Python
-interpreter); no third-party source is copied or vendored into this repository.
+interpreter); no third-party Python *package* source is copied or vendored into
+this repository.
+
+Separately, this repository does include two items of third-party content —
+ported source code and a sample dataset. Both are documented in
+[Included Third-Party Content](#included-third-party-content) below.
 
 | Package | Version (minimum) | License |
 |---|---|---|
@@ -41,6 +46,50 @@ interpreter); no third-party source is copied or vendored into this repository.
 
 ---
 
+## Included Third-Party Content
+
+The following third-party material is included in this repository, in addition
+to the package dependencies listed above.
+
+### 1. BIRD benchmark evaluation logic
+
+| | |
+|---|---|
+| **Location in this repo** | `ontology_sql_eval/judge/bird.py` |
+| **Upstream project** | DAMO-ConvAI — https://github.com/AlibabaResearch/DAMO-ConvAI |
+| **Copyright holder** | Copyright (c) 2022 Alibaba Research |
+| **License** | MIT |
+
+`bird.py` ports the EX (Execution Accuracy) and VES (Valid Efficiency Score)
+execution logic from the BIRD benchmark's official `evaluation.py` and
+`evaluation_ves.py`. The file carries the upstream copyright and license
+identifier in its header, followed by the NVIDIA copyright block covering
+NVIDIA's modifications.
+
+### 2. WideWorldImporters sample database
+
+| | |
+|---|---|
+| **Location in this repo** | `datasets/wideworldimporters/` (`ddl/*.sql`, `data/*.csv`) |
+| **Upstream project** | SQL Server Samples — https://github.com/microsoft/sql-server-samples |
+| **Copyright holder** | Copyright (c) Microsoft Corporation |
+| **License** | MIT |
+
+A Postgres port of Microsoft's WideWorldImporters sample OLTP database,
+included as a public worked example. The upstream notice is reproduced in
+`datasets/wideworldimporters/LICENSE`; the DDL files carry the Microsoft
+copyright and MIT identifier in their headers.
+
+### Note on the BIRD dataset
+
+The BIRD Mini-Dev **dataset** is not included in this repository.
+`scripts/seed_bird.py` downloads it at runtime from the official distribution,
+and `datasets/bird/` ships only a README and a `.gitkeep`. The BIRD dataset is
+distributed by its authors under CC BY-SA 4.0 — a separate matter from the
+MIT-licensed DAMO-ConvAI evaluation *code* referenced in section 1 above.
+
+---
+
 ## License Texts
 
 ### MIT License
@@ -65,6 +114,12 @@ interpreter); no third-party source is copied or vendored into this repository.
 
 Applies to: langchain-nvidia-ai-endpoints, langchain-openai, langchain-postgres,
 pydantic, kumoai, duckdb, fastapi, ruff.
+
+Also applies to the two items of included third-party content above, under
+their respective copyrights:
+
+- DAMO-ConvAI (`ontology_sql_eval/judge/bird.py`) — Copyright (c) 2022 Alibaba Research
+- SQL Server Samples (`datasets/wideworldimporters/`) — Copyright (c) Microsoft Corporation
 
 ---
 

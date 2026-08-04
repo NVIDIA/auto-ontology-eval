@@ -1,3 +1,9 @@
+-- SPDX-FileCopyrightText: Copyright (c) Microsoft Corporation
+-- SPDX-License-Identifier: MIT
+--
+-- Ported to PostgreSQL from Microsoft's WideWorldImporters sample database
+-- (https://github.com/microsoft/sql-server-samples), used under the MIT License.
+
 -- Views (ported from MSSQL Website.* — see migrate.py phase_schema()).
 --
 -- The Website.VehicleTemperatures view in MSSQL uses DECOMPRESS() to inflate

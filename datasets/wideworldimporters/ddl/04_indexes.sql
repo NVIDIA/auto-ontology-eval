@@ -1,3 +1,9 @@
+-- SPDX-FileCopyrightText: Copyright (c) Microsoft Corporation
+-- SPDX-License-Identifier: MIT
+--
+-- Ported to PostgreSQL from Microsoft's WideWorldImporters sample database
+-- (https://github.com/microsoft/sql-server-samples), used under the MIT License.
+
 -- Secondary indexes
 CREATE INDEX IF NOT EXISTS Cities__FK_Application_Cities_StateProvinceID ON Application.Cities (StateProvinceID);
 CREATE INDEX IF NOT EXISTS Cities_Archive__ix_Cities_Archive ON Application.Cities_Archive (ValidTo, ValidFrom);

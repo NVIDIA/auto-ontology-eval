@@ -7,6 +7,12 @@ seeded here from pre-generated DDL + CSVs. It's the repo's bundled public
 worked example — no source (e.g. MSSQL) connection is required, since all
 seed artifacts are already generated under this folder.
 
+> **License.** The contents of this directory originate from
+> [microsoft/sql-server-samples](https://github.com/microsoft/sql-server-samples)
+> (Copyright (c) Microsoft Corporation) and are used under the **MIT License**.
+> See [LICENSE](LICENSE) in this directory for the upstream notice, which
+> covers the `ddl/` and `data/` files.
+
 ## Seed the local Postgres
 
 ```bash
