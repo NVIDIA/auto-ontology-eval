@@ -30,14 +30,17 @@ files are ignored). Options: `--force` (re-download and overwrite), `--keep-arch
 
 ## Configure
 
-The download script prints a ready-to-use `CONNECTION_STRINGS` line listing
-every installed database. Copy it into your `.env`, e.g.:
+By default, the download script writes a ready-to-use `CONNECTION_STRINGS`
+line (listing every installed database) directly into your `.env`, replacing
+any existing `CONNECTION_STRINGS` entry:
 
 ```bash
 CONNECTION_STRINGS=sqlite:///<abs>/datasets/bird/california_schools/california_schools.sqlite,sqlite:///<abs>/datasets/bird/card_games/card_games.sqlite,...
 ```
 
-(all 11 databases, comma-separated — one entry per `db_id`).
+(all 11 databases, comma-separated — one entry per `db_id`). Pass
+`--no-write-env` to skip this and just log the value for manual copy-paste
+instead.
 
 ## Run the full pipeline
 
