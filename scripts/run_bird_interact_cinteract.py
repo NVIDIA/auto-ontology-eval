@@ -39,15 +39,18 @@ import argparse
 import csv
 import json
 import os
+import random
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
 import httpx
 
 ONTOLOGY_DIR = Path(__file__).resolve().parents[1]
-BIRD_ADK_DIR = ONTOLOGY_DIR / "third_party" / "BIRD-Interact" / "BIRD-Interact-ADK"
+_default_adk = ONTOLOGY_DIR / "third_party" / "BIRD-Interact" / "BIRD-Interact-ADK"
+BIRD_ADK_DIR = Path(os.environ.get("BIRD_ADK_DIR", str(_default_adk)))
 DEFAULT_DATA = ONTOLOGY_DIR / "datasets" / "bird_interact" / "bird_interact_data_with_gt.jsonl"
 
 
@@ -80,7 +83,21 @@ def main() -> None:
         "--limit",
         type=int,
         default=None,
-        help="Limit number of tasks (for smoke testing)",
+        help="Limit number of tasks to run",
+    )
+    parser.add_argument("--db", default=None, help="Run only tasks for this database name")
+    parser.add_argument("--instance-id", default=None, help="Run only this instance_id (e.g. alien_1)")
+    parser.add_argument(
+        "--category", default=None, choices=["query", "management"], type=str.lower,
+        help="Filter by task category",
+    )
+    parser.add_argument(
+        "--difficulty", default=None, choices=["simple", "moderate", "challenging"], type=str.lower,
+        help="Filter by difficulty_tier",
+    )
+    parser.add_argument(
+        "--random", action="store_true",
+        help="Pick one random task matching the filters (skips vaccine/virtual by default)",
     )
     args = parser.parse_args()
 
@@ -89,6 +106,45 @@ def main() -> None:
     # Orchestrator writes relative to BIRD_ADK_DIR, so use absolute path
     raw_json = (BIRD_ADK_DIR / "results" / output_path.stem).with_suffix(".raw.json")
     raw_json.parent.mkdir(parents=True, exist_ok=True)
+
+    # ── Apply task filters ────────────────────────────────────────────────────
+    data_path = Path(args.data)
+    if not data_path.exists():
+        print(f"ERROR: data file not found: {data_path}", file=sys.stderr)
+        sys.exit(1)
+
+    tasks = [json.loads(l) for l in data_path.open() if l.strip()]
+    any_filter = args.db or args.instance_id or args.category or args.difficulty or args.random
+    filtered_tmp: str | None = None
+    if any_filter:
+        pool = tasks
+        if args.instance_id:
+            pool = [t for t in pool if t.get("instance_id") == args.instance_id]
+        if args.db:
+            pool = [t for t in pool if t.get("selected_database") == args.db]
+        if args.category:
+            pool = [t for t in pool if (t.get("category") or "").lower() == args.category]
+        if args.difficulty:
+            pool = [t for t in pool if (t.get("difficulty_tier") or "").lower() == args.difficulty]
+        if args.random:
+            safe = [t for t in pool if t.get("selected_database") not in ("vaccine", "virtual")]
+            pool = [random.choice(safe if safe else pool)] if pool else []
+        if not pool:
+            print("ERROR: no tasks match the specified filters", file=sys.stderr)
+            sys.exit(1)
+        if args.limit:
+            pool = pool[:args.limit]
+        tmp = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".jsonl", delete=False, prefix="bird_filtered_"
+        )
+        for t in pool:
+            tmp.write(json.dumps(t) + "\n")
+        tmp.close()
+        filtered_tmp = tmp.name
+        data_file = filtered_tmp
+        print(f"Filtered to {len(pool)} task(s) → {data_file}")
+    else:
+        data_file = args.data
 
     # Check Bird :6001 and :6002 are already up
     print("Checking Bird services...")
@@ -137,20 +193,27 @@ def main() -> None:
         env=env,
     )
 
+    if adapter_proc.poll() is not None:
+        print("ERROR: GSF adapter failed to start (port 6000 may already be in use — kill any stale process first)", file=sys.stderr)
+        sys.exit(1)
     if not wait_for_health("http://127.0.0.1:6000/health", timeout=60, label="GSF adapter :6000"):
         adapter_proc.terminate()
+        sys.exit(1)
+    if adapter_proc.poll() is not None:
+        print("ERROR: GSF adapter died during startup", file=sys.stderr)
         sys.exit(1)
     print("GSF adapter :6000 ready")
 
     try:
         # Invoke the official Bird c-Interact orchestrator
-        print(f"Running Bird orchestrator on: {args.data}")
+        print(f"Running Bird orchestrator on: {data_file}")
         cmd = [
             sys.executable, "-m", "orchestrator.cinteract",
-            "--data", args.data,
+            "--data", data_file,
             "--output", str(raw_json),
         ]
-        if args.limit:
+        # --limit only applies when no per-task filter was set (pool already sliced above)
+        if args.limit and not any_filter:
             cmd += ["--limit", str(args.limit)]
 
         result = subprocess.run(cmd, cwd=str(BIRD_ADK_DIR), env=env)
@@ -203,6 +266,11 @@ def main() -> None:
             adapter_proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
             adapter_proc.kill()
+        if filtered_tmp:
+            try:
+                os.unlink(filtered_tmp)
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":
