@@ -609,3 +609,10 @@ if __name__ == "__main__":
             start_index=args.start_index,
             end_index=args.end_index,
         )
+
+
+    # Neo4j (7687) and Postgres (5432) pools keep non-daemon threads alive after
+    # the CSV is written, so a normal return never reaches process exit and the
+    # parent runner blocks forever on proc.wait().
+    logging.shutdown()
+    os._exit(0)

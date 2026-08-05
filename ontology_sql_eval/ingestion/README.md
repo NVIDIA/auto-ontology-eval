@@ -4,9 +4,12 @@
 
 Populates the Neo4j graph and pgvector stores from a source database so the
 text-to-SQL agent has schema and semantic context to retrieve. Set
-`CONNECTION_STRINGS` to point at the source DB (metadata and custom analyses are
-read from `datasets/<database_name>/`, where `<database_name>` comes from the
-connector), then run the pipeline.
+`CONNECTION_STRINGS` to point at the source DB, then run the pipeline.
+
+`<database_name>` comes from the connector, and metadata and custom analyses are
+read from beside that database: `datasets/<dataset>/dev/<database_name>/` when
+`--dataset-name` names a multi-database dataset such as BIRD, otherwise
+`datasets/<database_name>/`.
 
 > Requires the sibling `../GSF` checkout on `PYTHONPATH`. See
 > [Prerequisites](../../README.md#prerequisites) in the main README.

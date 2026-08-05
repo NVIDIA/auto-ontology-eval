@@ -27,7 +27,12 @@ JSON shape (per table)::
         ...
     }
 
-Custom analyses (optional, ``<database_name>/custom_analyses.json``)::
+Both files live beside their database: ``datasets/<dataset>/dev/<database_name>/``
+for a multi-database dataset such as BIRD, or ``datasets/<database_name>/`` for a
+standalone one. See :func:`metadata_json_path` and
+:func:`custom_analyses_json_path`.
+
+Custom analyses (optional, ``custom_analyses.json``)::
 
     [
         {
@@ -61,26 +66,46 @@ def train_json_for_dataset(dataset_name: str) -> Path:
     return DEFAULT_DIR / dataset_name / "train" / "train.json"
 
 
-def metadata_json_path(database_name: str, dataset: str | None = None) -> Path:
-    """Resolve ``metadata.json`` for *database_name*, preferring paths that exist.
+def _dataset_file_path(
+    filename: str, database_name: str, dataset: str | None = None
+) -> Path:
+    """Resolve a per-database data file, preferring paths that exist.
 
-    When *dataset* is set and ``datasets/<dataset>/dev/`` exists, look under
-    ``dev/<database_name>/`` first. Otherwise (or if that file is missing) use
-    the usual layouts: ``datasets/<dataset>/<database_name>/`` then
-    ``datasets/<database_name>/``.
+    A standalone dataset is one database and keeps its files at the dataset root
+    (``datasets/dor_prod/``); a multi-database dataset gives each database its
+    own folder (``datasets/bird/dev/card_games/``). Both layouts are searched,
+    the explicitly named *dataset* first.
+
+    When the caller does not name a dataset, the per-database folder of every
+    dataset is searched as a last resort, so an ingest run that omits
+    ``--dataset-name`` still finds the file instead of silently skipping it.
+    Returns the first existing path, else the most likely one for an error
+    message.
     """
     candidates: list[Path] = []
     if dataset:
         dev_root = DEFAULT_DIR / dataset / "dev"
         if dev_root.is_dir():
-            candidates.append(dev_root / database_name / "metadata.json")
-        candidates.append(DEFAULT_DIR / dataset / database_name / "metadata.json")
-    candidates.append(DEFAULT_DIR / database_name / "metadata.json")
+            candidates.append(dev_root / database_name / filename)
+        candidates.append(DEFAULT_DIR / dataset / database_name / filename)
+    candidates.append(DEFAULT_DIR / database_name / filename)
+    if not dataset:
+        candidates.extend(sorted(DEFAULT_DIR.glob(f"*/dev/{database_name}/{filename}")))
 
     for path in candidates:
         if path.is_file():
             return path
     return candidates[0]
+
+
+def metadata_json_path(database_name: str, dataset: str | None = None) -> Path:
+    """Resolve ``metadata.json`` for *database_name*. See :func:`_dataset_file_path`."""
+    return _dataset_file_path("metadata.json", database_name, dataset)
+
+
+def custom_analyses_json_path(database_name: str, dataset: str | None = None) -> Path:
+    """Resolve ``custom_analyses.json`` for *database_name*. See :func:`_dataset_file_path`."""
+    return _dataset_file_path("custom_analyses.json", database_name, dataset)
 
 
 def _existing_few_shot_questions(vdb, label: str, database_name: str) -> set[str]:
@@ -307,15 +332,212 @@ def apply_metadata(database_name: str, dataset: str | None = None) -> None:
     )
 
 
+def profile_and_describe_columns(connector, database_name: str) -> int:
+    """Profile every column and describe the ones worth describing.
+
+    Which those are is ``SEMANTIC_DESCRIBE_MODE``'s decision, made in
+    :func:`gsf.semantic.deterministic.columns_to_describe`; unset, it means the
+    ones the source metadata left blank.
+
+    Must run after :func:`apply_metadata` (so a supplied annotation is in view
+    when deciding, and re-stamped ahead of any description this replaces) and
+    before the embed graph (so the descriptions it writes are part of what the
+    Column nodes are embedded from). The semantic layer then only copies them
+    onto ColumnAttributes.
+
+    Profiling has to happen here rather than in the semantic layer because a
+    description is only worth generating with the column's values in view, and the
+    embeddings are computed at ingest. Doing it here also reaches the foreign-key
+    columns, which the semantic layer excludes from description generation by
+    design — they are linked to the attribute they reference instead of owning one.
+
+    Returns the number of descriptions written.
+    """
+    from nemo_retriever.tabular_data.neo4j import get_neo4j_conn
+
+    from gsf.dal.datasources import store_column_descriptions
+    from gsf.semantic.deterministic import (
+        blank_column_descriptions,
+        columns_to_describe,
+        describe_mode,
+    )
+    from gsf.semantic.visit_enter import calculate_columns_profiling
+
+    def _profile(
+        table: dict[str, object], columns: list[dict[str, object]]
+    ) -> dict[str, dict]:
+        """Profile one table, degrading to no values rather than aborting ingest."""
+        try:
+            return calculate_columns_profiling(table, columns, connector)
+        except Exception:
+            logger.warning(
+                "profiling failed for %s — describing without values",
+                table.get("name"),
+                exc_info=True,
+            )
+            return {}
+
+    # Reads ``c.description`` rather than going through the DAL's table fetch,
+    # which resolves a column's description through its ColumnAttribute and would
+    # therefore report every column as documented on a re-run over a graph the
+    # semantic layer had already populated.
+    rows = get_neo4j_conn().query_read(
+        query=(
+            "MATCH (d:Database {name: $database_name})-[:CONTAINS]->"
+            "(s:Schema)-[:CONTAINS]->(t:Table)-[:CONTAINS]->(c:Column) "
+            "WITH t, s, c ORDER BY c.ordinal_position "
+            "RETURN t.id AS table_id, t.name AS table_name, "
+            "       s.name AS schema_name, "
+            "       collect({name: c.name, data_type: c.data_type, "
+            "                description: c.description}) AS columns "
+            "ORDER BY table_name"
+        ),
+        parameters={"database_name": database_name},
+    )
+
+    mode = describe_mode()
+    written = 0
+    target_total = 0
+    for row in rows:
+        columns = [c for c in row.get("columns") or [] if c.get("name")]
+        if not columns:
+            continue
+        # Asking the same question the describe step will ask, rather than
+        # counting blanks: under the wider modes a table with no blank column
+        # still has work, and a mismatch here silently skips it.
+        wanted = columns_to_describe(columns, mode)
+        target_total += len(wanted)
+        table = {
+            "id": row["table_id"],
+            "name": row.get("table_name") or "",
+            "schema_name": row.get("schema_name"),
+        }
+        if not wanted:
+            # Still profiled: sample values and uniqueness are persisted by the
+            # profiler, and the embed graph below reads them off the Column nodes.
+            _profile(table, columns)
+            continue
+        profiling = _profile(table, columns)
+        descriptions = blank_column_descriptions(
+            columns, profiling, table_name=table["name"]
+        )
+        store_column_descriptions(table["id"], descriptions)
+        written += len(descriptions)
+
+    logger.info(
+        "Column descriptions (mode=%s): %d of %d targeted column(s) described "
+        "at ingest",
+        mode,
+        written,
+        target_total,
+    )
+    return written
+
+
+def sync_graph_metadata_into_schema_data(
+    schema_data: tuple, database_name: str
+) -> tuple:
+    """Copy graph descriptions and sample values back into the embed input.
+
+    ``TabularSchemaExtractOp`` returns ``(tables_df, columns_df)`` and
+    ``TabularFetchEmbeddingsOp`` builds its text from that pair directly, "without
+    a Neo4j round-trip" — so anything written to the graph *after* extraction is
+    invisible to the embeddings. For a SQLite source that is everything worth
+    embedding: the introspected DataFrames carry no descriptions at all, and both
+    :func:`apply_metadata` and :func:`profile_and_describe_columns` write only to
+    Neo4j. Without this step a Column is embedded as name, type and nothing else.
+
+    Joins on the Neo4j UUID that extraction already placed in each frame's ``id``
+    column, so it is immune to name-casing and duplicate table names across
+    schemas. Returns the patched pair; frames missing ``id`` are passed through.
+    """
+    import pandas as pd
+    from nemo_retriever.tabular_data.neo4j import get_neo4j_conn
+
+    tables_df, columns_df = schema_data
+    conn = get_neo4j_conn()
+
+    def _apply(df, rows: list[dict], fields: tuple[str, ...]):
+        if df is None or getattr(df, "empty", True) or "id" not in df.columns:
+            return df, 0
+        by_id = {r["id"]: r for r in rows if r.get("id")}
+        patched = 0
+        for field in fields:
+            # object dtype so a list assignment is legal, and so an all-empty
+            # column is not inferred as float64 (whose NaN is truthy — the embed
+            # operator does `(sample_values or [])[:5]` and would raise on it).
+            df[field] = (
+                df[field].astype(object) if field in df.columns else pd.Series(
+                    [None] * len(df), index=df.index, dtype=object
+                )
+            )
+        for idx, node_id in df["id"].items():
+            row = by_id.get(node_id)
+            if not row:
+                continue
+            for field in fields:
+                value = row.get(field)
+                if field == "sample_values" and isinstance(value, str):
+                    try:
+                        value = json.loads(value)
+                    except json.JSONDecodeError:
+                        value = None
+                if value is None or (isinstance(value, str) and not value.strip()):
+                    continue
+                df.at[idx, field] = value
+                if field == "description":
+                    patched += 1
+        if "sample_values" in fields:
+            # NaN reaches the embed operator as a truthy float and breaks it; None
+            # is what its `or []` fallback expects.
+            df["sample_values"] = df["sample_values"].apply(
+                lambda v: v if isinstance(v, list) else None
+            )
+        return df, patched
+
+    table_rows = conn.query_read(
+        query=(
+            "MATCH (d:Database {name: $database_name})-[:CONTAINS]->"
+            "(:Schema)-[:CONTAINS]->(t:Table) "
+            "RETURN t.id AS id, t.description AS description"
+        ),
+        parameters={"database_name": database_name},
+    )
+    column_rows = conn.query_read(
+        query=(
+            "MATCH (d:Database {name: $database_name})-[:CONTAINS]->"
+            "(:Schema)-[:CONTAINS]->(:Table)-[:CONTAINS]->(c:Column) "
+            "RETURN c.id AS id, c.description AS description, "
+            "       c.sample_values AS sample_values"
+        ),
+        parameters={"database_name": database_name},
+    )
+
+    tables_df, n_tables = _apply(tables_df, table_rows, ("description",))
+    columns_df, n_columns = _apply(
+        columns_df, column_rows, ("description", "sample_values")
+    )
+
+    logger.info(
+        "Synced graph metadata into embed input: %d table and %d column "
+        "description(s)",
+        n_tables,
+        n_columns,
+    )
+    return tables_df, columns_df
+
+
 def add_custom_analyses(
     database_name: str,
     dialect: str,
     embed_params: "EmbedParams | None" = None,
     vdb: "VDB | None" = None,
+    dataset: str | None = None,
 ) -> None:
     """Ingest custom analyses for *database_name* into the Neo4j graph and the VDB.
 
-    Reads ``<this dir>/<database_name>/custom_analyses.json`` — a list of
+    Reads the database's ``custom_analyses.json`` (see
+    :func:`custom_analyses_json_path`) — a list of
     ``{"name", "description", "sql"}`` entries — and, for each entry:
 
     * parses the SQL against the schemas already in the graph (via
@@ -346,7 +568,7 @@ def add_custom_analyses(
     )
     from gsf.dal.custom_analyses import embed_custom_analyses
 
-    analyses_path = DEFAULT_DIR / database_name / "custom_analyses.json"
+    analyses_path = custom_analyses_json_path(database_name, dataset=dataset)
 
     if not analyses_path.exists():
         logger.info("custom analyses file not found at %s; skipping", analyses_path)

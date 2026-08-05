@@ -51,6 +51,8 @@ from ontology_sql_eval.ingestion.enrich_graph import (
     add_custom_analyses,
     add_few_shot_examples,
     apply_metadata,
+    profile_and_describe_columns,
+    sync_graph_metadata_into_schema_data,
     train_json_for_dataset,
 )
 
@@ -82,6 +84,14 @@ def run_ingest(connection_string: str, dataset_name: str | None = None) -> None:
         )
 
     apply_metadata(database_name, dataset=dataset_name)
+    # Between the metadata stamp and the embed graph on purpose: "blank" must mean
+    # blank after the source descriptions land, and the descriptions generated
+    # here have to exist before the Column nodes are embedded below.
+    profile_and_describe_columns(connector, database_name)
+    # The embed graph builds its text from `schema_data`, not from Neo4j, so the
+    # two enrichment steps above have to be folded back in or they never reach an
+    # embedding.
+    schema_data = sync_graph_metadata_into_schema_data(schema_data, database_name)
     embed_params = get_embed_params()
 
     embed_graph = (
@@ -116,6 +126,7 @@ def run_ingest(connection_string: str, dataset_name: str | None = None) -> None:
         connector.dialect,
         embed_params=embed_params,
         vdb=get_semantic_vdb(database_name=connector.database_name),
+        dataset=dataset_name,
     )
 
 

@@ -137,14 +137,29 @@ commands), see the per-dataset READMEs:
 
 ## Datasets
 
-Each dataset lives in its own folder under `datasets/<database_name>/`. The
-folder name is the database name and is used to derive default file paths.
+Each dataset lives in its own folder under `datasets/`. The folder name is used
+to derive default file paths.
+
+A standalone dataset is one database, so its files sit at the dataset root:
 
 ```
 datasets/<database_name>/
   evaluation.json        # eval questions + expected SQL (retrieval-eval input)
   metadata.json          # table/column descriptions (ingestion enrichment; optional)
   custom_analyses.json   # named example analyses (ingestion enrichment; optional)
+```
+
+A multi-database dataset such as BIRD keeps one `evaluation.json` for the whole
+dataset and gives each database its own folder, so the per-database files sit
+beside the database itself:
+
+```
+datasets/<dataset>/
+  evaluation.json        # questions across every database in the dataset
+  dev/<database_name>/
+    <database_name>.sqlite
+    metadata.json        # optional
+    custom_analyses.json # optional
 ```
 
 The retrieval eval writes its results CSV to the repo-root `input/` folder
@@ -278,7 +293,8 @@ datasets/
   <database_name>/          evaluation.json, metadata.json, custom_analyses.json
     ddl/                    seed DDL (schemas, sequences, tables, indexes, fkeys, views)
     data/                   seed CSV data (COPYed into the tables)
-  bird/                     README.md, evaluation.json, <db_id>/<db_id>.sqlite (11 DBs)
+  bird/                     README.md, evaluation.json,
+                            dev/<db_id>/ -> <db_id>.sqlite + custom_analyses.json (11 DBs)
   wideworldimporters/       README.md, evaluation.json, custom_analyses.json, ddl/, data/
 input/                      judge input CSVs to score (contents gitignored)
 output/                     judge scored CSVs (<name>_scores.csv; contents gitignored)
