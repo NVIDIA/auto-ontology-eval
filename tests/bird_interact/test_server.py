@@ -118,8 +118,8 @@ def _make_client(
         patch.object(server_mod, "gsf_step", mock_step),
         patch.object(server_mod, "gsf_apply_user_answer", MagicMock()),
         patch.object(server_mod, "gsf_apply_submit_result", MagicMock()),
-        patch("ontology_sql_eval.bird_interact.bird_http.ask_user", mock_ask),
-        patch("ontology_sql_eval.bird_interact.bird_http.submit_sql", mock_submit),
+        patch("ontology_sql_eval.bird_interact.bird_interact_http.ask_user", mock_ask),
+        patch("ontology_sql_eval.bird_interact.bird_interact_http.submit_sql", mock_submit),
         patch.object(app.router, "lifespan_context", _noop_lifespan),
     )
     return ctx, mock_step, mock_submit
@@ -197,7 +197,7 @@ def test_run_session_submit_only():
         patch.object(server_mod, "gsf_step", MagicMock(return_value=SubmitSQLAction("SELECT 1"))),
         patch.object(server_mod, "gsf_apply_user_answer", MagicMock()),
         patch.object(server_mod, "gsf_apply_submit_result", MagicMock()),
-        patch("ontology_sql_eval.bird_interact.bird_http.submit_sql", AsyncMock(return_value=submit_result)),
+        patch("ontology_sql_eval.bird_interact.bird_interact_http.submit_sql", AsyncMock(return_value=submit_result)),
         patch.object(app.router, "lifespan_context", _noop_lifespan),
     ):
         with TestClient(app) as client:
@@ -235,8 +235,8 @@ def test_run_session_ask_then_submit():
         patch.object(server_mod, "gsf_step", step_mock),
         patch.object(server_mod, "gsf_apply_user_answer", MagicMock()),
         patch.object(server_mod, "gsf_apply_submit_result", MagicMock()),
-        patch("ontology_sql_eval.bird_interact.bird_http.ask_user", AsyncMock(return_value="2023")),
-        patch("ontology_sql_eval.bird_interact.bird_http.submit_sql", AsyncMock(return_value=submit_result)),
+        patch("ontology_sql_eval.bird_interact.bird_interact_http.ask_user", AsyncMock(return_value="2023")),
+        patch("ontology_sql_eval.bird_interact.bird_interact_http.submit_sql", AsyncMock(return_value=submit_result)),
         patch.object(app.router, "lifespan_context", _noop_lifespan),
     ):
         with TestClient(app) as client:
@@ -269,8 +269,8 @@ def test_one_submit_per_turn():
         patch.object(server_mod, "gsf_step", step_mock),
         patch.object(server_mod, "gsf_apply_user_answer", MagicMock()),
         patch.object(server_mod, "gsf_apply_submit_result", MagicMock()),
-        patch("ontology_sql_eval.bird_interact.bird_http.ask_user", AsyncMock(return_value="2023")),
-        patch("ontology_sql_eval.bird_interact.bird_http.submit_sql", AsyncMock(return_value=submit_result)),
+        patch("ontology_sql_eval.bird_interact.bird_interact_http.ask_user", AsyncMock(return_value="2023")),
+        patch("ontology_sql_eval.bird_interact.bird_interact_http.submit_sql", AsyncMock(return_value=submit_result)),
         patch.object(app.router, "lifespan_context", _noop_lifespan),
     ):
         with TestClient(app) as client:
@@ -294,7 +294,7 @@ def test_exec_err_flg_preserved():
         patch.object(server_mod, "gsf_step", MagicMock(return_value=SubmitSQLAction("SELECT bad"))),
         patch.object(server_mod, "gsf_apply_user_answer", MagicMock()),
         patch.object(server_mod, "gsf_apply_submit_result", MagicMock()),
-        patch("ontology_sql_eval.bird_interact.bird_http.submit_sql", AsyncMock(return_value=submit_result)),
+        patch("ontology_sql_eval.bird_interact.bird_interact_http.submit_sql", AsyncMock(return_value=submit_result)),
         patch.object(app.router, "lifespan_context", _noop_lifespan),
     ):
         with TestClient(app) as client:

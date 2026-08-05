@@ -21,7 +21,7 @@ from gsf.retrieval.interactive import (
     apply_user_answer as gsf_apply_user_answer,
     apply_submit_result as gsf_apply_submit_result,
 )
-from . import bird_http
+from . import bird_interact_http as bird_http
 from .session import AdapterSession, get_session, put_session
 
 # ── Logging setup ─────────────────────────────────────────────────────────────
