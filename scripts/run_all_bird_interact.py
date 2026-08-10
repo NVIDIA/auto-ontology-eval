@@ -142,6 +142,8 @@ def _load_tasks(
     difficulty_filter: str | None,
     limit: int | None,
     shuffle: bool,
+    include_ids: set[str] | None = None,
+    exclude_ids: set[str] | None = None,
 ) -> list[dict]:
     if not data_path.exists():
         print(f"Data file not found: {data_path}", file=sys.stderr)
@@ -151,6 +153,10 @@ def _load_tasks(
     tasks = [t for t in tasks if (t.get("category") or "").lower() == "query"]
     if difficulty_filter:
         tasks = [t for t in tasks if (t.get("difficulty_tier") or "").lower() == difficulty_filter.lower()]
+    if include_ids:
+        tasks = [t for t in tasks if t["instance_id"] in include_ids]
+    if exclude_ids:
+        tasks = [t for t in tasks if t["instance_id"] not in exclude_ids]
     if shuffle:
         random.shuffle(tasks)
     if limit:
@@ -380,6 +386,10 @@ def main() -> None:
                         help="Health-check timeout per Bird service (default: 10s)")
     parser.add_argument("--overwrite", action="store_true",
                         help="Overwrite existing output files instead of failing")
+    parser.add_argument("--include", nargs="+", metavar="TASK_ID", default=None,
+                        help="Run only these instance_ids (space-separated)")
+    parser.add_argument("--exclude", nargs="+", metavar="TASK_ID", default=None,
+                        help="Skip these instance_ids (space-separated)")
     args = parser.parse_args()
 
     agent_url = f"http://127.0.0.1:{args.agent_port}"
@@ -398,13 +408,20 @@ def main() -> None:
     csv_is_new = True
 
     # ── Load tasks ────────────────────────────────────────────────────────────
-    tasks = _load_tasks(Path(args.data), args.difficulty, args.limit, args.shuffle)
+    include_ids = set(args.include) if args.include else None
+    exclude_ids = set(args.exclude) if args.exclude else None
+    tasks = _load_tasks(Path(args.data), args.difficulty, args.limit, args.shuffle,
+                        include_ids=include_ids, exclude_ids=exclude_ids)
     if not tasks:
         print("No tasks matched the given filters.", file=sys.stderr)
         sys.exit(1)
     print(f"\nLoaded {len(tasks)} query-category tasks")
     if args.difficulty:
         print(f"  difficulty filter: {args.difficulty}")
+    if include_ids:
+        print(f"  include filter:    {sorted(include_ids)}")
+    if exclude_ids:
+        print(f"  exclude filter:    {sorted(exclude_ids)}")
     print(f"  output dir: {run_dir}")
     print()
 

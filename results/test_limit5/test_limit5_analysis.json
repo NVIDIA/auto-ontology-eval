@@ -1,0 +1,75 @@
+{
+  "source": "results/test_limit5/test_limit5.jsonl",
+  "total_tasks": 3,
+  "n_errors": 0,
+  "n_valid": 3,
+  "phase1_pass": 1,
+  "phase2_pass": 1,
+  "full_pass": 1,
+  "sum_rewards": 1.0,
+  "avg_reward": 0.3333,
+  "score_vs_completed_naturally_pct": 33.33,
+  "score_vs_query_tasks_pct": 0.51,
+  "score_vs_full_benchmark_pct": 0.33,
+  "n_query_in_dataset": 195,
+  "n_completed_naturally": 3,
+  "n_not_completed_naturally": 0,
+  "pct_not_completed_naturally": 0.0,
+  "score_distribution": {
+    "1.0": 1,
+    "0.9": 0,
+    "0.7": 0,
+    "0.5": 0,
+    "0.0": 2,
+    "other": 0
+  },
+  "ambiguity_coverage_by_instance": [
+    {
+      "instance_id": "mental_9",
+      "our_identified_ambiguities": 6,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 3,
+      "we_flagged_not_in_dataset": [
+        "pfis",
+        "facility",
+        "frai",
+        "high-risk case prevalence"
+      ],
+      "dataset_missed_by_us": [
+        "high-risk cases",
+        "the top"
+      ]
+    },
+    {
+      "instance_id": "credit_1",
+      "our_identified_ambiguities": 6,
+      "dataset_meaningful_ambiguities": 5,
+      "over_under_identification": 1,
+      "we_flagged_not_in_dataset": [
+        "assets",
+        "liabilities"
+      ],
+      "dataset_missed_by_us": [
+        "financial value",
+        "the top"
+      ]
+    },
+    {
+      "instance_id": "crypto_1",
+      "our_identified_ambiguities": 5,
+      "dataset_meaningful_ambiguities": 1,
+      "over_under_identification": 4,
+      "we_flagged_not_in_dataset": [
+        "most recent market snapshot",
+        "market snapshot",
+        "exchange",
+        "market snapshot timestamp date"
+      ],
+      "dataset_missed_by_us": []
+    }
+  ],
+  "has_unresolved_count": 0,
+  "unresolved_hit_max_turn": 0,
+  "unresolved_spare_turns": 0,
+  "errors": []
+}

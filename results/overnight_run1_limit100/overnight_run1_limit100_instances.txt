@@ -1,0 +1,136 @@
+Instance index — same ambiguity bucketing as graph
+(per-type lists exclude mixed-type instances; see 'mixed_types' entry)
+
+══════════════════════════════════════════════════════════════════════
+  P1 FAIL (n=76)
+══════════════════════════════════════════════════════════════════════
+
+  Ambiguity Type:
+    intent_ambiguity:
+    archeology_9, solar_11, virtual_9, archeology_7, credit_8, credit_11, credit_7, crypto_5, fake_10, news_8, cross_db_4, insider_11
+    lexical_ambiguity:
+    —
+    schema_linking_ambiguity:
+    news_9, gaming_2, cybermarket_3, cross_db_1, virtual_8, cybermarket_7, credit_2, gaming_6, fake_9, cross_db_7, cross_db_5, solar_8, cybermarket_6, archeology_2, museum_5, credit_6, cross_db_10
+    semantic_ambiguity:
+    crypto_2, vaccine_10, polar_2, vaccine_2, virtual_2, archeology_8, polar_9, polar_10, vaccine_5
+    knowledge_linking_ambiguity:
+    crypto_1, museum_9, cross_db_9, gaming_1, disaster_2, cybermarket_8, museum_10, alien_3, credit_9
+    no_critical_ambiguity:
+    —
+    mixed_types:
+    news_1, mental_1, fake_7, fake_1, fake_3, fake_5, alien_11, robot_5, news_11, solar_9, alien_9, polar_1, solar_7, news_6, solar_10, news_4, vaccine_9, alien_6, virtual_1, gaming_10, fake_4, crypto_3, fake_11, solar_3, polar_5, virtual_6, crypto_4, robot_9, mental_2
+
+  Difficulty:
+    Simple:
+    crypto_1, news_9, crypto_2, cybermarket_3, credit_2, virtual_9, virtual_2, polar_9, credit_8, solar_10, alien_3, crypto_5, polar_10, crypto_3, solar_3, credit_9
+    Moderate:
+    news_1, vaccine_10, gaming_2, fake_7, archeology_9, fake_1, cross_db_1, cybermarket_7, polar_2, solar_11, cross_db_9, gaming_6, fake_5, gaming_1, alien_11, cross_db_7, cross_db_5, archeology_7, robot_5, news_11, disaster_2, solar_8, alien_9, cybermarket_6, polar_1, solar_7, museum_10, news_6, credit_11, vaccine_9, credit_7, fake_10, alien_6, virtual_1, gaming_10, fake_4, news_8, archeology_2, cross_db_4, virtual_6, credit_6, crypto_4, cross_db_10
+    Challenging:
+    mental_1, museum_9, virtual_8, fake_3, vaccine_2, fake_9, solar_9, archeology_8, cybermarket_8, news_4, fake_11, polar_5, museum_5, vaccine_5, insider_11, robot_9, mental_2
+
+  Hit Turn Budget (turns_used == max_turn):
+    news_1 (4/4), vaccine_10 (5/5), fake_7 (5/5), fake_1 (5/5), virtual_8 (5/5), credit_2 (5/5), solar_11 (5/5), fake_9 (8/8), archeology_7 (6/6), robot_5 (7/7), virtual_2 (4/4), news_11 (6/6), archeology_8 (6/6), disaster_2 (5/5), alien_9 (6/6), polar_9 (5/5), polar_1 (6/6), museum_10 (5/5), credit_8 (5/5), news_6 (5/5), credit_11 (7/7), news_4 (5/5), credit_7 (6/6), alien_3 (5/5), fake_10 (6/6), virtual_1 (6/6), fake_4 (5/5), fake_11 (7/7), polar_5 (7/7), museum_5 (4/4), vaccine_5 (5/5), virtual_6 (6/6), credit_9 (5/5), cross_db_10 (5/5)
+
+  Debug Ran but P1 Still Failed:
+    debug_ran_still_failed:
+    news_1, crypto_1, news_9, crypto_2, mental_1, museum_9, vaccine_10, gaming_2, fake_7, archeology_9, fake_1, cybermarket_3, cross_db_1, virtual_8, cybermarket_7, polar_2, credit_2, fake_3, solar_11, virtual_9, vaccine_2, cross_db_9, gaming_6, fake_5, fake_9, gaming_1, alien_11, cross_db_7, cross_db_5, archeology_7, robot_5, virtual_2, news_11, solar_9, archeology_8, disaster_2, solar_8, alien_9, polar_9, cybermarket_8, cybermarket_6, polar_1, solar_7, museum_10, credit_8, news_6, solar_10, credit_11, news_4, vaccine_9, credit_7, alien_3, crypto_5, fake_10, alien_6, virtual_1, gaming_10, fake_4, polar_10, news_8, crypto_3, fake_11, solar_3, polar_5, archeology_2, museum_5, cross_db_4, vaccine_5, virtual_6, credit_9, credit_6, crypto_4, cross_db_10, insider_11, robot_9, mental_2
+
+
+══════════════════════════════════════════════════════════════════════
+  P1 PASS + P2 FAIL (n=6)
+══════════════════════════════════════════════════════════════════════
+
+  Ambiguity Type:
+    intent_ambiguity:
+    gaming_9
+    lexical_ambiguity:
+    polar_7
+    schema_linking_ambiguity:
+    museum_6
+    semantic_ambiguity:
+    —
+    knowledge_linking_ambiguity:
+    news_3
+    no_critical_ambiguity:
+    —
+    mixed_types:
+    archeology_3, news_5
+
+  Difficulty:
+    Simple:
+    gaming_9, museum_6, polar_7
+    Moderate:
+    news_3, archeology_3, news_5
+
+  Hit Turn Budget (turns_used == max_turn):
+    gaming_9 (5/5)
+
+  Follow-up Type:
+    aggregation:
+    museum_6, news_5
+    attribute_change:
+    archeology_3
+    result_based:
+    news_3, gaming_9
+    topic_pivot:
+    polar_7
+
+  Debug Rescue (p2_debug rescued p2):
+    rescued:
+    —
+
+
+══════════════════════════════════════════════════════════════════════
+  P1 PASS + P2 PASS (n=18)
+══════════════════════════════════════════════════════════════════════
+
+  Ambiguity Type:
+    intent_ambiguity:
+    insider_10, vaccine_6, insider_5
+    lexical_ambiguity:
+    polar_6
+    schema_linking_ambiguity:
+    insider_9, insider_6, alien_2, disaster_8, mental_7
+    semantic_ambiguity:
+    cross_db_8, cross_db_2, cybermarket_9
+    knowledge_linking_ambiguity:
+    cybermarket_10, archeology_6, disaster_11, disaster_7
+    no_critical_ambiguity:
+    —
+    mixed_types:
+    museum_1, credit_1
+
+  Difficulty:
+    Simple:
+    alien_2, cybermarket_10, polar_6
+    Moderate:
+    vaccine_6, insider_6, disaster_8, archeology_6, credit_1, cross_db_2, cybermarket_9, disaster_11
+    Challenging:
+    insider_10, cross_db_8, insider_9, museum_1, disaster_7, insider_5, mental_7
+
+  Hit Turn Budget (turns_used == max_turn):
+    insider_10 (6/6), cybermarket_10 (4/4), cybermarket_9 (4/4), disaster_7 (5/5)
+
+  Follow-up Type:
+    aggregation:
+    cybermarket_10, cybermarket_9, mental_7
+    attribute_change:
+    vaccine_6, cross_db_8, museum_1, credit_1, polar_6
+    constraint_change:
+    insider_10, cross_db_2, disaster_7
+    result_based:
+    alien_2, disaster_8, insider_5
+    topic_pivot:
+    insider_9, insider_6, archeology_6, disaster_11
+
+  Debug Rescue (p2_debug rescued p2):
+    rescued:
+    —
+
+
+══════════════════════════════════════════════════════════════════════
+  HARNESS ERRORS (n=0)  — excluded from all buckets above
+══════════════════════════════════════════════════════════════════════
+
+  —

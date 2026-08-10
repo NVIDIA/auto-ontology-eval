@@ -130,14 +130,13 @@ Avg score:         0.216
   0 deleted KB entries:  n= 14  p1_pass=  7.1%  avg_score=0.036
   1 deleted KB entries:  n= 73  p1_pass= 26.0%  avg_score=0.237
   2+ deleted KB entries:  n= 13  p1_pass= 30.8%  avg_score=0.292
-
-  Charts (results)     → results/overnight_run1_limit100/overnight_run1_limit100_charts.png
-  Charts (diagnostics) → results/overnight_run1_limit100/overnight_run1_limit100_charts_diag.png
+  (charts skipped — matplotlib not installed: pip install matplotlib)
 
 ======================================================================
 Done.
   Results:  results/overnight_run1_limit100/overnight_run1_limit100.jsonl
   Analysis: results/overnight_run1_limit100/overnight_run1_limit100_analysis.json
+  Instances: results/overnight_run1_limit100/overnight_run1_limit100_instances.txt
   Charts (results):     results/overnight_run1_limit100/overnight_run1_limit100_charts.png
   Charts (diagnostics): results/overnight_run1_limit100/overnight_run1_limit100_charts_diag.png
   Report:   results/overnight_run1_limit100/overnight_run1_limit100_report.txt

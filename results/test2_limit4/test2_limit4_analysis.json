@@ -1,0 +1,61 @@
+{
+  "source": "results/test2_limit4/test2_limit4.jsonl",
+  "total_tasks": 4,
+  "n_errors": 2,
+  "n_valid": 2,
+  "phase1_pass": 1,
+  "phase2_pass": 0,
+  "full_pass": 0,
+  "sum_rewards": 0.5,
+  "avg_reward": 0.25,
+  "score_vs_completed_naturally_pct": 25.0,
+  "score_vs_query_tasks_pct": 0.26,
+  "score_vs_full_benchmark_pct": 0.17,
+  "n_query_in_dataset": 195,
+  "n_completed_naturally": 2,
+  "n_not_completed_naturally": 2,
+  "pct_not_completed_naturally": 50.0,
+  "score_distribution": {
+    "1.0": 0,
+    "0.9": 0,
+    "0.7": 0,
+    "0.5": 1,
+    "0.0": 1,
+    "other": 0
+  },
+  "ambiguity_coverage_by_instance": [
+    {
+      "instance_id": "cross_db_6",
+      "our_identified_ambiguities": 4,
+      "dataset_meaningful_ambiguities": 5,
+      "over_under_identification": -1,
+      "we_flagged_not_in_dataset": [],
+      "dataset_missed_by_us": [
+        "top months"
+      ]
+    },
+    {
+      "instance_id": "gaming_4",
+      "our_identified_ambiguities": 1,
+      "dataset_meaningful_ambiguities": 2,
+      "over_under_identification": -1,
+      "we_flagged_not_in_dataset": [],
+      "dataset_missed_by_us": [
+        "Battery Efficiency Ratio (BER)"
+      ]
+    }
+  ],
+  "has_unresolved_count": 1,
+  "unresolved_hit_max_turn": 0,
+  "unresolved_spare_turns": 1,
+  "errors": [
+    {
+      "instance_id": "solar_4",
+      "error": "HTTPStatusError(\"Server error '500 Internal Server Error' for url 'http://127.0.0.1:6003/run_session'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/500\")"
+    },
+    {
+      "instance_id": "fake_6",
+      "error": "HTTPStatusError(\"Server error '500 Internal Server Error' for url 'http://127.0.0.1:6003/run_session'\\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/500\")"
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+instance_id,database,max_turn,turns_used,phase1_passed,phase1_debug_ran,phase2_passed,phase2_debug_ran,total_reward,exec_error_p1,exec_error_p2,error
+credit_1,credit,7,3,True,False,True,False,1.0,,,
+insider_4,insider,6,6,False,True,,False,0.0,,,
+mental_3,mental,5,4,True,False,False,True,0.7,,,
+credit_8,credit,5,5,False,True,,False,0.0,,,
+cross_db_4,cross_db,5,5,False,True,,False,0.0,,,

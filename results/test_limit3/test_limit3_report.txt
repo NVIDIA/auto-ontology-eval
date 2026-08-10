@@ -1,0 +1,86 @@
+======================================================================
+BIRD-Interact Run Analysis: test_limit3.jsonl
+======================================================================
+
+── Overview ──────────────────────────────────────────────────────────
+Total tasks:       3  (errors: 0  valid: 3)
+Phase 1 pass:      2/3  (66.7%)
+Phase 2 pass:      0/2  (0.0%)  [of tasks with follow-up that reached p2]
+Full pass (p1+p2): 0/3  (0.0%)
+Avg score:         0.467
+
+── Run Time ──────────────────────────────────────────────────────────
+  Sum of task times:   13.8 min  (827s)
+  Avg time per task:   4.6 min  (276s)  [n=3]
+  Wall-clock span:     0.16h  (570s)  [first→last task start]
+
+── Score (BIRD-Interact SR) ───────────────────────────────────────────
+  vs tasks ran        (3 tasks):   46.67%
+  vs full benchmark   (300 tasks, incl. management):  0.47%
+
+── Task Completion ───────────────────────────────────────────────────
+  Completed naturally: 3/3  (100.0%)
+  Did NOT complete:    0/3  (0.0%)  ← errors + timeouts
+
+── Score Distribution ────────────────────────────────────────────────
+  1.0  →    0 tasks  (  0.0%)
+  0.9  →    0 tasks  (  0.0%)
+  0.7  →    2 tasks  ( 66.7%)
+  0.5  →    0 tasks  (  0.0%)
+  0.0  →    1 tasks  ( 33.3%)
+
+── Pass Rate by Difficulty ───────────────────────────────────────────
+  Simple        n=  2  p1=100.0%  full=  0.0%
+  Moderate      n=  1  p1=  0.0%  full=  0.0%
+
+── Turn Budget Usage ─────────────────────────────────────────────────
+  Avg turns used:   5.0
+  Avg max_turn:     5.3
+  Avg turns spare:  0.3
+  Hit max turns:    2/3  (66.7%)
+  Spare-turns distribution: {0: 2, 1: 1}
+
+── Ambiguity Coverage ────────────────────────────────────────────────
+  (fuzzy string match — approximate; we may flag noise terms the dataset excludes)
+  Avg terms we identified:         3.67
+  Avg terms dataset expects:       3.33
+  Avg over/under-identification:   +0.33  (+ = we flagged more, - = we missed some)
+  Avg we flagged not in dataset:   1.67
+  Avg dataset terms we missed:     1.33
+
+── Unresolved Entities at End × Turn Budget ──────────────────────────
+  Tasks with unresolved entities at end: 0/3  (0.0%)
+    Of those — hit max_turn:  0  (N/A)
+    Of those — turns spare:   0  (N/A)
+    P1 pass rate (unresolved): N/A
+  Tasks with no unresolved:  3/3
+    P1 pass rate (no unresolved): 66.7%
+
+── Debug Rescue Rate ─────────────────────────────────────────────────
+  Phase 1  (n=3):
+    Passed first try:  2/3  (66.7%)
+    Failed first try:  1/3  (33.3%)
+      → Debug rescued: 0/1  (0.0%)  [of failed-first-try]
+  Phase 2  (n=2 tasks that reached P2):
+    Passed first try:  0/2  (0.0%)
+    Failed first try:  2/2  (100.0%)
+      → Debug rescued: 0/2  (0.0%)  [of failed-first-try]
+
+── Timing by Difficulty ──────────────────────────────────────────────
+  Simple        avg_p1= 203.2s  avg_total= 285.9s
+  Moderate      avg_p1= 233.7s  avg_total= 255.2s
+
+── Per-Database Stats ────────────────────────────────────────────────
+  alien                 n=  3  p1_1st= 66.7%  p1_final= 66.7%  avg_score=0.47  avg_time= 275.6s
+
+── Performance Regression Over Time ──────────────────────────────────
+  (need ≥4 tasks with timestamps for regression analysis)
+
+  Charts saved → results/test_limit3/test_limit3_charts.png
+
+======================================================================
+Done.
+  Results:  results/test_limit3/test_limit3.jsonl
+  Analysis: results/test_limit3/test_limit3_analysis.json
+  Charts:   results/test_limit3/test_limit3_charts.png
+  Report:   results/test_limit3/test_limit3_report.txt
