@@ -907,6 +907,9 @@ def main() -> None:
     }
     analysis_out.write_text(json.dumps(analysis_data, indent=2))
 
+    # ── Instance index ────────────────────────────────────────────────────────
+    instances_out = _write_instances_file(results_path, ok, errors, dataset)
+
     # ── Charts ────────────────────────────────────────────────────────────────
     charts_out = results_path.with_name(results_path.stem + "_charts.png")
     _make_charts(ok, timestamped, dataset, score_buckets, followup_stats, charts_out)
@@ -915,6 +918,7 @@ def main() -> None:
     print(f"Done.")
     print(f"  Results:  {results_path}")
     print(f"  Analysis: {analysis_out}")
+    print(f"  Instances: {instances_out}")
     charts_diag = charts_out.with_name(charts_out.stem.replace("_charts", "_charts_diag") + ".png")
     if charts_out.exists():
         print(f"  Charts (results):     {charts_out}")
@@ -923,6 +927,185 @@ def main() -> None:
     print(f"  Report:   {report_path}")
 
     tee.close()
+
+
+def _write_instances_file(
+    results_path: Path,
+    ok: list[dict],
+    errors: list[dict],
+    dataset: dict[str, dict],
+) -> Path:
+    """Write a human-readable instance index alongside the analysis JSON.
+
+    Instances are split into three outcome buckets:
+      P1 FAIL / P1 PASS + P2 FAIL / P1 PASS + P2 PASS
+
+    Within each bucket every dimension lists the instance_ids that belong to it.
+
+    NOTE on Ambiguity Type counts: an instance is assigned to at most ONE type
+    bucket (same bucketing rule as the graph — knowledge_linking pure-only;
+    others allow knowledge_linking alongside).  Instances whose critical
+    ambiguity spans two *different* non-noise, non-knowledge-linking types
+    (e.g. schema_linking + intent) fall into "mixed_types" and are excluded
+    from the per-type lists.  "no_critical_ambiguity" covers instances with
+    no critical ambiguity entries after filtering noise types.  Therefore
+    per-type lists + no_critical + mixed_types = total bucket; per-type lists
+    alone will not sum to total.
+    """
+    KNOWLEDGE_LINKING = "knowledge_linking_ambiguity"
+
+    # ── helpers ───────────────────────────────────────────────────────────────
+    def _ambiguity_bucket(r: dict) -> str:
+        """Return the ambiguity type bucket for a result row, or a sentinel."""
+        task = dataset.get(r["instance_id"]) or {}
+        crit = task.get("user_query_ambiguity", {}).get("critical_ambiguity", [])
+        types = {
+            a.get("type", "")
+            for a in crit
+            if a.get("type", "") and a.get("type", "") not in _NOISE_AMBIGUITY_TYPES
+        }
+        if not types:
+            return "no_critical_ambiguity"
+        if types == {KNOWLEDGE_LINKING}:
+            return KNOWLEDGE_LINKING
+        non_kl = types - {KNOWLEDGE_LINKING}
+        if len(non_kl) == 1:
+            return next(iter(non_kl))
+        return "mixed_types"  # spans multiple non-KL types — excluded from per-type lists
+
+    def _diff(r: dict) -> str:
+        task = dataset.get(r["instance_id"]) or {}
+        return _norm_diff(task.get("difficulty_tier"))
+
+    def _fu_type(r: dict) -> str:
+        task = dataset.get(r["instance_id"]) or {}
+        return (task.get("follow_up") or {}).get("type", "unknown")
+
+    def _section(lines: list[str], title: str, records: list[dict], *, extra: str = "") -> None:
+        tag = f" [{extra}]" if extra else ""
+        lines.append(f"  {title}{tag}:")
+        if not records:
+            lines.append("    —")
+        else:
+            lines.append("    " + ", ".join(r["instance_id"] for r in records))
+
+    # ── outcome buckets ───────────────────────────────────────────────────────
+    p1_fail     = [r for r in ok if not r.get("phase1_passed")]
+    p1p_p2f     = [r for r in ok if r.get("phase1_passed") and r.get("phase2_passed") is False]
+    full_pass   = [r for r in ok if r.get("phase1_passed")
+                   and (r.get("phase2_passed") is None or r.get("phase2_passed"))]
+
+    # ── collect all non-noise ambiguity types in run ──────────────────────────
+    all_amb_types: set[str] = set()
+    for r in ok:
+        task = dataset.get(r["instance_id"]) or {}
+        for a in task.get("user_query_ambiguity", {}).get("critical_ambiguity", []):
+            t = a.get("type", "")
+            if t and t not in _NOISE_AMBIGUITY_TYPES:
+                all_amb_types.add(t)
+    sorted_amb = sorted(all_amb_types - {KNOWLEDGE_LINKING}) + [KNOWLEDGE_LINKING]
+
+    # ── difficulty ordering ───────────────────────────────────────────────────
+    diff_order = ["Simple", "Moderate", "Challenging", "Unknown"]
+
+    # ── build sections per bucket ─────────────────────────────────────────────
+    lines: list[str] = []
+    lines.append(
+        "Instance index — same ambiguity bucketing as graph\n"
+        "(per-type lists exclude mixed-type instances; see 'mixed_types' entry)\n"
+    )
+
+    for bucket_label, bucket in [
+        (f"P1 FAIL (n={len(p1_fail)})", p1_fail),
+        (f"P1 PASS + P2 FAIL (n={len(p1p_p2f)})", p1p_p2f),
+        (f"P1 PASS + P2 PASS (n={len(full_pass)})", full_pass),
+    ]:
+        lines.append("═" * 70)
+        lines.append(f"  {bucket_label}")
+        lines.append("═" * 70)
+        lines.append("")
+
+        # Ambiguity type
+        lines.append("  Ambiguity Type:")
+        for atype in sorted_amb + ["no_critical_ambiguity", "mixed_types"]:
+            members = [r for r in bucket if _ambiguity_bucket(r) == atype]
+            _section(lines, f"  {atype}", members)
+        lines.append("")
+
+        # Difficulty
+        lines.append("  Difficulty:")
+        for d in diff_order:
+            members = [r for r in bucket if _diff(r) == d]
+            if members:
+                _section(lines, f"  {d}", members)
+        lines.append("")
+
+        # Turn budget (hit max)
+        hit_max = [r for r in bucket
+                   if r.get("turns_used") is not None and r.get("max_turn")
+                   and r["turns_used"] >= r["max_turn"]]
+        lines.append("  Hit Turn Budget (turns_used == max_turn):")
+        if hit_max:
+            lines.append("    " + ", ".join(
+                f"{r['instance_id']} ({r['turns_used']}/{r['max_turn']})" for r in hit_max
+            ))
+        else:
+            lines.append("    —")
+        lines.append("")
+
+        # Follow-up type (only meaningful for p2 — always show, empty for p1 fail)
+        if bucket_label.startswith("P1 PASS"):
+            lines.append("  Follow-up Type:")
+            fu_types_in_bucket = sorted({_fu_type(r) for r in bucket})
+            for ft in fu_types_in_bucket:
+                members = [r for r in bucket if _fu_type(r) == ft]
+                _section(lines, f"  {ft}", members)
+            lines.append("")
+
+        # Debug rescue (only for p2 section — p1 debug rescue is a p1 outcome)
+        if bucket_label.startswith("P1 PASS + P2"):
+            rescued = [r for r in bucket if r.get("phase2_debug_ran") and r.get("phase2_passed")]
+            lines.append("  Debug Rescue (p2_debug rescued p2):")
+            _section(lines, "  rescued", rescued)
+            lines.append("")
+
+        if bucket_label.startswith("P1 FAIL"):
+            # p1 debug rescued → phase1_passed=True → not in p1_fail bucket
+            lines.append("  Debug Ran but P1 Still Failed:")
+            debug_ran_failed = [r for r in bucket if r.get("phase1_debug_ran")]
+            _section(lines, "  debug_ran_still_failed", debug_ran_failed)
+            lines.append("")
+
+        # Exec errors
+        exec_p1 = [r for r in bucket if r.get("exec_error_p1")]
+        exec_p2 = [r for r in bucket if r.get("exec_error_p2")]
+        if exec_p1 or exec_p2:
+            lines.append("  Exec Errors:")
+            if exec_p1:
+                _section(lines, "  exec_error_p1", exec_p1)
+            if exec_p2:
+                _section(lines, "  exec_error_p2", exec_p2)
+            lines.append("")
+
+        # Harness errors (error field set — separate from ok)
+        # (errors are outside buckets, but list them once after the p1-fail bucket)
+        lines.append("")
+
+    # ── harness errors (not in any outcome bucket) ────────────────────────────
+    lines.append("═" * 70)
+    lines.append(f"  HARNESS ERRORS (n={len(errors)})  — excluded from all buckets above")
+    lines.append("═" * 70)
+    lines.append("")
+    if errors:
+        for r in errors:
+            lines.append(f"  {r['instance_id']}: {r.get('error', '?')}")
+    else:
+        lines.append("  —")
+    lines.append("")
+
+    out_path = results_path.with_name(results_path.stem + "_instances.txt")
+    out_path.write_text("\n".join(lines))
+    return out_path
 
 
 if __name__ == "__main__":

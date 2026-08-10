@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 logging.getLogger("gsf.retrieval.interactive.clarify").setLevel(logging.DEBUG)
 logging.getLogger("gsf.retrieval.interactive.coordinator").setLevel(logging.INFO)
-logging.getLogger("gsf.retrieval.text_to_sql").setLevel(logging.INFO)
+#logging.getLogger("gsf.retrieval.text_to_sql").setLevel(logging.INFO)
 logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
 logging.getLogger("uvicorn.error").setLevel(logging.WARNING)
 # ─────────────────────────────────────────────────────────────────────────────
