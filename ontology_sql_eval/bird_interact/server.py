@@ -38,8 +38,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 logging.getLogger("gsf.retrieval.interactive.clarify").setLevel(logging.DEBUG)
 logging.getLogger("gsf.retrieval.interactive.coordinator").setLevel(logging.INFO)
-logging.getLogger("gsf.retrieval.text_to_sql.agents.sql_execution").setLevel(logging.INFO)
-logging.getLogger("gsf.retrieval.text_to_sql.agents.sql_reconstruction").setLevel(logging.INFO)
+logging.getLogger("gsf.retrieval.text_to_sql").setLevel(logging.INFO)
 logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
 logging.getLogger("uvicorn.error").setLevel(logging.WARNING)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -211,6 +210,12 @@ async def run_session(req: RunSessionRequest):
     turn = 0
     t_start = time.time()
 
+    # Timing and entity tracking for structured logging
+    t_loop_start = time.time()
+    t_last_ask_user: float | None = None
+    t_submit: float | None = None
+    unresolved_start = list(getattr(sess.gsf_session, "persistent_unresolved", []))
+
     while True:
         turn += 1
         t0 = time.time()
@@ -230,6 +235,7 @@ async def run_session(req: RunSessionRequest):
                 logger.error("[turn %d] ask_user failed: %r", turn, e)
                 raise HTTPException(status_code=502, detail=f"ask_user error: {type(e).__name__}: {e}")
 
+            t_last_ask_user = time.time()
             sess.dialogue_history.append({"role": "agent", "content": action.question})
             sess.dialogue_history.append({"role": "user",  "content": answer})
             sess.tool_trajectory.append({
@@ -241,10 +247,13 @@ async def run_session(req: RunSessionRequest):
             continue
 
         if isinstance(action, SubmitSQLAction):
+            _gsf = sess.gsf_session
+            _hist_len = len(getattr(_gsf, "clarify_history", []))
+            _max_turns = getattr(_gsf, "max_clarify_turns", "?")
             logger.info(
-                "[turn %d | %.1fs] DECISION: SUBMIT SQL\n"
+                "[turn %d | %.1fs] DECISION: SUBMIT SQL  (history len=%s/%s)\n"
                 "  ┌─ \033[1msql:\033[0m \033[1;35m%s\033[0m",
-                turn, elapsed, action.sql,
+                turn, elapsed, _hist_len, _max_turns, action.sql,
             )
             try:
                 result = await bird_http.submit_sql(req.task_id, action.sql)
@@ -259,6 +268,7 @@ async def run_session(req: RunSessionRequest):
                 logger.error("[turn %d] submit_sql failed: %s", turn, e)
                 raise HTTPException(status_code=502, detail=f"submit_sql error: {e}")
 
+            t_submit = time.time()
             sess._last_submit_raw = result.get("message", "")
             sess.total_reward += float(result.get("reward", 0.0))
             sess.tool_trajectory.append({
@@ -283,6 +293,19 @@ async def run_session(req: RunSessionRequest):
 
     logger.info("[done] %d turns in %.1fs | reward=%.2f", turn, time.time() - t_start, sess.total_reward)
 
+    # Compute timing breakdown: clarification = time until last ask_user answer;
+    # sql_gen = time from last ask_user (or loop start) until submit_sql.
+    t_clarify_end = t_last_ask_user or t_loop_start
+    timing_clarification_secs = t_clarify_end - t_loop_start
+    timing_sql_gen_secs = (t_submit - t_clarify_end) if t_submit is not None else None
+
+    unresolved_end = list(getattr(sess.gsf_session, "persistent_unresolved", []))
+    resolved_entities = list(getattr(sess.gsf_session, "resolved_persistent", set()))
+    initial_extracted_entities = list(getattr(sess.gsf_session, "initial_extracted_entities", []))
+    extracted_entities = list(
+        getattr(sess.gsf_session, "path_state", {}).get("entities") or []
+    )
+
     out_state = {
         **sess.bird_state,
         "phase1_completed": sess.phase1_completed,
@@ -294,6 +317,14 @@ async def run_session(req: RunSessionRequest):
         "_submitted_this_phase": sess._submitted_this_phase,
         "task_done": sess.task_done,
         "adk_events": [],
+        # Structured logging fields for the overnight runner
+        "timing_clarification_secs": timing_clarification_secs,
+        "timing_sql_gen_secs": timing_sql_gen_secs,
+        "unresolved_entities_start": unresolved_start,
+        "unresolved_entities_end": unresolved_end,
+        "resolved_entities": resolved_entities,
+        "initial_extracted_entities": initial_extracted_entities,
+        "extracted_entities": extracted_entities,
     }
     return {
         "task_id": req.task_id,

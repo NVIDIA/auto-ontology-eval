@@ -1,0 +1,143 @@
+======================================================================
+BIRD-Interact Run Analysis: overnight_run1_limit100.jsonl
+======================================================================
+
+── Overview ──────────────────────────────────────────────────────────
+Total tasks:       100  (errors: 0  valid: 100)
+Phase 1 pass:      24/100  (24.0%)
+Phase 2 pass:      18/24  (75.0%)  [of tasks with follow-up that reached p2]
+Full pass (p1+p2): 18/100  (18.0%)
+Avg score:         0.216
+
+── Run Time ──────────────────────────────────────────────────────────
+  Sum of task times:   345.9 min  (20756s)
+  Avg time per task:   3.5 min  (208s)  [n=100]
+  Wall-clock span:     5.74h  (20653s)  [first→last task start]
+
+── Score (BIRD-Interact SR) ───────────────────────────────────────────
+  vs tasks ran        (100 tasks):   21.60%
+  vs full benchmark   (~154 tasks, incl. management):  14.03%
+
+── Task Completion ───────────────────────────────────────────────────
+  Completed naturally: 100/100  (100.0%)
+  Did NOT complete:    0/100  (0.0%)  ← errors + timeouts
+
+── Score Distribution ────────────────────────────────────────────────
+  1.0  →   16 tasks  ( 16.0%)
+  0.9  →    0 tasks  (  0.0%)
+  0.8  →    2 tasks  (  2.0%)
+  0.7  →    5 tasks  (  5.0%)
+  0.5  →    1 tasks  (  1.0%)
+  0.0  →   76 tasks  ( 76.0%)
+
+── Pass Rate by Difficulty ───────────────────────────────────────────
+  Simple        n= 22  p1= 27.3%  full= 13.6%
+  Moderate      n= 54  p1= 20.4%  full= 14.8%
+  Challenging   n= 24  p1= 29.2%  full= 29.2%
+
+── Turn Budget Usage ─────────────────────────────────────────────────
+  Avg turns used:   3.9
+  Avg max_turn:     5.6
+  Avg turns spare:  1.7
+  Hit max turns:    39/100  (39.0%)
+  Spare-turns distribution: {0: 39, 1: 17, 2: 17, 3: 5, 4: 14, 5: 5, 6: 2, 7: 1}
+
+── Clarify Proceeded with 0 Turns ────────────────────────────────────
+  Tasks: 6  →  P1 pass: 1  (16.7%)  |  P1 fail: 5  (83.3%)
+  Instance IDs: polar_2, cross_db_9, gaming_6, gaming_1, museum_6, polar_10
+
+── Ambiguity Coverage ────────────────────────────────────────────────
+  (fuzzy string match — approximate; we may flag noise terms the dataset excludes)
+  Avg terms we identified:         5.38
+  Avg terms dataset expects:       3.59
+  Avg over/under-identification:   +1.79  (+ = we flagged more, - = we missed some)
+  Avg we flagged not in dataset:   3.03
+  Avg dataset terms we missed:     1.07
+
+── Unresolved Entities at End × Turn Budget ──────────────────────────
+  Tasks with unresolved entities at end: 27/100  (27.0%)
+    Of those — hit max_turn:  10  (37.0%)
+    Of those — turns spare:   17  (63.0%)
+    P1 pass rate (unresolved): 22.2%
+  Tasks with no unresolved:  73/100
+    P1 pass rate (no unresolved): 24.7%
+
+── Debug Rescue Rate ─────────────────────────────────────────────────
+  Phase 1  (n=100):
+    Passed first try:  21/100  (21.0%)
+    Failed first try:  79/100  (79.0%)
+      → Debug rescued: 3/79  (3.8%)  [of failed-first-try]
+  Phase 2  (n=24 tasks that reached P2):
+    Passed first try:  18/24  (75.0%)
+    Failed first try:  6/24  (25.0%)
+      → Debug rescued: 0/6  (0.0%)  [of failed-first-try]
+
+── Timing by Difficulty ──────────────────────────────────────────────
+  Simple        avg_p1= 130.3s  avg_total= 170.6s
+  Moderate      avg_p1= 167.5s  avg_total= 200.5s
+  Challenging   avg_p1= 216.2s  avg_total= 257.2s
+
+── Per-Database Stats ────────────────────────────────────────────────
+  alien                 n=  5  p1_1st= 20.0%  p1_final= 20.0%  avg_score=0.20  avg_time= 206.1s
+  archeology            n=  6  p1_1st= 33.3%  p1_final= 33.3%  avg_score=0.28  avg_time= 222.7s
+  credit                n=  7  p1_1st= 14.3%  p1_final= 14.3%  avg_score=0.14  avg_time= 203.2s
+  cross_db              n=  8  p1_1st= 25.0%  p1_final= 25.0%  avg_score=0.25  avg_time= 172.8s
+  crypto                n=  5  p1_1st=  0.0%  p1_final=  0.0%  avg_score=0.00  avg_time=  99.9s
+  cybermarket           n=  6  p1_1st= 33.3%  p1_final= 33.3%  avg_score=0.33  avg_time= 185.6s
+  disaster              n=  4  p1_1st= 75.0%  p1_final= 75.0%  avg_score=0.75  avg_time= 217.0s
+  fake                  n=  8  p1_1st=  0.0%  p1_final=  0.0%  avg_score=0.00  avg_time= 211.7s
+  gaming                n=  5  p1_1st= 20.0%  p1_final= 20.0%  avg_score=0.14  avg_time= 192.3s
+  insider               n=  5  p1_1st= 40.0%  p1_final= 80.0%  avg_score=0.72  avg_time= 319.1s
+  mental                n=  3  p1_1st= 33.3%  p1_final= 33.3%  avg_score=0.33  avg_time= 248.4s
+  museum                n=  5  p1_1st= 20.0%  p1_final= 40.0%  avg_score=0.30  avg_time= 250.4s
+  news                  n=  8  p1_1st= 25.0%  p1_final= 25.0%  avg_score=0.17  avg_time= 213.8s
+  polar                 n=  7  p1_1st= 28.6%  p1_final= 28.6%  avg_score=0.24  avg_time= 171.3s
+  robot                 n=  2  p1_1st=  0.0%  p1_final=  0.0%  avg_score=0.00  avg_time= 230.2s
+  solar                 n=  6  p1_1st=  0.0%  p1_final=  0.0%  avg_score=0.00  avg_time= 181.3s
+  vaccine               n=  5  p1_1st= 20.0%  p1_final= 20.0%  avg_score=0.20  avg_time= 207.1s
+  virtual               n=  5  p1_1st=  0.0%  p1_final=  0.0%  avg_score=0.00  avg_time= 272.6s
+
+── Performance Regression Over Time ──────────────────────────────────
+  Quarter        n   p1_pass   avg_p1_time
+  Q1            25     16.0%        175.6s
+  Q2            25     32.0%        167.2s
+  Q3            25     32.0%        173.1s
+  Q4            25     16.0%        168.0s
+  Total run span: 5.74h
+
+── Stuck Phrase Responses ────────────────────────────────────────────
+  Tasks with ≥1 stuck answer:   42/100  (42.0%)
+  Tasks with >1 stuck answer:   15/100  (15.0%)
+  Avg stuck answers per task:   0.63  (ratio: 63/100)
+
+── Follow-up Type P2 Pass Rate (given P1 passed) ────────────────────
+  aggregation            60.0%  [3/4 moderate, 0/1 challenging]
+  attribute_change       83.3%  [2/2 simple, 3/4 moderate]
+  constraint_change     100.0%  [1/1 simple, 2/2 moderate]
+  result_based           60.0%  [1/3 moderate, 2/2 challenging]
+  topic_pivot            80.0%  [3/3 moderate, 1/2 challenging]
+
+── Critical Ambiguity Type × Pass Rate ───────────────────────────────
+  (knowledge_linking: pure only; others: allow knowledge_linking alongside)
+  Type                                    n   p1_pass   avg_score
+  intent_ambiguity                       16     25.0%       0.219
+  knowledge_linking_ambiguity            14     35.7%       0.336
+  lexical_ambiguity                       2    100.0%       0.850
+  schema_linking_ambiguity               23     26.1%       0.230
+  semantic_ambiguity                     12     25.0%       0.250
+
+── Deleted KB Entries (knowledge_ambiguity count) × Pass Rate ────────
+  0 deleted KB entries:  n= 14  p1_pass=  7.1%  avg_score=0.036
+  1 deleted KB entries:  n= 73  p1_pass= 26.0%  avg_score=0.237
+  2+ deleted KB entries:  n= 13  p1_pass= 30.8%  avg_score=0.292
+
+  Charts (results)     → results/overnight_run1_limit100/overnight_run1_limit100_charts.png
+  Charts (diagnostics) → results/overnight_run1_limit100/overnight_run1_limit100_charts_diag.png
+
+======================================================================
+Done.
+  Results:  results/overnight_run1_limit100/overnight_run1_limit100.jsonl
+  Analysis: results/overnight_run1_limit100/overnight_run1_limit100_analysis.json
+  Charts (results):     results/overnight_run1_limit100/overnight_run1_limit100_charts.png
+  Charts (diagnostics): results/overnight_run1_limit100/overnight_run1_limit100_charts_diag.png
+  Report:   results/overnight_run1_limit100/overnight_run1_limit100_report.txt

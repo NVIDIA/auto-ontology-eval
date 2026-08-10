@@ -97,7 +97,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--random", action="store_true",
-        help="Pick one random task matching the filters (skips vaccine/virtual by default)",
+        help="Pick one random task matching the filters",
     )
     args = parser.parse_args()
 
@@ -127,8 +127,7 @@ def main() -> None:
         if args.difficulty:
             pool = [t for t in pool if (t.get("difficulty_tier") or "").lower() == args.difficulty]
         if args.random:
-            safe = [t for t in pool if t.get("selected_database") not in ("vaccine", "virtual")]
-            pool = [random.choice(safe if safe else pool)] if pool else []
+            pool = [random.choice(pool)] if pool else []
         if not pool:
             print("ERROR: no tasks match the specified filters", file=sys.stderr)
             sys.exit(1)

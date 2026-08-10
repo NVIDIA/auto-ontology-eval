@@ -125,9 +125,7 @@ def load_task(data_path: Path, index: int, db_filter: str | None, random_pick: b
         print(f"No tasks found for {', '.join(parts)}", file=sys.stderr)
         sys.exit(1)
     if random_pick:
-        # exclude vaccine and virtual by default as they may not be fully ready
-        safe = [(i, t) for i, t in pool if t.get("selected_database") not in ("vaccine", "virtual")]
-        idx, task = random.choice(safe if safe else pool)
+        idx, task = random.choice(pool)
         return idx, task
     if db_filter:
         return pool[0]
@@ -162,7 +160,7 @@ def main() -> None:
     parser.add_argument("--task-index", type=int, default=0, help="0-based task index")
     parser.add_argument("--instance-id", default=None, help="Pick task by instance_id (e.g. alien_1)")
     parser.add_argument("--db", default=None, help="Pick first task for this database name")
-    parser.add_argument("--random", action="store_true", help="Pick a random task (skips vaccine/virtual)")
+    parser.add_argument("--random", action="store_true", help="Pick a random task")
     parser.add_argument("--category", default=None, choices=["query", "management"], type=str.lower,
                         help="Restrict selection to 'query' or 'management' tasks (case-insensitive)")
     parser.add_argument("--difficulty", default=None, choices=["simple", "moderate", "challenging"], type=str.lower,

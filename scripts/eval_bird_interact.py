@@ -137,8 +137,7 @@ def load_task(
         print(f"No tasks found for {', '.join(parts)}", file=sys.stderr)
         sys.exit(1)
     if random_pick:
-        safe = [(i, t) for i, t in pool if t.get("selected_database") not in ("vaccine", "virtual")]
-        idx, task = random.choice(safe if safe else pool)
+        idx, task = random.choice(pool)
         return idx, task
     if db_filter:
         return pool[0]
@@ -181,13 +180,15 @@ def main() -> None:
     parser.add_argument("--task-index", type=int, default=0, help="0-based task index")
     parser.add_argument("--instance-id", default=None, help="Pick task by instance_id (e.g. alien_1)")
     parser.add_argument("--db", default=None, help="Pick first task for this database name")
-    parser.add_argument("--random", action="store_true", help="Pick a random task (skips vaccine/virtual)")
+    parser.add_argument("--random", action="store_true", help="Pick a random task")
     parser.add_argument("--category", default=None, choices=["query", "management"], type=str.lower,
                         help="Restrict selection to 'query' or 'management' tasks")
     parser.add_argument("--difficulty", default=None, choices=["simple", "moderate", "challenging"], type=str.lower,
                         help="Restrict selection by difficulty_tier")
     parser.add_argument("--agent-port", type=int, default=6003, help="Port to start the GSF adapter on")
     parser.add_argument("--timeout", type=int, default=10, help="Health-check timeout per service (s)")
+    parser.add_argument("--quit-after-phase", type=int, default=None, choices=[1, 2],
+                        help="Stop cleanly after this phase (1 = skip phase 2 even if p1 passes)")
     args = parser.parse_args()
 
     agent_url = f"http://127.0.0.1:{args.agent_port}"
@@ -309,7 +310,9 @@ def main() -> None:
         p2_pass = None
         p2_debug_ran = False
 
-        if p1_pass and has_follow_up:
+        if args.quit_after_phase == 1:
+            print("\n(--quit-after-phase 1: skipping phase 2)")
+        elif p1_pass and has_follow_up:
             follow_up_query = follow_up.get("query", "")
             print("\n-- phase_transition on :6001 --")
             post(f"{USER_SIM_URL}/phase_transition", {"task_id": task_id}, timeout=30.0)
