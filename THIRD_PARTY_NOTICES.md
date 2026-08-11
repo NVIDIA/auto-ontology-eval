@@ -88,6 +88,22 @@ and `datasets/bird/` ships only a README and a `.gitkeep`. The BIRD dataset is
 distributed by its authors under CC BY-SA 4.0 — a separate matter from the
 MIT-licensed DAMO-ConvAI evaluation *code* referenced in section 1 above.
 
+### Note on FDABench-Lite and its source databases
+
+FDABench-Lite tasks and the SQLite databases they require are **not** included
+in this repository. `scripts/seed_fdabench.py` downloads them at runtime, and
+`datasets/fdabench/` ships only a README and a `.gitkeep`.
+
+| Runtime download | Upstream | License (as published by authors) |
+|---|---|---|
+| FDABench-Lite JSONLs | [FDAbench2026/Fdabench-Lite](https://huggingface.co/datasets/FDAbench2026/Fdabench-Lite) / [fdabench/FDAbench](https://github.com/fdabench/FDAbench) | MIT |
+| BIRD train SQLite DBs | [BIRD](https://bird-bench.github.io/) `train.zip` | CC BY-SA 4.0 |
+| Spider2-lite local SQLite pack | [xlang-ai/Spider2](https://github.com/xlang-ai/Spider2) Google Drive local pack | see upstream Spider2 |
+| Spider1 databases | [Yale Spider](https://yale-lily.github.io/spider) dataset zip | CC BY-SA 4.0 |
+
+Dabstep (`merchant_data.db`) tasks are intentionally skipped by the seed
+script because that database is not redistributed with FDABench-Lite.
+
 ---
 
 ## License Texts
