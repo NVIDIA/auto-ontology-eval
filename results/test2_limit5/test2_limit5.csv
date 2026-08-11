@@ -1,6 +1,6 @@
 instance_id,database,max_turn,turns_used,phase1_passed,phase1_debug_ran,phase2_passed,phase2_debug_ran,total_reward,exec_error_p1,exec_error_p2,error
-news_11,news,6,2,False,True,,False,0.0,,,
-polar_4,polar,6,6,False,True,,False,0.0,,,
-vaccine_8,vaccine,7,4,False,True,,False,0.0,,,
-gaming_6,gaming,5,0,False,True,,False,0.0,,,
-solar_10,solar,6,3,False,True,,False,0.0,,,
+mental_8,mental,5,5,False,True,,False,0.0,,,
+mental_2,mental,6,3,False,True,,False,0.0,,,
+disaster_7,disaster,5,5,False,True,,False,0.0,,,
+crypto_1,crypto,3,1,False,True,,False,0.0,,,
+museum_4,museum,6,1,False,True,,False,0.0,,,

@@ -1,2 +1,0 @@
-task_id,instance_id,database,phase1_passed,phase2_passed,has_follow_up,total_reward,elapsed_seconds
-alien_1,alien_1,alien,False,False,True,0.0,143.95906591415405
