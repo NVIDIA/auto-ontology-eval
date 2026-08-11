@@ -39,9 +39,26 @@ from pathlib import Path
 
 import httpx
 
-ONTOLOGY_DIR = Path(__file__).resolve().parents[1]
-GSF_DIR      = ONTOLOGY_DIR.parent / "GSF"
-DEFAULT_DATA = ONTOLOGY_DIR / "datasets" / "bird_interact" / "bird_interact_data_with_gt.jsonl"
+ONTOLOGY_DIR   = Path(__file__).resolve().parents[1]
+GSF_DIR        = ONTOLOGY_DIR.parent / "GSF"
+_ADK_DIR       = Path(__file__).resolve().parents[3] / "BIRD-Interact" / "BIRD-Interact-ADK"
+
+
+def _read_adk_env() -> dict[str, str]:
+    env: dict[str, str] = {}
+    dotenv = _ADK_DIR / ".env"
+    if not dotenv.exists():
+        return env
+    for raw in dotenv.read_text().splitlines():
+        line = raw.strip()
+        if line and not line.startswith("#") and "=" in line:
+            k, _, v = line.partition("=")
+            env[k.strip()] = v.strip()
+    return env
+
+
+_DATASET     = _read_adk_env().get("DATASET", "lite")
+DEFAULT_DATA = _ADK_DIR.parent / f"bird-interact-{_DATASET}" / "bird_interact_data_with_gt.jsonl"
 
 USER_SIM_URL = "http://127.0.0.1:6001"
 DB_ENV_URL   = "http://127.0.0.1:6002"
