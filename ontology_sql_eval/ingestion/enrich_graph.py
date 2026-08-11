@@ -56,12 +56,26 @@ logger = logging.getLogger(__name__)
 DEFAULT_DIR = Path(__file__).resolve().parents[2] / "datasets"
 
 
+def _dataset_file(database_name: str, filename: str) -> Path | None:
+    """Resolve a per-database enrichment file under ``datasets/``.
+
+    Looks first at the single-DB layout ``datasets/<database_name>/<filename>``
+    (WideWorldImporters), then at multi-DB layouts
+    ``datasets/<benchmark>/<database_name>/<filename>`` (BIRD, FDABench).
+    """
+    direct = DEFAULT_DIR / database_name / filename
+    if direct.is_file():
+        return direct
+    matches = sorted(DEFAULT_DIR.glob(f"*/{database_name}/{filename}"))
+    return matches[0] if matches else None
+
+
 def apply_metadata(database_name: str) -> None:
     """Stamp table/column metadata onto the Neo4j graph.
 
-    Reads ``<this dir>/<database_name>/metadata.json`` (keyed by table name) and
-    updates the following properties for every table/column belonging to
-    *database_name*:
+    Reads ``datasets/<database_name>/metadata.json`` (or, for multi-DB
+    benchmarks, ``datasets/<benchmark>/<database_name>/metadata.json``), keyed
+    by table name, and updates:
 
     * ``Table.description``
     * ``Column.description``
@@ -74,10 +88,14 @@ def apply_metadata(database_name: str) -> None:
     """
     from nemo_retriever.tabular_data.neo4j import get_neo4j_conn
 
-    metadata_path = DEFAULT_DIR / database_name / "metadata.json"
+    metadata_path = _dataset_file(database_name, "metadata.json")
 
-    if not metadata_path.exists():
-        logger.info("No metadata file at %s — skipping enrichment.", metadata_path)
+    if metadata_path is None:
+        logger.info(
+            "No metadata.json for %r under %s — skipping enrichment.",
+            database_name,
+            DEFAULT_DIR,
+        )
         return
 
     with metadata_path.open() as f:
@@ -187,10 +205,14 @@ def add_custom_analyses(
     )
     from gsf.dal.custom_analyses import embed_custom_analyses
 
-    analyses_path = DEFAULT_DIR / database_name / "custom_analyses.json"
+    analyses_path = _dataset_file(database_name, "custom_analyses.json")
 
-    if not analyses_path.exists():
-        logger.info("custom analyses file not found at %s; skipping", analyses_path)
+    if analyses_path is None:
+        logger.info(
+            "No custom_analyses.json for %r under %s; skipping",
+            database_name,
+            DEFAULT_DIR,
+        )
         return
 
     with analyses_path.open() as f:

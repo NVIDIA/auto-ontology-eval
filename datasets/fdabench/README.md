@@ -24,8 +24,15 @@ writes:
 
 ```
 datasets/fdabench/<db_id>/<db_id>.sqlite
+datasets/fdabench/<db_id>/database_description/*.csv   # BIRD DBs only
+datasets/fdabench/<db_id>/metadata.json                # from those CSVs
 datasets/fdabench/evaluation.json
 ```
+
+For BIRD-sourced databases, column descriptions from upstream
+`database_description/*.csv` are converted into our `metadata.json` shape so
+ingest enrichment (`apply_metadata`) can stamp them onto Neo4j. Spider1 /
+Spider2-lite packs do not ship equivalent structured descriptions.
 
 Re-running is cheap: databases already on disk are skipped (use `--force` to
 reinstall), so an interrupted seed can simply be run again.
@@ -87,5 +94,8 @@ layer, runs the agent against `datasets/fdabench/evaluation.json`
   FDABench agent query.
 - FDABench's MCQ / report rubric scoring is **not** ported here — scoring uses
   this repo's generic exec-match + LLM judge path.
+- Per-database `metadata.json` lives under
+  `datasets/fdabench/<db_id>/metadata.json`. Ingestion resolves that nested
+  layout automatically (same as a top-level `datasets/<db_id>/metadata.json`).
 - Source datasets are downloaded at runtime and are **not** vendored in git
   (see [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md)).

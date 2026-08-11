@@ -10,6 +10,8 @@ tasks need::
 
     datasets/fdabench/evaluation.json
     datasets/fdabench/<db_id>/<db_id>.sqlite
+    datasets/fdabench/<db_id>/database_description/*.csv  # BIRD only
+    datasets/fdabench/<db_id>/metadata.json               # from those CSVs
 
 Dabstep tasks are skipped (no redistributable ``merchant_data.db``). Tasks
 without ``expected_SQL`` in ``gold_subtasks`` are also skipped. All remaining
@@ -35,6 +37,7 @@ After seeding::
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import logging
 import re
@@ -384,6 +387,14 @@ def _target_sqlite_path(dest: Path, db_id: str) -> Path:
     return dest / db_id / f"{db_id}.sqlite"
 
 
+def _target_metadata_path(dest: Path, db_id: str) -> Path:
+    return dest / db_id / "metadata.json"
+
+
+def _target_description_dir(dest: Path, db_id: str) -> Path:
+    return dest / db_id / "database_description"
+
+
 def _install_sqlite(src: Path, dest: Path, db_id: str) -> None:
     """Copy *src* sqlite file to ``dest/<db_id>/<db_id>.sqlite``."""
     target = _target_sqlite_path(dest, db_id)
@@ -396,6 +407,103 @@ def _is_macos_metadata(member_name: str) -> bool:
     """True for ``__MACOSX`` / AppleDouble entries that shadow real members."""
     parts = Path(member_name).parts
     return "__MACOSX" in parts or Path(member_name).name.startswith("._")
+
+
+def _clean_bird_text(value: str | None) -> str:
+    """Normalize BIRD description cells (strip, collapse whitespace)."""
+    if not value:
+        return ""
+    return " ".join(value.replace("\r", "\n").split())
+
+
+def _metadata_from_bird_descriptions(desc_dir: Path) -> dict[str, Any]:
+    """Convert a BIRD ``database_description/`` folder into our metadata.json shape.
+
+    Each ``*.csv`` is one table. Columns come from BIRD's
+    ``original_column_name`` / ``column_name`` / ``column_description`` /
+    ``value_description`` fields.
+    """
+    metadata: dict[str, Any] = {}
+    for csv_path in sorted(desc_dir.glob("*.csv")):
+        if csv_path.name.startswith("._"):
+            continue
+        table_name = csv_path.stem
+        columns: list[dict[str, Any]] = []
+        with csv_path.open(newline="", encoding="utf-8-sig") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                name = (
+                    (row.get("original_column_name") or row.get("column_name") or "")
+                    .strip()
+                )
+                if not name:
+                    continue
+                col_desc = _clean_bird_text(row.get("column_description"))
+                value_desc = _clean_bird_text(row.get("value_description"))
+                description = " | ".join(p for p in (col_desc, value_desc) if p)
+                entry: dict[str, Any] = {"name": name}
+                if description:
+                    entry["description"] = description
+                columns.append(entry)
+        metadata[table_name] = {"description": "", "columns": columns}
+    return metadata
+
+
+def _write_metadata_from_descriptions(dest: Path, db_id: str) -> Path | None:
+    """Write ``metadata.json`` for *db_id* when ``database_description/`` exists."""
+    desc_dir = _target_description_dir(dest, db_id)
+    if not desc_dir.is_dir():
+        return None
+    metadata = _metadata_from_bird_descriptions(desc_dir)
+    if not metadata:
+        logger.warning("  %s: database_description/ has no usable CSV files", db_id)
+        return None
+    out = _target_metadata_path(dest, db_id)
+    with out.open("w") as f:
+        json.dump(metadata, f, indent=2)
+        f.write("\n")
+    n_cols = sum(len(t.get("columns") or []) for t in metadata.values())
+    logger.info(
+        "  wrote %s (%d table(s), %d column(s))",
+        out,
+        len(metadata),
+        n_cols,
+    )
+    return out
+
+
+def _copy_description_dir(src_dir: Path, dest: Path, db_id: str) -> None:
+    """Replace ``dest/<db_id>/database_description`` with *src_dir*."""
+    target = _target_description_dir(dest, db_id)
+    if target.exists():
+        shutil.rmtree(target)
+    shutil.copytree(src_dir, target)
+    csv_count = len(list(target.glob("*.csv")))
+    logger.info(
+        "  installed %s/database_description/ (%d CSV file(s))", db_id, csv_count
+    )
+
+
+def _find_description_dir(sqlite_path: Path, root: Path, db_id: str) -> Path | None:
+    """Locate BIRD ``database_description/`` next to a sqlite file or under *root*."""
+    candidates = [
+        sqlite_path.parent / "database_description",
+        sqlite_path.parent.parent / "database_description",
+        root / db_id / "database_description",
+        root / "database_description",
+    ]
+    for candidate in candidates:
+        if candidate.is_dir() and any(candidate.glob("*.csv")):
+            return candidate
+    matches = [
+        p
+        for p in root.rglob("database_description")
+        if p.is_dir() and db_id.lower() in {x.lower() for x in p.parts}
+    ]
+    for match in matches:
+        if any(match.glob("*.csv")):
+            return match
+    return None
 
 
 def _find_sqlite_in_tree(root: Path, db_id: str) -> Path | None:
@@ -423,6 +531,7 @@ def _copy_dbs_from_root(
     db_ids: Iterable[str],
     *,
     label: str,
+    with_descriptions: bool = False,
 ) -> set[str]:
     installed: set[str] = set()
     missing: list[str] = []
@@ -432,6 +541,15 @@ def _copy_dbs_from_root(
             missing.append(db_id)
             continue
         _install_sqlite(src, dest, db_id)
+        if with_descriptions:
+            desc = _find_description_dir(src, root, db_id)
+            if desc is not None:
+                _copy_description_dir(desc, dest, db_id)
+                _write_metadata_from_descriptions(dest, db_id)
+            else:
+                logger.warning(
+                    "  %s: no database_description/ found under %s", db_id, root
+                )
         installed.add(db_id)
 
     if missing:
@@ -444,14 +562,17 @@ def _copy_dbs_from_root(
     return installed
 
 
-def _member_db_id(member_name: str, wanted: set[str]) -> str | None:
-    """Return the wanted db_id if *member_name* is that database's sqlite file."""
-    if _is_macos_metadata(member_name) or not member_name.lower().endswith(".sqlite"):
+def _db_id_from_member(member_name: str, wanted: set[str]) -> str | None:
+    """Return the wanted db_id if *member_name* belongs to that database tree."""
+    if _is_macos_metadata(member_name):
         return None
-    stem = Path(member_name).stem.lower()
-    for db_id in wanted:
-        if stem == db_id.lower():
-            return db_id
+    lower_map = {db_id.lower(): db_id for db_id in wanted}
+    parts = Path(member_name).parts
+    for part in parts:
+        if part.lower() in lower_map:
+            return lower_map[part.lower()]
+    if member_name.lower().endswith(".sqlite"):
+        return lower_map.get(Path(member_name).stem.lower())
     return None
 
 
@@ -462,24 +583,42 @@ def _stream_member(zf: zipfile.ZipFile, member: str, target: Path) -> None:
         shutil.copyfileobj(src, out, CHUNK_SIZE)
 
 
-def _extract_sqlites_from_archive(
+def _relocate_extracted_member(
+    member_name: str, db_id: str, dest: Path
+) -> Path | None:
+    """Map an archive member path onto ``dest/<db_id>/...``."""
+    path = Path(member_name)
+    lower_name = path.name.lower()
+    if lower_name == f"{db_id.lower()}.sqlite":
+        return _target_sqlite_path(dest, db_id)
+
+    parts_lower = [p.lower() for p in path.parts]
+    if "database_description" in parts_lower:
+        # Keep only the filename under database_description/
+        return _target_description_dir(dest, db_id) / path.name
+
+    return None
+
+
+def _extract_db_assets_from_archive(
     archive_path: Path,
     wanted: set[str],
     dest: Path,
     work_dir: Path,
+    *,
+    with_descriptions: bool = False,
 ) -> set[str]:
-    """Extract ``<db_id>.sqlite`` members into ``dest/<db_id>/``.
+    """Extract sqlite files (and optionally BIRD description CSVs) for *wanted*.
 
-    Recurses into nested zips (BIRD's ``train.zip`` wraps a single
-    ``train/train_databases.zip``), materializing a nested archive only while
-    databases are still missing.
+    Recurses into nested zips (BIRD's ``train.zip`` wraps
+    ``train/train_databases.zip``).
     """
     installed: set[str] = set()
     remaining = set(wanted)
 
     with zipfile.ZipFile(archive_path, "r") as zf:
         nested_zips: list[str] = []
-        direct: dict[str, str] = {}
+        members_by_db: dict[str, list[str]] = {db_id: [] for db_id in wanted}
 
         for info in zf.infolist():
             if info.is_dir() or _is_macos_metadata(info.filename):
@@ -487,17 +626,44 @@ def _extract_sqlites_from_archive(
             if info.filename.lower().endswith(".zip"):
                 nested_zips.append(info.filename)
                 continue
-            db_id = _member_db_id(info.filename, remaining)
-            if db_id is not None:
-                direct.setdefault(db_id, info.filename)
+            db_id = _db_id_from_member(info.filename, remaining)
+            if db_id is None:
+                continue
+            lower = info.filename.lower()
+            is_sqlite = lower.endswith(".sqlite")
+            is_desc = with_descriptions and "database_description" in lower
+            if is_sqlite or is_desc:
+                members_by_db[db_id].append(info.filename)
 
-        for db_id, member in sorted(direct.items()):
-            target = _target_sqlite_path(dest, db_id)
-            logger.info("  extracting %s -> %s", member, target)
-            _stream_member(zf, member, target)
-            logger.info("  installed %s (%d bytes)", target, target.stat().st_size)
-            installed.add(db_id)
-            remaining.discard(db_id)
+        for db_id, members in sorted(members_by_db.items()):
+            if not members:
+                continue
+            got_sqlite = False
+            got_desc = False
+            for member in members:
+                target = _relocate_extracted_member(member, db_id, dest)
+                if target is None:
+                    continue
+                logger.info("  extracting %s -> %s", member, target)
+                _stream_member(zf, member, target)
+                if target.suffix.lower() == ".sqlite":
+                    got_sqlite = True
+                    logger.info(
+                        "  installed %s (%d bytes)", target, target.stat().st_size
+                    )
+                elif "database_description" in target.parts:
+                    got_desc = True
+            if with_descriptions and got_desc:
+                _write_metadata_from_descriptions(dest, db_id)
+            # Count as done when we installed a sqlite, or when we only needed
+            # descriptions and the sqlite was already on disk.
+            if got_sqlite or (
+                with_descriptions
+                and got_desc
+                and _target_sqlite_path(dest, db_id).is_file()
+            ):
+                installed.add(db_id)
+                remaining.discard(db_id)
 
         for nested in nested_zips:
             if not remaining:
@@ -510,8 +676,12 @@ def _extract_sqlites_from_archive(
             )
             _stream_member(zf, nested, nested_path)
             try:
-                found = _extract_sqlites_from_archive(
-                    nested_path, remaining, dest, work_dir
+                found = _extract_db_assets_from_archive(
+                    nested_path,
+                    remaining,
+                    dest,
+                    work_dir,
+                    with_descriptions=with_descriptions,
                 )
             finally:
                 nested_path.unlink(missing_ok=True)
@@ -530,6 +700,7 @@ def _install_from_sources(
     force: bool,
     keep_archive: bool,
     label: str,
+    with_descriptions: bool = False,
 ) -> set[str]:
     """Install *db_ids* from *sources*, trying each until nothing is missing.
 
@@ -553,14 +724,15 @@ def _install_from_sources(
             logger.warning("  %s unavailable: %s", source.name, exc)
             continue
 
-        # Nested archives are unpacked here; keep the scratch dir on the
-        # destination volume so a multi-GB inner zip doesn't have to fit in the
-        # system temp dir.
         with tempfile.TemporaryDirectory(
             prefix=f"fdabench_{label}_", dir=cache_dir
         ) as tmp:
-            found = _extract_sqlites_from_archive(
-                archive_path, remaining, dest, Path(tmp)
+            found = _extract_db_assets_from_archive(
+                archive_path,
+                remaining,
+                dest,
+                Path(tmp),
+                with_descriptions=with_descriptions,
             )
 
         installed |= found
@@ -693,38 +865,60 @@ def seed_fdabench(
         )
 
     # Resume support: a partial seed shouldn't re-download multi-GB archives
-    # just to reinstall databases that are already in place.
+    # just to reinstall databases that are already in place. BIRD DBs still
+    # re-enter the install path when metadata.json is missing so we can pull
+    # database_description CSVs without --force.
     already_present = {
         db_id
         for db_id in db_types
         if _target_sqlite_path(target, db_id).is_file()
+    }
+    bird_need_metadata = {
+        db_id
+        for db_id in bird_dbs
+        if force or not _target_metadata_path(target, db_id).is_file()
     }
     if already_present and not force:
         logger.info(
             "Already installed (pass --force to reinstall): %s",
             ", ".join(sorted(already_present)),
         )
-        bird_dbs -= already_present
         spider2_dbs -= already_present
         spider1_dbs -= already_present
+        # Keep BIRD DBs that still need metadata/descriptions.
+        bird_dbs = (bird_dbs - already_present) | (
+            bird_need_metadata & already_present
+        )
+        if bird_need_metadata & already_present:
+            logger.info(
+                "Will refresh BIRD descriptions/metadata for: %s",
+                ", ".join(sorted(bird_need_metadata & already_present)),
+            )
 
     installed: set[str] = set(already_present) if not force else set()
 
     groups = (
-        ("BIRD", bird_dbs, bird_root, BIRD_SOURCES, "bird"),
-        ("Spider2-lite", spider2_dbs, spider2_root, SPIDER2_SOURCES, "spider2"),
-        ("Spider 1.0", spider1_dbs, spider1_root, SPIDER1_SOURCES, "spider1"),
+        ("BIRD", bird_dbs, bird_root, BIRD_SOURCES, "bird", True),
+        ("Spider2-lite", spider2_dbs, spider2_root, SPIDER2_SOURCES, "spider2", False),
+        ("Spider 1.0", spider1_dbs, spider1_root, SPIDER1_SOURCES, "spider1", False),
     )
-    for group_label, group_dbs, group_root, sources, slug in groups:
+    for group_label, group_dbs, group_root, sources, slug, with_desc in groups:
         if not group_dbs:
             continue
         logger.info(
-            "Installing %d %s database(s) ...", len(group_dbs), group_label
+            "Installing %d %s database(s)%s ...",
+            len(group_dbs),
+            group_label,
+            " (+ descriptions)" if with_desc else "",
         )
         if group_root is not None:
             installed.update(
                 _copy_dbs_from_root(
-                    group_root, target, group_dbs, label=group_label
+                    group_root,
+                    target,
+                    group_dbs,
+                    label=group_label,
+                    with_descriptions=with_desc,
                 )
             )
         else:
@@ -737,16 +931,37 @@ def seed_fdabench(
                     force=force,
                     keep_archive=keep_archive,
                     label=slug,
+                    with_descriptions=with_desc,
                 )
             )
 
     _warn_about_missing_dbs(db_types, installed, rows)
+    _warn_about_missing_metadata(db_types, target)
 
     installed_ids = sorted(installed)
     _print_summary(
         target, installed_ids, n_questions=len(rows), write_env=write_env
     )
     return rows, installed_ids
+
+
+def _warn_about_missing_metadata(
+    db_types: dict[str, str], dest: Path
+) -> None:
+    """Log bird DBs that still lack metadata.json after seeding."""
+    bird_missing = sorted(
+        db_id
+        for db_id, dtype in db_types.items()
+        if dtype in BIRD_DB_TYPES
+        and _target_sqlite_path(dest, db_id).is_file()
+        and not _target_metadata_path(dest, db_id).is_file()
+    )
+    if not bird_missing:
+        return
+    logger.warning(
+        "BIRD databases without metadata.json (no database_description CSVs): %s",
+        ", ".join(bird_missing),
+    )
 
 
 def _warn_about_missing_dbs(
