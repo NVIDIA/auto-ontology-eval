@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -56,10 +57,35 @@ logger = logging.getLogger(__name__)
 DEFAULT_DIR = Path(__file__).resolve().parents[2] / "datasets"
 
 
+def _slugify(name: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "_", name.lower())
+    return slug.strip("_")
+
+
+def resolve_dataset_file(database_name: str, filename: str) -> Path | None:
+    """Locate a per-database dataset file under ``datasets/``.
+
+    Snowflake Spider2 DBs use the physical name in Neo4j / pgvector
+    (e.g. ``CPTAC_PDC``), while seeded files live under
+    ``datasets/spider2/<slug>/``. Resolution order:
+
+    1. ``datasets/<database_name>/<filename>``
+    2. ``datasets/spider2/<slug(database_name)>/<filename>``
+    """
+    candidates = [
+        DEFAULT_DIR / database_name / filename,
+        DEFAULT_DIR / "spider2" / _slugify(database_name) / filename,
+    ]
+    for path in candidates:
+        if path.is_file():
+            return path
+    return None
+
+
 def apply_metadata(database_name: str) -> None:
     """Stamp table/column metadata onto the Neo4j graph.
 
-    Reads ``<this dir>/<database_name>/metadata.json`` (keyed by table name) and
+    Reads ``metadata.json`` for *database_name* (keyed by table name) and
     updates the following properties for every table/column belonging to
     *database_name*:
 
@@ -74,10 +100,14 @@ def apply_metadata(database_name: str) -> None:
     """
     from nemo_retriever.tabular_data.neo4j import get_neo4j_conn
 
-    metadata_path = DEFAULT_DIR / database_name / "metadata.json"
+    metadata_path = resolve_dataset_file(database_name, "metadata.json")
 
-    if not metadata_path.exists():
-        logger.info("No metadata file at %s — skipping enrichment.", metadata_path)
+    if metadata_path is None:
+        logger.info(
+            "No metadata file for database %r under %s — skipping enrichment.",
+            database_name,
+            DEFAULT_DIR,
+        )
         return
 
     with metadata_path.open() as f:
@@ -187,10 +217,14 @@ def add_custom_analyses(
     )
     from gsf.dal.custom_analyses import embed_custom_analyses
 
-    analyses_path = DEFAULT_DIR / database_name / "custom_analyses.json"
+    analyses_path = resolve_dataset_file(database_name, "custom_analyses.json")
 
-    if not analyses_path.exists():
-        logger.info("custom analyses file not found at %s; skipping", analyses_path)
+    if analyses_path is None:
+        logger.info(
+            "custom analyses file not found for database %r under %s; skipping",
+            database_name,
+            DEFAULT_DIR,
+        )
         return
 
     with analyses_path.open() as f:
