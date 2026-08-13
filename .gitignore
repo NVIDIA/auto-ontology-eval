@@ -27,6 +27,7 @@ venv/
 /datasets/spider2/*
 /datasets/bird/*
 /datasets/bird_interact/*
+/datasets/bird_interact_full/*
 /datasets/dor_prod/
 !/datasets/bird/.gitkeep
 !/datasets/bird/README.md
@@ -34,3 +35,6 @@ venv/
 !/datasets/bird_interact/gt/
 /datasets/bird_interact/gt/*
 !/datasets/bird_interact/gt/.gitkeep
+
+# Test-run outputs (transient, local only)
+/results/full_test_limit*/

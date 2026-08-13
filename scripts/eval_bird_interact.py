@@ -127,6 +127,7 @@ def load_task(
     instance_id: str | None = None,
     category_filter: str | None = None,
     difficulty_filter: str | None = None,
+    output_type_filter: str | None = None,
 ) -> tuple[int, dict]:
     if not data_path.exists():
         print(f"Data file not found: {data_path}", file=sys.stderr)
@@ -143,6 +144,8 @@ def load_task(
         pool = [(i, t) for i, t in pool if (t.get("category") or "").lower() == category_filter.lower()]
     if difficulty_filter:
         pool = [(i, t) for i, t in pool if (t.get("difficulty_tier") or "").lower() == difficulty_filter.lower()]
+    if output_type_filter:
+        pool = [(i, t) for i, t in pool if (t.get("output_type") or "").lower() == output_type_filter.lower()]
     if not pool:
         parts = []
         if db_filter:
@@ -151,6 +154,8 @@ def load_task(
             parts.append(f"category={category_filter!r}")
         if difficulty_filter:
             parts.append(f"difficulty_tier={difficulty_filter!r}")
+        if output_type_filter:
+            parts.append(f"output_type={output_type_filter!r}")
         print(f"No tasks found for {', '.join(parts)}", file=sys.stderr)
         sys.exit(1)
     if random_pick:
@@ -202,6 +207,8 @@ def main() -> None:
                         help="Restrict selection to 'query' or 'management' tasks")
     parser.add_argument("--difficulty", default=None, choices=["simple", "moderate", "challenging"], type=str.lower,
                         help="Restrict selection by difficulty_tier")
+    parser.add_argument("--output-type", default=None, choices=["scalar", "table"], type=str.lower,
+                        help="Restrict selection by output_type ('scalar' = single-value result, 'table' = multi-row result)")
     parser.add_argument("--agent-port", type=int, default=6003, help="Port to start the GSF adapter on")
     parser.add_argument("--timeout", type=int, default=10, help="Health-check timeout per service (s)")
     parser.add_argument("--quit-after-phase", type=int, default=None, choices=[1, 2],
@@ -234,6 +241,7 @@ def main() -> None:
             instance_id=args.instance_id,
             category_filter=args.category,
             difficulty_filter=args.difficulty,
+            output_type_filter=args.output_type,
         )
         task_id   = task["instance_id"]
         db_name   = task["selected_database"]
@@ -241,7 +249,7 @@ def main() -> None:
 
         print(f"\nTask:       {task_id}  (index {idx})")
         print(f"Database:   {db_name}")
-        print(f"Category:   {task.get('category', '?')}  |  Difficulty: {task.get('difficulty_tier', '?')}")
+        print(f"Category:   {task.get('category', '?')}  |  Difficulty: {task.get('difficulty_tier', '?')}  |  Output: {task.get('output_type', '?')}")
         print(f"Query:      {amb_query}")
 
         # ── 4. init_task on :6001 and :6002 ──────────────────────────────────

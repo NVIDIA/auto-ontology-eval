@@ -1,0 +1,72 @@
+================================================================================
+SQL GEN FAILURES — cold_chain_pharma_compliance_3, mental_health_15
+(Clarification was correct or blocked; failure is wrong schema/join/column guess)
+
+  PURE SQL GEN ONLY (not also a clarification failure):
+  cold_chain_pharma_compliance_3, mental_health_15
+================================================================================
+
+-- Wrong JSONB nesting depth --
+cold_chain_pharma_compliance_3  Flat ->>'actual_duration_hrs'; GT needs ->'timing_performance'->>'actual_duration_hrs'
+                                Key names now correct; nesting depth wrong (user sim answer omitted timing_performance)
+                                Also: extra avg_otdp column; category casing wrong (lowercase vs Title Case)
+
+-- Wrong output format --
+mental_health_15  Generated two CASE columns (clinician_id, facility); GT returns one action_required column
+                  with jsonb_agg(jsonb_build_object(...))::TEXT — hint got CASE/WHEN right, not the aggregation shape
+
+-- Wrong columns for flag computation --
+mental_health_15  Annualized risk: used ab.hosp_risk_density; GT uses (asd.prev_hosp / (NULLIF(asd.dx_dur_m,0)/12))
+                  via assessmentsocialanddiagnosis. Therapy hours: used tb.th_dur_m via treatmentbasics;
+                  GT uses CAST(SPLIT_PART(ab.therapy_exp_intensity,' ',1) AS REAL) via assessmentbasics.
+
+-- Wrong ELSE string --
+mental_health_15  Generated 'No action needed'; GT expects 'Patient does not meet criteria for Intensive Care Coordination'
+                  (exact phrase not surfaced during clarification — score = 0 even with correct CASE structure)
+
+-- Fabricated join / backward hub traversal not followed --
+virtual_idol_13   Two tables (membershipandspending, supportandfeedback) both hang off a shared hub
+                  (fans) but have no direct relationship to each other — the only real path is
+                  fans -> interactions -> supportandfeedback. find_join_path's forward-only FK
+                  traversal structurally can't discover this (it only walks FK-references-forward,
+                  never backward into a hub's other children). Built hub-sibling + pairwise
+                  bridge-table detection to recover the correct table (interactions) and, later,
+                  the correct join hops themselves — verified live and confirmed present in the
+                  prompt's "JOIN PATHS (AUTHORITATIVE)" section. SQL-gen still ignored it and
+                  joined membershipandspending.member_reg = supportandfeedback.support_reg directly
+                  — two unrelated same-typed surrogate PKs that coincidentally look joinable.
+                  Root cause is no longer missing data; it's the LLM not reliably following
+                  authoritative join-path guidance over its own plausible-looking guess (same
+                  instruction-following gap seen elsewhere in this pipeline, e.g. the relevance
+                  filter). Revisit: needs backward/hub-traversal detection + a way to make the
+                  evidence for it actually govern SQL-gen's join choice, not just be present in
+                  the prompt.
+
+================================================================================
+WEIRD / EDGE CASES
+(Not a fix target yet — logging so we recognize the pattern if it recurs)
+================================================================================
+
+-- Intra-DB Term leakage (wrong-table column match) --
+crypto_exchange (instance unconfirmed — "market snapshot spread percentage"
+question, marketdata table)   ColumnAttribute "Exchange Code" resolved via
+                  candidate retrieval as "0 hop(s), same table as anchor,"
+                  but its underlying col_name/source_column ("exchspot") and
+                  table_id actually belong to the unrelated `orders` table,
+                  not `marketdata` — reached via a shared Term node ("Order")
+                  that fans out to ColumnAttributes on multiple tables.
+                  find_join_path wasn't wrong about the traversal; it was
+                  handed a false premise before it ran. Reconstruction then
+                  spent 7+ attempts cycling through every wrong-table/stale-
+                  ingestion spelling that exists somewhere in the graph
+                  (exch_spot, EXCH_SPOT, exchNote, exchspot) without ever
+                  converging, because none of them belong to the table being
+                  queried. Same bug class as bug-cross-db-term-table-leakage
+                  (shared Term nodes have no table/DB scoping), just showing
+                  up within one database across unrelated tables instead of
+                  across two databases. Confirmed unrelated to the bridge-
+                  table/join-path filtering fix — this happens upstream, at
+                  candidate identification, before any join-path or
+                  relevance-filter logic runs.
+
+================================================================================
