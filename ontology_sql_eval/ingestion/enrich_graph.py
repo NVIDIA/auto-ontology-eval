@@ -42,15 +42,45 @@ Custom analyses (optional, ``custom_analyses.json``)::
         },
         ...
     ]
-    """
+
+Both files above describe the *downloaded* dataset. Our own analyses and our
+corrections to its annotations are kept outside it, since ``datasets/bird/`` is
+downloaded and replaced wholesale and cannot hold anything that has to survive.
+Name them in ``.env``::
+
+    SAVED_CUSTOM_ANALYSES_DIR=experiments/LOCAL_BL/BL_V2/image_local_baseline_v2/custom_analyses
+    SAVED_DESCRIPTIONS_CSV=experiments/LOCAL_BL/BL_V2/image_local_baseline_v2/semantic_descriptions.csv
+
+Each is picked up by the stage that can use it. The analyses go in during ingest,
+which is where analyses always come from — the variable only moves where the file
+is read from (see :func:`custom_analyses_json_path`). The descriptions have to wait
+for the semantic compile, since half of them belong to ColumnAttribute nodes that
+do not exist until it runs, so the compile applies them when asked::
+
+    python -m ontology_sql_eval.ingestion.ingest --dataset-name bird
+    python -m ontology_sql_eval.ingestion.semantic --override-descriptions
+
+Without the flag the compile leaves its own text in place. Re-run the same command
+after editing the saved set to push the edit into the graph and the vector store;
+the compile itself only revisits tables that have no ``Term``, so a second pass is
+cheap. The export's header is::
+
+    database,schema,table,column,column_description,column_attribute,
+    column_attribute_description,term,term_description,term_synonyms
+
+Only the column and attribute description fields are read; the rest identify the
+row. See :func:`apply_saved_descriptions`.
+"""
 from __future__ import annotations
 
+import csv
 import json
 import logging
 import hashlib
+import os
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from nemo_retriever.common.params.models import EmbedParams
@@ -59,6 +89,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 DEFAULT_DIR = Path(__file__).resolve().parents[2] / "datasets"
+
+SAVED_DESCRIPTIONS_ENV = "SAVED_DESCRIPTIONS_CSV"
+SAVED_ANALYSES_DIR_ENV = "SAVED_CUSTOM_ANALYSES_DIR"
 
 
 def train_json_for_dataset(dataset_name: str) -> Path:
@@ -103,9 +136,36 @@ def metadata_json_path(database_name: str, dataset: str | None = None) -> Path:
     return _dataset_file_path("metadata.json", database_name, dataset)
 
 
-def custom_analyses_json_path(database_name: str, dataset: str | None = None) -> Path:
-    """Resolve ``custom_analyses.json`` for *database_name*. See :func:`_dataset_file_path`."""
-    return _dataset_file_path("custom_analyses.json", database_name, dataset)
+def _repo_relative(value: str) -> Path:
+    """Resolve *value* against the repository root when it is not absolute.
+
+    So one value in ``.env`` works no matter which directory a run starts from.
+    """
+    path = Path(value).expanduser()
+    return path if path.is_absolute() else Path(__file__).resolve().parents[2] / path
+
+
+def custom_analyses_json_path(
+    database_name: str, dataset: str | None = None
+) -> Path | None:
+    """Resolve *database_name*'s custom analyses, or ``None`` when it has none.
+
+    ``SAVED_CUSTOM_ANALYSES_DIR`` wins when set, and is read as a directory of
+    ``<database_name>.json`` specs — the layout the baseline image uses. Ours have
+    to live outside ``datasets/bird/``, which is downloaded, ignored by git and
+    replaced wholesale, so nothing put there survives; the variable is how a build
+    finds them again. Unset, the database's own ``custom_analyses.json`` is used
+    (see :func:`_dataset_file_path`), which is what a hand-maintained dataset has.
+    """
+    named = os.environ.get(SAVED_ANALYSES_DIR_ENV, "").strip()
+    if named:
+        path = _repo_relative(named) / f"{database_name}.json"
+        if not path.is_file():
+            logger.warning("No analyses spec for %s at %s", database_name, path)
+        return path if path.is_file() else None
+
+    beside_database = _dataset_file_path("custom_analyses.json", database_name, dataset)
+    return beside_database if beside_database.is_file() else None
 
 
 def _existing_few_shot_questions(vdb, label: str, database_name: str) -> set[str]:
@@ -536,9 +596,10 @@ def add_custom_analyses(
 ) -> None:
     """Ingest custom analyses for *database_name* into the Neo4j graph and the VDB.
 
-    Reads the database's ``custom_analyses.json`` (see
-    :func:`custom_analyses_json_path`) — a list of
-    ``{"name", "description", "sql"}`` entries — and, for each entry:
+    Reads the database's analyses — ours if ``SAVED_CUSTOM_ANALYSES_DIR`` names a
+    directory holding them, else its own ``custom_analyses.json``; see
+    :func:`custom_analyses_json_path` — a list of ``{"name", "description", "sql"}``
+    entries, and for each entry:
 
     * parses the SQL against the schemas already in the graph (via
       :func:`parse_query_single`), which produces a :class:`Sql` node and the
@@ -569,9 +630,8 @@ def add_custom_analyses(
     from gsf.dal.custom_analyses import embed_custom_analyses
 
     analyses_path = custom_analyses_json_path(database_name, dataset=dataset)
-
-    if not analyses_path.exists():
-        logger.info("custom analyses file not found at %s; skipping", analyses_path)
+    if analyses_path is None:
+        logger.info("No custom analyses for %s; skipping", database_name)
         return
 
     with analyses_path.open() as f:
@@ -647,3 +707,295 @@ def add_custom_analyses(
         return
 
     embed_custom_analyses(embed_params, vdb, database_name=database_name)
+
+
+# ---------------------------------------------------------------------------
+# Writing a saved description set over a freshly compiled graph
+# ---------------------------------------------------------------------------
+#
+# BIRD ships its own column annotations, so a graph built from a fresh download
+# carries the original text. Replacing it with ours happens after the semantic
+# layer is compiled — the ColumnAttribute nodes that hold the string retrieval
+# embeds do not exist before then — which is why the semantic stage, not ingest,
+# calls in here. See :func:`apply_saved_descriptions`.
+
+# One row per (column, attribute), as exported by
+# ``experiments/scripts/make_baseline_image_v2.py``.
+SAVED_DESCRIPTION_FIELDS = (
+    "database",
+    "table",
+    "column",
+    "column_description",
+    "column_attribute",
+    "column_attribute_description",
+)
+
+# The attribute is reached through the HAS_ATTRIBUTE edge, never by its name: the
+# semantic layer names attributes itself ("Charter School (Y/N)" becomes "Is
+# Charter School"), and a rebuild is free to name the same column differently. The
+# column is the stable identity, so that is what the saved rows are matched on.
+_LIVE_COLUMNS = """
+UNWIND $rows AS row
+MATCH (d:Database {name: $database_name})-[:CONTAINS]->(:Schema)
+      -[:CONTAINS]->(t:Table {name: row.table_name})
+      -[:CONTAINS]->(c:Column {name: row.column_name})
+OPTIONAL MATCH (c)-[:HAS_ATTRIBUTE]->(a:ColumnAttribute)
+RETURN row.table_name AS table_name, row.column_name AS column_name,
+       c.id AS column_id, c.description AS column_description,
+       collect(CASE WHEN a IS NULL THEN NULL ELSE {
+           id: a.id, name: a.name, term_name: a.term_name,
+           source_column: a.source_column, description: a.description
+       } END) AS attributes
+"""
+
+_SET_ATTRIBUTE_DESCRIPTIONS = """
+UNWIND $rows AS row
+MATCH (a:ColumnAttribute {id: row.id})
+SET a.description = row.description
+"""
+
+
+def saved_descriptions_csv_path(
+    database_name: str,
+    dataset: str | None = None,
+    explicit: str | Path | None = None,
+) -> Path | None:
+    """Resolve the saved description set for *database_name*, or ``None``.
+
+    Three sources, in order:
+
+    1. *explicit*, for a caller that names the file itself;
+    2. ``SAVED_DESCRIPTIONS_CSV``. This is the one that matters in practice: the
+       corrections have to outlive ``datasets/bird/``, which is downloaded, ignored
+       by git and replaced wholesale, so they are kept outside it — one export
+       covering every database, pointed at by the flag;
+    3. ``semantic_descriptions.csv`` beside the database's own ``metadata.json``,
+       for a dataset whose folder is hand-maintained rather than downloaded.
+
+    ``None`` means no set was found, and every caller reads that as "leave the
+    descriptions as they were ingested" rather than as an error. Relative paths
+    resolve against the repository root, not the caller's cwd, so one value works
+    from anywhere.
+    """
+    named = str(explicit or os.environ.get(SAVED_DESCRIPTIONS_ENV, "")).strip()
+    if named:
+        path = _repo_relative(named)
+        if not path.is_file():
+            logger.warning("Saved description set %s does not exist", path)
+        return path if path.is_file() else None
+
+    beside_database = _dataset_file_path(
+        "semantic_descriptions.csv", database_name, dataset
+    )
+    return beside_database if beside_database.is_file() else None
+
+
+def _squash(text: str | None) -> str:
+    """Collapse whitespace, so a reflowed line does not read as a real change."""
+    return " ".join((text or "").split())
+
+
+def _read_saved_descriptions(
+    csv_path: Path, database_name: str
+) -> dict[tuple[str, str], dict[str, str]]:
+    """The saved rows for one database, keyed by ``(table, column)``."""
+    saved: dict[tuple[str, str], dict[str, str]] = {}
+    with csv_path.open(newline="", encoding="utf-8") as fh:
+        reader = csv.DictReader(fh)
+        fields = reader.fieldnames or []
+        missing = [f for f in SAVED_DESCRIPTION_FIELDS if f not in fields]
+        if missing:
+            raise ValueError(f"{csv_path} is missing column(s): {', '.join(missing)}")
+        for row in reader:
+            if (row.get("database") or "").strip() != database_name:
+                continue
+            table = (row.get("table") or "").strip()
+            column = (row.get("column") or "").strip()
+            if not table or not column:
+                continue
+            saved[(table, column)] = {
+                "column_description": row.get("column_description") or "",
+                "attribute_name": (row.get("column_attribute") or "").strip(),
+                "attribute_description": row.get("column_attribute_description") or "",
+            }
+    return saved
+
+
+def apply_saved_descriptions(
+    database_name: str,
+    dataset: str | None = None,
+    csv_path: str | Path | None = None,
+    *,
+    dry_run: bool = False,
+) -> int:
+    """Overwrite descriptions with a saved set, columns and attributes alike.
+
+    Run this after the semantic layer is compiled: the ColumnAttribute nodes it
+    corrects do not exist before then. Both stores are updated, since a description
+    the graph holds and the vector index does not is invisible to retrieval:
+
+    * ``Column.description`` goes through the same call the server makes when a
+      description is edited in the UI, which also deletes and re-appends the
+      column's and its parent table's rows in the data-objects collection.
+    * ``ColumnAttribute.description`` — the string the semantic search embeds — is
+      written for the attribute hanging off each column, and its row in the
+      semantic collection is deleted and re-embedded. A second ``semantic`` run
+      would not revisit it: the compile only visits tables that have no ``Term``.
+
+    The saved attribute text is written verbatim rather than recomputed from the
+    column description: the file is the record of what a measured baseline read,
+    and recomputing would fold in whatever the fresh profile sampled, which is the
+    drift this step exists to remove.
+
+    Columns absent from the graph, columns whose saved attribute text is empty, and
+    columns carrying more than one attribute are counted and named in the log
+    rather than guessed at. Returns the number of nodes written.
+    """
+    from nemo_retriever.tabular_data.neo4j import get_neo4j_conn
+
+    from gsf.semantic.embed import build_semantic_embedder
+    from gsf.server.datasources.service import update_node_properties
+
+    resolved = saved_descriptions_csv_path(database_name, dataset, csv_path)
+    if resolved is None:
+        logger.info(
+            "No saved description set for %s (%s unset, none beside its "
+            "metadata.json) — leaving descriptions as ingested.",
+            database_name,
+            SAVED_DESCRIPTIONS_ENV,
+        )
+        return 0
+    csv_path = resolved
+
+    saved = _read_saved_descriptions(csv_path, database_name)
+    if not saved:
+        logger.info("%s holds no rows for %s — skipping.", csv_path, database_name)
+        return 0
+
+    conn = get_neo4j_conn()
+    rows = cast(
+        "list[dict]",
+        conn.query_read(
+            _LIVE_COLUMNS,
+            parameters={
+                "database_name": database_name,
+                "rows": [
+                    {"table_name": table, "column_name": column}
+                    for table, column in sorted(saved)
+                ],
+            },
+        ),
+    )
+    live = {(r["table_name"], r["column_name"]): r for r in rows}
+
+    column_writes: list[tuple[tuple[str, str], str, str]] = []
+    attribute_writes: list[tuple[tuple[str, str], dict]] = []
+    renamed: list[tuple[tuple[str, str], str, str]] = []
+    ambiguous: list[tuple[str, str]] = []
+    without_attribute: list[tuple[str, str]] = []
+
+    for key in sorted(saved):
+        record, row = saved[key], live.get(key)
+        if row is None:
+            continue
+        wanted = record["column_description"]
+        if wanted and _squash(wanted) != _squash(row["column_description"]):
+            column_writes.append((key, row["column_id"], wanted))
+
+        wanted_attribute = record["attribute_description"]
+        attributes = row["attributes"] or []
+        if not wanted_attribute:
+            continue
+        if not attributes:
+            without_attribute.append(key)
+            continue
+        if len(attributes) > 1:
+            ambiguous.append(key)
+            continue
+        attribute = attributes[0]
+        if record["attribute_name"] and record["attribute_name"] != attribute["name"]:
+            renamed.append((key, record["attribute_name"], attribute["name"]))
+        if _squash(wanted_attribute) != _squash(attribute["description"]):
+            attribute_writes.append(
+                (key, {**attribute, "description": wanted_attribute})
+            )
+
+    logger.info(
+        "Saved descriptions for %s from %s: %d saved column(s), %d matched in the "
+        "graph, %d column description(s) and %d attribute description(s) to write",
+        database_name,
+        csv_path,
+        len(saved),
+        len(live),
+        len(column_writes),
+        len(attribute_writes),
+    )
+    for key, _column_id, wanted in column_writes:
+        logger.info("  column %s.%s", *key)
+        logger.info("      was: %s", _squash(live[key]["column_description"])[:150])
+        logger.info("      now: %s", _squash(wanted)[:150])
+    for key, attribute in attribute_writes:
+        logger.info("  attribute %s.%s (%s)", key[0], key[1], attribute["name"])
+        logger.info("      now: %s", _squash(attribute["description"])[:150])
+    for key, was, now in renamed:
+        logger.info(
+            "  %s.%s: attribute renamed by the rebuild, %r -> %r; matched by column",
+            key[0],
+            key[1],
+            was,
+            now,
+        )
+    for label, keys in (
+        ("absent from the graph", sorted(set(saved) - set(live))),
+        ("no ColumnAttribute", without_attribute),
+        ("several ColumnAttributes, left alone", ambiguous),
+    ):
+        if keys:
+            logger.info(
+                "  %d column(s) %s: %s",
+                len(keys),
+                label,
+                ", ".join(f"{t}.{c}" for t, c in keys[:10]),
+            )
+
+    if dry_run:
+        logger.info("dry run — nothing written")
+        return 0
+
+    for key, column_id, wanted in column_writes:
+        if not update_node_properties(column_id, {"description": wanted}):
+            logger.warning("  %s.%s: column patch reported no change", *key)
+
+    if attribute_writes:
+        conn.query_write(
+            _SET_ATTRIBUTE_DESCRIPTIONS,
+            parameters={
+                "rows": [
+                    {"id": attribute["id"], "description": attribute["description"]}
+                    for _key, attribute in attribute_writes
+                ]
+            },
+        )
+        embedder = build_semantic_embedder(database_name, reset=False)
+        if embedder is None:
+            logger.warning(
+                "Semantic embedding disabled — %d attribute description(s) written to "
+                "the graph but the vector index still serves the old text",
+                len(attribute_writes),
+            )
+        else:
+            for _key, attribute in attribute_writes:
+                # The embed path appends, so the superseded row has to go first.
+                embedder.vdb.delete_by_id(attribute["id"])
+            written = embedder.embed_column_attributes(
+                [attribute for _key, attribute in attribute_writes]
+            )
+            logger.info("re-embedded %d attribute row(s)", written)
+
+    total = len(column_writes) + len(attribute_writes)
+    logger.info("Applied saved descriptions: %d node(s) written", total)
+    return total
+
+
+
+

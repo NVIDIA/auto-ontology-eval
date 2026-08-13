@@ -22,6 +22,49 @@ PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.ingest --dataset-
 PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.semantic --database-name <database_name>
 ```
 
+## Publishing our descriptions and analyses
+
+BIRD is downloaded with its own column annotations and no analyses at all, and a
+plain ingest plus compile reproduces exactly that. Ours live outside
+`datasets/bird/`, which is gitignored and replaced wholesale by the next download,
+so two variables in `.env` say where to read them from — first match wins:
+
+| Artifact | Variable | Fallback | Applied by |
+| --- | --- | --- | --- |
+| analyses | `SAVED_CUSTOM_ANALYSES_DIR` — a directory of `<db>.json` | `datasets/<dataset>/dev/<db>/custom_analyses.json` | `ingest` |
+| descriptions | `SAVED_DESCRIPTIONS_CSV` — one export covering every database | `datasets/<dataset>/dev/<db>/semantic_descriptions.csv` | `semantic --override-descriptions` |
+
+The baseline image is already in the right shape for both:
+
+```bash
+SAVED_CUSTOM_ANALYSES_DIR=experiments/LOCAL_BL/BL_V2/image_local_baseline_v2/custom_analyses
+SAVED_DESCRIPTIONS_CSV=experiments/LOCAL_BL/BL_V2/image_local_baseline_v2/semantic_descriptions.csv
+```
+
+```bash
+PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.ingest --dataset-name bird
+PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.semantic --override-descriptions
+```
+
+Analyses need nothing but the schema graph, so ingest takes them as it always has
+and the variable only moves the file it reads. Descriptions wait for the compile:
+half of them belong to the `ColumnAttribute` nodes that hold the string retrieval
+embeds, and those do not exist until it has run. Drop the flag and the compile's own
+text stays; re-run the command after editing the export to push the edit through,
+which is cheap because the compile only visits tables that have no `Term` yet.
+
+Descriptions are written to the graph *and* to both vector collections, since a
+description the graph holds and the index does not is invisible to retrieval:
+columns go through the server's own edit path, which refreshes the column and its
+parent table in the data-objects collection, and each attribute's semantic row is
+deleted and re-embedded. Attributes are matched through the column they hang off
+rather than by name, because the semantic layer names them itself and a rebuild may
+name the same column differently.
+
+Analyses merge by name in the graph but their vector rows append, so they are
+loaded once, by the ingest that builds the database — edit the spec and re-ingest
+rather than adding to a store that already has them.
+
 ## What `run_ingest()` does
 
 `run_ingest()` performs, in order:
@@ -33,8 +76,9 @@ PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.semantic --databa
    onto the graph nodes (skipped if the file is missing).
 4. Embed the schema rows via the embedding endpoint and write them to the
    pgvector **data** store.
-5. `add_custom_analyses()` — parse `custom_analyses.json`, create
-   `CustomAnalysis` nodes, and embed them into the pgvector **semantic** store.
+5. `add_custom_analyses()` — parse the database's analyses (see the table above
+   for where they are read from), create `CustomAnalysis` nodes, and embed them
+   into the pgvector **semantic** store.
 After all source DBs finish, if ``--dataset-name <name>`` was passed, embed
 that dataset's Train few-shot corpus from ``datasets/<name>/train/train.json``
 into the pgvector **train_qa** store (incremental; existing questions skipped).

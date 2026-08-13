@@ -17,6 +17,10 @@ Stages 1-3 import GSF, so run with the sibling checkout on the path::
 
 Any stage can be skipped with ``--skip-ingest`` / ``--skip-semantic`` /
 ``--skip-eval`` / ``--skip-judge`` (skipped stages don't import their deps).
+
+Pass ``--override-descriptions`` to finish the semantic stage with our own saved
+column descriptions rather than the annotations the dataset shipped; it is handed
+to :func:`ontology_sql_eval.ingestion.semantic.run_semantic` unchanged.
 """
 
 from __future__ import annotations
@@ -70,7 +74,9 @@ def stage_ingest() -> None:
         run_ingest(connection_string)
 
 
-def stage_semantic(database_name: str) -> None:
+def stage_semantic(
+    database_name: str, *, override_descriptions: bool = False
+) -> None:
     """Compile the semantic layer in-process via ``run_semantic``."""
     _banner(2, "Semantic compile (ingestion.semantic)")
     from ontology_sql_eval.ingestion.semantic import run_semantic
@@ -87,9 +93,9 @@ def stage_semantic(database_name: str) -> None:
                 len(connection_strings),
                 db_name,
             )
-            run_semantic(db_name)
+            run_semantic(db_name, override_descriptions=override_descriptions)
     else:
-        run_semantic(database_name)
+        run_semantic(database_name, override_descriptions=override_descriptions)
 
 
 def stage_eval(*, database_name: str) -> Path:
@@ -154,6 +160,13 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--skip-judge", action="store_true", help="Skip the LLM-judge stage."
     )
     parser.add_argument(
+        "--override-descriptions",
+        action="store_true",
+        help="After compiling, overwrite column and attribute descriptions with the "
+        "saved set named by SAVED_DESCRIPTIONS_CSV in .env. Without that variable "
+        "(or a semantic_descriptions.csv beside the database) nothing is written.",
+    )
+    parser.add_argument(
         "--workers",
         type=int,
         default=1,
@@ -178,7 +191,7 @@ def main(argv: list[str] | None = None) -> None:
         stage_ingest()
 
     if not args.skip_semantic:
-        stage_semantic(db)
+        stage_semantic(db, override_descriptions=args.override_descriptions)
 
     if not args.skip_eval:
         eval_csv = stage_eval(database_name=db)

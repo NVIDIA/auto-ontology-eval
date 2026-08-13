@@ -14,6 +14,10 @@ to compile every database in ``CONNECTION_STRINGS`` (same source as ingest)::
 
     uv run python -m ontology_sql_eval.ingestion.semantic                            # all CONNECTION_STRINGS
     uv run python -m ontology_sql_eval.ingestion.semantic --database-name <name>     # a single database
+
+Pass ``--override-descriptions`` to finish each database with our own saved column
+descriptions instead of the annotations the dataset shipped, taken from the file
+named in ``.env``. See :mod:`ontology_sql_eval.ingestion.enrich_graph`.
 """
 
 from __future__ import annotations
@@ -35,10 +39,17 @@ load_dotenv()
 
 from gsf.semantic.compile import run_semantic_compilation
 
+from ontology_sql_eval.ingestion.enrich_graph import apply_saved_descriptions
+
 logger = logging.getLogger(__name__)
 
 
-def run_semantic(database_name: str) -> int:
+def run_semantic(
+    database_name: str,
+    dataset: str | None = None,
+    *,
+    override_descriptions: bool = False,
+) -> int:
     """Compile the semantic layer for ``database_name`` in-process.
 
     Runs the same routine as ``python -m gsf.semantic`` (Term/ColumnAttribute
@@ -46,9 +57,19 @@ def run_semantic(database_name: str) -> int:
     without spawning a subprocess, so it can be stepped through in a debugger.
     Requires the schema graph and embeddings to already exist (i.e. run
     :func:`ontology_sql_eval.ingestion.ingest.run_ingest` first).
+
+    With *override_descriptions*, our saved column and attribute descriptions are
+    written over the freshly compiled ones — see
+    :func:`ontology_sql_eval.ingestion.enrich_graph.apply_saved_descriptions`. Here
+    is the earliest they can be applied: the ColumnAttribute nodes half of them
+    belong to are what the compile creates. (Custom analyses need no such wait and
+    are ingested during ingest.)
     """
     logger.info("Compiling semantic layer for %s", database_name)
-    return run_semantic_compilation(database_name)
+    result = run_semantic_compilation(database_name)
+    if override_descriptions:
+        apply_saved_descriptions(database_name, dataset)
+    return result
 
 
 def database_names_from_env() -> list[str]:
@@ -75,6 +96,19 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Database name — must match the SQL connector and tabular ingest. "
         "When omitted, every database in CONNECTION_STRINGS is compiled in turn.",
     )
+    parser.add_argument(
+        "--dataset-name",
+        default=None,
+        help="e.g. bird — same value as ingest. Only used to find saved artifacts "
+        "that sit beside the database itself.",
+    )
+    parser.add_argument(
+        "--override-descriptions",
+        action="store_true",
+        help="After compiling, overwrite column and attribute descriptions with the "
+        "saved set named by SAVED_DESCRIPTIONS_CSV in .env. Without that variable "
+        "(or a semantic_descriptions.csv beside the database) nothing is written.",
+    )
     return parser.parse_args(argv)
 
 
@@ -86,7 +120,11 @@ if __name__ == "__main__":
     args = _parse_args()
     try:
         if args.database_name:
-            run_semantic(args.database_name)
+            run_semantic(
+                args.database_name,
+                args.dataset_name,
+                override_descriptions=args.override_descriptions,
+            )
         else:
             database_names = database_names_from_env()
             if not database_names:
@@ -101,7 +139,11 @@ if __name__ == "__main__":
                     len(database_names),
                     db_name,
                 )
-                run_semantic(db_name)
+                run_semantic(
+                    db_name,
+                    args.dataset_name,
+                    override_descriptions=args.override_descriptions,
+                )
     except KeyboardInterrupt:
         logger.info("semantic: shutting down")
         raise SystemExit(0)
