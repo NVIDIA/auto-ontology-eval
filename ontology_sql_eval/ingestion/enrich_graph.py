@@ -86,7 +86,7 @@ def apply_metadata(database_name: str) -> None:
     (the MATCH simply finds nothing). Properties for which the JSON has no
     value are left untouched (``coalesce`` preserves the existing value).
     """
-    from nemo_retriever.tabular_data.neo4j import get_neo4j_conn
+    from gsf.dal.datasources import apply_metadata_batch
 
     metadata_path = _dataset_file(database_name, "metadata.json")
 
@@ -130,31 +130,11 @@ def apply_metadata(database_name: str) -> None:
                 }
             )
 
-    conn = get_neo4j_conn()
-
-    if table_rows:
-        conn.query_write(
-            query=(
-                "UNWIND $rows AS row "
-                "MATCH (d:Database {name: $database_name})-[:CONTAINS]->"
-                "(:Schema)-[:CONTAINS]->(t:Table {name: row.table_name}) "
-                "SET t.description = coalesce(row.description, t.description)"
-            ),
-            parameters={"rows": table_rows, "database_name": database_name},
-        )
-
-    if column_rows:
-        conn.query_write(
-            query=(
-                "UNWIND $rows AS row "
-                "MATCH (d:Database {name: $database_name})-[:CONTAINS]->"
-                "(:Schema)-[:CONTAINS]->(t:Table {name: row.table_name})"
-                "-[:CONTAINS]->(c:Column {name: row.column_name}) "
-                "SET c.description = coalesce(row.description, c.description), "
-                "    c.sample_values = coalesce(row.sample_values, c.sample_values)"
-            ),
-            parameters={"rows": column_rows, "database_name": database_name},
-        )
+    # `apply_metadata_batch` writes both shapes in one call and coalesces, so a
+    # curated description already in the catalog survives a batch that has
+    # nothing to say about it -- the same semantics the two Cypher statements
+    # had with `coalesce(row.description, t.description)`.
+    apply_metadata_batch(database_name, table_rows, column_rows)
 
     logger.info(
         "Applied metadata: %d table description(s), %d column description(s), "
@@ -168,7 +148,8 @@ def apply_metadata(database_name: str) -> None:
 
 def add_custom_analyses(
     database_name: str,
-    dialect: str,
+    dialect: str,  # noqa: ARG001 — kept for call-site compatibility; GSF resolves
+    # the dialect from the connector itself now.
     embed_params: "EmbedParams | None" = None,
     vdb: "VDB | None" = None,
 ) -> None:
@@ -193,17 +174,13 @@ def add_custom_analyses(
     skipped with a warning. Must be called *after* schema ingestion so the
     parser can resolve table/column references.
     """
-    from nemo_retriever.tabular_data.ingestion.dal.queries_dal import add_query
-    from nemo_retriever.tabular_data.ingestion.model.neo4j_node import Neo4jNode
-    from nemo_retriever.tabular_data.ingestion.model.reserved_words import Labels, Props
-    from nemo_retriever.tabular_data.ingestion.services.queries import (
-        parse_query_single,
-    )
-    from nemo_retriever.tabular_data.retrieval.data_access.graph_schemas import (
-        get_all_schemas_ids,
-        get_schemas_by_ids,
-    )
     from gsf.dal.custom_analyses import embed_custom_analyses
+    from gsf.server.custom_analyses.service import (
+        CustomAnalysisNameConflict,
+        CustomAnalysisSqlConflict,
+        CustomAnalysisSqlError,
+        create_custom_analysis,
+    )
 
     analyses_path = _dataset_file(database_name, "custom_analyses.json")
 
@@ -222,54 +199,45 @@ def add_custom_analyses(
         logger.info("No custom analyses to ingest from %s.", analyses_path)
         return
 
-    schemas_ids = get_all_schemas_ids()
-    schemas = get_schemas_by_ids(schemas_ids)
-
     before = time.time()
     logger.info(
         "Starting to ingest %d custom analyses from %s.", len(analyses), analyses_path
     )
 
-    ingested = 0
+    # GSF's service owns the whole sequence: it parses the SQL against the
+    # ingested catalog, creates the Sql row and its Table/Column links, creates
+    # the CustomAnalysis, and joins them. Previously this file assembled a
+    # Neo4jNode and edge tuples by hand and called the library's `add_query`,
+    # neither of which exists now that the catalog is relational.
+    #
+    # Idempotency is preserved and is now the service's job: it raises on a
+    # duplicate name or a statement already attached to another analysis, so a
+    # re-run reports "already present" instead of duplicating rows.
+    ingested = skipped = 0
     for entry in analyses:
         name = entry.get("name", "")
         sql = (entry.get("sql") or "").strip()
         if not sql:
             logger.warning("Skipping custom analysis %r — no SQL provided.", name)
             continue
-
-        query_obj = parse_query_single(sql=sql, dialects=[dialect], schemas=schemas)
-        if query_obj is None:
-            logger.warning(
-                "Could not resolve any tables for custom analysis %r — skipping.",
-                name,
+        try:
+            create_custom_analysis(
+                name=name,
+                description=entry.get("description", ""),
+                sql=sql,
             )
-            continue
+            ingested += 1
+        except (CustomAnalysisNameConflict, CustomAnalysisSqlConflict):
+            skipped += 1
+        except CustomAnalysisSqlError as exc:
+            logger.warning(
+                "Could not resolve any tables for custom analysis %r — skipping (%s).",
+                name,
+                exc,
+            )
 
-        # Match the Sql node by its full text so re-runs reuse the existing
-        # node instead of creating a fresh one (which would cause duplicate
-        # HAS_SQL edges from the merged CustomAnalysis node).
-        query_obj.sql_node.match_props = {"sql_full_query": sql}
-
-        # Match the CustomAnalysis node by name so re-running the script is
-        # idempotent (Tables/Columns merge by id derived from their fully
-        # qualified path; CustomAnalysis has no such id, so name is the
-        # natural key from the JSON spec).
-        analysis_node = Neo4jNode(
-            name=name,
-            label=Labels.CUSTOM_ANALYSIS,
-            props={
-                "name": name,
-                "description": entry.get("description", ""),
-            },
-            match_props={"name": name},
-        )
-
-        edge_props = {Props.ANALYSIS_ID: analysis_node.get_id()}
-        query_obj.edges.append((analysis_node, query_obj.sql_node, edge_props))
-
-        add_query(query_obj.get_edges())
-        ingested += 1
+    if skipped:
+        logger.info("%d custom analysis/analyses already present — left alone.", skipped)
 
     logger.info(
         "Ingested %d/%d custom analyses in %.2fs.",
