@@ -237,7 +237,9 @@ def add_custom_analyses(
             )
 
     if skipped:
-        logger.info("%d custom analysis/analyses already present — left alone.", skipped)
+        logger.info(
+            "%d custom analysis/analyses already present — left alone.", skipped
+        )
 
     logger.info(
         "Ingested %d/%d custom analyses in %.2fs.",
