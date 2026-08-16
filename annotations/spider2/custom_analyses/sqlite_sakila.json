@@ -1,0 +1,7 @@
+[
+  {
+    "name": "Customers reached through actor films",
+    "description": "Actor customer reach joins rental to inventory to film_actor. Top-five actor appeal is one percentage of customers who rented films featuring any of those actors, not a separate percentage row per actor.",
+    "sql": "SELECT COUNT(DISTINCT r.customer_id) AS customers_who_rented_actor_films FROM rental r JOIN inventory i ON r.inventory_id = i.inventory_id JOIN film_actor fa ON i.film_id = fa.film_id"
+  }
+]

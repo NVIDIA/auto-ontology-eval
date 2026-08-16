@@ -104,6 +104,9 @@ command with `PYTHONPATH=../GSF` (the judge does not need it).
 | `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`       | ingest + eval | Graph store connection.                                               |
 | `POSTGRES_*`                                          | ingest + eval | pgvector store connection.                                            |
 | `CONNECTION_STRINGS`                                  | ingest + eval | Source DB to extract schema from / execute SQL against.               |
+| `SAVED_CUSTOM_ANALYSES_DIR`                           | ingest        | Durable Spider2 CA specs (`<db>.json`); wins over beside-DB files.    |
+| `SAVED_METADATA_DIR`                                  | ingest        | Durable Spider2 table/column description overlays (`<db>.json`).      |
+| `SAVED_DESCRIPTIONS_CSV`                              | semantic      | Optional column/attribute overrides (`--override-descriptions`).      |
 
 ## Seed the local source DB (required)
 
@@ -154,6 +157,15 @@ datasets/<database_name>/
 The retrieval eval writes its results CSV to the repo-root `input/` folder
 (`input/<database_name>_<model>.csv`), not into the dataset folder, so the judge
 can score it directly.
+
+### Spider2 durable annotations
+
+`datasets/spider2/` is gitignored and replaced on re-seed. Custom analyses and
+table/column description corrections that should survive live under
+[`annotations/spider2/`](annotations/spider2/README.md) and are selected via
+`.env` (`SAVED_CUSTOM_ANALYSES_DIR`, `SAVED_METADATA_DIR`,
+`SAVED_DESCRIPTIONS_CSV`). Ingest merges metadata overlays and prefers saved
+CAs; after semantic compile, pass `--override-descriptions` to apply the CSV.
 
 The repo ships with two public worked examples:
 
@@ -214,6 +226,7 @@ file is missing.
     "columns": [
       {
         "name": "customername",
+        "data_type": "TEXT",
         "description": "Display name of the customer.",
         "value_examples": ["Tailspin Toys", "Wingtip Toys"]
       }
@@ -221,6 +234,10 @@ file is missing.
   }
 }
 ```
+
+`value_examples` preserve JSON scalar types (for example, numeric examples
+remain `[0, 1]`, not `["0", "1"]`). Seeders carry upstream `column_types` into
+`data_type` and conservatively infer a type from samples when it is absent.
 
 ### `custom_analyses.json`
 

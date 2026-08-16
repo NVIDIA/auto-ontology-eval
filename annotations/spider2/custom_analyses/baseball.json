@@ -1,0 +1,12 @@
+[
+  {
+    "name": "Independent batting category leaders",
+    "description": "Highest games, runs, hits, and home runs are independent category leaders. Return one result shape per statistic with the player(s) at the MAX of that statistic; do not collapse all categories into a single LIMIT 1 winner.",
+    "sql": "SELECT 'runs' AS statistic, p.name_given, SUM(b.r) AS score FROM player p JOIN batting b ON p.player_id = b.player_id GROUP BY p.player_id, p.name_given HAVING SUM(b.r) = (SELECT MAX(s) FROM (SELECT SUM(r) AS s FROM batting GROUP BY player_id)) UNION ALL SELECT 'home runs', p.name_given, SUM(b.hr) FROM player p JOIN batting b ON p.player_id = b.player_id GROUP BY p.player_id, p.name_given HAVING SUM(b.hr) = (SELECT MAX(s) FROM (SELECT SUM(hr) AS s FROM batting GROUP BY player_id))"
+  },
+  {
+    "name": "Career span calendar borrow",
+    "description": "Career span from debut to final_game uses year/month/day components with calendar borrow: when the day difference is negative, borrow days from the previous month and reduce months by one before converting to years. Do not ABS raw component diffs independently.",
+    "sql": "SELECT CAST(substr(debut, 1, 4) AS INTEGER) AS debut_year, CAST(substr(final_game, 1, 4) AS INTEGER) AS final_year, CAST(substr(final_game, 6, 2) AS INTEGER) - CAST(substr(debut, 6, 2) AS INTEGER) - CASE WHEN CAST(substr(final_game, 9, 2) AS INTEGER) < CAST(substr(debut, 9, 2) AS INTEGER) THEN 1 ELSE 0 END AS months_after_day_borrow FROM player WHERE debut IS NOT NULL AND final_game IS NOT NULL AND debut <> '' AND final_game <> ''"
+  }
+]

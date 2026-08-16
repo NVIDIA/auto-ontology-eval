@@ -1,0 +1,12 @@
+[
+  {
+    "name": "US non-promotion sales by city and product",
+    "description": "Reach country and city through sales to customers to countries. promo_id 999 represents non-promotion sales.",
+    "sql": "SELECT s.prod_id, c.cust_city_id, s.time_id, s.amount_sold FROM sales s JOIN customers c ON s.cust_id = c.cust_id JOIN countries n ON c.country_id = n.country_id WHERE n.country_iso_code = 'US' AND s.promo_id = 999"
+  },
+  {
+    "name": "US city Q4 non-promotion sales totals",
+    "description": "City sales growth is aggregated by cust_city_id over Q4 windows on promo_id 999 sales. Rank products only inside cities that first satisfy the growth filter.",
+    "sql": "SELECT c.cust_city_id, SUM(CASE WHEN s.time_id BETWEEN '2019-10-01' AND '2019-12-31' THEN s.amount_sold ELSE 0 END) AS q4_2019_sales, SUM(CASE WHEN s.time_id BETWEEN '2020-10-01' AND '2020-12-31' THEN s.amount_sold ELSE 0 END) AS q4_2020_sales FROM sales s JOIN customers c ON s.cust_id = c.cust_id JOIN countries n ON c.country_id = n.country_id WHERE n.country_iso_code = 'US' AND s.promo_id = 999 GROUP BY c.cust_city_id"
+  }
+]

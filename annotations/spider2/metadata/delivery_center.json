@@ -1,0 +1,8 @@
+{
+  "deliveries": {
+    "description": "Delivery attempts/events for an order. One delivery_order_id can have many delivery rows. When counting delivered orders, dedupe delivery_order_id first. When counting a driver's deliveries, use COUNT(delivery_id) of DELIVERED rows — do not use COUNT(DISTINCT delivery_order_id) for delivery volume."
+  },
+  "orders": {
+    "description": "Order header with creation time split into order_created_year, order_created_month, and order_created_day. Use those created_* fields for daily delivery/order metrics, not order_moment_delivered."
+  }
+}

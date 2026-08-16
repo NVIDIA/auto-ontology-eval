@@ -1,0 +1,5 @@
+{
+  "customer_transactions": {
+    "description": "Customer cash movements. txn_type is deposit, withdrawal, or purchase. Deposits add to balance; withdrawals and purchases both subtract."
+  }
+}

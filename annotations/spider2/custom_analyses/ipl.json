@@ -1,0 +1,27 @@
+[
+  {
+    "name": "Batter runs by ball key",
+    "description": "Attribute batsman_scored runs to ball_by_ball.striker by joining all four delivery keys: match, innings, over, and ball.",
+    "sql": "SELECT b.match_id, b.striker, SUM(s.runs_scored) AS runs FROM ball_by_ball b JOIN batsman_scored s ON b.match_id = s.match_id AND b.innings_no = s.innings_no AND b.over_id = s.over_id AND b.ball_id = s.ball_id GROUP BY b.match_id, b.striker"
+  },
+  {
+    "name": "player_match appearance batting totals with zero-run matches",
+    "description": "REQUIRED for country batting averages (mean of each player's mean runs per match) and any batting average over appearances: start from player_match so every rostered appearance counts, LEFT JOIN ball_by_ball/batsman_scored, COALESCE runs to 0 for zero-run matches, then AVG per player, then AVG those player averages by country. Never build match runs only from ball_by_ball INNER JOIN batsman_scored for these averages (that drops zero-run appearances). Do not use player_match when the question filters strikers by runs in a match (e.g. more than 50 runs); those use ball_by_ball joined to batsman_scored only.",
+    "sql": "SELECT pm.player_id, pm.match_id, COALESCE(SUM(bs.runs_scored), 0) AS runs_in_match FROM player_match pm LEFT JOIN ball_by_ball bb ON pm.match_id = bb.match_id AND pm.player_id = bb.striker LEFT JOIN batsman_scored bs ON bb.match_id = bs.match_id AND bb.innings_no = bs.innings_no AND bb.over_id = bs.over_id AND bb.ball_id = bs.ball_id GROUP BY pm.player_id, pm.match_id"
+  },
+  {
+    "name": "Partnership batsman runs only",
+    "description": "Partnership score is the sum of batsman_scored runs for the on-crease pair (striker and non_striker). Do not add extra_runs into the partnership total.",
+    "sql": "SELECT bb.match_id, bb.striker, bb.non_striker, SUM(bs.runs_scored) AS partnership_batsman_runs FROM ball_by_ball bb JOIN batsman_scored bs ON bb.match_id = bs.match_id AND bb.innings_no = bs.innings_no AND bb.over_id = bs.over_id AND bb.ball_id = bs.ball_id GROUP BY bb.match_id, bb.striker, bb.non_striker"
+  },
+  {
+    "name": "Over totals from batsman and extras",
+    "description": "Over totals combine batsman_scored and extra_runs on all four ball keys. Group by match_id, innings_no, over_id only (not bowler). For the rare over with multiple bowler ids, attribute the over to the bowler who delivered the most balls in that over (ties: lower bowler id). Rank highest over per match with ROW_NUMBER partitioned by match_id ordered by over_runs DESC, then innings_no, then over_id; keep row 1; average those one-per-match winning totals.",
+    "sql": "WITH ball_bowler AS (SELECT match_id, innings_no, over_id, bowler, COUNT(*) AS balls FROM ball_by_ball GROUP BY match_id, innings_no, over_id, bowler), primary_bowler AS (SELECT *, ROW_NUMBER() OVER (PARTITION BY match_id, innings_no, over_id ORDER BY balls DESC, bowler) AS rn FROM ball_bowler), over_totals AS (SELECT b.match_id, b.innings_no, b.over_id, pb.bowler, SUM(COALESCE(s.runs_scored, 0)) + SUM(COALESCE(e.extra_runs, 0)) AS over_runs FROM ball_by_ball b JOIN primary_bowler pb ON pb.match_id = b.match_id AND pb.innings_no = b.innings_no AND pb.over_id = b.over_id AND pb.rn = 1 LEFT JOIN batsman_scored s ON b.match_id = s.match_id AND b.innings_no = s.innings_no AND b.over_id = s.over_id AND b.ball_id = s.ball_id LEFT JOIN extra_runs e ON b.match_id = e.match_id AND b.innings_no = e.innings_no AND b.over_id = e.over_id AND b.ball_id = e.ball_id GROUP BY b.match_id, b.innings_no, b.over_id, pb.bowler), ranked AS (SELECT *, ROW_NUMBER() OVER (PARTITION BY match_id ORDER BY over_runs DESC, innings_no, over_id) AS rn FROM over_totals), winners AS (SELECT * FROM ranked WHERE rn = 1) SELECT match_id, innings_no, over_id, bowler, over_runs, AVG(over_runs) OVER () AS average_highest_over_runs FROM winners"
+  },
+  {
+    "name": "Balls faced only on batsman_scored deliveries",
+    "description": "Career balls faced counts only ball_by_ball deliveries that join to batsman_scored on match/innings/over/ball for that striker. Do not count every ball_by_ball row (wides/extras-only balls without a batsman_scored row are excluded). Strike rate = 100 * runs / that balls-faced count. For economy rate, use 6 * (batsman runs + wides + noballs conceded) / all balls bowled from ball_by_ball (include wides in the ball denominator).",
+    "sql": "SELECT b.striker AS player_id, COUNT(*) AS balls_faced, SUM(s.runs_scored) AS runs FROM ball_by_ball b JOIN batsman_scored s ON b.match_id = s.match_id AND b.innings_no = s.innings_no AND b.over_id = s.over_id AND b.ball_id = s.ball_id GROUP BY b.striker"
+  }
+]

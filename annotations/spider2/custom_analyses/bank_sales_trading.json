@@ -1,0 +1,22 @@
+[
+  {
+    "name": "Interest average composition by name",
+    "description": "Average interest composition is composition divided by index_value. Cast interest_metrics.interest_id to integer when joining interest_map for the interest name.",
+    "sql": "SELECT m.month_year, i.interest_name, AVG(m.composition / NULLIF(m.index_value, 0)) AS avg_composition FROM interest_metrics m JOIN interest_map i ON CAST(m.interest_id AS INTEGER) = i.id GROUP BY m.month_year, i.interest_name"
+  },
+  {
+    "name": "Normalized bitcoin trading volume",
+    "description": "Normalize bitcoin volume text before calculations: '-' is zero, K means thousands, and M means millions.",
+    "sql": "SELECT ticker, market_date, CASE WHEN trim(volume) = '-' THEN 0 WHEN upper(substr(trim(volume), -1)) = 'K' THEN CAST(substr(trim(volume), 1, length(trim(volume)) - 1) AS REAL) * 1000 WHEN upper(substr(trim(volume), -1)) = 'M' THEN CAST(substr(trim(volume), 1, length(trim(volume)) - 1) AS REAL) * 1000000 ELSE CAST(trim(volume) AS REAL) END AS trading_volume FROM bitcoin_prices"
+  },
+  {
+    "name": "Bitcoin market date to ISO",
+    "description": "bitcoin_prices.market_date is DD-MM-YYYY text. Convert to ISO YYYY-MM-DD before ordering or lagging. For daily volume percent change, the previous volume is the latest prior non-zero volume for the same ticker.",
+    "sql": "SELECT ticker, market_date, substr(market_date, 7, 4) || '-' || substr(market_date, 4, 2) || '-' || substr(market_date, 1, 2) AS iso_market_date FROM bitcoin_prices"
+  },
+  {
+    "name": "Customer monthly transaction signs",
+    "description": "Follow the transaction scope stated in the question. If it asks specifically for deposits and withdrawals, filter to exactly those types: deposits add and withdrawals subtract. Include purchases as negative only when the question mentions purchases, spending, or says that every other transaction type subtracts.",
+    "sql": "SELECT customer_id, substr(txn_date, 1, 7) AS month_label, SUM(CASE WHEN txn_type = 'deposit' THEN txn_amount WHEN txn_type = 'withdrawal' THEN -txn_amount ELSE 0 END) AS month_net FROM customer_transactions WHERE txn_type IN ('deposit', 'withdrawal') GROUP BY customer_id, substr(txn_date, 1, 7)"
+  }
+]

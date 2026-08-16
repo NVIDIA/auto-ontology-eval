@@ -1,0 +1,7 @@
+[
+  {
+    "name": "Single best-selling artist by invoice sales",
+    "description": "The best-selling artist is the single ArtistId with maximum SUM(UnitPrice * Quantity) through albums to tracks to invoice_items. Use ORDER BY total DESC LIMIT 1 rather than keeping every rank-1 tie unless the question asks for ties.",
+    "sql": "SELECT ar.ArtistId FROM artists ar JOIN albums al ON ar.ArtistId = al.ArtistId JOIN tracks tr ON al.AlbumId = tr.AlbumId JOIN invoice_items it ON tr.TrackId = it.TrackId GROUP BY ar.ArtistId ORDER BY SUM(it.UnitPrice * it.Quantity) DESC LIMIT 1"
+  }
+]

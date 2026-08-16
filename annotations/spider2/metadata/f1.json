@@ -1,0 +1,14 @@
+{
+  "constructor_standings": {
+    "description": "Constructor championship standings by race. Constructor championships start in 1958; earlier seasons have driver standings only. When returning both driver and constructor champions by year, drive the year list from driver standings or races and LEFT JOIN constructor results so pre-1958 years remain with a null constructor."
+  },
+  "driver_standings": {
+    "description": "Cumulative driver championship points/position after each race. For end-of-season standings points (including fewest points among drivers with points>0), join to the race with MAX(round) for that year."
+  },
+  "results": {
+    "description": "Race results with points awarded per race entry. Default season point totals are SUM(results.points) joined to races.year. Exception: questions about the fewest points among point-scoring drivers in a season use driver_standings.points on the season's final round, not SUM(results.points)."
+  },
+  "team_driver_ranks": {
+    "description": "Maps driver_id to constructor_id for a given year. Use this year-level mapping when assigning a season's fewest-points driver to a constructor; do not invent the constructor only from a single results row."
+  }
+}

@@ -1,0 +1,7 @@
+[
+  {
+    "name": "Musical style preference sequence counts",
+    "description": "Return one row per Musical_Styles row including StyleID and StyleName, even when counts are zero. Columns must be StyleID, StyleName, FirstPreferenceCount, SecondPreferenceCount, ThirdPreferenceCount. Count Musical_Preferences by PreferenceSeq 1/2/3 with a LEFT JOIN from Musical_Styles; do not drop styles with all-zero counts and do not omit StyleID.",
+    "sql": "SELECT s.StyleID, s.StyleName, SUM(CASE WHEN p.PreferenceSeq = 1 THEN 1 ELSE 0 END) AS FirstPreferenceCount, SUM(CASE WHEN p.PreferenceSeq = 2 THEN 1 ELSE 0 END) AS SecondPreferenceCount, SUM(CASE WHEN p.PreferenceSeq = 3 THEN 1 ELSE 0 END) AS ThirdPreferenceCount FROM Musical_Styles AS s LEFT JOIN Musical_Preferences AS p ON s.StyleID = p.StyleID GROUP BY s.StyleID, s.StyleName ORDER BY s.StyleID"
+  }
+]

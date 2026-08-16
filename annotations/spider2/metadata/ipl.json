@@ -1,0 +1,5 @@
+{
+  "player_match": {
+    "description": "One row per player rostered in a match (appearance). For batting averages that include zero-run matches (including country averages of player averages), start from this table and left-join scoring; do not drop appearances that have no batsman_scored rows."
+  }
+}

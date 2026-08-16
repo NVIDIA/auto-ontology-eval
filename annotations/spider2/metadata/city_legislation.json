@@ -1,0 +1,17 @@
+{
+  "job_postings_fact": {
+    "description": "Job postings with title, remote flag (job_work_from_home), and salary_year_avg. For Data Analyst remote salary averages over top demanded skills, filter job_title_short='Data Analyst', salary_year_avg IS NOT NULL, job_work_from_home=1, then join skills tables."
+  },
+  "legislation_date_dim": {
+    "description": "Calendar dimension. Use Dec 31 rows (month_name='December', day_of_month=31) only when the question explicitly needs filtering this table's dates; prefer date() arithmetic for first-term anniversary/retention anchors."
+  },
+  "legislators_terms": {
+    "description": "Legislator terms with term_start/term_end. First term = MIN(term_start) per id_bioguide. For Dec-31 cohort retention or years-elapsed anniversary checks, compute assessment_date with date(first_year||'-12-31', '+N years'); do not require joining legislation_date_dim."
+  },
+  "skills_dim": {
+    "description": "Skill names (skills) and types. When ranking top-N demanded skills, ORDER BY demand COUNT DESC then skills ASC for stable ties."
+  },
+  "skills_job_dim": {
+    "description": "Maps job_id to skill_id for job postings. Use with skills_dim for skill names and demand counts."
+  }
+}

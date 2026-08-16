@@ -1,0 +1,7 @@
+[
+  {
+    "name": "Salesperson annual sales from totaldue",
+    "description": "When comparing salesperson sales to quota, annual sales are SUM(salesorderheader.totaldue), not subtotal.",
+    "sql": "SELECT salespersonid, substr(orderdate, 1, 4) AS sales_year, SUM(totaldue) AS total_sales FROM salesorderheader WHERE salespersonid IS NOT NULL GROUP BY salespersonid, substr(orderdate, 1, 4)"
+  }
+]

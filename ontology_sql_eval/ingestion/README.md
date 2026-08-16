@@ -5,8 +5,8 @@
 Populates the Neo4j graph and pgvector stores from a source database so the
 text-to-SQL agent has schema and semantic context to retrieve. Set
 `CONNECTION_STRINGS` to point at the source DB (metadata and custom analyses are
-read from `datasets/<database_name>/`, where `<database_name>` comes from the
-connector), then run the pipeline.
+read from `datasets/<database_name>/` or, when set, from the durable
+`SAVED_*` paths in `.env` — see the main README), then run the pipeline.
 
 > Requires the sibling `../GSF` checkout on `PYTHONPATH`. See
 > [Prerequisites](../../README.md#prerequisites) in the main README.
@@ -16,6 +16,7 @@ connector), then run the pipeline.
 ```bash
 PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.ingest                                    # extract + embed + enrich graph
 PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.semantic --database-name <database_name>  # compile semantic layer
+PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.semantic --database-name <database_name> --override-descriptions  # + apply SAVED_DESCRIPTIONS_CSV
 ```
 
 ## What `run_ingest()` does

@@ -1,0 +1,5 @@
+{
+  "parties": {
+    "description": "Collision parties (drivers/passengers). Motorcycle helmet usage is encoded in party_safety_equipment_1/2 text values such as 'driver, motorcycle helmet used' or 'driver, motorcycle helmet not used', not a boolean column."
+  }
+}

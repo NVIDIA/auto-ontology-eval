@@ -1,0 +1,12 @@
+[
+  {
+    "name": "Age category counts from birth date",
+    "description": "Age-category population counts on mst_users use COUNT(*) over the duplicated user rows, not COUNT(DISTINCT user_id), unless the question explicitly asks for unique users. Derive age from birth_date against the dataset reference date 2017-01-09, not date('now').",
+    "sql": "SELECT CASE WHEN (CAST(strftime('%Y', '2017-01-09') AS INTEGER) - CAST(strftime('%Y', birth_date) AS INTEGER) - CASE WHEN strftime('%m-%d', '2017-01-09') < strftime('%m-%d', birth_date) THEN 1 ELSE 0 END) BETWEEN 20 AND 29 THEN '20s' WHEN (CAST(strftime('%Y', '2017-01-09') AS INTEGER) - CAST(strftime('%Y', birth_date) AS INTEGER) - CASE WHEN strftime('%m-%d', '2017-01-09') < strftime('%m-%d', birth_date) THEN 1 ELSE 0 END) BETWEEN 30 AND 39 THEN '30s' WHEN (CAST(strftime('%Y', '2017-01-09') AS INTEGER) - CAST(strftime('%Y', birth_date) AS INTEGER) - CASE WHEN strftime('%m-%d', '2017-01-09') < strftime('%m-%d', birth_date) THEN 1 ELSE 0 END) BETWEEN 40 AND 49 THEN '40s' WHEN (CAST(strftime('%Y', '2017-01-09') AS INTEGER) - CAST(strftime('%Y', birth_date) AS INTEGER) - CASE WHEN strftime('%m-%d', '2017-01-09') < strftime('%m-%d', birth_date) THEN 1 ELSE 0 END) BETWEEN 50 AND 59 THEN '50s' ELSE 'others' END AS age_category, COUNT(*) AS user_count FROM mst_users GROUP BY 1"
+  },
+  {
+    "name": "Normalize activity page paths for page metrics",
+    "description": "For landing-page / exit-page session counts and similar single-page aggregates, normalize with CASE WHEN path = '/' THEN '/' ELSE rtrim(path, '/') END before grouping.",
+    "sql": "WITH normalized AS (SELECT session, CASE WHEN path = '/' THEN '/' ELSE rtrim(path, '/') END AS page_path, ROW_NUMBER() OVER (PARTITION BY session ORDER BY stamp, path) AS landing_rank, ROW_NUMBER() OVER (PARTITION BY session ORDER BY stamp DESC, path DESC) AS exit_rank FROM activity_log) SELECT page_path, COUNT(DISTINCT session) AS unique_sessions FROM normalized WHERE landing_rank = 1 OR exit_rank = 1 GROUP BY page_path ORDER BY unique_sessions DESC"
+  }
+]

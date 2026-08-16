@@ -1,0 +1,7 @@
+[
+  {
+    "name": "Director average inter-movie duration days",
+    "description": "Average inter-movie duration for a director is the mean number of days between consecutive movie date_published values for that director: use LAG(date_published) ordered by date_published, then AVG(julianday(date_published) - julianday(previous_date_published)), and ROUND to the nearest integer. Ignore the first movie (null lag). Do not use movie duration minutes as the inter-movie gap. For average rating, use half-up rounding to 2 decimals (ROUND(avg_rating + 1e-12, 2)), not banker's ROUND alone.",
+    "sql": "WITH director_movie_data AS (SELECT p.id AS director_id, p.name AS director_name, f.date_published, s.avg_rating, LAG(f.date_published) OVER (PARTITION BY p.id ORDER BY f.date_published, f.id) AS previous_date_published FROM director_mapping d JOIN names p ON d.name_id = p.id JOIN movies f ON d.movie_id = f.id JOIN ratings s ON f.id = s.movie_id) SELECT director_id, director_name, CAST(ROUND(AVG(CASE WHEN previous_date_published IS NOT NULL THEN julianday(date_published) - julianday(previous_date_published) END), 0) AS INTEGER) AS avg_inter_movie_duration, ROUND(AVG(avg_rating) + 1e-12, 2) AS avg_rating FROM director_movie_data GROUP BY director_id, director_name"
+  }
+]

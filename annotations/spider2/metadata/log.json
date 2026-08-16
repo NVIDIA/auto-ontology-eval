@@ -1,0 +1,8 @@
+{
+  "activity_log": {
+    "description": "Browse/session page events (search/detail/complete), not registration forms. Paths are short browse paths like /detail, /search_list, /input, /confirm — there is no /regist/* here; use form_log for /regist/input and /regist/confirm. Paths such as /detail and /detail/ are distinct values; do not strip trailing slashes unless the question asks to normalize them. Multiple rows can share the same session and stamp (same timestamp, different path/search_type). When selecting the first matching event in a session, pick exactly one row with a deterministic tie-break (ORDER BY stamp, path, search_type)."
+  },
+  "mst_users": {
+    "description": "User master data. There is no age column — derive age from birth_date relative to a dataset reference date (activity_log timestamps are around 2017-01-09), not date('now'). user_id is not unique (rows are duplicated); when counting users use COUNT(DISTINCT user_id)."
+  }
+}
