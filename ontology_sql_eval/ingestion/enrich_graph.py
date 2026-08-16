@@ -17,8 +17,9 @@ JSON shape (per table)::
             "columns": [
                 {
                     "name": "...",
+                    "data_type": "INTEGER",
                     "description": "...",
-                    "value_examples": ["...", ...] | null,
+                    "value_examples": [0, 1] | ["...", ...] | null,
                     ...
                 },
                 ...
@@ -46,7 +47,7 @@ import logging
 import re
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from nemo_retriever.common.params.models import EmbedParams
@@ -82,6 +83,33 @@ def resolve_dataset_file(database_name: str, filename: str) -> Path | None:
     return None
 
 
+def get_all_schemas_ids(database_name: str | None = None) -> list[str]:
+    """Return schema ids, optionally scoped to one database.
+
+    NeMo Retriever's helper currently returns schemas from every database.
+    Custom-analysis parsing must be database-local because common table names
+    such as ``orders`` and ``customers`` otherwise resolve against an
+    unrelated schema.
+    """
+    from nemo_retriever.tabular_data.neo4j import get_neo4j_conn
+
+    if database_name is None:
+        query = "MATCH (s:Schema) RETURN s.id AS schema_id"
+        parameters = None
+    else:
+        query = (
+            "MATCH (d:Database {name: $database_name})-[:CONTAINS]->(s:Schema) "
+            "RETURN s.id AS schema_id"
+        )
+        parameters = {"database_name": database_name}
+
+    rows = cast(
+        list[dict[str, Any]],
+        get_neo4j_conn().query_read(query=query, parameters=parameters),
+    )
+    return [row["schema_id"] for row in rows if row.get("schema_id")]
+
+
 def apply_metadata(database_name: str) -> None:
     """Stamp table/column metadata onto the Neo4j graph.
 
@@ -91,8 +119,9 @@ def apply_metadata(database_name: str) -> None:
 
     * ``Table.description``
     * ``Column.description``
+    * ``Column.data_type`` (declared upstream type, or a seed-time inference)
     * ``Column.sample_values`` (from the JSON's ``value_examples`` field, when
-      present and non-empty)
+      present and non-empty, stored as typed JSON)
 
     Tables/columns that aren't present in the graph are silently skipped
     (the MATCH simply finds nothing). Properties for which the JSON has no
@@ -114,8 +143,9 @@ def apply_metadata(database_name: str) -> None:
         raw = json.load(f)
 
     table_rows: list[dict[str, str]] = []
-    column_rows: list[dict[str, str | list[str] | None]] = []
+    column_rows: list[dict[str, Any]] = []
     samples_count = 0
+    types_count = 0
     for table_name, table_meta in raw.items():
         table_desc = table_meta.get("description")
         if table_desc:
@@ -123,21 +153,25 @@ def apply_metadata(database_name: str) -> None:
 
         for col in table_meta.get("columns", []) or []:
             col_desc = col.get("description")
+            data_type = col.get("data_type")
             value_examples = col.get("value_examples")
-            sample_values: list[str] | None = (
-                [str(v) for v in value_examples]
+            sample_values: str | None = (
+                json.dumps(value_examples, ensure_ascii=False)
                 if isinstance(value_examples, list) and value_examples
                 else None
             )
-            if not col_desc and sample_values is None:
+            if not col_desc and not data_type and sample_values is None:
                 continue
             if sample_values is not None:
                 samples_count += 1
+            if data_type:
+                types_count += 1
             column_rows.append(
                 {
                     "table_name": table_name,
                     "column_name": col["name"],
                     "description": col_desc or None,
+                    "data_type": str(data_type) if data_type else None,
                     "sample_values": sample_values,
                 }
             )
@@ -163,6 +197,7 @@ def apply_metadata(database_name: str) -> None:
                 "(:Schema)-[:CONTAINS]->(t:Table {name: row.table_name})"
                 "-[:CONTAINS]->(c:Column {name: row.column_name}) "
                 "SET c.description = coalesce(row.description, c.description), "
+                "    c.data_type = coalesce(row.data_type, c.data_type), "
                 "    c.sample_values = coalesce(row.sample_values, c.sample_values)"
             ),
             parameters={"rows": column_rows, "database_name": database_name},
@@ -170,9 +205,10 @@ def apply_metadata(database_name: str) -> None:
 
     logger.info(
         "Applied metadata: %d table description(s), %d column description(s), "
-        "%d column sample_values from %s",
+        "%d column data type(s), %d column sample_values from %s",
         len(table_rows),
         sum(1 for r in column_rows if r.get("description")),
+        types_count,
         samples_count,
         metadata_path,
     )
@@ -212,7 +248,6 @@ def add_custom_analyses(
         parse_query_single,
     )
     from nemo_retriever.tabular_data.retrieval.data_access.graph_schemas import (
-        get_all_schemas_ids,
         get_schemas_by_ids,
     )
     from gsf.dal.custom_analyses import embed_custom_analyses
@@ -234,7 +269,13 @@ def add_custom_analyses(
         logger.info("No custom analyses to ingest from %s.", analyses_path)
         return
 
-    schemas_ids = get_all_schemas_ids()
+    schemas_ids = get_all_schemas_ids(database_name=database_name)
+    if not schemas_ids:
+        logger.warning(
+            "No schemas found in Neo4j for database %r; skipping custom analyses.",
+            database_name,
+        )
+        return
     schemas = get_schemas_by_ids(schemas_ids)
 
     before = time.time()
@@ -243,6 +284,7 @@ def add_custom_analyses(
     )
 
     ingested = 0
+    ingested_analysis_ids: list[str] = []
     for entry in analyses:
         name = entry.get("name", "")
         sql = (entry.get("sql") or "").strip()
@@ -282,6 +324,28 @@ def add_custom_analyses(
 
         add_query(query_obj.get_edges())
         ingested += 1
+        # MERGE matches CustomAnalysis by name, so an existing node's id is kept.
+        # Resolve the persisted id before embedding — analysis_node.get_id() is a
+        # freshly generated UUID and will miss the Neo4j row on re-ingest.
+        from nemo_retriever.tabular_data.neo4j import get_neo4j_conn
+
+        id_rows = cast(
+            list[dict[str, Any]],
+            get_neo4j_conn().query_read(
+                "MATCH (ca:CustomAnalysis {name: $name}) RETURN ca.id AS id",
+                parameters={"name": name},
+            ),
+        )
+        persisted_id = id_rows[0]["id"] if id_rows and id_rows[0].get("id") else None
+        if persisted_id:
+            ingested_analysis_ids.append(str(persisted_id))
+        else:
+            logger.warning(
+                "Could not resolve persisted id for custom analysis %r; "
+                "embedding may be skipped.",
+                name,
+            )
+            ingested_analysis_ids.append(analysis_node.get_id())
 
     logger.info(
         "Ingested %d/%d custom analyses in %.2fs.",
@@ -299,4 +363,14 @@ def add_custom_analyses(
         )
         return
 
-    embed_custom_analyses(embed_params, vdb, database_name=database_name)
+    for analysis_id in ingested_analysis_ids:
+        # Re-ingestion should replace, not duplicate, the semantic embedding.
+        delete_by_id = getattr(vdb, "delete_by_id", None)
+        if callable(delete_by_id):
+            delete_by_id(analysis_id)
+        embed_custom_analyses(
+            embed_params,
+            vdb,
+            analysis_id=analysis_id,
+            database_name=database_name,
+        )

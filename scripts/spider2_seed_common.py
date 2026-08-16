@@ -31,13 +31,14 @@ DEFAULT_UPSTREAM_REF = "main"
 
 # Only these spider2-lite subpaths are read by this script. Scoping the sparse
 # checkout to them (cone mode also keeps files along the parent path, e.g.
-# spider2-lite/spider2-lite.jsonl) trims the working tree from ~900M to ~2M by
-# excluding resource/databases (the SQLite bundle comes from Google Drive) and
-# the large gold/ execution-result files.
+# spider2-lite/spider2-lite.jsonl) keeps the tree small: the SQLite DB bundle
+# still comes from Google Drive; we only pull the per-table JSON metadata under
+# resource/databases/sqlite (descriptions + sample_rows), not the .sqlite files.
 _SQLITE_SPARSE_PATHS = (
     "spider2-lite/evaluation_suite/gold/sql",
     "spider2-lite/evaluation_suite/gold/exec_result",
     "spider2-lite/resource/documents",
+    "spider2-lite/resource/databases/sqlite",
 )
 _SNOW_SPARSE_PATHS = (
     "spider2-snow/evaluation_suite/gold/sql",
@@ -80,6 +81,11 @@ def _spider2_snow_root() -> Path:
 
 def _snow_databases_dir() -> Path:
     return _spider2_snow_root() / "resource" / "databases"
+
+
+def _lite_sqlite_databases_dir() -> Path:
+    """Per-table JSON metadata for Spider2-lite local SQLite DBs."""
+    return _spider2_lite_root() / "resource" / "databases" / "sqlite"
 
 
 def _spider2_jsonl() -> Path:
@@ -270,15 +276,38 @@ def _load_evidence(filename: str | None) -> str:
     return doc_path.read_text(encoding="utf-8").strip()
 
 
-def _sample_value(value: Any) -> str:
-    """Return a stable string representation suitable for Neo4j metadata."""
+def _sample_value(value: Any) -> Any:
+    """Preserve JSON scalar types; canonically render nested values as strings."""
     if isinstance(value, (dict, list)):
         return json.dumps(value, ensure_ascii=False, sort_keys=True)
-    return str(value)
+    return value
 
 
-def _metadata_from_snow_table(source: dict[str, Any]) -> tuple[str, dict[str, Any]]:
-    """Convert one Spider2-Snow table JSON to enrichment ``metadata.json`` format.
+def _infer_column_type(values: list[Any]) -> str:
+    """Infer a conservative SQL type from non-null upstream sample values."""
+    non_null = [value for value in values if value is not None]
+    if not non_null:
+        return "TEXT"
+    if all(isinstance(value, bool) for value in non_null):
+        return "BOOLEAN"
+    if all(isinstance(value, int) and not isinstance(value, bool) for value in non_null):
+        return "INTEGER"
+    if all(
+        isinstance(value, (int, float)) and not isinstance(value, bool)
+        for value in non_null
+    ):
+        return "REAL"
+    if all(isinstance(value, str) for value in non_null):
+        return "TEXT"
+    return "TEXT"
+
+
+def _metadata_from_table_json(
+    source: dict[str, Any],
+    *,
+    uppercase_columns: bool,
+) -> tuple[str, dict[str, Any]]:
+    """Convert one Spider2 table JSON to enrichment ``metadata.json`` format.
 
     Output matches ``ontology_sql_eval.ingestion.enrich_graph.apply_metadata``::
 
@@ -286,14 +315,22 @@ def _metadata_from_snow_table(source: dict[str, Any]) -> tuple[str, dict[str, An
             "<table_name>": {
                 "description": "...",
                 "columns": [
-                    {"name": "...", "description": "...", "value_examples": [...]}
+                    {
+                        "name": "...",
+                        "data_type": "...",
+                        "description": "...",
+                        "value_examples": [...]
+                    }
                 ]
             }
         }
 
     Spider2 stores column descriptions as a list aligned with ``column_names``
     and examples as ``sample_rows`` dictionaries. Table keys use the bare
-    Snowflake table name (as stored on Neo4j ``Table.name`` after ingest).
+    table name (as stored on Neo4j ``Table.name`` after ingest).
+
+    *uppercase_columns*: Snowflake INFORMATION_SCHEMA returns unquoted
+    identifiers in uppercase; SQLite lite metadata keeps the JSON names as-is.
     """
     fullname = str(source.get("table_fullname") or "")
     source_table_name = str(source.get("table_name") or "")
@@ -304,36 +341,51 @@ def _metadata_from_snow_table(source: dict[str, Any]) -> tuple[str, dict[str, An
         raise ValueError("Spider2 table metadata is missing table_name")
 
     column_names = source.get("column_names") or []
+    column_types = source.get("column_types") or []
     descriptions = source.get("description") or []
     sample_rows = source.get("sample_rows") or []
 
     columns: list[dict[str, Any]] = []
     for index, raw_name in enumerate(column_names):
         source_name = str(raw_name)
-        # Snowflake INFORMATION_SCHEMA returns unquoted identifiers in uppercase,
-        # and enrich_graph matches Column.name exactly.
-        name = source_name.upper()
+        # enrich_graph matches Column.name exactly.
+        name = source_name.upper() if uppercase_columns else source_name
         description = descriptions[index] if index < len(descriptions) else None
+        declared_type = column_types[index] if index < len(column_types) else None
 
-        examples: list[str] = []
-        seen: set[str] = set()
+        examples: list[Any] = []
+        raw_examples: list[Any] = []
+        seen: set[tuple[str, str]] = set()
         for row in sample_rows:
             if not isinstance(row, dict):
                 continue
             value = row.get(source_name)
             if value is None:
+                # Snowflake sample rows sometimes key columns in uppercase.
+                value = row.get(name) if name != source_name else None
+            if value is None:
                 continue
+            raw_examples.append(value)
             rendered = _sample_value(value)
-            if rendered in seen:
+            identity = (
+                type(rendered).__name__,
+                json.dumps(rendered, ensure_ascii=False, sort_keys=True),
+            )
+            if identity in seen:
                 continue
-            seen.add(rendered)
+            seen.add(identity)
             examples.append(rendered)
             if len(examples) == 5:
                 break
 
+        data_type = str(declared_type).strip() if declared_type is not None else ""
+        if not data_type:
+            data_type = _infer_column_type(raw_examples)
+
         columns.append(
             {
                 "name": name,
+                "data_type": data_type,
                 "description": str(description) if description else None,
                 "value_examples": examples or None,
             }
@@ -345,19 +397,22 @@ def _metadata_from_snow_table(source: dict[str, Any]) -> tuple[str, dict[str, An
     }
 
 
-def _build_snow_metadata() -> dict[str, dict[str, int]]:
-    """Generate enrichment metadata for every Spider2-Snow database.
+def _metadata_from_snow_table(source: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    """Convert one Spider2-Snow table JSON (uppercase column names)."""
+    return _metadata_from_table_json(source, uppercase_columns=True)
 
-    Writes ``datasets/spider2/<slug>/metadata.json``. Snowflake connectors
-    keep the physical database name (e.g. ``CPTAC_PDC``) for Neo4j / pgvector
-    and resolve this path by slug. Introspection is then restricted to the
-    tables/columns listed in the metadata file.
-    """
-    source_root = _snow_databases_dir()
+
+def _build_metadata_from_database_dirs(
+    source_root: Path,
+    *,
+    uppercase_columns: bool,
+    dialect_label: str,
+) -> dict[str, dict[str, int]]:
+    """Write ``datasets/spider2/<slug>/metadata.json`` for each DB under *source_root*."""
     if not source_root.is_dir():
         raise SystemExit(
-            f"Missing Spider2-Snow database metadata at {source_root}. "
-            "Ensure spider2-snow/resource/databases is in the sparse checkout."
+            f"Missing Spider2 {dialect_label} database metadata at {source_root}. "
+            "Ensure the matching resource/databases path is in the sparse checkout."
         )
 
     summary: dict[str, dict[str, int]] = {}
@@ -369,7 +424,9 @@ def _build_snow_metadata() -> dict[str, dict[str, int]]:
 
         for source_path in sorted(database_dir.rglob("*.json")):
             source = json.loads(source_path.read_text(encoding="utf-8"))
-            table_name, table = _metadata_from_snow_table(source)
+            table_name, table = _metadata_from_table_json(
+                source, uppercase_columns=uppercase_columns
+            )
             if table_name in metadata:
                 # enrich_graph matches tables by bare name only; keep the last
                 # definition when the same table name appears in multiple schemas.
@@ -406,8 +463,39 @@ def _build_snow_metadata() -> dict[str, dict[str, int]]:
             sample_count,
         )
 
-    logger.info("Wrote metadata for %d Spider2 databases", len(summary))
+    logger.info(
+        "Wrote metadata for %d Spider2 %s databases", len(summary), dialect_label
+    )
     return summary
+
+
+def _build_snow_metadata() -> dict[str, dict[str, int]]:
+    """Generate enrichment metadata for every Spider2-Snow database.
+
+    Writes ``datasets/spider2/<slug>/metadata.json``. Snowflake connectors
+    keep the physical database name (e.g. ``CPTAC_PDC``) for Neo4j / pgvector
+    and resolve this path by slug. Introspection is then restricted to the
+    tables/columns listed in the metadata file.
+    """
+    return _build_metadata_from_database_dirs(
+        _snow_databases_dir(),
+        uppercase_columns=True,
+        dialect_label="Snow",
+    )
+
+
+def _build_sqlite_metadata() -> dict[str, dict[str, int]]:
+    """Generate enrichment metadata for every Spider2-lite local SQLite database.
+
+    Reads per-table JSON under ``spider2-lite/resource/databases/sqlite/<db>/``
+    (see e.g. ``f1/races_ext.json``) and writes
+    ``datasets/spider2/<slug>/metadata.json`` for ``apply_metadata``.
+    """
+    return _build_metadata_from_database_dirs(
+        _lite_sqlite_databases_dir(),
+        uppercase_columns=False,
+        dialect_label="lite SQLite",
+    )
 
 
 def _transpile_sqlite_to_postgres(sql: str) -> tuple[str, str | None]:
@@ -440,7 +528,7 @@ def _write_manifest(filename: str, manifest: dict[str, Any]) -> Path:
 
 
 def _build_sqlite_datasets(*, upstream_commit: str | None = None) -> Path:
-    """Build evaluations and a manifest for Spider2-lite local SQLite DBs."""
+    """Build evaluations, enrichment metadata, and a manifest for Spider2-lite."""
     jsonl_path = _spider2_jsonl()
     if not jsonl_path.exists():
         raise SystemExit(
@@ -455,6 +543,8 @@ def _build_sqlite_datasets(*, upstream_commit: str | None = None) -> Path:
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in local_rows:
         grouped[row["db"]].append(row)
+
+    metadata_summary = _build_sqlite_metadata()
 
     manifest_databases: list[dict[str, Any]] = []
     transpile_failures: list[dict[str, str]] = []
@@ -557,6 +647,7 @@ def _build_sqlite_datasets(*, upstream_commit: str | None = None) -> Path:
         "databases": manifest_databases,
         "transpile_failures": transpile_failures,
         "missing_gold_sql": missing_gold_sql,
+        "metadata": metadata_summary,
     }
     if missing_gold_sql:
         logger.warning(
@@ -862,7 +953,9 @@ def seed_spider2_sqlite(
     logger.info("Upstream Spider2 commit: %s", commit)
 
     if skip_build:
-        logger.info("Skipping evaluation.json / manifest build (--skip-build).")
+        logger.info(
+            "Skipping evaluation.json / metadata.json / manifest build (--skip-build)."
+        )
     else:
         manifest_path = _build_sqlite_datasets(upstream_commit=commit)
         logger.info("Wrote manifest: %s", manifest_path)

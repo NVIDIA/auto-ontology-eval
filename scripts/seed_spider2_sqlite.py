@@ -24,7 +24,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Download Spider2-lite and populate datasets/spider2/ with SQLite "
-            "databases and local evaluation.json files."
+            "databases, local evaluation.json, and per-DB metadata.json "
+            "(from resource/databases/sqlite table JSON / sample_rows)."
         ),
         epilog=(
             "Manual fallback: place local_sqlite.zip at "
