@@ -125,13 +125,6 @@ def _make_charts(
     C_SQLGEN  = "#9e9e9e"
     C_DEBUG   = "#1976d2"
 
-    def _rolling(vals: list[float], half: int = 5) -> list[float]:
-        out = []
-        for i in range(len(vals)):
-            lo, hi = max(0, i - half), min(len(vals), i + half + 1)
-            out.append(sum(vals[lo:hi]) / (hi - lo))
-        return out
-
     # Ambiguity type palette — teal/cyan family, distinct from all existing palettes
     C_AMB = ["#00897b", "#26a69a", "#4db6ac", "#80cbc4", "#b2dfdb", "#e0f2f1"]
 
@@ -297,36 +290,59 @@ def _make_charts(
         ax.set_ylim(0, ax.get_ylim()[1] * 1.2)
         ax.set_title("Turn Budget Utilisation\nby Difficulty"); ax.legend(fontsize=7)
 
-    # Chart E: P1 pass rate + avg time over run order
+    # Chart E: P1 runtime distribution — % of tasks per runtime bucket,
+    # each bucket split into two side-by-side bars (clarify / SQL-gen share).
+    # Buckets always number 4, spanning [min, max] of observed P1 runtimes.
     ax = axes2[0, 1]
-    if len(timestamped) >= 4:
-        indices = list(range(len(timestamped)))
-        pass_vals = [1.0 if r.get("phase1_passed") else 0.0 for r in timestamped]
-        time_vals = []
-        for r in timestamped:
-            t = r.get("timing") or {}
-            time_vals.append(sum([
-                t.get("phase1_clarification_secs") or 0,
-                t.get("phase1_sql_gen_secs") or 0,
-                t.get("phase1_debug_total_secs") or 0,
-                t.get("phase2_sql_gen_secs") or 0,
-                t.get("phase2_debug_total_secs") or 0,
-            ]))
-        smooth_pass = [v * 100 for v in _rolling(pass_vals)]
-        smooth_time = _rolling(time_vals)
-        color_pass, color_time = "#9c27b0", "#ff6f00"
-        l1, = ax.plot(indices, smooth_pass, color=color_pass, linewidth=2, label="P1 pass rate %")
-        ax.set_xlabel("Task index"); ax.set_ylabel("P1 pass rate (%)", color=color_pass)
-        ax.tick_params(axis="y", labelcolor=color_pass); ax.set_ylim(-5, 105)
-        axr = ax.twinx()
-        l2, = axr.plot(indices, smooth_time, color=color_time, linewidth=2, linestyle="--", label="Avg task time (s)")
-        axr.set_ylabel("Avg task time (s)", color=color_time)
-        axr.tick_params(axis="y", labelcolor=color_time)
-        ax.set_title("P1 Pass Rate & Avg Time\nover Run Order (±5 rolling)")
-        ax.legend(handles=[l1, l2], fontsize=7, loc="upper left")
+    N_BUCKETS = 4
+    p1_times: list[tuple[float, float, float]] = []  # (total, clarify, sqlgen)
+    for r in ok:
+        t = r.get("timing") or {}
+        c = t.get("phase1_clarification_secs") or 0
+        s = t.get("phase1_sql_gen_secs") or 0
+        total = c + s
+        if total > 0:
+            p1_times.append((total, c, s))
+    if p1_times:
+        min_total = min(p[0] for p in p1_times)
+        max_total = max(p[0] for p in p1_times)
+        width = (max_total - min_total) / N_BUCKETS if max_total > min_total else 1.0
+        bucket_clarify: list[float] = [0.0] * N_BUCKETS
+        bucket_sqlgen:  list[float] = [0.0] * N_BUCKETS
+        bucket_counts:  list[int]   = [0] * N_BUCKETS
+        for total, c, s in p1_times:
+            bi = min(int((total - min_total) // width), N_BUCKETS - 1) if width > 0 else 0
+            bucket_counts[bi] += 1
+            bucket_clarify[bi] += c
+            bucket_sqlgen[bi]  += s
+        n_all = len(p1_times)
+        pct_per_bucket = [cnt / n_all * 100 for cnt in bucket_counts]
+        clarify_pct, sqlgen_pct = [], []
+        for i in range(N_BUCKETS):
+            comp_sum = bucket_clarify[i] + bucket_sqlgen[i]
+            if comp_sum > 0:
+                clarify_pct.append(pct_per_bucket[i] * bucket_clarify[i] / comp_sum)
+                sqlgen_pct.append(pct_per_bucket[i] * bucket_sqlgen[i] / comp_sum)
+            else:
+                clarify_pct.append(0.0); sqlgen_pct.append(0.0)
+        labels_rt = [f"{min_total + i*width:.0f}-{min_total + (i+1)*width:.0f}" for i in range(N_BUCKETS)]
+        xi = list(range(N_BUCKETS))
+        bar_w = 0.38
+        offsets = [-bar_w / 2, bar_w / 2]
+        ax.bar([x + offsets[0] for x in xi], clarify_pct, width=bar_w, label="Clarification", color=C_CLARIFY)
+        ax.bar([x + offsets[1] for x in xi], sqlgen_pct, width=bar_w, label="SQL gen", color=C_SQLGEN)
+        for i in range(N_BUCKETS):
+            if bucket_counts[i] > 0:
+                top = max(clarify_pct[i], sqlgen_pct[i])
+                ax.text(i, top + 1, f"n={bucket_counts[i]}", ha="center", va="bottom", fontsize=7)
+        ax.set_xticks(xi); ax.set_xticklabels(labels_rt, rotation=45, ha="right", fontsize=7)
+        ax.set_xlabel("P1 runtime (s)"); ax.set_ylabel("Tasks (%)")
+        ax.set_ylim(0, max(clarify_pct + sqlgen_pct or [10]) * 1.3)
+        ax.set_title("P1 Runtime Distribution\n(side-by-side: clarify vs SQL-gen share)")
+        ax.legend(fontsize=7)
     else:
-        ax.text(0.5, 0.5, "need ≥4 tasks", ha="center", va="center", transform=ax.transAxes)
-        ax.set_title("P1 Pass Rate & Avg Time over Run Order")
+        ax.text(0.5, 0.5, "no P1 timing data", ha="center", va="center", transform=ax.transAxes)
+        ax.set_title("P1 Runtime Distribution")
 
     # Chart F: Timing breakdown stacked bar per difficulty
     ax = axes2[1, 0]
@@ -697,6 +713,36 @@ def main() -> None:
             if not p1_vals:
                 continue
             print(f"  {diff:<12}  avg_p1={_fmt_t_avg(p1_vals):>7}  avg_total={_fmt_t_avg(total_vals):>7}")
+
+    # ── Slow P1 tasks (>120s) ──────────────────────────────────────────────────
+    # Flag a task when EITHER individual component (clarify or sqlgen) exceeds
+    # the threshold on its own — not the combined total.
+    SLOW_THRESHOLD = 120.0
+    slow_tasks: list[tuple[str, float, float, float, str]] = []  # (id, total, clarify, sqlgen, tag)
+    for r in ok:
+        t = r.get("timing") or {}
+        c = t.get("phase1_clarification_secs") or 0
+        s = t.get("phase1_sql_gen_secs") or 0
+        clarify_over = c > SLOW_THRESHOLD
+        sqlgen_over = s > SLOW_THRESHOLD
+        if not (clarify_over or sqlgen_over):
+            continue
+        if clarify_over and sqlgen_over:
+            tag = "both"
+        elif clarify_over:
+            tag = "clarify"
+        else:
+            tag = "sql gen"
+        slow_tasks.append((r["instance_id"], c + s, c, s, tag))
+    if slow_tasks:
+        slow_tasks.sort(key=lambda x: x[1], reverse=True)
+        print(f"\n── Slow P1 Tasks (>{SLOW_THRESHOLD:.0f}s) ────────────────────────────────────────")
+        print(f"  {len(slow_tasks)} task(s) exceeded {SLOW_THRESHOLD:.0f}s in phase 1 "
+              f"(clarify={_fmt_t(sum(x[2] for x in slow_tasks) / len(slow_tasks))} avg, "
+              f"sqlgen={_fmt_t(sum(x[3] for x in slow_tasks) / len(slow_tasks))} avg):")
+        for instance_id, total, c, s, tag in slow_tasks:
+            print(f"    {instance_id:<40}  {total:>6.1f}s  "
+                  f"(clarify={c:.1f}s, sqlgen={s:.1f}s)  ({tag})")
 
     # ── 7. Per-database stats ──────────────────────────────────────────────────
     print(f"\n── Per-Database Stats ────────────────────────────────────────────────")
