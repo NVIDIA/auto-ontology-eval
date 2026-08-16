@@ -59,6 +59,27 @@ def _norm_diff(raw: str | None) -> str:
     return _DIFFICULTY_NORM.get((raw or "").lower(), "Unknown")
 
 
+def _diff_label(task: dict | None, dataset_label: str) -> str:
+    """Difficulty/complexity grouping label for a task.
+
+    The full dataset has no difficulty_tier field (Simple/Moderate/Challenging
+    doesn't exist there) — it instead carries a boolean 'high_level' flag, so
+    for full we group by High Level / Normal. Lite (and anything else that
+    carries difficulty_tier) keeps the Simple/Moderate/Challenging tiers.
+    """
+    task = task or {}
+    if dataset_label == "full":
+        if "high_level" not in task:
+            return "Unknown"
+        return "High Level" if task.get("high_level") else "Normal"
+    return _norm_diff(task.get("difficulty_tier"))
+
+
+def _diff_order(dataset_label: str) -> list[str]:
+    return ["High Level", "Normal", "Unknown"] if dataset_label == "full" \
+        else ["Simple", "Moderate", "Challenging", "Unknown"]
+
+
 _NOISE_AMBIGUITY_TYPES = frozenset({
     "sort_ambiguity",
     "decimal_ambiguity",
@@ -69,6 +90,19 @@ _NOISE_AMBIGUITY_TYPES = frozenset({
 
 def _load_jsonl(path: Path) -> list[dict]:
     return [json.loads(line) for line in path.open() if line.strip()]
+
+
+def _infer_dataset_label(records: list[dict], data_path: Path) -> str:
+    """Prefer the 'dataset' field written into run records; fall back to the
+    --data path for older result files that predate that field."""
+    labels = {r["dataset"] for r in records if r.get("dataset")}
+    if len(labels) == 1:
+        return labels.pop()
+    if len(labels) > 1:
+        print(f"Warning: mixed datasets in results ({sorted(labels)}) — treating as 'mixed'",
+              file=sys.stderr)
+        return "mixed"
+    return "full" if "full" in str(data_path).lower() else "lite"
 
 
 def _pct(num: int, denom: int) -> str:
@@ -96,6 +130,7 @@ def _make_charts(
     score_buckets: dict,
     followup_stats: dict,
     out_path: Path,
+    dataset_label: str = "lite",
 ) -> None:
     """Generate two chart PNGs: results (3 charts) and diagnostics (4 charts)."""
     try:
@@ -119,7 +154,8 @@ def _make_charts(
     # Score scale  (0.0 → 1.0 : red → orange → yellow → lime → yellow-green → green)
     C_SCORE = {0.0: "#f44336", 0.5: "#ff9800", 0.7: "#ffeb3b", 0.8: "#cddc39", 0.9: "#8bc34a", 1.0: "#4caf50"}
     # Difficulty scale  (Simple pink → Moderate purple → Challenging dark-blue)
-    C_DIFF = {"Simple": "#f06292", "Moderate": "#9c27b0", "Challenging": "#1565c0", "Unknown": "#9e9e9e", "All": "#9e9e9e"}
+    C_DIFF = {"Simple": "#f06292", "Moderate": "#9c27b0", "Challenging": "#1565c0", "Unknown": "#9e9e9e", "All": "#9e9e9e",
+              "Normal": "#f06292", "High Level": "#1565c0"}
     # Timing components  (clarification dark-grey / SQL gen mid-grey / debug steel-blue)
     C_CLARIFY = "#424242"
     C_SQLGEN  = "#9e9e9e"
@@ -133,7 +169,7 @@ def _make_charts(
     # ══════════════════════════════════════════════════════════════════════════
     path1 = out_path
     fig1, axes1 = plt.subplots(2, 2, figsize=(14, 10))
-    fig1.suptitle("BIRD-Interact Run Analysis — Results", fontsize=13, fontweight="bold")
+    fig1.suptitle(f"BIRD-Interact Run Analysis — Results [{dataset_label.upper()}]", fontsize=13, fontweight="bold")
     fig1.subplots_adjust(hspace=0.45, wspace=0.38, left=0.08, right=0.97, top=0.92, bottom=0.1)
 
     # Chart A: Outcome per DB
@@ -262,7 +298,7 @@ def _make_charts(
     # ══════════════════════════════════════════════════════════════════════════
     path2 = out_path.with_name(out_path.stem.replace("_charts", "_charts_diag") + ".png")
     fig2, axes2 = plt.subplots(2, 2, figsize=(14, 10))
-    fig2.suptitle("BIRD-Interact Run Analysis — Diagnostics", fontsize=13, fontweight="bold")
+    fig2.suptitle(f"BIRD-Interact Run Analysis — Diagnostics [{dataset_label.upper()}]", fontsize=13, fontweight="bold")
     fig2.subplots_adjust(hspace=0.45, wspace=0.38, left=0.08, right=0.95, top=0.92, bottom=0.1)
 
     # Chart D: Turns-spare histogram stacked by difficulty
@@ -272,13 +308,13 @@ def _make_charts(
         if r.get("turns_used") is None or not r.get("max_turn"):
             continue
         spare = r["max_turn"] - r["turns_used"]
-        diff = _norm_diff((dataset.get(r["instance_id"]) or {}).get("difficulty_tier")) if dataset else "Unknown"
+        diff = _diff_label(dataset.get(r["instance_id"]), dataset_label) if dataset else "Unknown"
         spare_by_diff[diff].append(spare)
     all_spares = [s for vals in spare_by_diff.values() for s in vals]
     if all_spares:
         bins = list(range(min(all_spares), max(all_spares) + 2))
         bottoms = [0] * len(bins)
-        for diff in ["Simple", "Moderate", "Challenging", "Unknown"]:
+        for diff in _diff_order(dataset_label):
             vals = spare_by_diff.get(diff, [])
             if not vals: continue
             counts = [vals.count(b) for b in bins]
@@ -355,9 +391,9 @@ def _make_charts(
         s = t.get("phase1_sql_gen_secs") or 0
         d = t.get("phase1_debug_total_secs") or 0
         if c + s <= 0: continue
-        diff = _norm_diff((dataset.get(r["instance_id"]) or {}).get("difficulty_tier")) if dataset else "All"
+        diff = _diff_label(dataset.get(r["instance_id"]), dataset_label) if dataset else "All"
         diff_clarify[diff].append(c); diff_sqlgen[diff].append(s); diff_debug[diff].append(d)
-    diff_labels = [k for k in ["Simple", "Moderate", "Challenging", "Unknown", "All"] if k in diff_clarify]
+    diff_labels = [k for k in _diff_order(dataset_label) + ["All"] if k in diff_clarify]
     if diff_labels:
         avg_c = [sum(diff_clarify[d]) / len(diff_clarify[d]) for d in diff_labels]
         avg_s = [sum(diff_sqlgen[d])  / len(diff_sqlgen[d])  for d in diff_labels]
@@ -453,8 +489,11 @@ def main() -> None:
     errors  = [r for r in records if r.get("error")]
     ok      = [r for r in records if not r.get("error")]
 
+    dataset_label = _infer_dataset_label(records, dataset_path)
+
     print("=" * 70)
     print(f"BIRD-Interact Run Analysis: {results_path.name}")
+    print(f"Dataset: {dataset_label.upper()}" + (f"  ({len(dataset)} total tasks)" if dataset else ""))
     print("=" * 70)
 
     # ── 1. Overview ───────────────────────────────────────────────────────────
@@ -482,9 +521,14 @@ def main() -> None:
     print(f"Avg score:         {sum_rewards / max(len(ok), 1):.3f}")
     n_completed_naturally = len(ok)   # tasks that ran without error/timeout
     n_not_natural = total - n_completed_naturally  # errors + timeouts
-    # Estimate full benchmark size: query tasks are ~65% of the full benchmark
-    # (incl. management).  Dividing by 0.65 scales correctly for any --limit.
-    estimated_full_benchmark = max(1, round(n_completed_naturally / 0.65))
+    # Full benchmark size (incl. management) — use the actual joined dataset
+    # size when available (this is dataset-correct for both lite [300] and
+    # full [600], unlike a fixed ratio). Falls back to the old ~65%-query
+    # heuristic (lite-derived) only when no dataset file could be joined.
+    if dataset:
+        estimated_full_benchmark = len(dataset)
+    else:
+        estimated_full_benchmark = max(1, round(n_completed_naturally / 0.65))
 
     # Total and average run time from task_start_timestamp
     task_times: list[float] = []
@@ -540,9 +584,9 @@ def main() -> None:
         print(f"\n── Pass Rate by Difficulty ───────────────────────────────────────────")
         by_diff: dict[str, list[dict]] = defaultdict(list)
         for r in ok:
-            diff = _norm_diff((dataset.get(r["instance_id"]) or {}).get("difficulty_tier"))
+            diff = _diff_label(dataset.get(r["instance_id"]), dataset_label)
             by_diff[diff].append(r)
-        for diff in ["Simple", "Moderate", "Challenging", "Unknown"]:
+        for diff in _diff_order(dataset_label):
             bucket = by_diff.get(diff, [])
             if not bucket:
                 continue
@@ -698,7 +742,7 @@ def main() -> None:
         diff_total_times: dict[str, list[float]] = defaultdict(list)
         for r in ok:
             t = r.get("timing") or {}
-            diff = _norm_diff((dataset.get(r["instance_id"]) or {}).get("difficulty_tier"))
+            diff = _diff_label(dataset.get(r["instance_id"]), dataset_label)
             p1_t = (t.get("phase1_clarification_secs") or 0) + (t.get("phase1_sql_gen_secs") or 0)
             if p1_t > 0:
                 diff_p1_times[diff].append(p1_t)
@@ -707,7 +751,7 @@ def main() -> None:
             if total_t > 0:
                 diff_total_times[diff].append(total_t)
 
-        for diff in ["Simple", "Moderate", "Challenging", "Unknown"]:
+        for diff in _diff_order(dataset_label):
             p1_vals = diff_p1_times.get(diff, [])
             total_vals = diff_total_times.get(diff, [])
             if not p1_vals:
@@ -826,14 +870,17 @@ def main() -> None:
             task = dataset.get(r["instance_id"]) or {}
             fu = task.get("follow_up") or {}
             fu_type = fu.get("type", "unknown")
-            fu_diff = _norm_diff(fu.get("difficulty_tier"))
+            # lite's follow_up carries its own difficulty_tier (more precise than the
+            # parent task's); full's follow_up has no difficulty/high_level flag at
+            # all, so fall back to the parent task's high_level label there.
+            fu_diff = _diff_label(fu, dataset_label) if dataset_label != "full" else _diff_label(task, dataset_label)
             followup_stats[fu_type][fu_diff].append(bool(r.get("phase2_passed")))
         if followup_stats:
             print(f"\n── Follow-up Type P2 Pass Rate (given P1 passed) ────────────────────")
             for fu_type in sorted(followup_stats):
                 by_diff = followup_stats[fu_type]
                 parts = []
-                for diff in ["Simple", "Moderate", "Challenging"]:
+                for diff in _diff_order(dataset_label):
                     vals = by_diff.get(diff, [])
                     if vals:
                         parts.append(f"{sum(vals)}/{len(vals)} {diff.lower()}")
@@ -925,6 +972,7 @@ def main() -> None:
     analysis_out = results_path.with_name(results_path.stem + "_analysis.json")
     analysis_data = {
         "source": str(results_path),
+        "dataset": dataset_label,
         "total_tasks": total,
         "n_errors": n_errors,
         "n_valid": len(ok),
@@ -954,11 +1002,11 @@ def main() -> None:
     analysis_out.write_text(json.dumps(analysis_data, indent=2))
 
     # ── Instance index ────────────────────────────────────────────────────────
-    instances_out = _write_instances_file(results_path, ok, errors, dataset)
+    instances_out = _write_instances_file(results_path, ok, errors, dataset, dataset_label)
 
     # ── Charts ────────────────────────────────────────────────────────────────
     charts_out = results_path.with_name(results_path.stem + "_charts.png")
-    _make_charts(ok, timestamped, dataset, score_buckets, followup_stats, charts_out)
+    _make_charts(ok, timestamped, dataset, score_buckets, followup_stats, charts_out, dataset_label)
 
     print(f"\n{'=' * 70}")
     print(f"Done.")
@@ -980,6 +1028,7 @@ def _write_instances_file(
     ok: list[dict],
     errors: list[dict],
     dataset: dict[str, dict],
+    dataset_label: str,
 ) -> Path:
     """Write a human-readable instance index alongside the analysis JSON.
 
@@ -1020,8 +1069,7 @@ def _write_instances_file(
         return "mixed_types"  # spans multiple non-KL types — excluded from per-type lists
 
     def _diff(r: dict) -> str:
-        task = dataset.get(r["instance_id"]) or {}
-        return _norm_diff(task.get("difficulty_tier"))
+        return _diff_label(dataset.get(r["instance_id"]), dataset_label)
 
     def _fu_type(r: dict) -> str:
         task = dataset.get(r["instance_id"]) or {}
@@ -1052,7 +1100,7 @@ def _write_instances_file(
     sorted_amb = sorted(all_amb_types - {KNOWLEDGE_LINKING}) + [KNOWLEDGE_LINKING]
 
     # ── difficulty ordering ───────────────────────────────────────────────────
-    diff_order = ["Simple", "Moderate", "Challenging", "Unknown"]
+    diff_order = _diff_order(dataset_label)
 
     # ── build sections per bucket ─────────────────────────────────────────────
     lines: list[str] = []

@@ -15,6 +15,15 @@ The typical lifecycle is **ingest → eval → judge**: you ingest a database so
 agent can retrieve its schema, run an evaluation to produce a results CSV, then
 optionally re-score that CSV with the LLM judge.
 
+> [!NOTE]
+> **Current BIRD-Interact scope.** This toolkit has been run against both the
+> **Lite** (~300 tasks / 18 DBs) and **Full** (600 tasks / 22 DBs) BIRD-Interact
+> datasets. It only exercises the **c-Interact** conversation mode — a-Interact
+> is not implemented. It only handles **query-category** tasks; management
+> tasks are explicitly excluded (`ontology-sql-eval/scripts/run_all_bird_interact.py`
+> hardcodes a query-only filter). Expanding to a-Interact and management tasks
+> is tracked as future work and needs separate investigation before enabling.
+
 > [!IMPORTANT]
 > **You need [GSF](https://github.com/NVIDIA/GSF).**
 >

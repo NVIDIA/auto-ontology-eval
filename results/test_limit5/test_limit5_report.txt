@@ -1,5 +1,6 @@
 ======================================================================
 BIRD-Interact Run Analysis: test_limit5.jsonl
+Dataset: LITE  (300 total tasks)
 ======================================================================
 
 ── Overview ──────────────────────────────────────────────────────────
@@ -16,7 +17,7 @@ Avg score:         0.333
 
 ── Score (BIRD-Interact SR) ───────────────────────────────────────────
   vs tasks ran        (3 tasks):   33.33%
-  vs full benchmark   (300 tasks, incl. management):  0.33%
+  vs full benchmark   (~300 tasks, incl. management):  0.33%
 
 ── Task Completion ───────────────────────────────────────────────────
   Completed naturally: 3/3  (100.0%)
@@ -25,6 +26,7 @@ Avg score:         0.333
 ── Score Distribution ────────────────────────────────────────────────
   1.0  →    1 tasks  ( 33.3%)
   0.9  →    0 tasks  (  0.0%)
+  0.8  →    0 tasks  (  0.0%)
   0.7  →    0 tasks  (  0.0%)
   0.5  →    0 tasks  (  0.0%)
   0.0  →    2 tasks  ( 66.7%)
@@ -72,6 +74,10 @@ Avg score:         0.333
   Moderate      avg_p1=  70.0s  avg_total= 120.1s
   Challenging   avg_p1= 315.2s  avg_total= 355.5s
 
+── Slow P1 Tasks (>120s) ────────────────────────────────────────
+  1 task(s) exceeded 120s in phase 1 (clarify=270.0s avg, sqlgen=45.2s avg):
+    mental_9                                   315.2s  (clarify=270.0s, sqlgen=45.2s)  (clarify)
+
 ── Per-Database Stats ────────────────────────────────────────────────
   credit                n=  1  p1_1st=100.0%  p1_final=100.0%  avg_score=1.00  avg_time= 120.1s
   crypto                n=  1  p1_1st=  0.0%  p1_final=  0.0%  avg_score=0.00  avg_time= 120.5s
@@ -88,13 +94,22 @@ Avg score:         0.333
 ── Follow-up Type P2 Pass Rate (given P1 passed) ────────────────────
   attribute_change      100.0%  [1/1 moderate]
 
-  Charts (results)     → results/test_limit5/test_limit5_charts.png
-  Charts (diagnostics) → results/test_limit5/test_limit5_charts_diag.png
+── Critical Ambiguity Type × Pass Rate ───────────────────────────────
+  (knowledge_linking: pure only; others: allow knowledge_linking alongside)
+  Type                                    n   p1_pass   avg_score
+  intent_ambiguity                        1      0.0%       0.000
+  knowledge_linking_ambiguity             1      0.0%       0.000
+
+── Deleted KB Entries (knowledge_ambiguity count) × Pass Rate ────────
+  0 deleted KB entries:  n=  1  p1_pass=  0.0%  avg_score=0.000
+  1 deleted KB entries:  n=  2  p1_pass= 50.0%  avg_score=0.500
+  (charts skipped — matplotlib not installed: pip install matplotlib)
 
 ======================================================================
 Done.
   Results:  results/test_limit5/test_limit5.jsonl
   Analysis: results/test_limit5/test_limit5_analysis.json
+  Instances: results/test_limit5/test_limit5_instances.txt
   Charts (results):     results/test_limit5/test_limit5_charts.png
   Charts (diagnostics): results/test_limit5/test_limit5_charts_diag.png
   Report:   results/test_limit5/test_limit5_report.txt

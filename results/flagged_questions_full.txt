@@ -1,9 +1,9 @@
 ================================================================================
-SQL GEN FAILURES — cold_chain_pharma_compliance_3, mental_health_15
+SQL GEN FAILURES — cold_chain_pharma_compliance_3, mental_health_15, labor_certification_applications_18
 (Clarification was correct or blocked; failure is wrong schema/join/column guess)
 
   PURE SQL GEN ONLY (not also a clarification failure):
-  cold_chain_pharma_compliance_3, mental_health_15
+  cold_chain_pharma_compliance_3, mental_health_15, labor_certification_applications_18
 ================================================================================
 
 -- Wrong JSONB nesting depth --
@@ -23,6 +23,17 @@ mental_health_15  Annualized risk: used ab.hosp_risk_density; GT uses (asd.prev_
 -- Wrong ELSE string --
 mental_health_15  Generated 'No action needed'; GT expects 'Patient does not meet criteria for Intensive Care Coordination'
                   (exact phrase not surfaced during clarification — score = 0 even with correct CASE structure)
+
+-- Reused low-precision flat column instead of JSONB numeric field --
+exchange_traded_funds_19  Follow-up summed flat real-typed vol3m*ma200 (reused from Phase 1)
+                  instead of GT's numeric-cast JSONB fields. Rows/order/join correct; float4
+                  truncation on billion-scale sums fails exact-value match.
+
+-- Relevance filter dropped the correct bridge table --
+labor_certification_applications_18  Retrieved case_worksite as a candidate table, but relevance-filter
+                  LLM discarded it as "unrelated," so SQL joined cases directly to prevailing_wage via
+                  a made-up key (c.appa = pw.trackno) instead of the real path cases -> case_worksite
+                  -> prevailing_wage. Formula/clarification were correct; join topology was not.
 
 -- Fabricated join / backward hub traversal not followed --
 virtual_idol_13   Two tables (membershipandspending, supportandfeedback) both hang off a shared hub

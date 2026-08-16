@@ -1,0 +1,104 @@
+Instance index — same ambiguity bucketing as graph
+(per-type lists exclude mixed-type instances; see 'mixed_types' entry)
+
+══════════════════════════════════════════════════════════════════════
+  P1 FAIL (n=2)
+══════════════════════════════════════════════════════════════════════
+
+  Ambiguity Type:
+    intent_ambiguity:
+    mental_9
+    schema_linking_ambiguity:
+    —
+    semantic_ambiguity:
+    —
+    knowledge_linking_ambiguity:
+    crypto_1
+    no_critical_ambiguity:
+    —
+    mixed_types:
+    —
+
+  Difficulty:
+    Simple:
+    crypto_1
+    Challenging:
+    mental_9
+
+  Hit Turn Budget (turns_used == max_turn):
+    mental_9 (5/5)
+
+  Debug Ran but P1 Still Failed:
+    debug_ran_still_failed:
+    mental_9, crypto_1
+
+
+══════════════════════════════════════════════════════════════════════
+  P1 PASS + P2 FAIL (n=0)
+══════════════════════════════════════════════════════════════════════
+
+  Ambiguity Type:
+    intent_ambiguity:
+    —
+    schema_linking_ambiguity:
+    —
+    semantic_ambiguity:
+    —
+    knowledge_linking_ambiguity:
+    —
+    no_critical_ambiguity:
+    —
+    mixed_types:
+    —
+
+  Difficulty:
+
+  Hit Turn Budget (turns_used == max_turn):
+    —
+
+  Follow-up Type:
+
+  Debug Rescue (p2_debug rescued p2):
+    rescued:
+    —
+
+
+══════════════════════════════════════════════════════════════════════
+  P1 PASS + P2 PASS (n=1)
+══════════════════════════════════════════════════════════════════════
+
+  Ambiguity Type:
+    intent_ambiguity:
+    —
+    schema_linking_ambiguity:
+    —
+    semantic_ambiguity:
+    —
+    knowledge_linking_ambiguity:
+    —
+    no_critical_ambiguity:
+    —
+    mixed_types:
+    credit_1
+
+  Difficulty:
+    Moderate:
+    credit_1
+
+  Hit Turn Budget (turns_used == max_turn):
+    —
+
+  Follow-up Type:
+    attribute_change:
+    credit_1
+
+  Debug Rescue (p2_debug rescued p2):
+    rescued:
+    —
+
+
+══════════════════════════════════════════════════════════════════════
+  HARNESS ERRORS (n=0)  — excluded from all buckets above
+══════════════════════════════════════════════════════════════════════
+
+  —

@@ -53,13 +53,17 @@ DB_ENV_URL   = "http://127.0.0.1:6002"
 PATIENCE = 2
 
 CSV_COLUMNS = [
-    "instance_id", "database", "max_turn", "turns_used",
+    "instance_id", "dataset", "database", "max_turn", "turns_used",
     "phase1_passed", "phase1_debug_ran", "phase2_passed", "phase2_debug_ran",
     "total_reward", "exec_error_p1", "exec_error_p2", "error",
 ]
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _infer_dataset_label(data_path: Path) -> str:
+    """Infer 'lite' vs 'full' from the dataset path (e.g. .../bird_interact_full/...)."""
+    return "full" if "full" in str(data_path).lower() else "lite"
 
 def load_env(dotenv_path: Path) -> dict[str, str]:
     env: dict[str, str] = {}
@@ -183,6 +187,7 @@ def run_task(
     task: dict,
     agent_url: str,
     phase_timeout: float,
+    dataset_label: str,
     _current_phase: list | None = None,
 ) -> dict[str, Any]:
     """_current_phase is a single-element list the caller can read to find which
@@ -201,6 +206,7 @@ def run_task(
     # Base record — filled in as we go; nulls indicate not-reached
     record: dict[str, Any] = {
         "instance_id":             task_id,
+        "dataset":                 dataset_label,
         "database":                db_name,
         "task_start_timestamp":    time.time(),
         "max_turn":                max_turn,
@@ -410,12 +416,13 @@ def main() -> None:
     # ── Load tasks ────────────────────────────────────────────────────────────
     include_ids = set(args.include) if args.include else None
     exclude_ids = set(args.exclude) if args.exclude else None
+    dataset_label = _infer_dataset_label(Path(args.data))
     tasks = _load_tasks(Path(args.data), args.difficulty, args.limit, args.shuffle,
                         include_ids=include_ids, exclude_ids=exclude_ids)
     if not tasks:
         print("No tasks matched the given filters.", file=sys.stderr)
         sys.exit(1)
-    print(f"\nLoaded {len(tasks)} query-category tasks")
+    print(f"\nLoaded {len(tasks)} query-category tasks  (dataset: {dataset_label})")
     if args.difficulty:
         print(f"  difficulty filter: {args.difficulty}")
     if include_ids:
@@ -462,13 +469,14 @@ def main() -> None:
             record: dict[str, Any] | None = None
             _current_phase: list = ["phase1"]
             try:
-                record = run_task(task, agent_url, args.phase_timeout, _current_phase)
+                record = run_task(task, agent_url, args.phase_timeout, dataset_label, _current_phase)
             except httpx.TimeoutException as exc:
                 phase_hint = _current_phase[0]
                 err_msg = f"timeout:{phase_hint} — timed out after {args.phase_timeout:.0f}s"
                 print(f"  ERROR: {err_msg}")
                 record = {
                     "instance_id":  task_id,
+                    "dataset":      dataset_label,
                     "database":     db_name,
                     "task_start_timestamp": time.time(),
                     "max_turn":     max_turn,
@@ -507,6 +515,7 @@ def main() -> None:
                 print(f"  ERROR: {err_msg}")
                 record = {
                     "instance_id":  task_id,
+                    "dataset":      dataset_label,
                     "database":     db_name,
                     "task_start_timestamp": time.time(),
                     "max_turn":     max_turn,
