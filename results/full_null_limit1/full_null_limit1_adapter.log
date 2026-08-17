@@ -1,0 +1,633 @@
+15:39:02 INFO [startup] loading retrievers...
+Exception ignored in: <function ConnectionPool.__del__ at 0x11a2459e0>
+Traceback (most recent call last):
+  File "/Users/ariellegeva/Desktop/GSF_and_Ontology/ontology-sql-eval/.venv/lib/python3.12/site-packages/psycopg_pool/pool.py", line 126, in __del__
+    gather(*workers, timeout=5.0, timeout_hint=hint)
+  File "/Users/ariellegeva/Desktop/GSF_and_Ontology/ontology-sql-eval/.venv/lib/python3.12/site-packages/psycopg_pool/_acompat.py", line 152, in gather
+    t.join(timeout)
+  File "/Users/ariellegeva/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib/python3.12/threading.py", line 1146, in join
+    raise RuntimeError("cannot join current thread")
+RuntimeError: cannot join current thread
+15:39:02 INFO [startup] ready — 22 connectors loaded
+15:39:04 INFO [session] fake_account_16 | init db=fake_account max_turn=4
+15:39:04 INFO [fake_account_16] Query: [1;35mWho has sketchy sign-in patterns? Show accounts that have high authentication-related risks.[0m
+15:39:04 INFO [fake_account_16] OutputType check → None (will ask)
+15:39:04 INFO [turn 1 | 0.0s] DECISION: ASK
+  ┌─ [1;35mquestion:[0m [35mWhat type of output are you looking for?[0m
+15:39:14 INFO   └─ [1;35muser answer:[0m [35mI'm looking for a list of account IDs that show sketchy sign-in patterns with high authentication-related risks. For each account, I want to see a single numerical score that represents the overall authentication risk level, rounded to three decimal places. The results should be sorted from highest risk to lowest risk, so the most problematic accounts appear first.[0m
+15:39:15 INFO Entity extraction will use the non-reasoning model
+15:39:15 INFO Text-to-SQL graph: prediction branch False
+15:39:15 INFO Text-to-SQL graph: db-probe proactive False
+15:39:15 INFO Text-to-SQL graph: db-probe jsonb path check True
+15:39:29 INFO [fake_account_16] Merged question: Who has sketchy sign-in patterns? Show accounts that have high authentication-related risks by listing account IDs alongside a single numerical score representing the overall authentication risk level, rounded to three decimal places. Sort the results from highest risk to lowest risk so the most problematic accounts appear first.
+15:39:29 INFO [fake_account_16] Incomplete formula terms: [('authentication risk score', 'The single numerical score representing "overall authentication risk level" has no defined formula — the exact columns, operators, and constants used to compute it are unspecified.'), ('high authentication-related risks', '"High" risk has no threshold or filter condition mapped to a specific column value or score cutoff to determine which accounts qualify.'), ('sketchy sign-in patterns', 'The natural-language criteria for what constitutes a "sketchy sign-in pattern" are not mapped to specific columns or conditions (e.g., failed logins, unusual locations, times), so the filtering logic cannot be written.')]
+15:39:29 INFO Executing agent: question_extraction
+15:39:35 INFO Extracted question:
+  raw: Who has sketchy sign-in patterns? Show accounts that have high authentication-related risks by listing account IDs alongside a single numerical score representing the overall authentication risk level, rounded to three decimal places. Sort the results from highest risk to lowest risk so the most problematic accounts appear first.
+  sanitized: List account IDs with high authentication-related risk alongside an overall authentication risk score rounded to three decimal places, sorted from highest to lowest risk.
+  entities: ['account', 'authentication risk', 'account authentication risk score']
+  subject: account
+15:39:35 INFO Agent completed: question_extraction -> none
+15:39:35 INFO Executing agent: candidate_retrieval
+15:39:39 INFO Retrieved 5 ColumnAttributes, 0 CustomAnalysis, 0 SqlAttribute candidates, and subject Term id='2b0127a3-0faf-4f9a-87fd-33f1cb1d64bc' score=0.5540066894225122 (3 entities queried, subject='account')
+15:39:39 INFO Agent completed: candidate_retrieval -> none
+15:39:39 INFO Executing agent: coverage_grade
+15:39:39 INFO Coverage grade=0.6667 (2/3 entities covered), 2 candidates after distance filter (max_distance=0.650)
+15:39:39 INFO Agent completed: coverage_grade -> none
+15:39:39 INFO Clarify — extracted entities (normalized): ['account authentication risk']
+15:39:39 INFO Clarify — ambiguous entities (2+ close VDB hits): {'account authentication risk score'}
+15:39:40 INFO Clarify — coverage LLM raw response:
+account authentication risk score: YES ;; Authentication Risk Account
+15:39:40 DEBUG Clarify — term_to_entry_names: {'account authentication risk score': ['authentication risk account']}
+15:39:40 DEBUG Clarify — lookup 'authentication risk account' → match='authentication risk account'
+15:39:40 DEBUG Clarify — KB entry 'authentication risk account' has 1 child(ren)
+15:39:40 DEBUG Clarify — injected child KB entry: 'vpn abuser' (parent: 'authentication risk account')
+15:39:40 DEBUG Clarify — KB entry 'vpn abuser' has 1 grandchild(ren) via 'authentication risk account'
+15:39:40 DEBUG Clarify — injected grandchild KB entry: 'technical evasion index (tei)' (child: 'vpn abuser', parent: 'authentication risk account')
+15:39:40 INFO Clarify — external_kg covers: {'account authentication risk score'}
+15:39:40 INFO Clarify — relevant_kg_text stored (551 chars): '- Authentication Risk Account\n  Description: Identifies accounts with suspicious authentication patterns.\n  Definition: An account with ARS > 0.7 and at least one VPN Abuser detection\n- VPN Abuser\n  Description: Identifies accounts systematically using VPNs.\n  Definition: An account with TEI > 0.8 a'
+15:39:40 INFO Clarify — KB covers: {'account authentication risk'}
+15:39:40 INFO Clarify — unresolvable after VDB+KB: none
+15:39:40 INFO Clarify — resolved by VDB: [('account authentication risk', '0.617')]
+15:39:40 INFO Clarify — persistent terms resolved by KB/VDB: {'account authentication risk', 'authentication risk', 'account'}
+15:39:40 INFO Clarify — feeding to decide-LLM | relevant_knowledge (551 chars): '- Authentication Risk Account\n  Description: Identifies accounts with suspicious authentication patterns.\n  Definition: An account with ARS > 0.7 and at least one VPN Abuser detection\n- VPN Abuser\n  Description: Identifies accounts systematically using VPNs.\n  Definition: An account with TEI > 0.8 a'
+15:39:42 INFO Clarify — DECISION: ASK  (history len=1)
+15:39:42 INFO [turn 2 | 13.1s] DECISION: ASK
+  ┌─ [1;35mquestion:[0m [35mWhat is the exact formula for the overall authentication risk score, including the specific inputs and constants used to compute it?[0m
+15:39:51 INFO   └─ [1;35muser answer:[0m [35mThe overall authentication risk score combines three key components:
+
+1. **Technical/Environmental Index (TEI)**: Derived from VPN usage percentage, proxy hits, and country count from session telemetry data
+2. **Profile Credibility Index (PCI)**: Based on credibility score, reputation score, and profile score from account information
+3. **Security Risk Score (SRS)**: Calculated from risk value, trust score, and impact score from the risk profile
+
+The final authentication risk score uses a weighted combination where:
+- TEI is weighted at 50%
+- PCI (inverted) is weighted at 30%
+- SRS is weighted at 20%
+
+Accounts with a combined score exceeding 0.7 are considered to have high authentication-related risks and sketchy sign-in patterns. The result is rounded to 3 decimal places for the final output.[0m
+15:40:02 INFO [fake_account_16] Merged question: Who has sketchy sign-in patterns? Show accounts that have high authentication-related risks by listing account IDs alongside a single numerical score representing the overall authentication risk level, rounded to three decimal places. The overall authentication risk score combines three key components:
+
+1. Technical/Environmental Index (TEI), derived from VPN usage percentage, proxy hits, and country count from session telemetry data, calculated as:  
+TEI = 0.4 * VPN ratio + 0.3 * proxy count divided by 10 + 0.3 * login country count divided by 20
+
+2. Profile Credibility Index (PCI), based on credibility score, reputation score, and profile score from account information (inverted for the combined score)
+
+3. Security Risk Score (SRS), calculated from risk value, trust score, and impact score from the risk profile
+
+The final authentication risk score uses a weighted combination where:  
+- TEI is weighted at 50%  
+- PCI (inverted) is weighted at 30%  
+- SRS is weighted at 20%
+
+Accounts with a combined score exceeding 0.7 are considered to have high authentication-related risks and sketchy sign-in patterns.
+
+Sort the results from highest risk to lowest risk so the most problematic accounts appear first.
+15:40:02 INFO [fake_account_16] Incomplete formula terms: [('Profile Credibility Index (PCI)', 'The exact formula combining credibility score, reputation score, and profile score is unspecified — no operators, constants, or normalization given; also "PCI (inverted)" does not map to a unique equation (e.g. 1-PCI vs 1/PCI produce different values).'), ('Security Risk Score (SRS)', 'The exact formula combining risk value, trust score, and impact score is unspecified — no operators, constants, or normalization/inversion of trust score given.'), ('Technical/Environmental Index (TEI)', 'The user describes it as "VPN usage percentage, proxy hits, and country count" but the KB formula uses "VPN ratio", "proxy count / 10", and "login country count / 20"; it is unclear whether VPN percentage vs ratio scaling matches, so the exact input scaling/columns are not fully reconciled.'), ('authentication risk score', 'The final weighted formula "0.5*TEI + 0.3*(inverted PCI) + 0.2*SRS" depends on undefined sub-formulas (PCI, SRS) and their evaluation level before grouping is unspecified (per-session vs per-account aggregation of telemetry inputs).'), ('TEI/telemetry aggregation level', 'Session telemetry inputs (VPN ratio, proxy hits, country count) are per-session but the score is per-account; the aggregation semantics (AVG, MAX, SUM per account) before computing the composite score are unspecified.')]
+15:40:02 INFO Executing agent: question_extraction
+15:40:07 INFO Extracted question:
+  raw: Who has sketchy sign-in patterns? Show accounts that have high authentication-related risks by listing account IDs alongside a single numerical score representing the overall authentication risk level, rounded to three decimal places. The overall authentication risk score combines three key components:
+
+1. Technical/Environmental Index (TEI), derived from VPN usage percentage, proxy hits, and country count from session telemetry data, calculated as:  
+TEI = 0.4 * VPN ratio + 0.3 * proxy count divided by 10 + 0.3 * login country count divided by 20
+
+2. Profile Credibility Index (PCI), based on credibility score, reputation score, and profile score from account information (inverted for the combined score)
+
+3. Security Risk Score (SRS), calculated from risk value, trust score, and impact score from the risk profile
+
+The final authentication risk score uses a weighted combination where:  
+- TEI is weighted at 50%  
+- PCI (inverted) is weighted at 30%  
+- SRS is weighted at 20%
+
+Accounts with a combined score exceeding 0.7 are considered to have high authentication-related risks and sketchy sign-in patterns.
+
+Sort the results from highest risk to lowest risk so the most problematic accounts appear first.
+  sanitized: List account IDs with their overall authentication risk score (rounded to three decimals) for accounts with sketchy sign-in patterns. The score combines: Technical/Environmental Index (TEI = 0.4 * VPN ratio + 0.3 * proxy count / 10 + 0.3 * login country count / 20, from session telemetry), Profile Credibility Index (PCI, from credibility score, reputation score, and profile score in account information, inverted), and Security Risk Score (SRS, from risk value, trust score, and impact score in risk profile). Final score = 50% TEI + 30% inverted PCI + 20% SRS. Return accounts with combined score above 0.7, sorted from highest to lowest risk.
+  entities: ['account', 'session telemetry', 'VPN ratio', 'proxy count', 'login country count', 'account information', 'credibility score', 'reputation score', 'profile score', 'risk profile']
+  subject: account
+15:40:07 INFO Agent completed: question_extraction -> none
+15:40:07 INFO Executing agent: candidate_retrieval
+15:40:09 INFO Retrieved 14 ColumnAttributes, 0 CustomAnalysis, 1 SqlAttribute candidates, and subject Term id='2b0127a3-0faf-4f9a-87fd-33f1cb1d64bc' score=0.5540066894225122 (10 entities queried, subject='account')
+15:40:09 INFO Agent completed: candidate_retrieval -> none
+15:40:09 INFO Executing agent: coverage_grade
+15:40:09 INFO Coverage grade=0.6000 (6/10 entities covered), 3 candidates after distance filter (max_distance=0.650)
+15:40:09 INFO Agent completed: coverage_grade -> none
+15:40:09 INFO Clarify — extracted entities (normalized): ['account information', 'credibility', 'login country', 'proxy', 'reputation', 'risk profile', 'session telemetry', 'vpn']
+15:40:09 INFO Clarify — ambiguous entities (2+ close VDB hits): {'profile score'}
+15:40:11 INFO Clarify — coverage LLM raw response:
+reputation score: YES ;; reputation scoring  
+session telemetry: NO  
+account information: NO  
+proxy count: NO  
+risk profile: NO  
+login country count: NO  
+VPN ratio: NO  
+credibility score: NO
+15:40:11 DEBUG Clarify — term_to_entry_names: {'reputation score': ['reputation scoring']}
+15:40:11 DEBUG Clarify — lookup 'reputation scoring' → match='reputation scoring'
+15:40:11 INFO Clarify — external_kg covers: {'reputation score'}
+15:40:11 INFO Clarify — relevant_kg_text stored (216 chars): '- reputation scoring\n  Description: Illustrates IP reputation scoring.\n  Definition: Ranges from 0 to 1. Scores above 0.8 indicate trusted IPs, while scores below 0.3 suggest potentially malicious or compromised IPs.'
+15:40:11 INFO Clarify — KB covers: {'reputation'}
+15:40:11 INFO Clarify — collision resolved as shared composite column: ['VPN ratio', 'session telemetry'] -> Session Telemetry of Term Security Session
+15:40:12 INFO Clarify — collision auto-resolved: 'profile score' kept '62a20578-c6a9-487f-bd6b-5bb78482a6be' (0.620); 'risk profile' reassigned to '7e5ca9cd-7edc-438a-a033-905ab822e396' (0.654)
+15:40:12 INFO Clarify — collision: 'reputation score' is already KB-covered (has a formula), dropping its VDB column claim to '170fc863-1904-4ff6-8d35-bd7ebc325484' instead of resolving it
+15:40:12 INFO Clarify — unresolvable after VDB+KB: none
+15:40:12 INFO Clarify — resolved by VDB: [('vpn', '0.597'), ('session telemetry', '0.597'), ('risk profile', '0.654'), ('credibility', '0.639')]
+15:40:12 INFO Clarify — persistent terms resolved by KB/VDB: {'account', 'session telemetry', 'reputation', 'account information', 'proxy', 'risk profile', 'login country', 'vpn', 'profile', 'credibility'}
+15:40:12 INFO Clarify — feeding to decide-LLM | relevant_knowledge (216 chars): '- reputation scoring\n  Description: Illustrates IP reputation scoring.\n  Definition: Ranges from 0 to 1. Scores above 0.8 indicate trusted IPs, while scores below 0.3 suggest potentially malicious or compromised IPs.'
+15:40:15 INFO Clarify — DECISION: ASK  (history len=2)
+15:40:15 INFO [turn 3 | 12.4s] DECISION: ASK
+  ┌─ [1;35mquestion:[0m [35mFor the Profile Credibility Index (PCI), what is the exact formula that combines credibility score, reputation score, and profile score, and how specifically is it inverted for use in the final weighted score?[0m
+15:40:30 INFO   └─ [1;35muser answer:[0m [35mThe Profile Credibility Index (PCI) combines three components to assess account credibility:
+
+1. **Credibility Score** (30% weight): Extracted from the risk profile's credibility_score field
+2. **Reputation Score** (30% weight): Extracted from the risk profile's reputation_score field  
+3. **Profile Score** (40% weight): The account's ProfileScore attribute
+
+These three weighted components are summed together to create the PCI value. In the final authentication risk score calculation, PCI is inverted using the formula `(1 - PCI)` because a higher credibility index should reduce the overall risk assessment. This inversion ensures that accounts with strong profiles and reputations contribute negatively to the risk score, while accounts with weak profiles increase the risk score. The inverted PCI is then weighted at 30% in the final composite risk calculation.[0m
+15:40:46 INFO Clarify — prune_resolved_terms: credibility: RESOLVED  
+risk profile: RESOLVED  
+session telemetry: UNRESOLVED  
+vpn: UNRESOLVED
+15:40:46 INFO Clarify — persistent terms resolved: {'credibility', 'risk profile'}
+15:40:47 INFO [fake_account_16] Merged question: Who has sketchy sign-in patterns? Show accounts that have high authentication-related risks by listing account IDs alongside a single numerical score representing the overall authentication risk level, rounded to three decimal places. The overall authentication risk score combines three key components:
+
+1. Technical/Environmental Index (TEI), derived from VPN usage percentage, proxy hits, and country count from session telemetry data, calculated as:  
+TEI = 0.4 * VPN ratio + 0.3 * proxy count divided by 10 + 0.3 * login country count divided by 20
+
+2. Profile Credibility Index (PCI), based on credibility score, reputation score, and profile score from account information (inverted for the combined score). Specifically, PCI combines three weighted components:  
+- Credibility Score (30% weight): the risk profile’s credibility_score field  
+- Reputation Score (30% weight): the risk profile’s reputation_score field  
+- Profile Score (40% weight): the account’s ProfileScore attribute  
+These are summed to produce PCI, and in the final authentication risk score calculation, PCI is inverted using the formula (1 minus PCI) so that higher credibility lowers the overall risk.
+
+3. Security Risk Score (SRS), calculated from risk value, trust score, and impact score from the risk profile
+
+The final authentication risk score uses a weighted combination where:  
+- TEI is weighted at 50%  
+- the inverted PCI (1 minus PCI) is weighted at 30%  
+- SRS is weighted at 20%
+
+Accounts with a combined score exceeding 0.7 are considered to have high authentication-related risks and sketchy sign-in patterns.
+
+Sort the results from highest risk to lowest risk so the most problematic accounts appear first.
+15:40:47 INFO [fake_account_16] Incomplete formula terms: [('Security Risk Score (SRS)', 'Exact formula combining risk value, trust score, and impact score is still unspecified — no operators, constants, weights, normalization, or inversion of trust_score given.'), ('TEI/telemetry aggregation level', 'Session telemetry inputs (VPN ratio, proxy count, country count) are per-session but score is per-account; aggregation semantics (AVG, MAX, SUM per account) before computing TEI still unspecified.'), ('authentication risk score', 'Evaluation/aggregation level of the final composite (per-session vs per-account) and the order of aggregation relative to combining TEI/PCI/SRS is unspecified; also depends on still-undefined SRS sub-formula.'), ('Technical/Environmental Index (TEI)', 'VPN input scaling unreconciled — user says "VPN usage percentage" (0–100) vs KB formula "VPN ratio" (0–1); exact column and whether a /100 conversion is needed is not confirmed.'), ('credibility_score column mapping', 'VDB resolves "credibility" → "Profile Picture Score" but the answer expects credibility_score from the risk profile JSON (risk_scores.credibility_score); conflicting source columns for PCI\'s credibility component must be reconciled.')]
+15:40:47 INFO Executing agent: question_extraction
+15:40:57 INFO Extracted question:
+  raw: Who has sketchy sign-in patterns? Show accounts that have high authentication-related risks by listing account IDs alongside a single numerical score representing the overall authentication risk level, rounded to three decimal places. The overall authentication risk score combines three key components:
+
+1. Technical/Environmental Index (TEI), derived from VPN usage percentage, proxy hits, and country count from session telemetry data, calculated as:  
+TEI = 0.4 * VPN ratio + 0.3 * proxy count divided by 10 + 0.3 * login country count divided by 20
+
+2. Profile Credibility Index (PCI), based on credibility score, reputation score, and profile score from account information (inverted for the combined score). Specifically, PCI combines three weighted components:  
+- Credibility Score (30% weight): the risk profile’s credibility_score field  
+- Reputation Score (30% weight): the risk profile’s reputation_score field  
+- Profile Score (40% weight): the account’s ProfileScore attribute  
+These are summed to produce PCI, and in the final authentication risk score calculation, PCI is inverted using the formula (1 minus PCI) so that higher credibility lowers the overall risk.
+
+3. Security Risk Score (SRS), calculated from risk value, trust score, and impact score from the risk profile
+
+The final authentication risk score uses a weighted combination where:  
+- TEI is weighted at 50%  
+- the inverted PCI (1 minus PCI) is weighted at 30%  
+- SRS is weighted at 20%
+
+Accounts with a combined score exceeding 0.7 are considered to have high authentication-related risks and sketchy sign-in patterns.
+
+Sort the results from highest risk to lowest risk so the most problematic accounts appear first.
+  sanitized: List account IDs with an overall authentication risk score above 0.7, rounded to three decimals, sorted highest to lowest. The score combines TEI (0.4*VPN ratio + 0.3*proxy count/10 + 0.3*login country count/20) weighted 50%, inverted PCI (1 minus PCI, where PCI = 0.3*credibility_score + 0.3*reputation_score + 0.4*ProfileScore) weighted 30%, and SRS (from risk value, trust score, impact score) weighted 20%.
+  entities: ['account', 'account ID', 'session telemetry', 'VPN ratio', 'proxy count', 'login country count', 'risk profile', 'credibility_score', 'reputation_score', 'ProfileScore', 'risk value', 'trust score', 'impact score', 'authentication risk score']
+  subject: account
+15:40:57 INFO Agent completed: question_extraction -> none
+15:40:57 INFO Executing agent: candidate_retrieval
+15:41:00 INFO Retrieved 16 ColumnAttributes, 0 CustomAnalysis, 1 SqlAttribute candidates, and subject Term id='2b0127a3-0faf-4f9a-87fd-33f1cb1d64bc' score=0.5540066894225122 (14 entities queried, subject='account')
+15:41:00 INFO Agent completed: candidate_retrieval -> none
+15:41:00 INFO Executing agent: coverage_grade
+15:41:00 INFO Coverage grade=0.7857 (11/14 entities covered), 4 candidates after distance filter (max_distance=0.650)
+15:41:00 INFO Agent completed: coverage_grade -> none
+15:41:00 INFO Clarify — extracted entities (normalized): ['account', 'authentication risk', 'credibility_score', 'impact', 'login country', 'profilescore', 'proxy', 'reputation_score', 'risk profile', 'session telemetry', 'trust', 'vpn']
+15:41:00 INFO Clarify — ambiguous entities (2+ close VDB hits): {'ProfileScore'}
+15:41:03 INFO Clarify — coverage LLM raw response:
+session telemetry: NO
+proxy count: NO
+risk profile: NO
+login country count: NO
+VPN ratio: NO
+reputation_score: YES ;; reputation scoring
+credibility_score: NO
+ProfileScore: NO
+trust score: YES ;; trust value
+account: NO
+impact score: YES ;; impact value
+authentication risk score: NO
+15:41:03 DEBUG Clarify — term_to_entry_names: {'reputation_score': ['reputation scoring'], 'trust score': ['trust value'], 'impact score': ['impact value']}
+15:41:03 DEBUG Clarify — lookup 'reputation scoring' → match='reputation scoring'
+15:41:03 DEBUG Clarify — lookup 'trust value' → match='trust value'
+15:41:03 DEBUG Clarify — lookup 'impact value' → match='impact value'
+15:41:03 INFO Clarify — external_kg covers: {'trust score', 'reputation_score', 'impact score'}
+15:41:03 INFO Clarify — relevant_kg_text stored (658 chars): '- reputation scoring\n  Description: Illustrates IP reputation scoring.\n  Definition: Ranges from 0 to 1. Scores above 0.8 indicate trusted IPs, while scores below 0.3 suggest potentially malicious or compromised IPs.\n- trust value\n  Description: Illustrates trust value meaning.\n  Definition: Ranges '
+15:41:03 INFO Clarify — KB covers: {'reputation_score', 'impact', 'trust'}
+15:41:03 INFO Clarify — collision resolved as shared composite column: ['VPN ratio', 'session telemetry'] -> Session Telemetry of Term Security Session
+15:41:03 INFO Clarify — collision resolved as shared composite column: ['account', 'account ID'] -> Account Reference of Term Account
+15:41:04 INFO Clarify — collision auto-resolved: 'ProfileScore' kept '62a20578-c6a9-487f-bd6b-5bb78482a6be' (0.615); 'risk profile' reassigned to '7e5ca9cd-7edc-438a-a033-905ab822e396' (0.654)
+15:41:04 INFO Clarify — collision auto-resolved: 'ProfileScore' kept '62a20578-c6a9-487f-bd6b-5bb78482a6be' (0.615); 'authentication risk score' reassigned to '7e5ca9cd-7edc-438a-a033-905ab822e396' (0.665)
+15:41:04 INFO Clarify — collision auto-resolved: 'ProfileScore' kept '62a20578-c6a9-487f-bd6b-5bb78482a6be' (0.615); 'risk value' reassigned to '7e5ca9cd-7edc-438a-a033-905ab822e396' (0.702)
+15:41:04 INFO Clarify — collision: 'reputation_score' is already KB-covered (has a formula), dropping its VDB column claim to '170fc863-1904-4ff6-8d35-bd7ebc325484' instead of resolving it
+15:41:04 INFO Clarify — collision: 'trust score' is already KB-covered (has a formula), dropping its VDB column claim to '170fc863-1904-4ff6-8d35-bd7ebc325484' instead of resolving it
+15:41:04 INFO Clarify — unresolvable after VDB+KB: none
+15:41:04 INFO Clarify — resolved by VDB: [('vpn', '0.597'), ('session telemetry', '0.597'), ('account', '0.614'), ('account', '0.614'), ('profilescore', '0.615'), ('authentication risk', '0.665'), ('risk profile', '0.654'), ('credibility_score', '0.627')]
+15:41:04 INFO Clarify — persistent terms resolved by KB/VDB: {'account', 'session telemetry', 'risk', 'impact', 'proxy', 'risk profile', 'reputation_score', 'credibility_score', 'profilescore', 'trust', 'login country', 'vpn', 'authentication risk'}
+15:41:04 INFO Clarify — feeding to decide-LLM | relevant_knowledge (658 chars): '- reputation scoring\n  Description: Illustrates IP reputation scoring.\n  Definition: Ranges from 0 to 1. Scores above 0.8 indicate trusted IPs, while scores below 0.3 suggest potentially malicious or compromised IPs.\n- trust value\n  Description: Illustrates trust value meaning.\n  Definition: Ranges '
+15:41:09 INFO Clarify — DECISION: ASK  (history len=3)
+15:41:09 INFO [turn 4 | 22.4s] DECISION: ASK
+  ┌─ [1;35mquestion:[0m [35mFor the Security Risk Score (SRS), what is the exact formula that combines risk value, trust score, and impact score, including any weights, operators, or inversion applied?[0m
+15:41:20 INFO   └─ [1;35muser answer:[0m [35mSorry, this question is out of scope, so I cannot answer your question.[0m
+15:41:20 INFO Clarify — KB already current for Phase 2 question (cached)
+15:41:24 INFO [fake_account_16] SQL gen — injected 2 shared-JSON-column note(s)
+15:41:24 INFO [fake_account_16] SQL gen — Evidence: TEI = 0.4 * (vpn) + 0.3 * (proxy_count / 10) + 0.3 * (login_country_count / 20)  
+PCI = 0.3 * (risk_profile.credibility_score) + 0.3 * (risk_profile.reputation_score) + 0.4 * (ProfileScore)  
+PCI_inverted = 1 - PCI  
+SRS = [UNRESOLVED: risk value, trust score, and impact score combined into Security Risk Score (SRS)]  
+Authentication_Risk_Score = 0.5 * TEI + 0.3 * PCI_inverted + 0.2 * SRS  
+VPN_Abuser = TEI > 0.8 AND login_country_count >= 3
+Note: "VPN ratio", "session telemetry" both resolve to the same column (Session Telemetry of Term Security Session) — use the correct sub-key/field for each; they are not the same value.
+Note: "account", "account ID" both resolve to the same column (Account Reference of Term Account) — use the correct sub-key/field for each; they are not the same value.
+15:41:24 INFO 🔁 Node visits: {'question_extraction': 1} | Total visits this run: 1
+15:41:24 INFO Executing agent: question_extraction
+15:41:30 INFO Extracted question:
+  raw: Who has sketchy sign-in patterns? Show accounts that have high authentication-related risks by listing account IDs alongside a single numerical score representing the overall authentication risk level, rounded to three decimal places. The overall authentication risk score combines three key components:
+
+1. Technical/Environmental Index (TEI), derived from VPN usage percentage, proxy hits, and country count from session telemetry data, calculated as:  
+TEI = 0.4 * VPN ratio + 0.3 * proxy count divided by 10 + 0.3 * login country count divided by 20
+
+2. Profile Credibility Index (PCI), based on credibility score, reputation score, and profile score from account information (inverted for the combined score). Specifically, PCI combines three weighted components:  
+- Credibility Score (30% weight): the risk profile’s credibility_score field  
+- Reputation Score (30% weight): the risk profile’s reputation_score field  
+- Profile Score (40% weight): the account’s ProfileScore attribute  
+These are summed to produce PCI, and in the final authentication risk score calculation, PCI is inverted using the formula (1 minus PCI) so that higher credibility lowers the overall risk.
+
+3. Security Risk Score (SRS), calculated from risk value, trust score, and impact score from the risk profile
+
+The final authentication risk score uses a weighted combination where:  
+- TEI is weighted at 50%  
+- the inverted PCI (1 minus PCI) is weighted at 30%  
+- SRS is weighted at 20%
+
+Accounts with a combined score exceeding 0.7 are considered to have high authentication-related risks and sketchy sign-in patterns.
+
+Sort the results from highest risk to lowest risk so the most problematic accounts appear first.
+
+Evidence: TEI = 0.4 * (vpn) + 0.3 * (proxy_count / 10) + 0.3 * (login_country_count / 20)  
+PCI = 0.3 * (risk_profile.credibility_score) + 0.3 * (risk_profile.reputation_score) + 0.4 * (ProfileScore)  
+PCI_inverted = 1 - PCI  
+SRS = [UNRESOLVED: risk value, trust score, and impact score combined into Security Risk Score (SRS)]  
+Authentication_Risk_Score = 0.5 * TEI + 0.3 * PCI_inverted + 0.2 * SRS  
+VPN_Abuser = TEI > 0.8 AND login_country_count >= 3
+Note: "VPN ratio", "session telemetry" both resolve to the same column (Session Telemetry of Term Security Session) — use the correct sub-key/field for each; they are not the same value.
+Note: "account", "account ID" both resolve to the same column (Account Reference of Term Account) — use the correct sub-key/field for each; they are not the same value.
+  sanitized: List account IDs with an overall authentication risk score above 0.7, rounded to three decimal places, sorted from highest to lowest risk. The authentication risk score = 0.5 * TEI + 0.3 * (1 - PCI) + 0.2 * SRS, where TEI = 0.4 * VPN ratio + 0.3 * (proxy count / 10) + 0.3 * (login country count / 20) from session telemetry; PCI = 0.3 * risk profile credibility_score + 0.3 * risk profile reputation_score + 0.4 * account ProfileScore; SRS is derived from risk value, trust score, and impact score of the risk profile.
+  entities: ['account', 'account ID', 'Session Telemetry', 'VPN ratio', 'proxy count', 'login country count', 'risk profile', 'credibility_score', 'reputation_score', 'ProfileScore', 'risk value', 'trust score', 'impact score']
+  subject: account
+15:41:30 INFO Agent completed: question_extraction -> none
+15:41:30 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1} | Total visits this run: 2
+15:41:30 INFO Executing agent: candidate_retrieval
+15:41:31 ERROR Embedding failed: RuntimeError: Embedding error occurred: Server error '502 Bad Gateway' for url 'https://integrate.api.nvidia.com/v1/embeddings'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/502
+Traceback (most recent call last):
+  File "/Users/ariellegeva/Desktop/GSF_and_Ontology/ontology-sql-eval/.venv/lib/python3.12/site-packages/nemo_retriever/models/inference/main_text_embed.py", line 382, in _make_async_request
+    vecs = _http_embed_openai_compat(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/ariellegeva/Desktop/GSF_and_Ontology/ontology-sql-eval/.venv/lib/python3.12/site-packages/nemo_retriever/models/inference/main_text_embed.py", line 336, in _http_embed_openai_compat
+    resp.raise_for_status()
+  File "/Users/ariellegeva/Desktop/GSF_and_Ontology/ontology-sql-eval/.venv/lib/python3.12/site-packages/httpx/_models.py", line 829, in raise_for_status
+    raise HTTPStatusError(message, request=request, response=self)
+httpx.HTTPStatusError: Server error '502 Bad Gateway' for url 'https://integrate.api.nvidia.com/v1/embeddings'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/502
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/ariellegeva/Desktop/GSF_and_Ontology/ontology-sql-eval/.venv/lib/python3.12/site-packages/nemo_retriever/models/inference/runtime.py", line 145, in embed_text_main_text_embed
+    out_df = _embed_group(
+             ^^^^^^^^^^^^^
+  File "/Users/ariellegeva/Desktop/GSF_and_Ontology/ontology-sql-eval/.venv/lib/python3.12/site-packages/nemo_retriever/models/inference/runtime.py", line 85, in _embed_group
+    out_df, _ = create_text_embeddings_for_df(
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/ariellegeva/Desktop/GSF_and_Ontology/ontology-sql-eval/.venv/lib/python3.12/site-packages/nemo_retriever/models/inference/main_text_embed.py", line 709, in create_text_embeddings_for_df
+    content_embeddings = _async_runner(
+                         ^^^^^^^^^^^^^^
+  File "/Users/ariellegeva/Desktop/GSF_and_Ontology/ontology-sql-eval/.venv/lib/python3.12/site-packages/nemo_retriever/models/inference/main_text_embed.py", line 463, in _async_runner
+    results = _async_request_handler(
+              ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/ariellegeva/Desktop/GSF_and_Ontology/ontology-sql-eval/.venv/lib/python3.12/site-packages/nemo_retriever/models/inference/main_text_embed.py", line 443, in _async_request_handler
+    results = [future.result() for future in futures]
+               ^^^^^^^^^^^^^^^
+  File "/Users/ariellegeva/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib/python3.12/concurrent/futures/_base.py", line 456, in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+  File "/Users/ariellegeva/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib/python3.12/concurrent/futures/_base.py", line 401, in __get_result
+    raise self._exception
+  File "/Users/ariellegeva/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib/python3.12/concurrent/futures/thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/ariellegeva/Desktop/GSF_and_Ontology/ontology-sql-eval/.venv/lib/python3.12/site-packages/nemo_retriever/models/inference/main_text_embed.py", line 400, in _make_async_request
+    raise RuntimeError(f"Embedding error occurred: {err_str}") from err
+RuntimeError: Embedding error occurred: Server error '502 Bad Gateway' for url 'https://integrate.api.nvidia.com/v1/embeddings'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/502
+15:41:31 WARNING ColumnAttribute search failed for entity 'reputation_score'
+Traceback (most recent call last):
+  File "/Users/ariellegeva/Desktop/GSF_and_Ontology/GSF/gsf/retrieval/text_to_sql/agents/candidates_retrieval.py", line 65, in _search_by_label
+    search_semantic_index(
+  File "/Users/ariellegeva/Desktop/GSF_and_Ontology/GSF/gsf/retrieval/data_access/semantic_search.py", line 280, in search_semantic_index
+    hits = retriever.query(entity, top_k=top_k, vdb_kwargs=vdb_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/ariellegeva/Desktop/GSF_and_Ontology/ontology-sql-eval/.venv/lib/python3.12/site-packages/nemo_retriever/graph/retriever.py", line 353, in query
+    return self.queries(
+           ^^^^^^^^^^^^^
+  File "/Users/ariellegeva/Desktop/GSF_and_Ontology/ontology-sql-eval/.venv/lib/python3.12/site-packages/nemo_retriever/graph/retriever.py", line 432, in queries
+    raw_hits = self._execute_queries_graph(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/ariellegeva/Desktop/GSF_and_Ontology/ontology-sql-eval/.venv/lib/python3.12/site-packages/nemo_retriever/graph/retriever.py", line 212, in _execute_queries_graph
+    leaves = graph.execute_in_place(df, **exec_kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/ariellegeva/Desktop/GSF_and_Ontology/ontology-sql-eval/.venv/lib/python3.12/site-packages/nemo_retriever/graph/pipeline_graph.py", line 183, in execute_in_place
+    self._execute_node(root, data, results, **kwargs)
+  File "/Users/ariellegeva/Desktop/GSF_and_Ontology/ontology-sql-eval/.venv/lib/python3.12/site-packages/nemo_retriever/graph/pipeline_graph.py", line 202, in _execute_node
+    self._execute_node(child, output, results, **kwargs)
+  File "/Users/ariellegeva/Desktop/GSF_and_Ontology/ontology-sql-eval/.venv/lib/python3.12/site-packages/nemo_retriever/graph/pipeline_graph.py", line 199, in _execute_node
+    output = node.operator.run(data, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/ariellegeva/Desktop/GSF_and_Ontology/ontology-sql-eval/.venv/lib/python3.12/site-packages/nemo_retriever/operators/abstract_operator.py", line 33, in run
+    data = self.preprocess(data, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/ariellegeva/Desktop/GSF_and_Ontology/ontology-sql-eval/.venv/lib/python3.12/site-packages/nemo_retriever/operators/vdb.py", line 227, in preprocess
+    return query_vectors_from_embedded_dataframe(data)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/ariellegeva/Desktop/GSF_and_Ontology/ontology-sql-eval/.venv/lib/python3.12/site-packages/nemo_retriever/operators/vdb.py", line 92, in query_vectors_from_embedded_dataframe
+    raise ValueError(
+ValueError: Expected query embeddings in each row's metadata['embedding'] or a payload column with key 'embedding'; columns=['text', 'text_embeddings_1b_v2', 'text_embeddings_1b_v2_dim', 'text_embeddings_1b_v2_has_embedding']; embedding error: Embedding error occurred: Server error '502 Bad Gateway' for url 'https://integrate.api.nvidia.com/v1/embeddings'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/502
+15:41:33 INFO Retrieved 15 ColumnAttributes, 0 CustomAnalysis, 1 SqlAttribute candidates, and subject Term id='2b0127a3-0faf-4f9a-87fd-33f1cb1d64bc' score=0.5540066894225122 (13 entities queried, subject='account')
+15:41:33 INFO Agent completed: candidate_retrieval -> none
+15:41:33 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1} | Total visits this run: 3
+15:41:33 INFO Executing agent: candidate_preparation
+15:41:33 INFO Retrieved 0 custom analyses
+15:41:33 INFO Found 0 relevant queries from custom analyses
+15:41:33 INFO Fetched Neo4j context for 15/15 column attributes
+15:41:33 INFO Fetched synonyms for 0 term(s)
+15:41:37 INFO Anchor column identified: 96107cae-12e7-4701-8e16-13ad1372d5fd (The question asks to list account IDs sorted by an authentication risk score. While the score is computed from multiple sources (session telemetry, risk profile, profile score), the primary output subject being listed is the account identifier. The Account Reference column is the unique identifier for an account, which is what the question ultimately asks to list.)
+15:41:37 INFO Anchor attribute id: 96107cae-12e7-4701-8e16-13ad1372d5fd
+15:41:37 INFO Join path to Session Telemetry (3dfcdee9-55af-48fd-afd9-d97dca461ed4): 0 hop(s)
+15:41:37 INFO Join path to Account Age in Days (cc3fffe8-20d0-402a-be79-47dcec8d6c1b): 0 hop(s)
+15:41:37 INFO Join path to Cluster Net Influence Score (0e3966cb-3ba7-493a-81ae-131f2fa1f029): 0 hop(s)
+15:41:37 INFO Join path to Profile Score (62a20578-c6a9-487f-bd6b-5bb78482a6be): 0 hop(s)
+15:41:37 INFO Join path to Confidence Score (1539c47b-a580-48cb-849e-f4d78b340ef8): 0 hop(s)
+15:41:37 INFO Join path to Profile Picture Score (170fc863-1904-4ff6-8d35-bd7ebc325484): 0 hop(s)
+15:41:37 INFO Join path to Follower to Following Ratio (e935be4c-6c99-4d13-9652-364e181c6e88): 0 hop(s)
+15:41:37 INFO Join path to Message Similarity Score (d97cb38d-c28e-4f50-9223-3d648c0f24c1): 0 hop(s)
+15:41:37 INFO Join path to Display Change Count (33c5ea33-9f05-4540-a102-f027e4feb567): 0 hop(s)
+15:41:37 INFO Join path to Following Count (622015ab-2174-4688-b477-e94c2fd30056): 0 hop(s)
+15:41:37 INFO Join path to Location Movement Count (01b3820c-c021-423e-b3a5-dbf2fb6fe44e): 0 hop(s)
+15:41:37 INFO Join path to Content Metrics (f56a4686-68a7-4aa8-b16e-cf0862f2222f): 0 hop(s)
+15:41:37 INFO Join path to Account Type (ba9ae653-a4ba-4cff-9bf7-00c5180616a6): 0 hop(s)
+15:41:37 INFO Join path to Risk Profile (7e5ca9cd-7edc-438a-a033-905ab822e396): 0 hop(s)
+15:41:37 INFO Tables from candidates: ['security_sessions', 'accounts', 'profiles', 'risk_and_moderation', 'monitoring', 'content_activity', 'cluster_analysis', 'interaction_metrics', 'network_metrics']
+15:41:42 WARNING _BatchEmbedCPUActor: embed endpoint https://integrate.api.nvidia.com/v1/embeddings timed out after 5.0s.
+15:41:43 INFO Found 9 relevant tables (after dedupe, capped at 20): ['public.security_sessions', 'public.accounts', 'public.profiles', 'public.risk_and_moderation', 'public.monitoring', 'public.content_activity', 'public.cluster_analysis', 'public.interaction_metrics', 'public.network_metrics']
+15:41:43 INFO Fetched 1/1 SqlAttribute details from Neo4j
+15:41:43 INFO Added 0 table(s) from SqlAttribute SQL references: ['accounts']
+15:41:43 INFO Added 2 table(s) from subject Term 'Account': ['accounts', 'behavioral_scores', 'monitoring', 'interaction_metrics', 'content_activity', 'profiles', 'account_clusters', 'risk_and_moderation', 'security_sessions', 'network_metrics']
+15:41:43 INFO Relevance filter join_paths_section: (no cross-table chains found)
+15:41:47 INFO Relevance filter reasoning: The query needs session telemetry (security_sessions), account ProfileScore and account IDs (accounts), and risk profile scores like credibility_score, reputation_score, risk value, trust score, impact score (risk_and_moderation). The other tables relate to content, clustering, monitoring, and metrics not referenced in the risk formula.
+15:41:47 INFO Relevance filter removed tables: ['public.profiles', 'public.monitoring', 'public.content_activity', 'public.cluster_analysis', 'public.interaction_metrics', 'public.network_metrics', 'public.behavioral_scores', 'public.account_clusters']
+15:41:47 INFO Kept 3 relevant tables (after relevance filter): ['public.security_sessions', 'public.accounts', 'public.risk_and_moderation']
+15:41:47 INFO Final 3 table(s) reaching SQL generation: ['public.security_sessions', 'public.accounts', 'public.risk_and_moderation']
+15:41:47 INFO Agent completed: candidate_preparation -> none
+15:41:47 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1} | Total visits this run: 4
+15:41:47 INFO Executing agent: sql_from_semantic
+15:41:47 INFO Semantic context: anchor=Account Reference, join_paths=14, custom_analyses=0, sql_attributes=1, fallback_tables=3
+15:41:47 INFO Using 0 similar questions from conversations.
+15:42:03 INFO LLM response generated: This lists account IDs with an overall authentication risk score above 0.7, rounded to three decimal...
+15:42:03 INFO Agent completed: sql_from_semantic -> constructable
+15:42:03 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 1} | Total visits this run: 5
+15:42:03 INFO Executing agent: sql_validation
+15:42:03 INFO time took to get all data from graph: 0.04416179656982422
+15:42:04 INFO total time it took to create all schemas nodes: 0.6800661087036133
+15:42:04 INFO total time for get_schemas_by_ids(): 0.7404420375823975
+15:42:04 INFO SQL validation passed, columns: 0
+15:42:04 INFO Agent completed: sql_validation -> valid_sql
+15:42:04 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 1, 'validate_intent': 1} | Total visits this run: 6
+15:42:04 INFO Executing agent: intent_validation
+15:42:06 INFO SQL validation passed (no critical issues)
+15:42:06 INFO Agent completed: intent_validation -> intent_valid
+15:42:06 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 1, 'validate_intent': 1, 'precheck_jsonb_path': 1} | Total visits this run: 7
+15:42:06 INFO Executing agent: jsonb_path_check
+15:42:07 INFO Agent completed: jsonb_path_check -> valid_sql
+15:42:07 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 1, 'validate_intent': 1, 'precheck_jsonb_path': 1, 'execute_sql_query': 1} | Total visits this run: 8
+15:42:07 INFO Executing agent: sql_execution
+15:42:07 ERROR SQL execution failed (injected connector)
+Traceback (most recent call last):
+  File "/Users/ariellegeva/Desktop/GSF_and_Ontology/GSF/gsf/retrieval/text_to_sql/agents/sql_execution.py", line 51, in _run_sql
+    df = connector.execute(sql)
+         ^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/ariellegeva/Desktop/GSF_and_Ontology/GSF/gsf/connectors/postgres.py", line 67, in execute
+    cur.execute(sql, parameters)
+  File "/Users/ariellegeva/Desktop/GSF_and_Ontology/ontology-sql-eval/.venv/lib/python3.12/site-packages/psycopg/cursor.py", line 117, in execute
+    raise ex.with_traceback(None)
+psycopg.errors.UndefinedColumn: column a.profilescore does not exist
+LINE 7:                            + 0.4 * a.ProfileScore::numeric))
+                                           ^
+HINT:  Perhaps you meant to reference the column "a.ProfileScore".
+15:42:07 INFO SQL execution failed
+  SQL: SELECT a.acct_ref,
+       ROUND((0.5 * (0.4 * (s.session_telemetry->>'vpn_usage_pct')::numeric
+                     + 0.3 * ((s.session_telemetry->'ip_reputation'->>'proxy_hits')::numeric / 10)
+                     + 0.3 * ((s.session_telemetry->'ip_reputation'->>'country_count')::numeric / 20))
+   
+  Error: column a.profilescore does not exist
+LINE 7:                            + 0.4 * a.ProfileScore::numeric))
+                                           ^
+HINT:  Perhaps you meant to reference the column "a.ProfileScore".
+15:42:07 INFO Agent completed: sql_execution -> invalid_sql
+15:42:07 INFO Construct sql attempt: 0
+15:42:07 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 1, 'validate_intent': 1, 'precheck_jsonb_path': 1, 'execute_sql_query': 1, 'reconstruct_sql': 1} | Total visits this run: 9
+15:42:07 INFO Executing agent: sql_reconstruction
+15:42:13 INFO Error analysis: fixable — The error is a case-sensitivity/quoting issue. PostgreSQL folds unquoted identifiers to lowercase, so `a.ProfileScore` becomes `a.profilescore`. The c
+15:42:13 INFO known_columns_section (781 chars): '\nKNOWN COLUMN MAPPINGS (already resolved — use these exact names/casing, do not guess):\n  Account Reference: accounts.acct_ref\n  Session Telemetry: security_sessions.session_telemetry\n  Account Age in Days: accounts.AGE_D\n  Cluster Net Influence Score: cluster_analysis.NetInfl\n  Profile Score: accounts.ProfileScore\n  Confidence Score: monitoring.ConfScore\n  Profile Picture Score: profiles.PicScore\n  Follower to Following Ratio: network_metrics.FollRatio\n  Message Similarity Score: interaction_metrics.MsgSim\n  Display Change Count: profiles.DispChg\n  Following Count: network_metrics.FollowgNum\n  Location Movement Count: profiles.LOC_MOV\n  Content Metrics: content_activity.content_metrics\n  Account Type: accounts.acct_form\n  Risk Profile: risk_and_moderation.risk_profile\n\n'
+15:42:28 INFO SQL reconstructed: SELECT a.acct_ref,
+       ROUND((0.5 * (0.4 * (s.session_telemetry->>'vpn_usage_pct')::numeric
+                     + 0.3 * ((s.session_telemetry->'ip_reputation'->>'proxy_hits')::numeric / 10)
+                     + 0.3 * ((s.session_telemetry->'ip_reputation'->>'country_count')::numeric / 20))
+   
+15:42:28 INFO Reconstruction explanation: This lists account identifiers along with an overall authentication risk score, rounded to three dec...
+15:42:28 INFO Agent completed: sql_reconstruction -> none
+15:42:28 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 2, 'validate_intent': 1, 'precheck_jsonb_path': 1, 'execute_sql_query': 1, 'reconstruct_sql': 1} | Total visits this run: 10
+15:42:28 INFO Executing agent: sql_validation
+15:42:28 INFO time took to get all data from graph: 0.052050113677978516
+15:42:29 INFO total time it took to create all schemas nodes: 0.8598048686981201
+15:42:29 INFO total time for get_schemas_by_ids(): 0.919802188873291
+15:42:29 INFO SQL validation passed, columns: 0
+15:42:29 INFO Agent completed: sql_validation -> valid_sql
+15:42:29 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 2, 'validate_intent': 2, 'precheck_jsonb_path': 1, 'execute_sql_query': 1, 'reconstruct_sql': 1} | Total visits this run: 11
+15:42:29 INFO Executing agent: intent_validation
+15:42:31 INFO SQL validation passed (no critical issues)
+15:42:31 INFO Agent completed: intent_validation -> intent_valid
+15:42:31 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 2, 'validate_intent': 2, 'precheck_jsonb_path': 2, 'execute_sql_query': 1, 'reconstruct_sql': 1} | Total visits this run: 12
+15:42:31 INFO Executing agent: jsonb_path_check
+15:42:32 INFO Agent completed: jsonb_path_check -> valid_sql
+15:42:32 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 2, 'validate_intent': 2, 'precheck_jsonb_path': 2, 'execute_sql_query': 2, 'reconstruct_sql': 1} | Total visits this run: 13
+15:42:32 INFO Executing agent: sql_execution
+15:42:32 ERROR SQL execution failed (injected connector)
+Traceback (most recent call last):
+  File "/Users/ariellegeva/Desktop/GSF_and_Ontology/GSF/gsf/retrieval/text_to_sql/agents/sql_execution.py", line 51, in _run_sql
+    df = connector.execute(sql)
+         ^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/ariellegeva/Desktop/GSF_and_Ontology/GSF/gsf/connectors/postgres.py", line 67, in execute
+    cur.execute(sql, parameters)
+  File "/Users/ariellegeva/Desktop/GSF_and_Ontology/ontology-sql-eval/.venv/lib/python3.12/site-packages/psycopg/cursor.py", line 117, in execute
+    raise ex.with_traceback(None)
+psycopg.errors.InvalidTextRepresentation: invalid input syntax for type numeric: "0.00%"
+15:42:32 INFO SQL execution failed
+  SQL: SELECT a.acct_ref,
+       ROUND((0.5 * (0.4 * (s.session_telemetry->>'vpn_usage_pct')::numeric
+                     + 0.3 * ((s.session_telemetry->'ip_reputation'->>'proxy_hits')::numeric / 10)
+                     + 0.3 * ((s.session_telemetry->'ip_reputation'->>'country_count')::numeric / 20))
+   
+  Error: invalid input syntax for type numeric: "0.00%"
+15:42:32 INFO Agent completed: sql_execution -> invalid_sql
+15:42:32 INFO Construct sql attempt: 1
+15:42:32 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 2, 'validate_intent': 2, 'precheck_jsonb_path': 2, 'execute_sql_query': 2, 'reconstruct_sql': 2} | Total visits this run: 14
+15:42:32 INFO Executing agent: sql_reconstruction
+15:42:32 INFO History attempt 1 truncated for prompt (sql=1762 chars, error=217 chars)
+15:42:32 INFO known_columns_section (781 chars): '\nKNOWN COLUMN MAPPINGS (already resolved — use these exact names/casing, do not guess):\n  Account Reference: accounts.acct_ref\n  Session Telemetry: security_sessions.session_telemetry\n  Account Age in Days: accounts.AGE_D\n  Cluster Net Influence Score: cluster_analysis.NetInfl\n  Profile Score: accounts.ProfileScore\n  Confidence Score: monitoring.ConfScore\n  Profile Picture Score: profiles.PicScore\n  Follower to Following Ratio: network_metrics.FollRatio\n  Message Similarity Score: interaction_metrics.MsgSim\n  Display Change Count: profiles.DispChg\n  Following Count: network_metrics.FollowgNum\n  Location Movement Count: profiles.LOC_MOV\n  Content Metrics: content_activity.content_metrics\n  Account Type: accounts.acct_form\n  Risk Profile: risk_and_moderation.risk_profile\n\n'
+15:42:47 INFO SQL reconstructed: SELECT a.acct_ref,
+       ROUND((0.5 * (0.4 * (REPLACE(s.session_telemetry->>'vpn_usage_pct', '%', ''))::numeric / 100
+                     + 0.3 * ((s.session_telemetry->'ip_reputation'->>'proxy_hits')::numeric / 10)
+                     + 0.3 * ((s.session_telemetry->'ip_reputation'->>'country_cou
+15:42:47 INFO Reconstruction explanation: This lists account identifiers along with an overall authentication risk score (rounded to three dec...
+15:42:47 INFO Agent completed: sql_reconstruction -> none
+15:42:47 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 3, 'validate_intent': 2, 'precheck_jsonb_path': 2, 'execute_sql_query': 2, 'reconstruct_sql': 2} | Total visits this run: 15
+15:42:47 INFO Executing agent: sql_validation
+15:42:47 INFO time took to get all data from graph: 0.04391884803771973
+15:42:48 INFO total time it took to create all schemas nodes: 0.6001091003417969
+15:42:48 INFO total time for get_schemas_by_ids(): 0.6634688377380371
+15:42:48 INFO SQL validation passed, columns: 0
+15:42:48 INFO Agent completed: sql_validation -> valid_sql
+15:42:48 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 3, 'validate_intent': 3, 'precheck_jsonb_path': 2, 'execute_sql_query': 2, 'reconstruct_sql': 2} | Total visits this run: 16
+15:42:48 INFO Executing agent: intent_validation
+15:42:50 INFO SQL validation passed (no critical issues)
+15:42:50 INFO Agent completed: intent_validation -> intent_valid
+15:42:50 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 3, 'validate_intent': 3, 'precheck_jsonb_path': 3, 'execute_sql_query': 2, 'reconstruct_sql': 2} | Total visits this run: 17
+15:42:50 INFO Executing agent: jsonb_path_check
+15:42:50 INFO Agent completed: jsonb_path_check -> valid_sql
+15:42:50 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 3, 'validate_intent': 3, 'precheck_jsonb_path': 3, 'execute_sql_query': 3, 'reconstruct_sql': 2} | Total visits this run: 18
+15:42:50 INFO Executing agent: sql_execution
+15:42:50 INFO Agent completed: sql_execution -> valid_sql
+15:42:50 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 3, 'validate_intent': 3, 'precheck_jsonb_path': 3, 'execute_sql_query': 3, 'reconstruct_sql': 2, 'check_empty_like_result': 1} | Total visits this run: 19
+15:42:50 INFO Executing agent: empty_like_result_check
+15:42:50 INFO Null JSONB check: aliases=none
+15:42:50 INFO SQL result is non-empty — skipping empty LIKE check
+15:42:50 INFO Agent completed: empty_like_result_check -> valid_sql
+15:42:50 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 3, 'validate_intent': 3, 'precheck_jsonb_path': 3, 'execute_sql_query': 3, 'reconstruct_sql': 2, 'check_empty_like_result': 1, 'check_value_repair': 1} | Total visits this run: 20
+15:42:50 INFO Executing agent: empty_result_value_repair
+15:42:50 INFO Agent completed: empty_result_value_repair -> valid_sql
+15:42:50 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 3, 'validate_intent': 3, 'precheck_jsonb_path': 3, 'execute_sql_query': 3, 'reconstruct_sql': 2, 'check_empty_like_result': 1, 'check_value_repair': 1, 'format_and_respond': 1} | Total visits this run: 21
+15:42:50 INFO Executing agent: calculation_response
+15:42:50 INFO Calculation response prepared and returned
+15:42:50 INFO Agent completed: calculation_response -> none
+15:42:50 INFO [turn 5 | 90.0s] DECISION: SUBMIT SQL  (history len=4/4)
+  ┌─ [1msql:[0m [1;35mSELECT a.acct_ref,
+       ROUND((0.5 * (0.4 * (REPLACE(s.session_telemetry->>'vpn_usage_pct', '%', ''))::numeric / 100
+                     + 0.3 * ((s.session_telemetry->'ip_reputation'->>'proxy_hits')::numeric / 10)
+                     + 0.3 * ((s.session_telemetry->'ip_reputation'->>'country_count')::numeric / 20))
+             + 0.3 * (1 - (0.3 * (r.risk_profile->'risk_scores'->>'credibility_score')::numeric
+                           + 0.3 * (r.risk_profile->'risk_scores'->>'reputation_score')::numeric
+                           + 0.4 * a."ProfileScore"::numeric))
+             + 0.2 * ((r.risk_profile->'risk_scores'->>'risk_value')::numeric
+                      + (r.risk_profile->'risk_scores'->>'trust_score')::numeric
+                      + (r.risk_profile->'risk_scores'->>'impact_score')::numeric) / 3)::numeric, 3) AS authentication_risk_score
+FROM public.accounts AS a
+JOIN public.security_sessions AS s ON a.acct_ref = s.acct_gate
+JOIN public.risk_and_moderation AS r ON a.acct_ref = r.acct_risk
+WHERE (0.5 * (0.4 * (REPLACE(s.session_telemetry->>'vpn_usage_pct', '%', ''))::numeric / 100
+              + 0.3 * ((s.session_telemetry->'ip_reputation'->>'proxy_hits')::numeric / 10)
+              + 0.3 * ((s.session_telemetry->'ip_reputation'->>'country_count')::numeric / 20))
+       + 0.3 * (1 - (0.3 * (r.risk_profile->'risk_scores'->>'credibility_score')::numeric
+                     + 0.3 * (r.risk_profile->'risk_scores'->>'reputation_score')::numeric
+                     + 0.4 * a."ProfileScore"::numeric))
+       + 0.2 * ((r.risk_profile->'risk_scores'->>'risk_value')::numeric
+                + (r.risk_profile->'risk_scores'->>'trust_score')::numeric
+                + (r.risk_profile->'risk_scores'->>'impact_score')::numeric) / 3) > 0.7
+ORDER BY authentication_risk_score DESC;[0m
+15:42:51 INFO   └─ result: reward=0.00  phase_completed=None  msg=SQL failed Phase 1. Your SQL is not correct.
+15:42:51 INFO [done] 5 turns in 227.5s | reward=0.00
+15:42:51 INFO Debug seed: wrong results — injecting targeted benchmark hints
+15:42:56 INFO [fake_account_16] SQL gen — injected 2 shared-JSON-column note(s)
+15:42:56 INFO [fake_account_16] SQL gen — Evidence: TEI = 0.4 * (vpn) + 0.3 * (proxy_count / 10) + 0.3 * (login_country_count / 20)  
+PCI = (0.3 * risk_profile.credibility_score) + (0.3 * risk_profile.reputation_score) + (0.4 * ProfileScore)  
+inverted_PCI = 1 - PCI  
+authentication_risk_score = (0.5 * TEI) + (0.3 * inverted_PCI) + (0.2 * risk_profile.risk_value)  
+Note: "VPN ratio", "session telemetry" both resolve to the same column (Session Telemetry of Term Security Session) — use the correct sub-key/field for each; they are not the same value.
+Note: "account", "account ID" both resolve to the same column (Account Reference of Term Account) — use the correct sub-key/field for each; they are not the same value.
+15:42:56 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 3, 'validate_intent': 3, 'precheck_jsonb_path': 3, 'execute_sql_query': 3, 'reconstruct_sql': 3, 'check_empty_like_result': 1, 'check_value_repair': 1, 'format_and_respond': 1} | Total visits this run: 22
+15:42:56 INFO Executing agent: sql_reconstruction
+15:43:01 INFO Error analysis: fixable — All three required tables (accounts, security_sessions, risk_and_moderation) are present and contain the needed telemetry, risk profile, and profile s
+15:43:01 INFO known_columns_section (781 chars): '\nKNOWN COLUMN MAPPINGS (already resolved — use these exact names/casing, do not guess):\n  Account Reference: accounts.acct_ref\n  Session Telemetry: security_sessions.session_telemetry\n  Account Age in Days: accounts.AGE_D\n  Cluster Net Influence Score: cluster_analysis.NetInfl\n  Profile Score: accounts.ProfileScore\n  Confidence Score: monitoring.ConfScore\n  Profile Picture Score: profiles.PicScore\n  Follower to Following Ratio: network_metrics.FollRatio\n  Message Similarity Score: interaction_metrics.MsgSim\n  Display Change Count: profiles.DispChg\n  Following Count: network_metrics.FollowgNum\n  Location Movement Count: profiles.LOC_MOV\n  Content Metrics: content_activity.content_metrics\n  Account Type: accounts.acct_form\n  Risk Profile: risk_and_moderation.risk_profile\n\n'
+15:43:17 INFO SQL reconstructed: SELECT a.acct_ref,
+       ROUND((0.5 * (0.4 * (REPLACE(s.session_telemetry->>'vpn_usage_pct', '%', ''))::numeric / 100
+                     + 0.3 * ((s.session_telemetry->'ip_reputation'->>'proxy_hits')::numeric / 10)
+                     + 0.3 * ((s.session_telemetry->'ip_reputation'->>'country_cou
+15:43:17 INFO Reconstruction explanation: This lists account IDs alongside an overall authentication risk score, rounded to three decimal plac...
+15:43:17 INFO Agent completed: sql_reconstruction -> none
+15:43:17 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 4, 'validate_intent': 3, 'precheck_jsonb_path': 3, 'execute_sql_query': 3, 'reconstruct_sql': 3, 'check_empty_like_result': 1, 'check_value_repair': 1, 'format_and_respond': 1} | Total visits this run: 23
+15:43:17 INFO Executing agent: sql_validation
+15:43:17 INFO time took to get all data from graph: 0.025619983673095703
+15:43:17 INFO total time it took to create all schemas nodes: 0.6138949394226074
+15:43:17 INFO total time for get_schemas_by_ids(): 0.6490061283111572
+15:43:17 INFO SQL validation passed, columns: 0
+15:43:17 INFO Agent completed: sql_validation -> valid_sql
+15:43:17 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 4, 'validate_intent': 4, 'precheck_jsonb_path': 3, 'execute_sql_query': 3, 'reconstruct_sql': 3, 'check_empty_like_result': 1, 'check_value_repair': 1, 'format_and_respond': 1} | Total visits this run: 24
+15:43:17 INFO Executing agent: intent_validation
+15:43:20 INFO SQL validation passed (no critical issues)
+15:43:20 INFO Agent completed: intent_validation -> intent_valid
+15:43:20 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 4, 'validate_intent': 4, 'precheck_jsonb_path': 4, 'execute_sql_query': 3, 'reconstruct_sql': 3, 'check_empty_like_result': 1, 'check_value_repair': 1, 'format_and_respond': 1} | Total visits this run: 25
+15:43:20 INFO Executing agent: jsonb_path_check
+15:43:20 INFO Agent completed: jsonb_path_check -> valid_sql
+15:43:20 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 4, 'validate_intent': 4, 'precheck_jsonb_path': 4, 'execute_sql_query': 4, 'reconstruct_sql': 3, 'check_empty_like_result': 1, 'check_value_repair': 1, 'format_and_respond': 1} | Total visits this run: 26
+15:43:20 INFO Executing agent: sql_execution
+15:43:20 INFO Agent completed: sql_execution -> valid_sql
+15:43:20 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 4, 'validate_intent': 4, 'precheck_jsonb_path': 4, 'execute_sql_query': 4, 'reconstruct_sql': 3, 'check_empty_like_result': 2, 'check_value_repair': 1, 'format_and_respond': 1} | Total visits this run: 27
+15:43:20 INFO Executing agent: empty_like_result_check
+15:43:20 INFO Null JSONB check: aliases=none
+15:43:20 INFO SQL result is non-empty — skipping empty LIKE check
+15:43:20 INFO Agent completed: empty_like_result_check -> valid_sql
+15:43:20 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 4, 'validate_intent': 4, 'precheck_jsonb_path': 4, 'execute_sql_query': 4, 'reconstruct_sql': 3, 'check_empty_like_result': 2, 'check_value_repair': 2, 'format_and_respond': 1} | Total visits this run: 28
+15:43:20 INFO Executing agent: empty_result_value_repair
+15:43:20 INFO Agent completed: empty_result_value_repair -> valid_sql
+15:43:20 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 4, 'validate_intent': 4, 'precheck_jsonb_path': 4, 'execute_sql_query': 4, 'reconstruct_sql': 3, 'check_empty_like_result': 2, 'check_value_repair': 2, 'format_and_respond': 2} | Total visits this run: 29
+15:43:20 INFO Executing agent: calculation_response
+15:43:20 INFO Calculation response prepared and returned
+15:43:20 INFO Agent completed: calculation_response -> none
+15:43:20 INFO [turn 1 | 28.9s] DECISION: SUBMIT SQL  (history len=4/4)
+  ┌─ [1msql:[0m [1;35mSELECT a.acct_ref,
+       ROUND((0.5 * (0.4 * (REPLACE(s.session_telemetry->>'vpn_usage_pct', '%', ''))::numeric / 100
+                     + 0.3 * ((s.session_telemetry->'ip_reputation'->>'proxy_hits')::numeric / 10)
+                     + 0.3 * ((s.session_telemetry->'ip_reputation'->>'country_count')::numeric / 20))
+             + 0.3 * (1 - (0.3 * (r.risk_profile->'risk_scores'->>'credibility_score')::numeric
+                           + 0.3 * (r.risk_profile->'risk_scores'->>'reputation_score')::numeric
+                           + 0.4 * a."ProfileScore"::numeric))
+             + 0.2 * (r.risk_profile->'risk_scores'->>'risk_value')::numeric)::numeric, 3) AS authentication_risk_score
+FROM public.accounts AS a
+JOIN public.security_sessions AS s ON a.acct_ref = s.acct_gate
+JOIN public.risk_and_moderation AS r ON a.acct_ref = r.acct_risk
+WHERE (0.5 * (0.4 * (REPLACE(s.session_telemetry->>'vpn_usage_pct', '%', ''))::numeric / 100
+              + 0.3 * ((s.session_telemetry->'ip_reputation'->>'proxy_hits')::numeric / 10)
+              + 0.3 * ((s.session_telemetry->'ip_reputation'->>'country_count')::numeric / 20))
+       + 0.3 * (1 - (0.3 * (r.risk_profile->'risk_scores'->>'credibility_score')::numeric
+                     + 0.3 * (r.risk_profile->'risk_scores'->>'reputation_score')::numeric
+                     + 0.4 * a."ProfileScore"::numeric))
+       + 0.2 * (r.risk_profile->'risk_scores'->>'risk_value')::numeric) > 0.7
+ORDER BY authentication_risk_score DESC;[0m
+15:43:21 INFO   └─ result: reward=0.00  phase_completed=None  msg=SQL failed Phase 1. Your SQL is not correct.
+15:43:21 INFO [done] 1 turns in 30.0s | reward=0.00

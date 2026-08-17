@@ -1,0 +1,6 @@
+instance_id,dataset,database,max_turn,turns_used,phase1_passed,phase1_debug_ran,phase2_passed,phase2_debug_ran,total_reward,exec_error_p1,exec_error_p2,error
+fake_account_7,full,fake_account,4,4,True,False,False,True,0.7,,,
+fake_account_14,full,fake_account,4,4,False,True,,False,0.0,,,
+fake_account_16,full,fake_account,4,4,False,True,,False,0.0,,,
+fake_account_10,full,fake_account,3,3,False,True,,False,0.0,,,
+fake_account_13,full,fake_account,3,3,False,True,,False,0.0,,,

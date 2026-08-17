@@ -9,7 +9,7 @@ SQL GEN FAILURES — insider_4, vaccine_8, mental_6, mental_3 p2, disaster_9,
   credit_6, mental_8, mental_2, disaster_7, crypto_1
 ================================================================================
 
--- Wrong join path / join keys --
+-- Wrong join path / join keys -- ADRESSED, SHOULD TEST THESE TO SEE IF THEY STILL HAVE THE PROBLEM
 insider_4       Wrong join path: need advancedbehavior→transactionrecord→compliancecase, guessed direct cc.abhvref link
 vaccine_8       Wrong join type (INNER vs FULL JOIN for VaccineDetails) + spurious datalogger table + missing COALESCE/NULLIF
 mental_6        GraphRecursionError (45 recursion limit hit); guessed tb.patownerref/tb.crisisint/tb.abkey — none exist
@@ -17,9 +17,8 @@ mental_3 p2     0 clarification turns allowed; guessed wrong facilities join key
 mental_2        Wrong join path for treatment outcomes: need treatmentoutcomes→treatmentbasics→encounters; guessed direct txref=enckey
 disaster_7      Missing compound join key on coordinationandevaluation (need coorddistref AND coordopsref, used only one; debug added extra disasterevents table going backward)
 
--- Wrong JSONB key names (user sim blocked or key undiscoverable) --
+-- Wrong JSONB key names (user sim blocked or key undiscoverable) -- ADRESSED, SHOULD TEST THESE TO SEE IF THEY STILL HAVE THE PROBLEM
 solar_10        Guessed harmonic_distortion_pct/power_factor/harmonicDistortionPercent; GT uses harmdistpct/invertpowfac
-polar_4         Guessed output/solar_output; GT uses renewablemetrics->'solar'->>'output_w' (with _w suffix)
 credit_8        Guessed rent_payment; GT uses rentpayment (no underscore) — user sim blocked column question
 mental_8        Guessed therapy_details->>'engagement_level' then ->'engagement'->>'level'; GT uses ->>'engagement'
 mental_2        Guessed community_resources_support_level; GT uses community_resources
@@ -42,11 +41,6 @@ museum_4        Used ERPS formula for "priority score"; GT uses CPI (KB 0 delete
 
 -- Wrong tables --
 museum_4        Used artifactscore only; GT needs ArtifactsCore + ArtifactRatings (two tables joined for rating scores)
-
--- User sim gave wrong knowledge (not our fault) --
-polar_4         User sim described ESI-based classification (Green/Intermediate/High Impact);
-                GT uses REC-threshold system (Energy-Sustainable >70 / Moderately Sustainable >50 / Low Sustainability)
-                Also hit max turns (6/6)
 
 -- Grand total / structural SQL --
 credit_8        Grand total labeled 'Grand Total'; GT expects 'All Segments'
@@ -78,6 +72,8 @@ museum_4        Coverage LLM matched "priority score" → ERPS (Exhibition Rotat
                 CPI (KB 0 deleted) was never asked about or discovered as a result.
                 Root: coverage LLM semantic match is too shallow (name match overrides description mismatch)
 
+mental_8        the SQL only returned the three columns explicitly requested (change type, count, avg variation) and
+                sorted by variation — GT expected two additional columns (avg before/after scores) and sorted by count instead. 
 
 ================================================================================
 WEIRD / EDGE CASES — mental_6, mental_3 p1, credit_8, disaster_9
@@ -96,12 +92,13 @@ disaster_9      GT/HF data is for a completely different question than what was 
 
 
 ================================================================================
-PASSING — alien_2, alien_3, cybermarket_4, mental_3 p1
+PASSING — alien_2, alien_3, cybermarket_4, mental_3 p1, polar_4
 (full or significant partial reward)
 ================================================================================
 
 alien_2         Passes regularly
 alien_3         Passes regularly
+polar_4         0.9
 cybermarket_4   1.00 reward (Phase 1 + Phase 2) — clean 2-turn clarification, APL formula from user sim
 mental_3 p1     0.70 reward — RTI + TES formulas resolved correctly, Phase 1 passed
                 (Phase 2 fails: SQL gen wrong join key, 0 turns allowed)

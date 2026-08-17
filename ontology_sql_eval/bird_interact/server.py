@@ -37,6 +37,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 logging.getLogger("gsf.retrieval.interactive.clarify").setLevel(logging.DEBUG)
+logging.getLogger("gsf.retrieval.interactive.kg_coverage").setLevel(logging.DEBUG)
+logging.getLogger("gsf.retrieval.interactive.entity_resolution").setLevel(logging.DEBUG)
 logging.getLogger("gsf.retrieval.interactive.coordinator").setLevel(logging.INFO)
 logging.getLogger("gsf.retrieval.data_access").setLevel(logging.INFO)
 logging.getLogger("gsf.retrieval.text_to_sql").setLevel(logging.INFO)

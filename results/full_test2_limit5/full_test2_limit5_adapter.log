@@ -1,0 +1,381 @@
+15:23:28 INFO [startup] loading retrievers...
+Exception ignored in: <function ConnectionPool.__del__ at 0x119b819e0>
+Traceback (most recent call last):
+  File "/Users/ariellegeva/Desktop/GSF_and_Ontology/ontology-sql-eval/.venv/lib/python3.12/site-packages/psycopg_pool/pool.py", line 126, in __del__
+    gather(*workers, timeout=5.0, timeout_hint=hint)
+  File "/Users/ariellegeva/Desktop/GSF_and_Ontology/ontology-sql-eval/.venv/lib/python3.12/site-packages/psycopg_pool/_acompat.py", line 152, in gather
+    t.join(timeout)
+  File "/Users/ariellegeva/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib/python3.12/threading.py", line 1146, in join
+    raise RuntimeError("cannot join current thread")
+RuntimeError: cannot join current thread
+Exception ignored in: <function ConnectionPool.__del__ at 0x119b819e0>
+Traceback (most recent call last):
+  File "/Users/ariellegeva/Desktop/GSF_and_Ontology/ontology-sql-eval/.venv/lib/python3.12/site-packages/psycopg_pool/pool.py", line 126, in __del__
+    gather(*workers, timeout=5.0, timeout_hint=hint)
+  File "/Users/ariellegeva/Desktop/GSF_and_Ontology/ontology-sql-eval/.venv/lib/python3.12/site-packages/psycopg_pool/_acompat.py", line 152, in gather
+    t.join(timeout)
+  File "/Users/ariellegeva/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib/python3.12/threading.py", line 1146, in join
+    raise RuntimeError("cannot join current thread")
+RuntimeError: cannot join current thread
+Exception ignored in: <function ConnectionPool.__del__ at 0x119b819e0>
+Traceback (most recent call last):
+  File "/Users/ariellegeva/Desktop/GSF_and_Ontology/ontology-sql-eval/.venv/lib/python3.12/site-packages/psycopg_pool/pool.py", line 126, in __del__
+    gather(*workers, timeout=5.0, timeout_hint=hint)
+  File "/Users/ariellegeva/Desktop/GSF_and_Ontology/ontology-sql-eval/.venv/lib/python3.12/site-packages/psycopg_pool/_acompat.py", line 152, in gather
+    t.join(timeout)
+  File "/Users/ariellegeva/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib/python3.12/threading.py", line 1146, in join
+    raise RuntimeError("cannot join current thread")
+RuntimeError: cannot join current thread
+15:23:29 INFO [startup] ready — 22 connectors loaded
+15:23:33 INFO [session] organ_transplant_21 | init db=organ_transplant max_turn=5
+15:23:33 INFO [organ_transplant_21] Query: [1;35mI need to know if we're getting less bang for our buck on the really urgent transplants. Can you run a cost-effectiveness analysis for me? For every completed transplant, figure out the CER. Then, I want you to group the results by the patient's medical urgency status. Show me the average CER for the Status 1A patients, the Status 1B patients, and so on. Keep them in order of urgency.[0m
+15:23:33 INFO [organ_transplant_21] OutputType check → None (will ask)
+15:23:33 INFO [turn 1 | 0.0s] DECISION: ASK
+  ┌─ [1;35mquestion:[0m [35mWhat type of output are you looking for?[0m
+15:23:43 INFO   └─ [1;35muser answer:[0m [35mI'm looking for a table that shows the medical urgency status of patients (like Status 1A, Status 1B, Status 2, etc.) in rows, with columns displaying the average cost-effectiveness ratio for completed transplants in each urgency category, along with the count of transplants. The results should be ordered from highest to lowest urgency priority.[0m
+15:23:51 INFO Entity extraction will use the non-reasoning model
+15:23:51 INFO Text-to-SQL graph: prediction branch False
+15:23:51 INFO Text-to-SQL graph: db-probe proactive False
+15:23:51 INFO Text-to-SQL graph: db-probe jsonb path check True
+15:24:00 INFO [organ_transplant_21] Merged question: I need to know if we're getting less bang for our buck on the really urgent transplants. Can you run a cost-effectiveness analysis for me? For every completed transplant, figure out the cost-effectiveness ratio (CER). Then, group the results by the patient's medical urgency status. Show me a table with the medical urgency status of patients (like Status 1A, Status 1B, Status 2, etc.) in rows, with columns displaying the average CER for completed transplants in each urgency category, along with the count of transplants. The results should be ordered from highest to lowest urgency priority.
+15:24:00 INFO [organ_transplant_21] Incomplete formula terms: [('CER (cost-effectiveness ratio)', 'The exact formula is unspecified — which columns represent cost and which represent effectiveness (e.g. outcome, life-years, survival), and how they are combined (cost/effectiveness vs. effectiveness/cost) is unknown; also unclear at what level (per-transplant) it is computed before averaging.'), ('completed transplant', 'No mapping to a specific column value/status flag that identifies a transplant as "completed".'), ('medical urgency status', 'The set of status values (Status 1A, 1B, 2, etc.) and their urgency ordering are not mapped to a specific column or its ordering logic for "highest to lowest urgency".')]
+15:24:00 INFO Executing agent: question_extraction
+15:24:04 INFO Extracted question:
+  raw: I need to know if we're getting less bang for our buck on the really urgent transplants. Can you run a cost-effectiveness analysis for me? For every completed transplant, figure out the cost-effectiveness ratio (CER). Then, group the results by the patient's medical urgency status. Show me a table with the medical urgency status of patients (like Status 1A, Status 1B, Status 2, etc.) in rows, with columns displaying the average CER for completed transplants in each urgency category, along with the count of transplants. The results should be ordered from highest to lowest urgency priority.
+  sanitized: For each completed transplant, compute the cost-effectiveness ratio (CER), then group by patient medical urgency status (e.g., Status 1A, Status 1B, Status 2). Show average CER and transplant count per urgency status, ordered from highest to lowest urgency priority.
+  entities: ['completed transplant', 'cost-effectiveness ratio', 'patient medical urgency status', 'transplant cost', 'transplant count']
+  subject: transplant
+15:24:04 INFO Agent completed: question_extraction -> none
+15:24:04 INFO Executing agent: candidate_retrieval
+15:24:07 INFO Retrieved 9 ColumnAttributes, 0 CustomAnalysis, 0 SqlAttribute candidates, and subject Term id='fd259b6a-0df5-46cd-89be-6385d5281480' score=0.6911635330165391 (5 entities queried, subject='transplant')
+15:24:07 INFO Agent completed: candidate_retrieval -> none
+15:24:07 INFO Executing agent: coverage_grade
+15:24:07 INFO Coverage grade=0.8000 (4/5 entities covered), 3 candidates after distance filter (max_distance=0.650)
+15:24:07 INFO Agent completed: coverage_grade -> none
+15:24:07 INFO Clarify — extracted entities (normalized): ['completed transplant', 'cost-effectiveness', 'patient medical urgency status', 'transplant cost']
+15:24:09 INFO Clarify — coverage LLM raw response:
+cost-effectiveness ratio: YES ;; Cost-Effectiveness Thresholds  
+patient medical urgency status: YES ;; Medical Urgency Status  
+transplant cost: NO  
+completed transplant: NO
+15:24:09 DEBUG Clarify — term_to_entry_names: {'cost-effectiveness ratio': ['cost-effectiveness thresholds'], 'patient medical urgency status': ['medical urgency status']}
+15:24:09 DEBUG Clarify — lookup 'cost-effectiveness thresholds' → match='cost-effectiveness thresholds'
+15:24:09 DEBUG Clarify — lookup 'medical urgency status' → match='medical urgency status'
+15:24:09 INFO Clarify — external_kg covers: {'cost-effectiveness ratio', 'patient medical urgency status'}
+15:24:09 INFO Clarify — relevant_kg_text stored (812 chars): '- Cost-Effectiveness Thresholds\n  Description: Illustrates typical thresholds for considering a medical intervention as cost-effective.\n  Definition: A common benchmark for the Cost-Effectiveness Ratio (CER) in the US is $50,000 to $150,000 per Quality-Adjusted Life Year (QALY) gained. Interventions'
+15:24:09 INFO Clarify — KB covers: {'cost-effectiveness', 'patient medical urgency status'}
+15:24:11 INFO Clarify — collision auto-resolved: 'transplant count' kept '6d6d2673-4bde-4aa1-9997-c9f786ca5e41' (0.639); 'completed transplant' reassigned to 'a5151973-97ac-4610-a82f-2f44a8b73433' (0.735)
+15:24:11 INFO Clarify — unresolvable after VDB+KB: none
+15:24:11 INFO Clarify — resolved by VDB: [('patient medical urgency status', '0.480'), ('transplant cost', '0.584'), ('completed transplant', '0.735')]
+15:24:11 INFO Clarify — KB+VDB disambiguation note added for KB entry 'medical urgency status' (VDB score=0.480)
+15:24:11 INFO Clarify — persistent terms resolved by KB/VDB: {'cost-effectiveness', 'transplant cost', 'completed transplant', 'patient medical urgency status', 'transplant'}
+15:24:11 INFO Clarify — feeding to decide-LLM | relevant_knowledge (812 chars): '- Cost-Effectiveness Thresholds\n  Description: Illustrates typical thresholds for considering a medical intervention as cost-effective.\n  Definition: A common benchmark for the Cost-Effectiveness Ratio (CER) in the US is $50,000 to $150,000 per Quality-Adjusted Life Year (QALY) gained. Interventions'
+15:24:16 INFO Clarify — DECISION: ASK  (history len=1)
+15:24:16 INFO [turn 2 | 15.9s] DECISION: ASK
+  ┌─ [1;35mquestion:[0m [35mAs a metric, what is the exact formula for the cost-effectiveness ratio (CER) — specifically, which value represents cost and which represents effectiveness, and how are they combined?[0m
+15:24:28 INFO   └─ [1;35muser answer:[0m [35mFor the cost-effectiveness ratio (CER) in this analysis, the formula uses the estimated cost from the compatibility metrics as the numerator and quality of life (QoL) value multiplied by 8 as the denominator. Specifically:
+
+- **Cost** = the estimated cost value from the transplant compatibility data (extracted as a numeric value)
+- **Effectiveness** = the quality of life value from the risk evaluation, scaled by a factor of 8
+- **CER** = Cost / (QoL × 8)
+
+This means a lower CER indicates better cost-effectiveness (more quality of life gained per dollar spent), while a higher CER indicates less favorable cost-effectiveness. The analysis groups these ratios by patient medical urgency status to compare whether more urgent cases (like Status 1A) have different cost-effectiveness profiles than less urgent cases.[0m
+15:24:38 INFO Clarify — prune_resolved_terms: completed transplant: UNRESOLVED  
+transplant cost: UNRESOLVED
+15:24:39 INFO [organ_transplant_21] Merged question: I need to know if we're getting less bang for our buck on the really urgent transplants. Can you run a cost-effectiveness analysis for me? For every completed transplant, figure out the cost-effectiveness ratio (CER) using this formula: take the estimated cost value from the transplant compatibility data as the numerator, and divide it by the quality of life value from the risk evaluation multiplied by 8 (i.e., CER = Cost / (QoL × 8)). Then, group the results by the patient's medical urgency status. Show me a table with the medical urgency status of patients (like Status 1A, Status 1B, Status 2, etc.) in rows, with columns displaying the average CER for completed transplants in each urgency category, along with the count of transplants. The results should be ordered from highest to lowest urgency priority, where Status 1A has the highest priority, followed by Status 1B, Status 2, Status 3, and all other statuses last.
+15:24:39 INFO [organ_transplant_21] Incomplete formula terms: [('CER (quality of life value)', 'The "quality of life value from the risk evaluation" used as the effectiveness term (QoL × 8) is not mapped to any specific schema column; without this column CER = Cost/(QoL×8) cannot be computed.')]
+15:24:39 INFO Executing agent: question_extraction
+15:24:44 INFO Extracted question:
+  raw: I need to know if we're getting less bang for our buck on the really urgent transplants. Can you run a cost-effectiveness analysis for me? For every completed transplant, figure out the cost-effectiveness ratio (CER) using this formula: take the estimated cost value from the transplant compatibility data as the numerator, and divide it by the quality of life value from the risk evaluation multiplied by 8 (i.e., CER = Cost / (QoL × 8)). Then, group the results by the patient's medical urgency status. Show me a table with the medical urgency status of patients (like Status 1A, Status 1B, Status 2, etc.) in rows, with columns displaying the average CER for completed transplants in each urgency category, along with the count of transplants. The results should be ordered from highest to lowest urgency priority, where Status 1A has the highest priority, followed by Status 1B, Status 2, Status 3, and all other statuses last.
+  sanitized: For each completed transplant, compute cost-effectiveness ratio CER = estimated cost (from transplant compatibility data) / (quality of life value (from risk evaluation) × 8), then group by patient medical urgency status. Return average CER and transplant count per urgency status, ordered by urgency priority: Status 1A, Status 1B, Status 2, Status 3, then all others.
+  entities: ['completed transplant', 'transplant compatibility estimated cost', 'risk evaluation quality of life value', 'patient medical urgency status', 'Status 1A', 'Status 1B', 'Status 2', 'Status 3']
+  subject: completed transplant
+15:24:44 INFO Agent completed: question_extraction -> none
+15:24:44 INFO Executing agent: candidate_retrieval
+15:24:46 INFO Retrieved 11 ColumnAttributes, 0 CustomAnalysis, 1 SqlAttribute candidates, and subject Term id='fd259b6a-0df5-46cd-89be-6385d5281480' score=0.7220595295968721 (8 entities queried, subject='completed transplant')
+15:24:46 INFO Agent completed: candidate_retrieval -> none
+15:24:46 INFO Executing agent: coverage_grade
+15:24:47 INFO Coverage grade=0.8750 (7/8 entities covered), 4 candidates after distance filter (max_distance=0.650)
+15:24:47 INFO Agent completed: coverage_grade -> none
+15:24:47 INFO Clarify — extracted entities (normalized): ['completed transplant', 'patient medical urgency status', 'risk evaluation quality life', 'status 1a', 'status 1b', 'status 2', 'status 3', 'transplant compatibility estimated cost']
+15:24:47 INFO Clarify — ambiguous entities (2+ close VDB hits): {'risk evaluation quality of life value'}
+15:24:51 INFO Clarify — coverage LLM raw response:
+Status 1A: YES ;; Medical Urgency Status ;; Medical Urgency Tiers  
+completed transplant: NO  
+transplant compatibility estimated cost: YES ;; Resource Utilization Index  
+risk evaluation quality of life value: YES ;; Quality-Adjusted Life Year (QALY)  
+Status 1B: YES ;; Medical Urgency Status ;; Medical Urgency Tiers  
+Status 2: YES ;; Medical Urgency Status ;; Medical Urgency Tiers  
+patient medical urgency status: YES ;; Medical Urgency Status ;; Medical Urgency Tiers  
+Status 3: YES ;; Medical Urgency Status ;; Medical Urgency Tiers
+15:24:51 DEBUG Clarify — term_to_entry_names: {'status 1a': ['medical urgency status', 'medical urgency tiers'], 'transplant compatibility estimated cost': ['resource utilization index'], 'risk evaluation quality of life value': ['quality-adjusted life year (qaly)'], 'status 1b': ['medical urgency status', 'medical urgency tiers'], 'status 2': ['medical urgency status', 'medical urgency tiers'], 'patient medical urgency status': ['medical urgency status', 'medical urgency tiers'], 'status 3': ['medical urgency status', 'medical urgency tiers']}
+15:24:51 DEBUG Clarify — lookup 'medical urgency status' → match='medical urgency status'
+15:24:51 DEBUG Clarify — lookup 'medical urgency tiers' → match='medical urgency tiers'
+15:24:51 DEBUG Clarify — KB entry 'medical urgency tiers' has 1 child(ren)
+15:24:51 DEBUG Clarify — lookup 'resource utilization index' → match='resource utilization index'
+15:24:51 DEBUG Clarify — KB entry 'resource utilization index' has 1 child(ren)
+15:24:51 DEBUG Clarify — injected child KB entry: 'surgical risk score' (parent: 'resource utilization index')
+15:24:51 DEBUG Clarify — lookup 'quality-adjusted life year (qaly)' → match='quality-adjusted life year (qaly)'
+15:24:51 DEBUG Clarify — lookup 'medical urgency status' → match='medical urgency status'
+15:24:51 DEBUG Clarify — lookup 'medical urgency tiers' → match='medical urgency tiers'
+15:24:51 DEBUG Clarify — KB entry 'medical urgency tiers' has 1 child(ren)
+15:24:51 DEBUG Clarify — lookup 'medical urgency status' → match='medical urgency status'
+15:24:51 DEBUG Clarify — lookup 'medical urgency tiers' → match='medical urgency tiers'
+15:24:51 DEBUG Clarify — KB entry 'medical urgency tiers' has 1 child(ren)
+15:24:51 DEBUG Clarify — lookup 'medical urgency status' → match='medical urgency status'
+15:24:51 DEBUG Clarify — lookup 'medical urgency tiers' → match='medical urgency tiers'
+15:24:51 DEBUG Clarify — KB entry 'medical urgency tiers' has 1 child(ren)
+15:24:51 DEBUG Clarify — lookup 'medical urgency status' → match='medical urgency status'
+15:24:51 DEBUG Clarify — lookup 'medical urgency tiers' → match='medical urgency tiers'
+15:24:51 DEBUG Clarify — KB entry 'medical urgency tiers' has 1 child(ren)
+15:24:51 INFO Clarify — external_kg covers: {'status 1a', 'risk evaluation quality of life value', 'transplant compatibility estimated cost'}
+15:24:51 INFO Clarify — relevant_kg_text stored (1769 chars): '- Medical Urgency Status\n  Description: A classification system used to prioritize patients on the transplant waiting list based on their immediate need and risk of mortality.\n  Definition: A tiered system that reflects how critically ill a patient is. For calculation purposes, statuses are mapped t'
+15:24:51 INFO Clarify — KB covers: {'status 1a', 'risk evaluation quality life', 'transplant compatibility estimated cost'}
+15:24:51 INFO Clarify — collision: 'Status 1A' is already KB-covered (has a formula), dropping its VDB column claim to '705e3545-a5b8-42b8-b90f-09ef97f5b178' instead of resolving it
+15:24:51 INFO Clarify — collision resolved as shared composite column: ['Status 1B', 'Status 2', 'Status 3', 'patient medical urgency status'] -> Medical Urgency Status of Term Clinical Information
+15:24:51 INFO Clarify — unresolvable after VDB+KB: none
+15:24:51 INFO Clarify — resolved by VDB: [('status 1b', '0.480'), ('status 2', '0.480'), ('status 3', '0.480'), ('patient medical urgency status', '0.480'), ('transplant compatibility estimated cost', '0.488'), ('risk evaluation quality life', '0.558')]
+15:24:51 INFO Clarify — KB+VDB disambiguation note added for KB entry 'resource utilization index' (VDB score=0.488)
+15:24:51 INFO Clarify — persistent terms resolved by KB/VDB: {'status 1a', 'completed transplant', 'risk evaluation quality life', 'status 1b', 'status 2', 'status 3', 'patient medical urgency status', 'transplant compatibility estimated cost'}
+15:24:51 INFO Clarify — feeding to decide-LLM | relevant_knowledge (1769 chars): '- Medical Urgency Status\n  Description: A classification system used to prioritize patients on the transplant waiting list based on their immediate need and risk of mortality.\n  Definition: A tiered system that reflects how critically ill a patient is. For calculation purposes, statuses are mapped t'
+15:24:54 INFO Clarify — DECISION: PROCEED  (history len=2)
+15:24:57 INFO [organ_transplant_21] SQL gen — injected 1 shared-JSON-column note(s)
+15:24:57 INFO [organ_transplant_21] SQL gen — Evidence: Estimated_Cost_USD = Estimated Cost USD  
+Quality_Of_Life_Value = Quality Of Life Value  
+CER = Estimated_Cost_USD / (Quality_Of_Life_Value * 8)  
+Medical_Urgency_Status_Priority = CASE  
+  WHEN Medical_Urgency_Status = 'Status 1A' THEN 5  
+  WHEN Medical_Urgency_Status = 'Status 1B' THEN 4  
+  WHEN Medical_Urgency_Status = 'Status 2' THEN 3  
+  WHEN Medical_Urgency_Status = 'Status 3' THEN 2  
+Note: "Status 1B", "Status 2", "Status 3", "patient medical urgency status" both resolve to the same column (Medical Urgency Status of Term Clinical Information) — use the correct sub-key/field for each; they are not the same value.
+15:24:57 INFO 🔁 Node visits: {'question_extraction': 1} | Total visits this run: 1
+15:24:57 INFO Executing agent: question_extraction
+15:25:02 INFO Extracted question:
+  raw: I need to know if we're getting less bang for our buck on the really urgent transplants. Can you run a cost-effectiveness analysis for me? For every completed transplant, figure out the cost-effectiveness ratio (CER) using this formula: take the estimated cost value from the transplant compatibility data as the numerator, and divide it by the quality of life value from the risk evaluation multiplied by 8 (i.e., CER = Cost / (QoL × 8)). Then, group the results by the patient's medical urgency status. Show me a table with the medical urgency status of patients (like Status 1A, Status 1B, Status 2, etc.) in rows, with columns displaying the average CER for completed transplants in each urgency category, along with the count of transplants. The results should be ordered from highest to lowest urgency priority, where Status 1A has the highest priority, followed by Status 1B, Status 2, Status 3, and all other statuses last.
+
+Evidence: Estimated_Cost_USD = Estimated Cost USD  
+Quality_Of_Life_Value = Quality Of Life Value  
+CER = Estimated_Cost_USD / (Quality_Of_Life_Value * 8)  
+Medical_Urgency_Status_Priority = CASE  
+  WHEN Medical_Urgency_Status = 'Status 1A' THEN 5  
+  WHEN Medical_Urgency_Status = 'Status 1B' THEN 4  
+  WHEN Medical_Urgency_Status = 'Status 2' THEN 3  
+  WHEN Medical_Urgency_Status = 'Status 3' THEN 2  
+Note: "Status 1B", "Status 2", "Status 3", "patient medical urgency status" both resolve to the same column (Medical Urgency Status of Term Clinical Information) — use the correct sub-key/field for each; they are not the same value.
+  sanitized: For each completed transplant, compute the cost-effectiveness ratio (CER = Estimated Cost USD from transplant compatibility data / (Quality Of Life Value from risk evaluation × 8)), then group by patient medical urgency status and show average CER and transplant count per urgency status, ordered by urgency priority (Status 1A, Status 1B, Status 2, Status 3, others last).
+  entities: ['completed transplant', 'transplant compatibility Estimated Cost USD', 'risk evaluation Quality Of Life Value', 'patient Medical Urgency Status']
+  subject: transplant
+15:25:02 INFO Agent completed: question_extraction -> none
+15:25:02 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1} | Total visits this run: 2
+15:25:02 INFO Executing agent: candidate_retrieval
+15:25:06 INFO Retrieved 8 ColumnAttributes, 0 CustomAnalysis, 1 SqlAttribute candidates, and subject Term id='fd259b6a-0df5-46cd-89be-6385d5281480' score=0.6911635330165391 (4 entities queried, subject='transplant')
+15:25:06 INFO Agent completed: candidate_retrieval -> none
+15:25:06 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1} | Total visits this run: 3
+15:25:06 INFO Executing agent: candidate_preparation
+15:25:06 INFO Retrieved 0 custom analyses
+15:25:06 INFO Found 0 relevant queries from custom analyses
+15:25:06 INFO Fetched Neo4j context for 8/8 column attributes
+15:25:06 INFO Fetched synonyms for 0 term(s)
+15:25:11 INFO Anchor column identified: 705e3545-a5b8-42b8-b90f-09ef97f5b178 (The question groups results by patient medical urgency status and orders by urgency priority. While the CER computation involves cost and quality of life values, the primary grouping dimension and focus of the analytical output is the medical urgency status, which structures the entire result set.)
+15:25:11 INFO Anchor attribute id: 705e3545-a5b8-42b8-b90f-09ef97f5b178
+15:25:11 INFO Join path to Quality Of Life Value (4d47db9b-a0da-4ce9-a345-17829e5d8d2b): 0 hop(s)
+15:25:11 INFO Join path to Smoking Status and Lung Condition (1184e164-e30e-4d1c-b8ad-d0c9a09916c0): 0 hop(s)
+15:25:11 INFO Join path to Cost Per Quality Adjusted Life Year (e4f0f1cc-2dfd-4628-85f3-381b7ef88560): 0 hop(s)
+15:25:11 INFO Join path to Transport Duration Minutes (e9f3014c-37bf-4fb7-9492-61c098dce3fc): 0 hop(s)
+15:25:11 INFO Join path to Match Status (a5151973-97ac-4610-a82f-2f44a8b73433): 0 hop(s)
+15:25:11 INFO Join path to Estimated Cost USD (c1e04216-9d7c-4303-9985-fdfcd9a412b2): 0 hop(s)
+15:25:11 INFO Join path to Previous Transplant Count (6d6d2673-4bde-4aa1-9997-c9f786ca5e41): 0 hop(s)
+15:25:11 INFO Found 6 hub-sibling table(s) via anchor's own FK (hub included): ['recipients_demographics', 'logistics', 'transplant_matching', 'recipients_immunology', 'risk_evaluation', 'data_source_and_quality'] (3 sibling(s) truncated by cap)
+15:25:11 INFO Tables from candidates: ['compatibility_metrics', 'clinical', 'risk_evaluation', 'medical_history', 'transplant_matching']
+15:25:12 INFO Found 7 relevant tables (after dedupe, capped at 20): ['public.compatibility_metrics', 'public.clinical', 'public.risk_evaluation', 'public.medical_history', 'public.transplant_matching', 'public.logistics', 'public.recipients_immunology']
+15:25:12 INFO Back-filled sample_values for 2/2 table(s)
+15:25:12 INFO Fetched 1/1 SqlAttribute details from Neo4j
+15:25:12 INFO Added 0 table(s) from SqlAttribute SQL references: ['risk_evaluation']
+15:25:12 INFO Added 3 table(s) from subject Term 'Transplant Matching': ['transplant_matching', 'logistics', 'risk_evaluation', 'data_source_and_quality', 'allocation_details', 'compatibility_metrics', 'administrative_and_review']
+15:25:12 INFO Relevance filter join_paths_section: ['clinical <-> data_source_and_quality', 'clinical <-> logistics', 'clinical <-> recipients_demographics', 'clinical <-> recipients_immunology', 'clinical <-> risk_evaluation', 'clinical <-> transplant_matching']
+15:25:21 INFO Relevance filter reasoning: The query needs Estimated Cost USD (transplant compatibility data, likely transplant_matching), Quality Of Life Value (risk_evaluation), and medical urgency status (likely clinical), with clinical bridging to risk_evaluation and transplant_matching. Tables like compatibility_metrics, medical_history, logistics, recipients_immunology, data_source_and_quality, allocation_details, and administrative_and_review are not referenced.
+15:25:21 INFO Relevance filter removed tables: ['public.compatibility_metrics', 'public.medical_history', 'public.logistics', 'public.recipients_immunology', 'public.data_source_and_quality', 'public.allocation_details', 'public.administrative_and_review']
+15:25:21 INFO Relevance filter join-chain outcome — preserved: ['clinical <-> risk_evaluation', 'clinical <-> transplant_matching'] | broken (a table on this chain was removed, before §5b reconciliation restores it): ['clinical <-> data_source_and_quality', 'clinical <-> logistics', 'clinical <-> recipients_demographics', 'clinical <-> recipients_immunology']
+15:25:21 INFO Kept 3 relevant tables (after relevance filter): ['public.clinical', 'public.risk_evaluation', 'public.transplant_matching']
+15:25:21 INFO Force-included 4 table(s) after relevance filter (deterministic reconciliation, not the LLM's choice): ['logistics', 'recipients_demographics', 'data_source_and_quality', 'recipients_immunology']
+15:25:21 INFO Final 7 table(s) reaching SQL generation: ['public.clinical', 'public.risk_evaluation', 'public.transplant_matching', 'public.logistics', 'public.recipients_demographics', 'public.data_source_and_quality', 'public.recipients_immunology']
+15:25:21 INFO Agent completed: candidate_preparation -> none
+15:25:21 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1} | Total visits this run: 4
+15:25:21 INFO Executing agent: sql_from_semantic
+15:25:21 INFO Semantic context: anchor=Medical Urgency Status, join_paths=8, custom_analyses=0, sql_attributes=1, fallback_tables=7
+15:25:21 INFO Using 0 similar questions from conversations.
+15:26:00 INFO LLM response generated: This report calculates a cost-effectiveness ratio for every completed transplant, dividing the estim...
+15:26:00 INFO Agent completed: sql_from_semantic -> constructable
+15:26:00 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 1} | Total visits this run: 5
+15:26:00 INFO Executing agent: sql_validation
+15:26:00 INFO time took to get all data from graph: 0.039649009704589844
+15:26:01 INFO total time it took to create all schemas nodes: 0.723823070526123
+15:26:01 INFO total time for get_schemas_by_ids(): 0.7845339775085449
+15:26:01 INFO SQL validation passed, columns: 0
+15:26:01 INFO Agent completed: sql_validation -> valid_sql
+15:26:01 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 1, 'validate_intent': 1} | Total visits this run: 6
+15:26:01 INFO Executing agent: intent_validation
+15:26:03 INFO SQL validation passed (no critical issues)
+15:26:03 INFO Agent completed: intent_validation -> intent_valid
+15:26:03 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 1, 'validate_intent': 1, 'precheck_jsonb_path': 1} | Total visits this run: 7
+15:26:03 INFO Executing agent: jsonb_path_check
+15:26:03 INFO Agent completed: jsonb_path_check -> valid_sql
+15:26:03 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 1, 'validate_intent': 1, 'precheck_jsonb_path': 1, 'execute_sql_query': 1} | Total visits this run: 8
+15:26:03 INFO Executing agent: sql_execution
+15:26:03 INFO Agent completed: sql_execution -> valid_sql
+15:26:03 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 1, 'validate_intent': 1, 'precheck_jsonb_path': 1, 'execute_sql_query': 1, 'check_empty_like_result': 1} | Total visits this run: 9
+15:26:03 INFO Executing agent: empty_like_result_check
+15:26:03 INFO Null JSONB check: aliases=none
+15:26:03 INFO SQL result is non-empty — skipping empty LIKE check
+15:26:03 INFO Agent completed: empty_like_result_check -> valid_sql
+15:26:03 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 1, 'validate_intent': 1, 'precheck_jsonb_path': 1, 'execute_sql_query': 1, 'check_empty_like_result': 1, 'check_value_repair': 1} | Total visits this run: 10
+15:26:03 INFO Executing agent: empty_result_value_repair
+15:26:03 INFO Agent completed: empty_result_value_repair -> valid_sql
+15:26:03 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 1, 'validate_intent': 1, 'precheck_jsonb_path': 1, 'execute_sql_query': 1, 'check_empty_like_result': 1, 'check_value_repair': 1, 'format_and_respond': 1} | Total visits this run: 11
+15:26:03 INFO Executing agent: calculation_response
+15:26:03 INFO Calculation response prepared and returned
+15:26:03 INFO Agent completed: calculation_response -> none
+15:26:03 INFO [turn 3 | 84.0s] DECISION: SUBMIT SQL  (history len=2/5)
+  ┌─ [1msql:[0m [1;35mSELECT c.med_urgency AS medical_urgency_status,
+       AVG(CAST(SPLIT_PART(r.cost_qaly, ' ', 1) AS numeric) / NULLIF(r.qol_val * 8, 0)) AS avg_cer,
+       COUNT(*) AS transplant_count
+FROM public.clinical AS c
+JOIN public.risk_evaluation AS r ON c.clin_recip_registry = r.recip_ref_reg
+JOIN public.transplant_matching AS t ON c.clin_recip_registry = t.recip_ref_reg
+WHERE t.match_status = 'Completed'
+GROUP BY c.med_urgency
+ORDER BY CASE
+    WHEN c.med_urgency = 'Status 1A' THEN 5
+    WHEN c.med_urgency = 'Status 1B' THEN 4
+    WHEN c.med_urgency = 'Status 2' THEN 3
+    WHEN c.med_urgency = 'Status 3' THEN 2
+    ELSE 1
+  END DESC;[0m
+15:26:05 INFO   └─ result: reward=0.00  phase_completed=None  msg=SQL failed Phase 1. Your SQL is not correct.
+15:26:05 INFO [done] 3 turns in 151.7s | reward=0.00
+15:26:05 INFO Debug seed: wrong results — injecting targeted benchmark hints
+15:26:07 INFO [organ_transplant_21] SQL gen — injected 1 shared-JSON-column note(s)
+15:26:07 INFO [organ_transplant_21] SQL gen — Evidence: Estimated_Cost_USD = Estimated Cost USD
+Quality_Of_Life_Value = Quality Of Life Value
+CER = Estimated_Cost_USD / (Quality_Of_Life_Value * 8)
+Medical_Urgency_Status = Medical Urgency Status
+Medical_Urgency_Priority = CASE Medical_Urgency_Status
+Note: "Status 1B", "Status 2", "Status 3", "patient medical urgency status" both resolve to the same column (Medical Urgency Status of Term Clinical Information) — use the correct sub-key/field for each; they are not the same value.
+15:26:08 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 1, 'validate_intent': 1, 'precheck_jsonb_path': 1, 'execute_sql_query': 1, 'check_empty_like_result': 1, 'check_value_repair': 1, 'format_and_respond': 1, 'reconstruct_sql': 1} | Total visits this run: 12
+15:26:08 INFO Executing agent: sql_reconstruction
+15:26:17 INFO Error analysis: fixable — The required data all exists in the available tables (clinical for medical urgency status, transplant_matching for estimated cost / match status, risk
+15:26:17 INFO known_columns_section (527 chars): '\nKNOWN COLUMN MAPPINGS (already resolved — use these exact names/casing, do not guess):\n  Medical Urgency Status: clinical.med_urgency\n  Quality Of Life Value: risk_evaluation.qol_val\n  Smoking Status and Lung Condition: medical_history.smk_cond\n  Cost Per Quality Adjusted Life Year: risk_evaluation.cost_qaly\n  Transport Duration Minutes: compatibility_metrics.exp_time\n  Match Status: transplant_matching.match_status\n  Estimated Cost USD: compatibility_metrics.cost_est\n  Previous Transplant Count: clinical.prev_tx_count\n\n'
+15:26:29 INFO SQL reconstructed: SELECT c.med_urgency AS medical_urgency_status,
+       AVG(cm.cost_est / NULLIF(r.qol_val * 8, 0)) AS avg_cer,
+       COUNT(*) AS transplant_count
+FROM public.clinical AS c
+JOIN public.transplant_matching AS t ON c.clin_recip_registry = t.recip_ref_reg
+JOIN public.risk_evaluation AS r ON t.match_rec
+15:26:29 INFO Reconstruction explanation: This analysis computes the cost-effectiveness ratio for every completed transplant, dividing the Est...
+15:26:29 INFO Agent completed: sql_reconstruction -> none
+15:26:29 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 2, 'validate_intent': 1, 'precheck_jsonb_path': 1, 'execute_sql_query': 1, 'check_empty_like_result': 1, 'check_value_repair': 1, 'format_and_respond': 1, 'reconstruct_sql': 1} | Total visits this run: 13
+15:26:29 INFO Executing agent: sql_validation
+15:26:29 INFO time took to get all data from graph: 0.07486319541931152
+15:26:30 INFO total time it took to create all schemas nodes: 0.6588950157165527
+15:26:30 INFO total time for get_schemas_by_ids(): 0.7464911937713623
+15:26:30 INFO SQL validation passed, columns: 0
+15:26:30 INFO Agent completed: sql_validation -> valid_sql
+15:26:30 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 2, 'validate_intent': 2, 'precheck_jsonb_path': 1, 'execute_sql_query': 1, 'check_empty_like_result': 1, 'check_value_repair': 1, 'format_and_respond': 1, 'reconstruct_sql': 1} | Total visits this run: 14
+15:26:30 INFO Executing agent: intent_validation
+15:26:35 INFO SQL validation passed (no critical issues)
+15:26:35 INFO Agent completed: intent_validation -> intent_valid
+15:26:35 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 2, 'validate_intent': 2, 'precheck_jsonb_path': 2, 'execute_sql_query': 1, 'check_empty_like_result': 1, 'check_value_repair': 1, 'format_and_respond': 1, 'reconstruct_sql': 1} | Total visits this run: 15
+15:26:35 INFO Executing agent: jsonb_path_check
+15:26:35 INFO Agent completed: jsonb_path_check -> valid_sql
+15:26:35 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 2, 'validate_intent': 2, 'precheck_jsonb_path': 2, 'execute_sql_query': 2, 'check_empty_like_result': 1, 'check_value_repair': 1, 'format_and_respond': 1, 'reconstruct_sql': 1} | Total visits this run: 16
+15:26:35 INFO Executing agent: sql_execution
+15:26:35 ERROR SQL execution failed (injected connector)
+Traceback (most recent call last):
+  File "/Users/ariellegeva/Desktop/GSF_and_Ontology/GSF/gsf/retrieval/text_to_sql/agents/sql_execution.py", line 51, in _run_sql
+    df = connector.execute(sql)
+         ^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/ariellegeva/Desktop/GSF_and_Ontology/GSF/gsf/connectors/postgres.py", line 67, in execute
+    cur.execute(sql, parameters)
+  File "/Users/ariellegeva/Desktop/GSF_and_Ontology/ontology-sql-eval/.venv/lib/python3.12/site-packages/psycopg/cursor.py", line 117, in execute
+    raise ex.with_traceback(None)
+psycopg.errors.UndefinedColumn: column cm.comp_match_registry does not exist
+LINE 7: ...atibility_metrics AS cm ON t.match_rec_registry = cm.comp_ma...
+                                                             ^
+15:26:35 INFO SQL execution failed
+  SQL: SELECT c.med_urgency AS medical_urgency_status,
+       AVG(cm.cost_est / NULLIF(r.qol_val * 8, 0)) AS avg_cer,
+       COUNT(*) AS transplant_count
+FROM public.clinical AS c
+JOIN public.transplant_matching AS t ON c.clin_recip_registry = t.recip_ref_reg
+JOIN public.risk_evaluation AS r ON t.match_rec
+  Error: column cm.comp_match_registry does not exist
+LINE 7: ...atibility_metrics AS cm ON t.match_rec_registry = cm.comp_ma...
+                                                             ^
+15:26:35 INFO Agent completed: sql_execution -> invalid_sql
+15:26:35 INFO Construct sql attempt: 0
+15:26:35 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 2, 'validate_intent': 2, 'precheck_jsonb_path': 2, 'execute_sql_query': 2, 'check_empty_like_result': 1, 'check_value_repair': 1, 'format_and_respond': 1, 'reconstruct_sql': 2} | Total visits this run: 17
+15:26:35 INFO Executing agent: sql_reconstruction
+15:26:35 INFO History attempt 1 truncated for prompt (sql=634 chars, error=993 chars)
+15:26:35 INFO known_columns_section (527 chars): '\nKNOWN COLUMN MAPPINGS (already resolved — use these exact names/casing, do not guess):\n  Medical Urgency Status: clinical.med_urgency\n  Quality Of Life Value: risk_evaluation.qol_val\n  Smoking Status and Lung Condition: medical_history.smk_cond\n  Cost Per Quality Adjusted Life Year: risk_evaluation.cost_qaly\n  Transport Duration Minutes: compatibility_metrics.exp_time\n  Match Status: transplant_matching.match_status\n  Estimated Cost USD: compatibility_metrics.cost_est\n  Previous Transplant Count: clinical.prev_tx_count\n\n'
+15:26:48 INFO SQL reconstructed: SELECT c.med_urgency AS medical_urgency_status,
+       AVG(CAST(SPLIT_PART(r.cost_qaly, ' ', 1) AS numeric) / NULLIF(r.qol_val * 8, 0)) AS avg_cer,
+       COUNT(*) AS transplant_count
+FROM public.clinical AS c
+JOIN public.transplant_matching AS t ON c.clin_recip_registry = t.recip_ref_reg
+JOIN publi
+15:26:48 INFO Reconstruction explanation: This analysis computes the cost-effectiveness ratio for every completed transplant, where the ratio ...
+15:26:48 INFO Agent completed: sql_reconstruction -> none
+15:26:48 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 3, 'validate_intent': 2, 'precheck_jsonb_path': 2, 'execute_sql_query': 2, 'check_empty_like_result': 1, 'check_value_repair': 1, 'format_and_respond': 1, 'reconstruct_sql': 2} | Total visits this run: 18
+15:26:48 INFO Executing agent: sql_validation
+15:26:48 INFO time took to get all data from graph: 0.027534008026123047
+15:26:48 INFO total time it took to create all schemas nodes: 0.5470259189605713
+15:26:48 INFO total time for get_schemas_by_ids(): 0.5846438407897949
+15:26:48 INFO SQL validation passed, columns: 0
+15:26:48 INFO Agent completed: sql_validation -> valid_sql
+15:26:48 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 3, 'validate_intent': 3, 'precheck_jsonb_path': 2, 'execute_sql_query': 2, 'check_empty_like_result': 1, 'check_value_repair': 1, 'format_and_respond': 1, 'reconstruct_sql': 2} | Total visits this run: 19
+15:26:48 INFO Executing agent: intent_validation
+15:26:51 INFO SQL validation passed (no critical issues)
+15:26:51 INFO Agent completed: intent_validation -> intent_valid
+15:26:51 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 3, 'validate_intent': 3, 'precheck_jsonb_path': 3, 'execute_sql_query': 2, 'check_empty_like_result': 1, 'check_value_repair': 1, 'format_and_respond': 1, 'reconstruct_sql': 2} | Total visits this run: 20
+15:26:51 INFO Executing agent: jsonb_path_check
+15:26:51 INFO Agent completed: jsonb_path_check -> valid_sql
+15:26:51 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 3, 'validate_intent': 3, 'precheck_jsonb_path': 3, 'execute_sql_query': 3, 'check_empty_like_result': 1, 'check_value_repair': 1, 'format_and_respond': 1, 'reconstruct_sql': 2} | Total visits this run: 21
+15:26:51 INFO Executing agent: sql_execution
+15:26:51 INFO Agent completed: sql_execution -> valid_sql
+15:26:51 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 3, 'validate_intent': 3, 'precheck_jsonb_path': 3, 'execute_sql_query': 3, 'check_empty_like_result': 2, 'check_value_repair': 1, 'format_and_respond': 1, 'reconstruct_sql': 2} | Total visits this run: 22
+15:26:51 INFO Executing agent: empty_like_result_check
+15:26:51 INFO Null JSONB check: aliases=none
+15:26:51 INFO SQL result is non-empty — skipping empty LIKE check
+15:26:51 INFO Agent completed: empty_like_result_check -> valid_sql
+15:26:51 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 3, 'validate_intent': 3, 'precheck_jsonb_path': 3, 'execute_sql_query': 3, 'check_empty_like_result': 2, 'check_value_repair': 2, 'format_and_respond': 1, 'reconstruct_sql': 2} | Total visits this run: 23
+15:26:51 INFO Executing agent: empty_result_value_repair
+15:26:51 INFO Agent completed: empty_result_value_repair -> valid_sql
+15:26:51 INFO 🔁 Node visits: {'question_extraction': 1, 'retrieve_candidates': 1, 'prepare_candidates': 1, 'construct_sql_from_candidates': 1, 'validate_sql_query': 3, 'validate_intent': 3, 'precheck_jsonb_path': 3, 'execute_sql_query': 3, 'check_empty_like_result': 2, 'check_value_repair': 2, 'format_and_respond': 2, 'reconstruct_sql': 2} | Total visits this run: 24
+15:26:51 INFO Executing agent: calculation_response
+15:26:51 INFO Calculation response prepared and returned
+15:26:51 INFO Agent completed: calculation_response -> none
+15:26:51 INFO [turn 1 | 45.9s] DECISION: SUBMIT SQL  (history len=2/5)
+  ┌─ [1msql:[0m [1;35mSELECT c.med_urgency AS medical_urgency_status,
+       AVG(CAST(SPLIT_PART(r.cost_qaly, ' ', 1) AS numeric) / NULLIF(r.qol_val * 8, 0)) AS avg_cer,
+       COUNT(*) AS transplant_count
+FROM public.clinical AS c
+JOIN public.transplant_matching AS t ON c.clin_recip_registry = t.recip_ref_reg
+JOIN public.risk_evaluation AS r ON t.match_rec_registry = r.risk_eval_registry
+WHERE t.match_status = 'Completed'
+GROUP BY c.med_urgency
+ORDER BY CASE
+    WHEN c.med_urgency = 'Status 1A' THEN 5
+    WHEN c.med_urgency = 'Status 1B' THEN 4
+    WHEN c.med_urgency = 'Status 2' THEN 3
+    WHEN c.med_urgency = 'Status 3' THEN 2
+    ELSE 1
+  END DESC;[0m
+15:26:52 INFO   └─ result: reward=0.00  phase_completed=None  msg=SQL failed Phase 1. Your SQL is not correct.
+15:26:52 INFO [done] 1 turns in 47.2s | reward=0.00
+15:26:53 INFO [session] labor_certification_applications_18 | init db=labor_certification_applications max_turn=6
+15:26:53 INFO [labor_certification_applications_18] Query: [1;35mAnalyze the wage difference across industries. Show me the top industries and their details.[0m
+15:26:53 INFO [labor_certification_applications_18] OutputType check → None (will ask)
+15:26:53 INFO [turn 1 | 0.0s] DECISION: ASK
+  ┌─ [1;35mquestion:[0m [35mWhat type of output are you looking for?[0m
+15:27:01 INFO   └─ [1;35muser answer:[0m [35mI'm looking for a summary table that shows the industry information along with relevant metrics. Specifically, I want to see the NAICS code for each industry, the number of applications in that industry, and the average wage differential for each industry. The results should be sorted to highlight the industries with the highest average wage differentials, and I'd like to focus on just the top 5 industries.[0m
