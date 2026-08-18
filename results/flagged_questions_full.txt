@@ -3,7 +3,8 @@ SQL GEN FAILURES — cold_chain_pharma_compliance_3, mental_health_15,
                    labor_certification_applications_18, virtual_idol_13,
                    virtual_idol_7, organ_transplant_21, insider_trading_9,
                    households_20, disaster_relief_12, reverse_logistics_1,
-                   exchange_traded_funds_19
+                   exchange_traded_funds_19, archeology_scan_2, virtual_idol_5,
+                   museum_artifact_15, cybermarket_pattern_1
 (Clarification was correct or blocked; failure is wrong schema/join/column guess)
 
   PURE SQL GEN ONLY (not also a clarification/evidence failure):
@@ -68,10 +69,26 @@ exchange_traded_funds_19  Follow-up reused a low-precision flat real-typed
                   rows/order/join were correct, but float4 truncation on
                   billion-scale sums broke the exact-value match.
 
+-- Defaults to INNER JOIN when GT needs LEFT JOIN --
+archeology_scan_2, virtual_idol_5, museum_artifact_15  GT LEFT JOINs a
+                  supplementary/metric table so primary-entity rows without a
+                  match still appear; SQL gen used INNER JOIN, silently
+                  dropping those rows. Not ambiguity-flagged — 3/4 sampled
+                  cases with a GT LEFT JOIN showed this. Candidate for a
+                  prompt nudge (optional join → LEFT JOIN).
+
+-- SQL reconstruction invents unrequested filter under debug pressure --
+cybermarket_pattern_1  On the Phase-1-debug retry, reconstruction added
+                  WHERE PlatformType = 'Marketplace' — not in GT, not asked
+                  for. Also picked PlatName as the marketplace identifier
+                  instead of GT's PlatCode (schema-linking miss). Neither
+                  related to the evidence bug below (already fixed).
+
 ================================================================================
 EVIDENCE-GENERATION FAILURES — hulushows_12, insider_trading_3,
                    disaster_relief_4, exchange_traded_funds_7,
-                   reverse_logistics_13, organ_transplant_1
+                   reverse_logistics_13, organ_transplant_1,
+                   cybermarket_pattern_1 (FIXED)
 (retrieval found the concept but evidence-gen dropped or fabricated it)
 ================================================================================
 
@@ -119,7 +136,25 @@ organ_transplant_1  A masked CASE label string (from deleted knowledge) never
 
 -- NULL trouble --
 cross_border_14  missing WHERE success_pct IS NOT NULL on p2.
-  
+
+-- KB+VDB disambiguation only checked same-turn (FIXED) --
+cybermarket_pattern_1  KB confirmed "event" turn 2, VDB only surfaced a
+                  schema hit for it turn 3 — the disambiguation-note check
+                  required both in one turn's snapshot, so it never fired.
+                  Evidence trusted the KB snippet's column name verbatim
+                  ("Linked_Events_Count", from an unrelated cluster-analysis
+                  KB entry matched on lexical overlap) and SQL gen joined out
+                  to a wrong table for it instead of the correct sibling key
+                  already on the base table. Fixed: KB-covered/VDB-hit norms
+                  now accumulate across turns in session state, checked by
+                  membership instead of same-turn co-occurrence; also fixed a
+                  second bug where the entry-lookup dict was keyed by raw
+                  LLM phrasing instead of the normalized term. Reset at
+                  Phase 1→2 handoff. Re-ran the instance: evidence now
+                  correctly uses security_event_count, no more wrong-table
+                  join — confirmed fixed at that layer (instance still fails
+                  P1 for unrelated reasons, see above).
+
 
 ================================================================================
 NULL-HANDLING FAILURES — robot_fault_prediction_10, disaster_relief_8
