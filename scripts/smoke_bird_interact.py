@@ -42,7 +42,7 @@ DEFAULT_DATA = ONTOLOGY_DIR / "datasets" / "bird_interact" / "bird_interact_data
 USER_SIM_URL = "http://127.0.0.1:6001"
 DB_ENV_URL   = "http://127.0.0.1:6002"
 
-PATIENCE = 2
+PATIENCE = 3
 
 
 def load_env(dotenv_path: Path) -> dict[str, str]:

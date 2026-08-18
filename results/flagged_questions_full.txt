@@ -117,6 +117,10 @@ organ_transplant_1  A masked CASE label string (from deleted knowledge) never
                   of the exact required string. Separately sorted by ID instead
                   of GT's column — an unrelated plain SQL-gen miss.
 
+-- NULL trouble --
+cross_border_14  missing WHERE success_pct IS NOT NULL on p2.
+  
+
 ================================================================================
 NULL-HANDLING FAILURES — robot_fault_prediction_10, disaster_relief_8
 (No pipeline node verifies NULL-guard correctness in CASE/ratio logic; revisit
@@ -137,9 +141,23 @@ disaster_relief_8  GT wraps each formula component in COALESCE so a missing
                   tracking if it recurs elsewhere.
 
 ================================================================================
-WEIRD / EDGE CASES — crypto_exchange, fake_account_16
+WEIRD / EDGE CASES — crypto_exchange, fake_account_16, cross_border_14,
+                   exchange_traded_funds_19
 (Not a fix target yet — logging so we recognize the pattern if it recurs)
 ================================================================================
+
+-- BROKEN GT --
+households_1      This computes total vehicle count in the single region with the highest comfort index — nothing about "bathroom ratio per area" survives past the CTE; it's answering a totally different question. 
+
+
+-- merge_follow_up drifts on debug retry --
+cross_border_14, exchange_traded_funds_19  Debug retry re-runs
+                  _merge_follow_up_question with no memory of the first
+                  pass; both times it fabricated a scope change absent from
+                  the raw follow-up (added a join the user excluded / drop
+                  a join the 1st pass had right). Not confirmed as either
+                  instance's real scoring failure (see NULL guard / float
+                  precision causes above) — watching for recurrence.
 
 fake_account_16   User sim answered two prior formula-clarification questions
                   (overall ARS, PCI) but refused an equally-scoped third

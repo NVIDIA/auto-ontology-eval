@@ -50,7 +50,7 @@ RESULTS_DIR  = ONTOLOGY_DIR / "results"
 USER_SIM_URL = "http://127.0.0.1:6001"
 DB_ENV_URL   = "http://127.0.0.1:6002"
 
-PATIENCE = 2
+PATIENCE = 3
 
 CSV_COLUMNS = [
     "instance_id", "dataset", "database", "max_turn", "turns_used",
