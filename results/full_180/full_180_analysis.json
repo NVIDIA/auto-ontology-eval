@@ -1,0 +1,1997 @@
+{
+  "source": "results/full_180/full_180.jsonl",
+  "dataset": "full",
+  "total_tasks": 155.37369203567505,
+  "n_errors": 0,
+  "n_valid": 142,
+  "phase1_pass": 36,
+  "phase2_pass": 21,
+  "full_pass": 21,
+  "sum_rewards": 30.5,
+  "avg_reward": 0.2148,
+  "score_vs_completed_naturally_pct": 21.48,
+  "score_vs_query_tasks_pct": 7.44,
+  "score_vs_full_benchmark_pct": 5.08,
+  "n_query_in_dataset": 410,
+  "n_completed_naturally": 142,
+  "n_not_completed_naturally": 0,
+  "pct_not_completed_naturally": 0.0,
+  "score_distribution": {
+    "1.0": 17,
+    "0.9": 2,
+    "0.8": 2,
+    "0.7": 13,
+    "0.5": 2,
+    "0.0": 106,
+    "other": 0
+  },
+  "ambiguity_coverage_by_instance": [
+    {
+      "instance_id": "disaster_relief_3",
+      "our_identified_ambiguities": 4,
+      "dataset_meaningful_ambiguities": 4,
+      "over_under_identification": 0,
+      "we_flagged_not_in_dataset": [
+        "major medical incident disaster",
+        "disaster"
+      ],
+      "dataset_missed_by_us": [
+        "major medical incidents",
+        "Medical Support Ratio (MSR)"
+      ]
+    },
+    {
+      "instance_id": "sports_events_3",
+      "our_identified_ambiguities": 6,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 3,
+      "we_flagged_not_in_dataset": [
+        "race started",
+        "race finished"
+      ],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "insider_trading_16",
+      "our_identified_ambiguities": 5,
+      "dataset_meaningful_ambiguities": 2,
+      "over_under_identification": 3,
+      "we_flagged_not_in_dataset": [
+        "aggressive risk",
+        "balance turnover",
+        "leverage"
+      ],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "planets_data_5",
+      "our_identified_ambiguities": 3,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 0,
+      "we_flagged_not_in_dataset": [
+        "hostplname"
+      ],
+      "dataset_missed_by_us": [
+        "most dense",
+        "Stellar Density"
+      ]
+    },
+    {
+      "instance_id": "cybermarket_pattern_8",
+      "our_identified_ambiguities": 3,
+      "dataset_meaningful_ambiguities": 2,
+      "over_under_identification": 1,
+      "we_flagged_not_in_dataset": [
+        "route complexity",
+        "transaction"
+      ],
+      "dataset_missed_by_us": [
+        "counts"
+      ]
+    },
+    {
+      "instance_id": "museum_artifact_14",
+      "our_identified_ambiguities": 4,
+      "dataset_meaningful_ambiguities": 4,
+      "over_under_identification": 0,
+      "we_flagged_not_in_dataset": [
+        "dynasty"
+      ],
+      "dataset_missed_by_us": [
+        "summary"
+      ]
+    },
+    {
+      "instance_id": "insider_trading_11",
+      "our_identified_ambiguities": 4,
+      "dataset_meaningful_ambiguities": 2,
+      "over_under_identification": 2,
+      "we_flagged_not_in_dataset": [
+        "trade",
+        "omi",
+        "tr94368",
+        "trader"
+      ],
+      "dataset_missed_by_us": [
+        "how much they fiddle with their orders",
+        "statistical summary"
+      ]
+    },
+    {
+      "instance_id": "cross_border_7",
+      "our_identified_ambiguities": 7,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 4,
+      "we_flagged_not_in_dataset": [
+        "portability request",
+        "rectification request",
+        "access request",
+        "deletion request"
+      ],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "disaster_relief_11",
+      "our_identified_ambiguities": 4,
+      "dataset_meaningful_ambiguities": 1,
+      "over_under_identification": 3,
+      "we_flagged_not_in_dataset": [
+        "people affected",
+        "mission",
+        "completed mission",
+        "mission cost"
+      ],
+      "dataset_missed_by_us": [
+        "overall efficiency"
+      ]
+    },
+    {
+      "instance_id": "cross_border_17",
+      "our_identified_ambiguities": 6,
+      "dataset_meaningful_ambiguities": 4,
+      "over_under_identification": 2,
+      "we_flagged_not_in_dataset": [
+        "response time in days",
+        "audit record",
+        "portability request",
+        "rectification request",
+        "access request",
+        "deletion request"
+      ],
+      "dataset_missed_by_us": [
+        "subject request impact score",
+        "request types",
+        "handle them",
+        "Data Subject Request Pressure (DSRP)"
+      ]
+    },
+    {
+      "instance_id": "fake_account_9",
+      "our_identified_ambiguities": 3,
+      "dataset_meaningful_ambiguities": 2,
+      "over_under_identification": 1,
+      "we_flagged_not_in_dataset": [
+        "login country",
+        "vpn usage"
+      ],
+      "dataset_missed_by_us": [
+        "the number of countries"
+      ]
+    },
+    {
+      "instance_id": "mental_health_12",
+      "our_identified_ambiguities": 6,
+      "dataset_meaningful_ambiguities": 5,
+      "over_under_identification": 1,
+      "we_flagged_not_in_dataset": [
+        "patient hospitalization history",
+        "patient age",
+        "patient next appointment date",
+        "patient crisis",
+        "patient support system"
+      ],
+      "dataset_missed_by_us": [
+        "struggling",
+        "lots of crises",
+        "not much of a support system"
+      ]
+    },
+    {
+      "instance_id": "archeology_scan_5",
+      "our_identified_ambiguities": 4,
+      "dataset_meaningful_ambiguities": 4,
+      "over_under_identification": 0,
+      "we_flagged_not_in_dataset": [
+        "site",
+        "archaeological site",
+        "site designation"
+      ],
+      "dataset_missed_by_us": [
+        "preservation metrics",
+        "location"
+      ]
+    },
+    {
+      "instance_id": "archeology_scan_6",
+      "our_identified_ambiguities": 9,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 6,
+      "we_flagged_not_in_dataset": [
+        "site",
+        "resolution parameter",
+        "high-fidelity mesh",
+        "mesh quality",
+        "side",
+        "geometric accuracy measurement"
+      ],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "hulushows_4",
+      "our_identified_ambiguities": 3,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 0,
+      "we_flagged_not_in_dataset": [
+        "show",
+        "show update time",
+        "show staleness"
+      ],
+      "dataset_missed_by_us": [
+        "how old",
+        "another timestamp",
+        "Temporal Staleness Index (TSI)"
+      ]
+    },
+    {
+      "instance_id": "virtual_idol_17",
+      "our_identified_ambiguities": 5,
+      "dataset_meaningful_ambiguities": 1,
+      "over_under_identification": 4,
+      "we_flagged_not_in_dataset": [
+        "fan nickname",
+        "negative interaction",
+        "interaction"
+      ],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "fake_account_10",
+      "our_identified_ambiguities": 5,
+      "dataset_meaningful_ambiguities": 1,
+      "over_under_identification": 4,
+      "we_flagged_not_in_dataset": [
+        "platform",
+        "content uniqueness",
+        "conversation naturalness",
+        "authenticity metrics"
+      ],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "labor_certification_applications_15",
+      "our_identified_ambiguities": 5,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 2,
+      "we_flagged_not_in_dataset": [
+        "visa coverage",
+        "attorney case"
+      ],
+      "dataset_missed_by_us": [
+        "few cases"
+      ]
+    },
+    {
+      "instance_id": "cybermarket_pattern_16",
+      "our_identified_ambiguities": 2,
+      "dataset_meaningful_ambiguities": 2,
+      "over_under_identification": 0,
+      "we_flagged_not_in_dataset": [],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "virtual_idol_6",
+      "our_identified_ambiguities": 5,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 2,
+      "we_flagged_not_in_dataset": [
+        "happiest fans",
+        "satisfaction",
+        "merchandise spending"
+      ],
+      "dataset_missed_by_us": [
+        "biggest fans"
+      ]
+    },
+    {
+      "instance_id": "fake_account_21",
+      "our_identified_ambiguities": 5,
+      "dataset_meaningful_ambiguities": 2,
+      "over_under_identification": 3,
+      "we_flagged_not_in_dataset": [
+        "user login session activity",
+        "user account",
+        "highly active user"
+      ],
+      "dataset_missed_by_us": [
+        "nonstop"
+      ]
+    },
+    {
+      "instance_id": "reverse_logistics_20",
+      "our_identified_ambiguities": 4,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 1,
+      "we_flagged_not_in_dataset": [
+        "courier return shipment",
+        "high fraud risk return courier"
+      ],
+      "dataset_missed_by_us": [
+        "by courier"
+      ]
+    },
+    {
+      "instance_id": "labor_certification_applications_6",
+      "our_identified_ambiguities": 3,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 0,
+      "we_flagged_not_in_dataset": [
+        "tech position",
+        "expected compensation",
+        "yearly salary"
+      ],
+      "dataset_missed_by_us": [
+        "tech jobs",
+        "pay well",
+        "Premium Wage Position"
+      ]
+    },
+    {
+      "instance_id": "exchange_traded_funds_19",
+      "our_identified_ambiguities": 4,
+      "dataset_meaningful_ambiguities": 2,
+      "over_under_identification": 2,
+      "we_flagged_not_in_dataset": [
+        "price",
+        "fund",
+        "trading volume"
+      ],
+      "dataset_missed_by_us": [
+        "most liquid"
+      ]
+    },
+    {
+      "instance_id": "organ_transplant_22",
+      "our_identified_ambiguities": 5,
+      "dataset_meaningful_ambiguities": 2,
+      "over_under_identification": 3,
+      "we_flagged_not_in_dataset": [
+        "match failure time date",
+        "hospital",
+        "transplant center"
+      ],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "labor_certification_applications_18",
+      "our_identified_ambiguities": 3,
+      "dataset_meaningful_ambiguities": 4,
+      "over_under_identification": -1,
+      "we_flagged_not_in_dataset": [
+        "application",
+        "industry"
+      ],
+      "dataset_missed_by_us": [
+        "top industries",
+        "details",
+        "Wage Differential Rate (WDR)"
+      ]
+    },
+    {
+      "instance_id": "fake_account_22",
+      "our_identified_ambiguities": 2,
+      "dataset_meaningful_ambiguities": 1,
+      "over_under_identification": 1,
+      "we_flagged_not_in_dataset": [
+        "platform",
+        "authenticity engagement"
+      ],
+      "dataset_missed_by_us": [
+        "engagement on average"
+      ]
+    },
+    {
+      "instance_id": "organ_transplant_9",
+      "our_identified_ambiguities": 3,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 0,
+      "we_flagged_not_in_dataset": [
+        "patient condition",
+        "patient",
+        "surgery risk"
+      ],
+      "dataset_missed_by_us": [
+        "health problems",
+        "risk score",
+        "Surgical Risk Score"
+      ]
+    },
+    {
+      "instance_id": "sports_events_8",
+      "our_identified_ambiguities": 7,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 4,
+      "we_flagged_not_in_dataset": [
+        "race event",
+        "driver age",
+        "race year date",
+        "finishing position",
+        "race"
+      ],
+      "dataset_missed_by_us": [
+        "details",
+        "Podium Finish"
+      ]
+    },
+    {
+      "instance_id": "hulushows_11",
+      "our_identified_ambiguities": 5,
+      "dataset_meaningful_ambiguities": 4,
+      "over_under_identification": 1,
+      "we_flagged_not_in_dataset": [
+        "distribution channel",
+        "content item",
+        "series identifier",
+        "distribution tier"
+      ],
+      "dataset_missed_by_us": [
+        "sufficient coverage",
+        "distribution setups",
+        "Syndicated Franchise Engagement"
+      ]
+    },
+    {
+      "instance_id": "exchange_traded_funds_4",
+      "our_identified_ambiguities": 6,
+      "dataset_meaningful_ambiguities": 7,
+      "over_under_identification": -1,
+      "we_flagged_not_in_dataset": [
+        "down-market performance",
+        "fund",
+        "up-market year",
+        "down-market year",
+        "up-market performance"
+      ],
+      "dataset_missed_by_us": [
+        "how they do",
+        "market is up versus down",
+        "enough history",
+        "output fields",
+        "Average Upside Outperformance",
+        "Average Downside Outperformance"
+      ]
+    },
+    {
+      "instance_id": "insider_trading_9",
+      "our_identified_ambiguities": 4,
+      "dataset_meaningful_ambiguities": 2,
+      "over_under_identification": 2,
+      "we_flagged_not_in_dataset": [
+        "enforcement record"
+      ],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "virtual_idol_16",
+      "our_identified_ambiguities": 5,
+      "dataset_meaningful_ambiguities": 1,
+      "over_under_identification": 4,
+      "we_flagged_not_in_dataset": [
+        "username",
+        "high churn risk",
+        "interaction gap",
+        "interaction"
+      ],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "households_1",
+      "our_identified_ambiguities": 2,
+      "dataset_meaningful_ambiguities": 4,
+      "over_under_identification": -2,
+      "we_flagged_not_in_dataset": [],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "robot_fault_prediction_3",
+      "our_identified_ambiguities": 7,
+      "dataset_meaningful_ambiguities": 4,
+      "over_under_identification": 3,
+      "we_flagged_not_in_dataset": [
+        "positional performance",
+        "calibration status",
+        "robot performance issue",
+        "robot",
+        "reach capability"
+      ],
+      "dataset_missed_by_us": [
+        "performance issues",
+        "their info",
+        "Relative Positional Error"
+      ]
+    },
+    {
+      "instance_id": "cybermarket_pattern_12",
+      "our_identified_ambiguities": 3,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 0,
+      "we_flagged_not_in_dataset": [
+        "alert",
+        "highest priority alert",
+        "alert closure date"
+      ],
+      "dataset_missed_by_us": [
+        "how long does it take",
+        "highest priority level",
+        "how long"
+      ]
+    },
+    {
+      "instance_id": "insider_trading_4",
+      "our_identified_ambiguities": 4,
+      "dataset_meaningful_ambiguities": 4,
+      "over_under_identification": 0,
+      "we_flagged_not_in_dataset": [
+        "compliance case",
+        "trader clique",
+        "herd behavior compliance case"
+      ],
+      "dataset_missed_by_us": [
+        "traders who seem to be copying each other's moves, especially if they're part of a clique",
+        "how intensely we've investigated it",
+        "hottest 100 cases first"
+      ]
+    },
+    {
+      "instance_id": "households_9",
+      "our_identified_ambiguities": 6,
+      "dataset_meaningful_ambiguities": 5,
+      "over_under_identification": 1,
+      "we_flagged_not_in_dataset": [
+        "building facility",
+        "location tag",
+        "building facility rating",
+        "output"
+      ],
+      "dataset_missed_by_us": [
+        "average rating",
+        "building facilities",
+        "Infrastructure Quality Score"
+      ]
+    },
+    {
+      "instance_id": "exchange_traded_funds_9",
+      "our_identified_ambiguities": 5,
+      "dataset_meaningful_ambiguities": 6,
+      "over_under_identification": -1,
+      "we_flagged_not_in_dataset": [
+        "fund",
+        "52-week price range position",
+        "passive low-cost fund",
+        "fund ticker symbol"
+      ],
+      "dataset_missed_by_us": [
+        "patient",
+        "cheap",
+        "some info",
+        "number of results",
+        "Contrarian Value Play"
+      ]
+    },
+    {
+      "instance_id": "insider_trading_17",
+      "our_identified_ambiguities": 8,
+      "dataset_meaningful_ambiguities": 1,
+      "over_under_identification": 7,
+      "we_flagged_not_in_dataset": [
+        "pre-market announcement",
+        "leak",
+        "trader",
+        "corporate event",
+        "record",
+        "intraday announcement",
+        "transaction"
+      ],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "robot_fault_prediction_5",
+      "our_identified_ambiguities": 4,
+      "dataset_meaningful_ambiguities": 4,
+      "over_under_identification": 0,
+      "we_flagged_not_in_dataset": [
+        "robot predicted failure date",
+        "robot",
+        "fault prediction"
+      ],
+      "dataset_missed_by_us": [
+        "fail sometime next week",
+        "high risk to break",
+        "failure info"
+      ]
+    },
+    {
+      "instance_id": "cold_chain_pharma_compliance_20",
+      "our_identified_ambiguities": 7,
+      "dataset_meaningful_ambiguities": 0,
+      "over_under_identification": 7,
+      "we_flagged_not_in_dataset": [
+        "shipment",
+        "lane risk",
+        "shipping delay",
+        "lane",
+        "planned delivery time",
+        "temperature excursion during transport",
+        "actual delivery time"
+      ],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "reverse_logistics_16",
+      "our_identified_ambiguities": 3,
+      "dataset_meaningful_ambiguities": 2,
+      "over_under_identification": 1,
+      "we_flagged_not_in_dataset": [],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "labor_certification_applications_5",
+      "our_identified_ambiguities": 4,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 1,
+      "we_flagged_not_in_dataset": [
+        "annually paid position",
+        "higher experience position"
+      ],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "cybermarket_pattern_15",
+      "our_identified_ambiguities": 2,
+      "dataset_meaningful_ambiguities": 2,
+      "over_under_identification": 0,
+      "we_flagged_not_in_dataset": [],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "hulushows_9",
+      "our_identified_ambiguities": 3,
+      "dataset_meaningful_ambiguities": 4,
+      "over_under_identification": -1,
+      "we_flagged_not_in_dataset": [
+        "franchise group",
+        "entry",
+        "episode"
+      ],
+      "dataset_missed_by_us": [
+        "Franchise Summary",
+        "decent number",
+        "entries",
+        "Franchise Engagement Summary"
+      ]
+    },
+    {
+      "instance_id": "virtual_idol_2",
+      "our_identified_ambiguities": 3,
+      "dataset_meaningful_ambiguities": 1,
+      "over_under_identification": 2,
+      "we_flagged_not_in_dataset": [
+        "content preference",
+        "content"
+      ],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "polar_equipment_18",
+      "our_identified_ambiguities": 3,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 0,
+      "we_flagged_not_in_dataset": [
+        "equipment"
+      ],
+      "dataset_missed_by_us": [
+        "analyze battery performance"
+      ]
+    },
+    {
+      "instance_id": "fake_account_19",
+      "our_identified_ambiguities": 4,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 1,
+      "we_flagged_not_in_dataset": [
+        "posts per day",
+        "account"
+      ],
+      "dataset_missed_by_us": [
+        "lots of posts"
+      ]
+    },
+    {
+      "instance_id": "virtual_idol_10",
+      "our_identified_ambiguities": 4,
+      "dataset_meaningful_ambiguities": 4,
+      "over_under_identification": 0,
+      "we_flagged_not_in_dataset": [
+        "fan"
+      ],
+      "dataset_missed_by_us": [
+        "ripple effect"
+      ]
+    },
+    {
+      "instance_id": "insider_trading_7",
+      "our_identified_ambiguities": 4,
+      "dataset_meaningful_ambiguities": 2,
+      "over_under_identification": 2,
+      "we_flagged_not_in_dataset": [
+        "copycat trader",
+        "independent trader",
+        "risk-adjusted win"
+      ],
+      "dataset_missed_by_us": [
+        "show me the results"
+      ]
+    },
+    {
+      "instance_id": "disaster_relief_6",
+      "our_identified_ambiguities": 7,
+      "dataset_meaningful_ambiguities": 4,
+      "over_under_identification": 3,
+      "we_flagged_not_in_dataset": [
+        "compliance status",
+        "coordination and evaluation record",
+        "safety ranking",
+        "lessons learned documentation",
+        "audit result"
+      ],
+      "dataset_missed_by_us": [
+        "details",
+        "Logistical Throughput per Vehicle (LTV)"
+      ]
+    },
+    {
+      "instance_id": "solar_panel_5",
+      "our_identified_ambiguities": 3,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 0,
+      "we_flagged_not_in_dataset": [
+        "inefficient plant",
+        "frequently breaking down plant",
+        "plant"
+      ],
+      "dataset_missed_by_us": [
+        "running inefficiently",
+        "breaking down all the time",
+        "Underperforming Asset"
+      ]
+    },
+    {
+      "instance_id": "exchange_traded_funds_6",
+      "our_identified_ambiguities": 7,
+      "dataset_meaningful_ambiguities": 6,
+      "over_under_identification": 1,
+      "we_flagged_not_in_dataset": [
+        "fund risk profile",
+        "fund",
+        "fund investment style",
+        "ticker symbol",
+        "risk"
+      ],
+      "dataset_missed_by_us": [
+        "changed significantly",
+        "summary",
+        "number of results",
+        "Beta Drift"
+      ]
+    },
+    {
+      "instance_id": "cybermarket_pattern_19",
+      "our_identified_ambiguities": 2,
+      "dataset_meaningful_ambiguities": 2,
+      "over_under_identification": 0,
+      "we_flagged_not_in_dataset": [
+        "linguistically suspicious message thread"
+      ],
+      "dataset_missed_by_us": [
+        "linguistically shady"
+      ]
+    },
+    {
+      "instance_id": "disaster_relief_9",
+      "our_identified_ambiguities": 3,
+      "dataset_meaningful_ambiguities": 2,
+      "over_under_identification": 1,
+      "we_flagged_not_in_dataset": [
+        "operation with supply chain problem",
+        "operation"
+      ],
+      "dataset_missed_by_us": [
+        "Logistical Gridlock"
+      ]
+    },
+    {
+      "instance_id": "reverse_logistics_4",
+      "our_identified_ambiguities": 2,
+      "dataset_meaningful_ambiguities": 1,
+      "over_under_identification": 1,
+      "we_flagged_not_in_dataset": [
+        "return"
+      ],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "fake_account_17",
+      "our_identified_ambiguities": 5,
+      "dataset_meaningful_ambiguities": 2,
+      "over_under_identification": 3,
+      "we_flagged_not_in_dataset": [
+        "detection or monitoring record",
+        "bot likelihood",
+        "account",
+        "user"
+      ],
+      "dataset_missed_by_us": [
+        "bot score"
+      ]
+    },
+    {
+      "instance_id": "museum_artifact_4",
+      "our_identified_ambiguities": 7,
+      "dataset_meaningful_ambiguities": 2,
+      "over_under_identification": 5,
+      "we_flagged_not_in_dataset": [
+        "research significance",
+        "budget allocation",
+        "cultural significance",
+        "conservation status",
+        "artifact",
+        "artifact dynasty",
+        "budget status"
+      ],
+      "dataset_missed_by_us": [
+        "importance",
+        "budget info"
+      ]
+    },
+    {
+      "instance_id": "cold_chain_pharma_compliance_16",
+      "our_identified_ambiguities": 3,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 0,
+      "we_flagged_not_in_dataset": [
+        "shipment"
+      ],
+      "dataset_missed_by_us": [
+        "Delivery Performance Classification"
+      ]
+    },
+    {
+      "instance_id": "planets_data_2",
+      "our_identified_ambiguities": 4,
+      "dataset_meaningful_ambiguities": 4,
+      "over_under_identification": 0,
+      "we_flagged_not_in_dataset": [
+        "hot jupiter planet with retrograde orbit",
+        "orbital period",
+        "orbital speed",
+        "orbital tilt"
+      ],
+      "dataset_missed_by_us": [
+        "scorching hot",
+        "spinning backwards",
+        "Jupiter-like planets",
+        "Orbital Velocity"
+      ]
+    },
+    {
+      "instance_id": "planets_data_12",
+      "our_identified_ambiguities": 3,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 0,
+      "we_flagged_not_in_dataset": [
+        "planet"
+      ],
+      "dataset_missed_by_us": [
+        "Discovery via TTV method"
+      ]
+    },
+    {
+      "instance_id": "organ_transplant_19",
+      "our_identified_ambiguities": 6,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 3,
+      "we_flagged_not_in_dataset": [
+        "completed transplant",
+        "a-locus",
+        "dr-locus",
+        "hla locus",
+        "b-locus"
+      ],
+      "dataset_missed_by_us": [
+        "which specific HLA type"
+      ]
+    },
+    {
+      "instance_id": "cross_border_6",
+      "our_identified_ambiguities": 4,
+      "dataset_meaningful_ambiguities": 5,
+      "over_under_identification": -1,
+      "we_flagged_not_in_dataset": [],
+      "dataset_missed_by_us": [
+        "top months"
+      ]
+    },
+    {
+      "instance_id": "hulushows_10",
+      "our_identified_ambiguities": 4,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 1,
+      "we_flagged_not_in_dataset": [
+        "media catalog",
+        "media content"
+      ],
+      "dataset_missed_by_us": [
+        "Tier Distribution Ratio"
+      ]
+    },
+    {
+      "instance_id": "reverse_logistics_6",
+      "our_identified_ambiguities": 3,
+      "dataset_meaningful_ambiguities": 1,
+      "over_under_identification": 2,
+      "we_flagged_not_in_dataset": [
+        "return with warranty claim",
+        "warranty claim"
+      ],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "cold_chain_pharma_compliance_6",
+      "our_identified_ambiguities": 4,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 1,
+      "we_flagged_not_in_dataset": [
+        "quality condition compliance",
+        "temperature excursion duration"
+      ],
+      "dataset_missed_by_us": [
+        "key metrics",
+        "Quality Risk Zones"
+      ]
+    },
+    {
+      "instance_id": "museum_artifact_3",
+      "our_identified_ambiguities": 10,
+      "dataset_meaningful_ambiguities": 4,
+      "over_under_identification": 6,
+      "we_flagged_not_in_dataset": [
+        "research",
+        "historical significance",
+        "artifact title",
+        "ming artifact",
+        "conservation status",
+        "qing artifact",
+        "artifact dynasty",
+        "cultural importance"
+      ],
+      "dataset_missed_by_us": [
+        "priority level"
+      ]
+    },
+    {
+      "instance_id": "reverse_logistics_5",
+      "our_identified_ambiguities": 4,
+      "dataset_meaningful_ambiguities": 2,
+      "over_under_identification": 2,
+      "we_flagged_not_in_dataset": [
+        "site",
+        "site return processing time",
+        "return processing time",
+        "return"
+      ],
+      "dataset_missed_by_us": [
+        "individual processing times",
+        "days on average"
+      ]
+    },
+    {
+      "instance_id": "labor_certification_applications_12",
+      "our_identified_ambiguities": 7,
+      "dataset_meaningful_ambiguities": 4,
+      "over_under_identification": 3,
+      "we_flagged_not_in_dataset": [
+        "occupation",
+        "application",
+        "occupation title",
+        "prevailing wage",
+        "category label",
+        "offered wage"
+      ],
+      "dataset_missed_by_us": [
+        "labor shortages",
+        "statistics",
+        "Wage Differential Rate"
+      ]
+    },
+    {
+      "instance_id": "disaster_relief_10",
+      "our_identified_ambiguities": 3,
+      "dataset_meaningful_ambiguities": 2,
+      "over_under_identification": 1,
+      "we_flagged_not_in_dataset": [
+        "region",
+        "disaster"
+      ],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "solar_panel_7",
+      "our_identified_ambiguities": 3,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 0,
+      "we_flagged_not_in_dataset": [
+        "panel",
+        "panel quality"
+      ],
+      "dataset_missed_by_us": [
+        "quality drop",
+        "Fill Factor Degradation"
+      ]
+    },
+    {
+      "instance_id": "mental_health_16",
+      "our_identified_ambiguities": 5,
+      "dataset_meaningful_ambiguities": 4,
+      "over_under_identification": 1,
+      "we_flagged_not_in_dataset": [
+        "projected annual outcome",
+        "patient p883117",
+        "therapy intensity target",
+        "insurance coverage"
+      ],
+      "dataset_missed_by_us": [
+        "enough therapy hours",
+        "projected outcome",
+        "results for this patient"
+      ]
+    },
+    {
+      "instance_id": "solar_panel_9",
+      "our_identified_ambiguities": 2,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": -1,
+      "we_flagged_not_in_dataset": [
+        "electrical grounding failure",
+        "monetary loss"
+      ],
+      "dataset_missed_by_us": [
+        "electrical grounding fails",
+        "money do we lose",
+        "Electrical Integrity Failure"
+      ]
+    },
+    {
+      "instance_id": "cybermarket_pattern_1",
+      "our_identified_ambiguities": 2,
+      "dataset_meaningful_ambiguities": 1,
+      "over_under_identification": 1,
+      "we_flagged_not_in_dataset": [
+        "marketplace"
+      ],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "polar_equipment_2",
+      "our_identified_ambiguities": 7,
+      "dataset_meaningful_ambiguities": 5,
+      "over_under_identification": 2,
+      "we_flagged_not_in_dataset": [
+        "insulation status",
+        "heater status",
+        "emergency light status"
+      ],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "exchange_traded_funds_20",
+      "our_identified_ambiguities": 2,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": -1,
+      "we_flagged_not_in_dataset": [],
+      "dataset_missed_by_us": [
+        "Relative Expense Ratio"
+      ]
+    },
+    {
+      "instance_id": "hulushows_6",
+      "our_identified_ambiguities": 2,
+      "dataset_meaningful_ambiguities": 4,
+      "over_under_identification": -2,
+      "we_flagged_not_in_dataset": [],
+      "dataset_missed_by_us": [
+        "items",
+        "called",
+        "Franchise Group"
+      ]
+    },
+    {
+      "instance_id": "hulushows_16",
+      "our_identified_ambiguities": 5,
+      "dataset_meaningful_ambiguities": 5,
+      "over_under_identification": 0,
+      "we_flagged_not_in_dataset": [
+        "show span",
+        "category"
+      ],
+      "dataset_missed_by_us": [
+        "widely syndicated",
+        "categories",
+        "Multi-Tier Syndication"
+      ]
+    },
+    {
+      "instance_id": "organ_transplant_13",
+      "our_identified_ambiguities": 3,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 0,
+      "we_flagged_not_in_dataset": [
+        "completed transplant",
+        "dss"
+      ],
+      "dataset_missed_by_us": [
+        "divide them into 5 groups",
+        "Decision Support System"
+      ]
+    },
+    {
+      "instance_id": "museum_artifact_10",
+      "our_identified_ambiguities": 7,
+      "dataset_meaningful_ambiguities": 6,
+      "over_under_identification": 1,
+      "we_flagged_not_in_dataset": [
+        "resting rotation schedule",
+        "material",
+        "display duration in months",
+        "artifact"
+      ],
+      "dataset_missed_by_us": [
+        "info",
+        "Display Safety Duration (DSD)"
+      ]
+    },
+    {
+      "instance_id": "cold_chain_pharma_compliance_17",
+      "our_identified_ambiguities": 3,
+      "dataset_meaningful_ambiguities": 5,
+      "over_under_identification": -2,
+      "we_flagged_not_in_dataset": [
+        "logger interval",
+        "logger calibration"
+      ],
+      "dataset_missed_by_us": [
+        "interval is not set",
+        "calibration is old",
+        "score"
+      ]
+    },
+    {
+      "instance_id": "cross_border_2",
+      "our_identified_ambiguities": 2,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": -1,
+      "we_flagged_not_in_dataset": [],
+      "dataset_missed_by_us": [
+        "proportion"
+      ]
+    },
+    {
+      "instance_id": "crypto_exchange_17",
+      "our_identified_ambiguities": 7,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 4,
+      "we_flagged_not_in_dataset": [
+        "ask size at mid-price",
+        "daily trading volume",
+        "liquidity depth",
+        "market ex203",
+        "bid size at mid-price"
+      ],
+      "dataset_missed_by_us": [
+        "very low liquidity",
+        "daily activity"
+      ]
+    },
+    {
+      "instance_id": "fake_account_15",
+      "our_identified_ambiguities": 5,
+      "dataset_meaningful_ambiguities": 4,
+      "over_under_identification": 1,
+      "we_flagged_not_in_dataset": [
+        "account"
+      ],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "planets_data_7",
+      "our_identified_ambiguities": 5,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 2,
+      "we_flagged_not_in_dataset": [
+        "host star properties",
+        "planet equilibrium temperature",
+        "gas giant planet",
+        "orbital characteristics"
+      ],
+      "dataset_missed_by_us": [
+        "big gassy planets",
+        "Planetary Equilibrium Temperature"
+      ]
+    },
+    {
+      "instance_id": "households_19",
+      "our_identified_ambiguities": 2,
+      "dataset_meaningful_ambiguities": 4,
+      "over_under_identification": -2,
+      "we_flagged_not_in_dataset": [],
+      "dataset_missed_by_us": [
+        "home ID",
+        "Urban Household"
+      ]
+    },
+    {
+      "instance_id": "reverse_logistics_8",
+      "our_identified_ambiguities": 2,
+      "dataset_meaningful_ambiguities": 2,
+      "over_under_identification": 0,
+      "we_flagged_not_in_dataset": [],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "polar_equipment_6",
+      "our_identified_ambiguities": 6,
+      "dataset_meaningful_ambiguities": 4,
+      "over_under_identification": 2,
+      "we_flagged_not_in_dataset": [
+        "operational status",
+        "equipment maintenance record",
+        "registry"
+      ],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "polar_equipment_14",
+      "our_identified_ambiguities": 3,
+      "dataset_meaningful_ambiguities": 4,
+      "over_under_identification": -1,
+      "we_flagged_not_in_dataset": [
+        "unit",
+        "equipment"
+      ],
+      "dataset_missed_by_us": [
+        "best and worst gear",
+        "info for them",
+        "Operational Readiness Score (ORS)"
+      ]
+    },
+    {
+      "instance_id": "cross_border_14",
+      "our_identified_ambiguities": 6,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 3,
+      "we_flagged_not_in_dataset": [
+        "flow",
+        "data volume",
+        "data flow",
+        "destination country",
+        "high sensitivity"
+      ],
+      "dataset_missed_by_us": [
+        "sensitivity score",
+        "DSI"
+      ]
+    },
+    {
+      "instance_id": "robot_fault_prediction_8",
+      "our_identified_ambiguities": 6,
+      "dataset_meaningful_ambiguities": 4,
+      "over_under_identification": 2,
+      "we_flagged_not_in_dataset": [
+        "model",
+        "controller stress",
+        "controller stress per model",
+        "manufacturer",
+        "robot"
+      ],
+      "dataset_missed_by_us": [
+        "showing a lot of wear and tear",
+        "being pushed too hard",
+        "key metrics"
+      ]
+    },
+    {
+      "instance_id": "crypto_exchange_10",
+      "our_identified_ambiguities": 8,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 5,
+      "we_flagged_not_in_dataset": [
+        "order quantity",
+        "ask size",
+        "trade side",
+        "market depth snapshot",
+        "order_reference",
+        "bid size",
+        "maximum market stats"
+      ],
+      "dataset_missed_by_us": [
+        "order reference",
+        "Whale Order"
+      ]
+    },
+    {
+      "instance_id": "polar_equipment_16",
+      "our_identified_ambiguities": 11,
+      "dataset_meaningful_ambiguities": 4,
+      "over_under_identification": 7,
+      "we_flagged_not_in_dataset": [
+        "power conversion efficiency",
+        "energy sustainability",
+        "brake wear",
+        "vehicle_id",
+        "speed",
+        "overall transportation efficiency",
+        "track wear",
+        "engine load",
+        "renewable energy source usage"
+      ],
+      "dataset_missed_by_us": [
+        "transportation efficiency score",
+        "report"
+      ]
+    },
+    {
+      "instance_id": "sports_events_9",
+      "our_identified_ambiguities": 4,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 1,
+      "we_flagged_not_in_dataset": [
+        "driver performance",
+        "event",
+        "sprint session"
+      ],
+      "dataset_missed_by_us": [
+        "performance score",
+        "Championship Points System (Sprint)"
+      ]
+    },
+    {
+      "instance_id": "planets_data_17",
+      "our_identified_ambiguities": 4,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 1,
+      "we_flagged_not_in_dataset": [
+        "effective temperature"
+      ],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "sports_events_2",
+      "our_identified_ambiguities": 3,
+      "dataset_meaningful_ambiguities": 1,
+      "over_under_identification": 2,
+      "we_flagged_not_in_dataset": [
+        "circuit elevation",
+        "high-altitude circuit"
+      ],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "mental_health_17",
+      "our_identified_ambiguities": 7,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 4,
+      "we_flagged_not_in_dataset": [
+        "patient p425079",
+        "exchange",
+        "required therapy amount",
+        "projected yearly outcome",
+        "therapy hourly",
+        "therapy hours",
+        "insurance budget"
+      ],
+      "dataset_missed_by_us": [
+        "certain amount of therapy",
+        "projected outcome",
+        "good value"
+      ]
+    },
+    {
+      "instance_id": "museum_artifact_17",
+      "our_identified_ambiguities": 9,
+      "dataset_meaningful_ambiguities": 2,
+      "over_under_identification": 7,
+      "we_flagged_not_in_dataset": [
+        "light exposure measurement",
+        "most recent light exposure measurement date",
+        "environmental handling requirement",
+        "lux",
+        "high light sensitivity rating",
+        "good preservation status",
+        "visible light hours",
+        "dynasty"
+      ],
+      "dataset_missed_by_us": [
+        "at risk from too much light"
+      ]
+    },
+    {
+      "instance_id": "fake_account_23",
+      "our_identified_ambiguities": 2,
+      "dataset_meaningful_ambiguities": 1,
+      "over_under_identification": 1,
+      "we_flagged_not_in_dataset": [
+        "bot account"
+      ],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "crypto_exchange_1",
+      "our_identified_ambiguities": 7,
+      "dataset_meaningful_ambiguities": 1,
+      "over_under_identification": 6,
+      "we_flagged_not_in_dataset": [
+        "market snapshot",
+        "market snapshot timestamp date",
+        "bid price",
+        "most recent market snapshot",
+        "exchange",
+        "ask price"
+      ],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "planets_data_4",
+      "our_identified_ambiguities": 5,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 2,
+      "we_flagged_not_in_dataset": [
+        "planet orbit",
+        "star",
+        "star mass"
+      ],
+      "dataset_missed_by_us": [
+        "Kepler's Third Law Verification"
+      ]
+    },
+    {
+      "instance_id": "reverse_logistics_11",
+      "our_identified_ambiguities": 2,
+      "dataset_meaningful_ambiguities": 2,
+      "over_under_identification": 0,
+      "we_flagged_not_in_dataset": [
+        "disposal cost"
+      ],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "cybermarket_pattern_11",
+      "our_identified_ambiguities": 2,
+      "dataset_meaningful_ambiguities": 2,
+      "over_under_identification": 0,
+      "we_flagged_not_in_dataset": [
+        "likely fraud transaction",
+        "international shipment"
+      ],
+      "dataset_missed_by_us": [
+        "likely frauds",
+        "shipped internationally"
+      ]
+    },
+    {
+      "instance_id": "labor_certification_applications_10",
+      "our_identified_ambiguities": 3,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 0,
+      "we_flagged_not_in_dataset": [
+        "visa application processing time",
+        "visa application"
+      ],
+      "dataset_missed_by_us": [
+        "average time",
+        "Application Complexity Tiers"
+      ]
+    },
+    {
+      "instance_id": "museum_artifact_7",
+      "our_identified_ambiguities": 2,
+      "dataset_meaningful_ambiguities": 1,
+      "over_under_identification": 1,
+      "we_flagged_not_in_dataset": [
+        "showcase",
+        "at-risk showcase"
+      ],
+      "dataset_missed_by_us": [
+        "at risk"
+      ]
+    },
+    {
+      "instance_id": "reverse_logistics_14",
+      "our_identified_ambiguities": 3,
+      "dataset_meaningful_ambiguities": 2,
+      "over_under_identification": 1,
+      "we_flagged_not_in_dataset": [],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "fake_account_11",
+      "our_identified_ambiguities": 2,
+      "dataset_meaningful_ambiguities": 1,
+      "over_under_identification": 1,
+      "we_flagged_not_in_dataset": [
+        "account"
+      ],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "households_17",
+      "our_identified_ambiguities": 3,
+      "dataset_meaningful_ambiguities": 4,
+      "over_under_identification": -1,
+      "we_flagged_not_in_dataset": [],
+      "dataset_missed_by_us": [
+        "Affluent Household"
+      ]
+    },
+    {
+      "instance_id": "hulushows_18",
+      "our_identified_ambiguities": 4,
+      "dataset_meaningful_ambiguities": 4,
+      "over_under_identification": 0,
+      "we_flagged_not_in_dataset": [
+        "show title",
+        "show",
+        "user rating",
+        "rating category label"
+      ],
+      "dataset_missed_by_us": [
+        "poor, okay, or good",
+        "overall scores",
+        "category it goes into",
+        "Episode Rating Band"
+      ]
+    },
+    {
+      "instance_id": "virtual_idol_19",
+      "our_identified_ambiguities": 5,
+      "dataset_meaningful_ambiguities": 1,
+      "over_under_identification": 4,
+      "we_flagged_not_in_dataset": [
+        "community influence",
+        "viral",
+        "nickname"
+      ],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "mental_health_6",
+      "our_identified_ambiguities": 4,
+      "dataset_meaningful_ambiguities": 5,
+      "over_under_identification": -1,
+      "we_flagged_not_in_dataset": [
+        "diagnosis",
+        "patient"
+      ],
+      "dataset_missed_by_us": [
+        "main conditions",
+        "worst ones"
+      ]
+    },
+    {
+      "instance_id": "fake_account_16",
+      "our_identified_ambiguities": 3,
+      "dataset_meaningful_ambiguities": 2,
+      "over_under_identification": 1,
+      "we_flagged_not_in_dataset": [
+        "account",
+        "authentication risk"
+      ],
+      "dataset_missed_by_us": [
+        "sketchy sign-in patterns"
+      ]
+    },
+    {
+      "instance_id": "archeology_scan_1",
+      "our_identified_ambiguities": 4,
+      "dataset_meaningful_ambiguities": 2,
+      "over_under_identification": 2,
+      "we_flagged_not_in_dataset": [
+        "site",
+        "archaeological site"
+      ],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "exchange_traded_funds_14",
+      "our_identified_ambiguities": 1,
+      "dataset_meaningful_ambiguities": 2,
+      "over_under_identification": -1,
+      "we_flagged_not_in_dataset": [],
+      "dataset_missed_by_us": [
+        "Information Ratio (Simplified)"
+      ]
+    },
+    {
+      "instance_id": "mental_health_8",
+      "our_identified_ambiguities": 4,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 1,
+      "we_flagged_not_in_dataset": [
+        "engagement variation",
+        "change"
+      ],
+      "dataset_missed_by_us": [
+        "average engagement score variation"
+      ]
+    },
+    {
+      "instance_id": "insider_trading_M_10",
+      "our_identified_ambiguities": 2,
+      "dataset_meaningful_ambiguities": 2,
+      "over_under_identification": 0,
+      "we_flagged_not_in_dataset": [
+        "trade"
+      ],
+      "dataset_missed_by_us": [
+        "overall risk rating"
+      ]
+    },
+    {
+      "instance_id": "cybermarket_pattern_18",
+      "our_identified_ambiguities": 3,
+      "dataset_meaningful_ambiguities": 2,
+      "over_under_identification": 1,
+      "we_flagged_not_in_dataset": [
+        "escrow payment protection",
+        "deal with escrow payment protection"
+      ],
+      "dataset_missed_by_us": [
+        "middleman payment protection"
+      ]
+    },
+    {
+      "instance_id": "mental_health_20",
+      "our_identified_ambiguities": 7,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 4,
+      "we_flagged_not_in_dataset": [
+        "facility f533",
+        "density",
+        "anxiety patient",
+        "patient",
+        "long-term anxiety patient"
+      ],
+      "dataset_missed_by_us": [
+        "long-term ones"
+      ]
+    },
+    {
+      "instance_id": "solar_panel_13",
+      "our_identified_ambiguities": 2,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": -1,
+      "we_flagged_not_in_dataset": [
+        "plant site"
+      ],
+      "dataset_missed_by_us": [
+        "list of sites"
+      ]
+    },
+    {
+      "instance_id": "mental_health_7",
+      "our_identified_ambiguities": 4,
+      "dataset_meaningful_ambiguities": 4,
+      "over_under_identification": 0,
+      "we_flagged_not_in_dataset": [
+        "treatment adherence"
+      ],
+      "dataset_missed_by_us": [
+        "the top results"
+      ]
+    },
+    {
+      "instance_id": "planets_data_16",
+      "our_identified_ambiguities": 4,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 1,
+      "we_flagged_not_in_dataset": [
+        "planet",
+        "star temperature reading"
+      ],
+      "dataset_missed_by_us": [
+        "Blended Measurement"
+      ]
+    },
+    {
+      "instance_id": "insider_trading_5",
+      "our_identified_ambiguities": 3,
+      "dataset_meaningful_ambiguities": 2,
+      "over_under_identification": 1,
+      "we_flagged_not_in_dataset": [
+        "high-risk trader suspected market manipulation"
+      ],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "solar_panel_2",
+      "our_identified_ambiguities": 6,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 3,
+      "we_flagged_not_in_dataset": [
+        "remaining operational life",
+        "warranty claim",
+        "degradation",
+        "plant with warranty claim"
+      ],
+      "dataset_missed_by_us": [
+        "financial hit"
+      ]
+    },
+    {
+      "instance_id": "fake_account_3",
+      "our_identified_ambiguities": 6,
+      "dataset_meaningful_ambiguities": 1,
+      "over_under_identification": 5,
+      "we_flagged_not_in_dataset": [
+        "account evasiveness",
+        "vpn usage",
+        "proxy activity",
+        "network behavior",
+        "geographic spread connections",
+        "account"
+      ],
+      "dataset_missed_by_us": [
+        "stealthiest network moves"
+      ]
+    },
+    {
+      "instance_id": "insider_trading_14",
+      "our_identified_ambiguities": 5,
+      "dataset_meaningful_ambiguities": 2,
+      "over_under_identification": 3,
+      "we_flagged_not_in_dataset": [
+        "ignition signal strength",
+        "trader",
+        "trade",
+        "liquidity impact",
+        "market manipulation"
+      ],
+      "dataset_missed_by_us": [
+        "market was already fragile\u2014meaning liquidity was getting drained fast",
+        "we detected a strong signal of someone trying to ignite a panic"
+      ]
+    },
+    {
+      "instance_id": "households_4",
+      "our_identified_ambiguities": 3,
+      "dataset_meaningful_ambiguities": 4,
+      "over_under_identification": -1,
+      "we_flagged_not_in_dataset": [],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "sports_events_5",
+      "our_identified_ambiguities": 5,
+      "dataset_meaningful_ambiguities": 4,
+      "over_under_identification": 1,
+      "we_flagged_not_in_dataset": [
+        "season",
+        "race"
+      ],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "polar_equipment_17",
+      "our_identified_ambiguities": 6,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 3,
+      "we_flagged_not_in_dataset": [
+        "communication reliability"
+      ],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "cross_border_12",
+      "our_identified_ambiguities": 3,
+      "dataset_meaningful_ambiguities": 4,
+      "over_under_identification": -1,
+      "we_flagged_not_in_dataset": [],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "polar_equipment_3",
+      "our_identified_ambiguities": 8,
+      "dataset_meaningful_ambiguities": 4,
+      "over_under_identification": 4,
+      "we_flagged_not_in_dataset": [
+        "life support status",
+        "oxygen status",
+        "equipment",
+        "medical status",
+        "safety equipment",
+        "safety system status"
+      ],
+      "dataset_missed_by_us": [
+        "JSON"
+      ]
+    },
+    {
+      "instance_id": "cold_chain_pharma_compliance_3",
+      "our_identified_ambiguities": 2,
+      "dataset_meaningful_ambiguities": 2,
+      "over_under_identification": 0,
+      "we_flagged_not_in_dataset": [
+        "shipment",
+        "shipment performance"
+      ],
+      "dataset_missed_by_us": [
+        "performing",
+        "Delivery Performance Classification"
+      ]
+    },
+    {
+      "instance_id": "exchange_traded_funds_10",
+      "our_identified_ambiguities": 3,
+      "dataset_meaningful_ambiguities": 4,
+      "over_under_identification": -1,
+      "we_flagged_not_in_dataset": [
+        "fund transparency",
+        "fund",
+        "fund return"
+      ],
+      "dataset_missed_by_us": [
+        "transparent or not",
+        "typical return",
+        "perform better",
+        "Valuation Data Availability"
+      ]
+    },
+    {
+      "instance_id": "robot_fault_prediction_7",
+      "our_identified_ambiguities": 5,
+      "dataset_meaningful_ambiguities": 2,
+      "over_under_identification": 3,
+      "we_flagged_not_in_dataset": [
+        "model stress",
+        "controller stress",
+        "controller",
+        "robot model series",
+        "robot"
+      ],
+      "dataset_missed_by_us": [
+        "stressed more than their model's average",
+        "their details"
+      ]
+    },
+    {
+      "instance_id": "crypto_exchange_3",
+      "our_identified_ambiguities": 6,
+      "dataset_meaningful_ambiguities": 4,
+      "over_under_identification": 2,
+      "we_flagged_not_in_dataset": [
+        "position notional",
+        "position margin",
+        "position at risk",
+        "margin form classification"
+      ],
+      "dataset_missed_by_us": [
+        "value"
+      ]
+    },
+    {
+      "instance_id": "solar_panel_3",
+      "our_identified_ambiguities": 3,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 0,
+      "we_flagged_not_in_dataset": [
+        "pv945724",
+        "snapshot",
+        "temperature-adjusted power output"
+      ],
+      "dataset_missed_by_us": [
+        "adjust for temperature",
+        "performance",
+        "Temperature-Corrected Performance"
+      ]
+    },
+    {
+      "instance_id": "cold_chain_pharma_compliance_2",
+      "our_identified_ambiguities": 4,
+      "dataset_meaningful_ambiguities": 2,
+      "over_under_identification": 2,
+      "we_flagged_not_in_dataset": [
+        "temperature excursion",
+        "temperature monitoring data",
+        "shipment"
+      ],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "cross_border_10",
+      "our_identified_ambiguities": 7,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 4,
+      "we_flagged_not_in_dataset": [
+        "flow",
+        "days overdue past remediation deadline",
+        "remediation timeline",
+        "remediation deadline"
+      ],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "cold_chain_pharma_compliance_9",
+      "our_identified_ambiguities": 4,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 1,
+      "we_flagged_not_in_dataset": [
+        "shipment",
+        "risk group"
+      ],
+      "dataset_missed_by_us": [
+        "risk levels"
+      ]
+    },
+    {
+      "instance_id": "polar_equipment_9",
+      "our_identified_ambiguities": 4,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 1,
+      "we_flagged_not_in_dataset": [
+        "equipment"
+      ],
+      "dataset_missed_by_us": [
+        "high"
+      ]
+    },
+    {
+      "instance_id": "organ_transplant_11",
+      "our_identified_ambiguities": 4,
+      "dataset_meaningful_ambiguities": 3,
+      "over_under_identification": 1,
+      "we_flagged_not_in_dataset": [
+        "workhorse",
+        "hospital"
+      ],
+      "dataset_missed_by_us": []
+    },
+    {
+      "instance_id": "hulushows_13",
+      "our_identified_ambiguities": 3,
+      "dataset_meaningful_ambiguities": 4,
+      "over_under_identification": -1,
+      "we_flagged_not_in_dataset": [
+        "show video",
+        "show",
+        "video"
+      ],
+      "dataset_missed_by_us": [
+        "content size categories",
+        "how packed",
+        "level",
+        "Content Volume Level Classification"
+      ]
+    }
+  ],
+  "has_unresolved_count": 36,
+  "unresolved_hit_max_turn": 21,
+  "unresolved_spare_turns": 15,
+  "errors": []
+}

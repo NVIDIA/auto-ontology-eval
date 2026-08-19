@@ -4,7 +4,11 @@ SQL GEN FAILURES — cold_chain_pharma_compliance_3, mental_health_15,
                    virtual_idol_7, organ_transplant_21, insider_trading_9,
                    households_20, disaster_relief_12, reverse_logistics_1,
                    exchange_traded_funds_19, archeology_scan_2, virtual_idol_5,
-                   museum_artifact_15, cybermarket_pattern_1
+                   museum_artifact_15, cybermarket_pattern_1,
+                   insider_trading_11, robot_fault_prediction_3,
+                   museum_artifact_4, cold_chain_pharma_compliance_6,
+                   museum_artifact_3, solar_panel_13, polar_equipment_3,
+                   solar_panel_3
 (Clarification was correct or blocked; failure is wrong schema/join/column guess)
 
   PURE SQL GEN ONLY (not also a clarification/evidence failure):
@@ -12,6 +16,16 @@ SQL GEN FAILURES — cold_chain_pharma_compliance_3, mental_health_15,
   virtual_idol_7, insider_trading_9, households_20, disaster_relief_12,
   exchange_traded_funds_19
 ================================================================================
+
+-- Debug SQL correct, final submission reverted --
+insider_trading_11  Debug SQL correctly joined order_behaviour→trade_records on
+                  tr_anchor='TR94368'; submitted SQL instead joined
+                  order_behaviour to traders with no link back to that
+                  trader's order rows, aggregating over the wrong population.
+robot_fault_prediction_3  Debug SQL had the right robot_record→robot_details
+                  →performance_and_safety chain; submitted SQL dropped the
+                  robot_record join, changed the ID source column, and added
+                  an unrequested CASE mapping for calibration_state.
 
 -- Wrong join path / fabricated join --
 virtual_idol_13   Two tables share a hub (fans) but aren't directly linked; real
@@ -28,6 +42,18 @@ labor_certification_applications_18  Retrieved case_worksite as a candidate
                   bridge table but relevance filter discarded it as "unrelated";
                   SQL joined cases→prevailing_wage directly on a made-up key
                   instead of cases→case_worksite→prevailing_wage.
+                  Re-run: intent_validation caught a different bug (GROUP BY
+                  soccd instead of naics_code) and reconstruction fixed both
+                  the column and the join path correctly — still scored 0.
+                  Real cause that run: GT filters offered_wage unit =
+                  prevailing_wage unit before averaging the differential;
+                  SQL gen never added it and the user sim refused the last 3
+                  clarifying questions as "out of scope," so it wasn't
+                  learnable from dialogue. Also missing homezip=zipref on the
+                  employer join (same partial-composite-key pattern as
+                  labor_certification_applications_6). Confirms this instance
+                  fails for different reasons run to run — join-path bug
+                  isn't the only lever here.
 organ_transplant_21  Relevance filter dropped compatibility_metrics (holding the
                   already-resolved cost_est column) as "likely" duplicated
                   elsewhere; SQL substituted the wrong metric (cost_qaly) as the
@@ -38,6 +64,21 @@ insider_trading_9  "restriction type" resolved to reg_compliance.restrict_win
                   instead of GT's enforcement_actions.biz_restrict — wrong table,
                   not a naming slip. Also missing an IS NOT NULL filter and a
                   case-sensitive comparison GT normalizes.
+museum_artifact_4  CPI formula clarified perfectly; "budget info" resolved to
+                  the wrong join chain (ConservationAndMaintenance joined
+                  straight to ArtifactsCore) and skipped the required
+                  ConditionAssessments→EnvironmentalReadingsCore derivation.
+cold_chain_pharma_compliance_6  TIRP formula matched GT almost exactly; the
+                  shipment ID column was s.shiptok instead of GT's s.reckey.
+polar_equipment_3  LSSR formula clarified precisely; "operational status"
+                  resolved to Scientific.sciEquipStat instead of GT's
+                  OperationMaintenance.OPER_status, plus a wrong join path for
+                  the TIE sub-formula (LightingAndSafety.LIGHT_ID = comm_link
+                  instead of the Communication bridge table).
+solar_panel_3     Temperature-adjustment formula clarified correctly; "gross
+                  power output" resolved to pm.rated_w (static spec column)
+                  instead of the electrical_performance snapshot's
+                  power_now_w — that table isn't even joined in p1_sql.
 
 -- Wrong JSONB key nesting depth --
 cold_chain_pharma_compliance_3  Used flat ->>'actual_duration_hrs'; GT needs
@@ -46,6 +87,15 @@ cold_chain_pharma_compliance_3  Used flat ->>'actual_duration_hrs'; GT needs
                   string casing.
 
 -- Wrong output shape / dropped columns --
+museum_artifact_3  Formula/thresholds matched GT exactly, but output labels
+                  were 'High'/'Medium'/'Low' instead of GT's 'High
+                  Priority'/'Medium Priority'/'Low Priority' — never verified
+                  against KB text. Also GT lower-cases conserve_status before
+                  the CASE match; p1 does an exact-case match.
+solar_panel_13    Filter logic (warrstate='Claimed' AND warrclaims>2) was
+                  correctly clarified and correct, but only sitelabel was
+                  selected; GT also returns warrclaims as a second column —
+                  never probed since the ambiguity was non-critical.
 mental_health_15  Generated two CASE columns instead of GT's single
                   jsonb_agg(...)::TEXT column; also used wrong source columns for
                   two of the flag computations and the wrong ELSE string (exact
@@ -56,12 +106,20 @@ disaster_relief_12 (phase 2)  Selected the FK to the event instead of the
 reverse_logistics_1  Evidence resolved all 5 fee components correctly, but SQL
                   gen silently dropped one and substituted "+ 0" in its place.
 
--- Missing case/whitespace normalization (deferred, 2 occurrences so far) --
+-- Missing case/whitespace normalization (deferred, 3 occurrences so far) --
 households_20     Filtered/grouped on raw-cased values; GT wraps both the filter
                   and the GROUP BY key in UPPER()/TRIM(). Same pattern as
                   insider_trading_9's freq_tag comparison above. No evaluator
                   cosmetic-normalization covers this, so it scores as a real
                   miss. Not yet worth a blanket fix at 2 occurrences.
+robot_fault_prediction_7  GT wraps modelseriesval in LOWER() for both the
+                  PARTITION BY key and the output column; SQL gen left it
+                  raw. Join path was actually correct here (self-healed by
+                  reconstruction after an earlier wrong-target attempt) — this
+                  casing gap was the sole remaining diff from GT. Checked
+                  prevalence across GT: well under 1% of GT queries wrap a
+                  column in LOWER()/UPPER() like this. Ignoring — not worth a
+                  default-bias fix at that rate.
 
 -- Float precision on a reused column --
 exchange_traded_funds_19  Follow-up reused a low-precision flat real-typed
@@ -194,6 +252,15 @@ cross_border_14, exchange_traded_funds_19  Debug retry re-runs
                   instance's real scoring failure (see NULL guard / float
                   precision causes above) — watching for recurrence.
 
+insider_trading_7  User sim answered "out of scope" to all 5 clarifying
+                  questions (copycat/independent trader definitions).
+                  extracted_entities show the right concepts surfaced
+                  (Peer_Correlation_Score, Pattern_Anomaly_Score,
+                  Trader_Role_Category) but SQL gen never grounded them —
+                  fabricated ABS(pl_ratio-lev_ratio)<0.1 for "copycats" and
+                  a nonexistent typeFlag='independent' column, instead of
+                  GT's peer_corr/pat_rec columns. Full refusal, not a
+                  pipeline bug.
 fake_account_16   User sim answered two prior formula-clarification questions
                   (overall ARS, PCI) but refused an equally-scoped third
                   ("what's the exact SRS formula?") as "out of scope" — even
