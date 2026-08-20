@@ -111,8 +111,7 @@ Each bundled dataset's README documents how to stand up its source DB and set
 
 - **[WideWorldImporters](datasets/wideworldimporters/README.md)** — seed a
   local Postgres from pre-generated DDL + CSVs.
-- **[BIRD Mini-Dev](datasets/bird/README.md)** — download per-database SQLite
-  files.
+- **[BIRD](datasets/bird/README.md)** — download per-database SQLite files.
 
 ## Full pipeline (end-to-end example)
 
@@ -132,7 +131,7 @@ Individual stages can be skipped with `--skip-ingest`, `--skip-semantic`,
 For concrete, copy-pasteable walkthroughs (including the manual per-stage
 commands), see the per-dataset READMEs:
 [WideWorldImporters](datasets/wideworldimporters/README.md),
-[BIRD Mini-Dev](datasets/bird/README.md). See the per-workflow READMEs under
+[BIRD](datasets/bird/README.md). See the per-workflow READMEs under
 [Workflows](#workflows) for the details of each stage.
 
 ## Datasets
@@ -171,9 +170,9 @@ The repo ships with two public worked examples:
 ### BIRD
 
 The [BIRD](https://bird-bench.github.io/) benchmark, plus the official
-EX/VES scoring script. Defaults to the **Mini-Dev** subset (11 SQLite
-databases, 500 questions); the full **Dev** (1,534 questions) and **Train**
-(~69 additional databases) splits are also available. See
+EX/VES scoring script. Defaults to the full **Dev** split (11 SQLite
+databases, 1,534 questions); the smaller **Mini-Dev** subset (500 questions)
+and the **Train** split's few-shot question corpus are also available. See
 **[datasets/bird/README.md](datasets/bird/README.md)** for how to download
 the dataset(s) and run the full pipeline.
 
@@ -289,12 +288,14 @@ main.py                     end-to-end pipeline entry point (ingest -> judge)
 scripts/
   seed_wwi.py               seed a local Postgres from datasets/<db>/{ddl,data}
   seed_bird.py              download BIRD split(s) (mini-dev/dev/train) into datasets/bird/
+  run_parallel_eval.py      run the retrieval eval in parallel, resumable index chunks
 datasets/
   <database_name>/          evaluation.json, metadata.json, custom_analyses.json
     ddl/                    seed DDL (schemas, sequences, tables, indexes, fkeys, views)
     data/                   seed CSV data (COPYed into the tables)
   bird/                     README.md, evaluation.json,
-                            dev/<db_id>/ -> <db_id>.sqlite + custom_analyses.json (11 DBs)
+                            dev/<db_id>/ -> <db_id>.sqlite + metadata.json (11 DBs),
+                            train/train.json (few-shot corpus; contents gitignored)
   wideworldimporters/       README.md, evaluation.json, custom_analyses.json, ddl/, data/
 input/                      judge input CSVs to score (contents gitignored)
 output/                     judge scored CSVs (<name>_scores.csv; contents gitignored)

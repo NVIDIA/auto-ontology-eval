@@ -1,0 +1,177 @@
+# BIRD
+
+[← Back to main README](../../README.md)
+
+[BIRD](https://bird-bench.github.io/) is a large-scale cross-domain Text-to-SQL
+benchmark. [scripts/seed_bird.py](../../scripts/seed_bird.py) installs the full
+official **Dev** split by default (1,534 questions over 11 SQLite databases) and
+can also install the cheaper **Mini-Dev** subset or the **Train** split's
+question corpus. The repo additionally ships the official EX/VES scoring script
+ported from the BIRD repo. Unlike WideWorldImporters, BIRD's source DBs are
+SQLite files (no Postgres seeding step) and each question carries its own
+`db_id`, routing to the matching connector at eval time.
+
+> **Nothing you want to keep belongs in this folder.** Everything under
+> `datasets/bird/` except this README and `.gitkeep` is gitignored and replaced
+> wholesale by the next download. Our own column descriptions and custom
+> analyses therefore live outside it and are named from `.env` — see
+> [Publishing our descriptions and analyses](../../ontology_sql_eval/ingestion/README.md#publishing-our-descriptions-and-analyses).
+
+## Download
+
+```bash
+uv run python scripts/seed_bird.py                     # Dev (default): 1,534 Qs, 11 DBs
+uv run python scripts/seed_bird.py --splits mini-dev    # 500-Q subset of the same 11 DBs
+uv run python scripts/seed_bird.py --splits dev train   # Dev to evaluate on + Train few-shots
+```
+
+| Split      | Questions | Databases installed | Role                                                                                       |
+| ---------- | --------: | ------------------- | ------------------------------------------------------------------------------------------ |
+| `dev`      |     1,534 | 11                  | Default. The official Dev split behind the BIRD leaderboard; becomes `evaluation.json`.    |
+| `mini-dev` |       500 | 11 (the same DBs)   | Cheap/fast subset for day-to-day development; also becomes `evaluation.json`.              |
+| `train`    |     9,428 | none                | Fine-tuning split, kept as a few-shot corpus only — no SQLite files, no evaluation rows.    |
+
+`train` deliberately installs no databases: only its `train.json` is extracted
+from the archive and the rows are preserved whole for few-shot retrieval. Train
+and Dev database sets are disjoint, so Train's (large) SQLite files would never
+be queried during a Dev evaluation. That makes `--splits dev train` the
+interesting combination — evaluate on Dev, retrieve examples from Train.
+
+Only the SQLite dialect is kept (the MySQL/PostgreSQL question JSONs and the
+`*_gold.sql` / `*_tables.json` files are ignored). Options: `--splits` (one or
+more of `mini-dev`/`dev`/`train`, default `dev`), `--force` (re-download and
+overwrite), `--keep-archive` (keep the cached zip), `--url` (use a
+different/local zip — only valid with a single `--splits` value), `--dest`
+(default `datasets/bird/`), `--no-write-env` (see [Configure](#configure)),
+`--log-level`.
+
+> Passing two *evaluation* splits (`mini-dev dev`) merges both into one
+> `evaluation.json`, with each split's `question_id` offset by 100,000 per split
+> so ids never collide. There is little reason to do it — Mini-Dev's questions
+> are a subset of Dev's.
+
+## Folder layout
+
+```
+datasets/bird/
+  evaluation.json                          # Mini-Dev / Dev questions for the whole dataset
+  dev/<db_id>/<db_id>.sqlite               # one evaluation database per db_id
+  dev/<db_id>/database_description/*.csv   # BIRD's own column annotations
+  dev/<db_id>/metadata.json                # derived from those CSVs (ingestion enrichment)
+  train/train.json                         # Train questions (few-shot corpus; no databases)
+  subsets/<name>.json                      # optional local probe question files (see below)
+```
+
+`metadata.json` is generated per database from BIRD's `database_description`
+CSVs, in the shape [`enrich_graph.apply_metadata`](../../ontology_sql_eval/ingestion/enrich_graph.py)
+consumes, so column meanings and value descriptions reach the graph and from
+there the text-to-SQL prompt. A `value_description` cell that reads exactly
+`not useful` is dropped (it's an annotator note about an opaque column) but the
+column entry is kept, since some of those columns are join keys many gold
+queries need. Columns BIRD leaves undocumented are described at ingest time
+from profiled values instead.
+
+## Configure
+
+By default the download script writes a ready-to-use `CONNECTION_STRINGS` line
+into your `.env`, replacing any existing `CONNECTION_STRINGS` entry:
+
+```bash
+CONNECTION_STRINGS=sqlite:///<abs>/datasets/bird/dev/california_schools/california_schools.sqlite,sqlite:///<abs>/datasets/bird/dev/card_games/card_games.sqlite,...
+```
+
+One comma-separated entry per evaluation `db_id` (11 for `mini-dev`/`dev`).
+Train contributes nothing here — it has no databases to connect to. Pass
+`--no-write-env` to skip the rewrite and just log the value for manual
+copy-paste.
+
+## Run the full pipeline
+
+```bash
+PYTHONPATH=../GSF uv run python main.py --database-name bird
+```
+
+This ingests every database in `CONNECTION_STRINGS`, compiles the semantic
+layer, runs the agent against `datasets/bird/evaluation.json`
+(→ `input/bird_<model>.csv`), then LLM-judges the result
+(→ `output/bird_<model>_scores.csv`). Individual stages can be skipped with
+`--skip-ingest`, `--skip-semantic`, `--skip-eval`, `--skip-judge`. Add
+`--override-descriptions` to replace BIRD's shipped annotations with our saved
+set once the compile has run.
+
+### Manual (per-stage) equivalent
+
+```bash
+# 1. Ingest all 11 DBs, embed the Train few-shot corpus, then compile semantics.
+#    --dataset-name is what pulls in train/train.json; omit it to skip few-shots.
+PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.ingest --dataset-name bird
+PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.semantic --dataset-name bird
+
+# 2. Run the agent against the eval set -> input/bird_<model>.csv
+PYTHONPATH=../GSF uv run python -m ontology_sql_eval.retrieval.eval_chatbot --database-name bird
+
+# 3. Re-score every CSV in input/ with the LLM judge -> output/<name>_scores.csv
+uv run ontology-sql-eval
+```
+
+Both ingestion commands walk every entry in `CONNECTION_STRINGS`, so all 11
+databases are handled in one invocation each.
+
+### Running 1,500+ questions
+
+A single unattended pass over the whole Dev split is slow and risky to babysit,
+so run it in parallel chunks instead:
+
+```bash
+uv run python scripts/run_parallel_eval.py --database-name bird --chunk-size 100
+uv run python scripts/run_parallel_eval.py --database-name bird --ranges 0:250 250:500 500:
+```
+
+Each API key in the comma-separated `API_KEYS_LIST` gets one worker slot that
+takes chunks off a shared queue, so a key is never used by two subprocesses at
+once (unset, the runner falls back to `NVIDIA_API_KEY` and one slot). Every
+chunk writes its own shard CSV under `input/`; complete shards are reused on a
+re-run and partial ones resume at the first unanswered question, and once all
+chunks succeed the shards are merged in dataset order into
+`input/bird_<model>.csv`. Point `--questions-file` at any file in
+`evaluation.json` format to probe a slice — that's what `subsets/` is for —
+and its stem replaces the dataset name in every output path so a probe can
+never overwrite a full run:
+
+```bash
+uv run python scripts/run_parallel_eval.py \
+    --questions-file datasets/bird/subsets/formula_1.json --chunk-size 64
+# -> input/formula_1_<model>.csv
+```
+
+For a single-process chunked run, `eval_chatbot` takes `--start-index` /
+`--end-index` directly and appends to the existing output CSV when
+`--start-index > 0`.
+
+## Official scoring (EX + VES)
+
+In addition to the generic LLM judge, BIRD ships its own deterministic
+**Execution Accuracy (EX)** and **Valid Efficiency Score (VES)** metrics,
+ported from the official BIRD evaluation scripts:
+
+```bash
+uv run python -m ontology_sql_eval.judge.bird \
+  --input input/bird_<model>.csv \
+  --dataset-name bird \
+  --skip-ves            # omit to also compute VES (slower — times EX-passing rows)
+```
+
+`--dataset-name` resolves both `evaluation.json` (for the `question_id → db_id`
+map) and the `dev/` SQLite root; override either with `--evaluation-json` /
+`--db-root`. Results are written to `output/<input_stem>_bird_scores.csv`.
+
+By default the run also scores every candidate in the input CSV's
+`candidate_sqls` column and records the best-of-N ceiling per question in
+`bird_oracle_match` / `bird_candidate_hits` / `bird_n_candidates`. That roughly
+multiplies EX runtime by the pool size, so pass `--no-include-oracle` to skip
+it. See [ontology_sql_eval/judge/bird.py](../../ontology_sql_eval/judge/bird.py)
+for the remaining flags (`--num-cpus`, `--meta-time-out`, `--iterate-num`,
+`--no-output-csv`, `--debug`).
+
+This is a separate, additional scoring step — it does not replace the LLM judge
+stage in `main.py`.
