@@ -16,8 +16,9 @@ to compile every database in ``CONNECTION_STRINGS`` (same source as ingest)::
     uv run python -m ontology_sql_eval.ingestion.semantic --database-name <name>     # a single database
 
 Pass ``--override-descriptions`` to finish each database with our own saved column
-descriptions instead of the annotations the dataset shipped, taken from the file
-named in ``.env``. See :mod:`ontology_sql_eval.ingestion.enrich_graph`.
+descriptions instead of the annotations the dataset shipped, read from
+``annotations/<dataset>/semantic_descriptions.csv``. See
+:mod:`ontology_sql_eval.ingestion.enrich_graph`.
 """
 
 from __future__ import annotations
@@ -99,15 +100,16 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--dataset-name",
         default=None,
-        help="e.g. bird — same value as ingest. Only used to find saved artifacts "
-        "that sit beside the database itself.",
+        help="e.g. bird — same value as ingest. Only used to locate saved artifacts: "
+        "annotations/<dataset>/, and the fallback beside the database itself. "
+        "Omitted, every dataset's folder is searched.",
     )
     parser.add_argument(
         "--override-descriptions",
         action="store_true",
-        help="After compiling, overwrite column and attribute descriptions with the "
-        "saved set named by SAVED_DESCRIPTIONS_CSV in .env. Without that variable "
-        "(or a semantic_descriptions.csv beside the database) nothing is written.",
+        help="After compiling, overwrite column and attribute descriptions with our "
+        "saved set from annotations/<dataset>/semantic_descriptions.csv. Without that "
+        "file (or a semantic_descriptions.csv beside the database) nothing is written.",
     )
     return parser.parse_args(argv)
 

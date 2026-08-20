@@ -162,9 +162,9 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--override-descriptions",
         action="store_true",
-        help="After compiling, overwrite column and attribute descriptions with the "
-        "saved set named by SAVED_DESCRIPTIONS_CSV in .env. Without that variable "
-        "(or a semantic_descriptions.csv beside the database) nothing is written.",
+        help="After compiling, overwrite column and attribute descriptions with our "
+        "saved set from annotations/<dataset>/semantic_descriptions.csv. Without that "
+        "file (or a semantic_descriptions.csv beside the database) nothing is written.",
     )
     parser.add_argument(
         "--workers",

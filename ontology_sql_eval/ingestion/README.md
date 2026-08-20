@@ -25,33 +25,37 @@ PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.semantic --databa
 ## Publishing our descriptions and analyses
 
 BIRD is downloaded with its own column annotations and no analyses at all, and a
-plain ingest plus compile reproduces exactly that. Ours live outside
-`datasets/bird/`, which is gitignored and replaced wholesale by the next download,
-so two variables in `.env` say where to read them from — first match wins:
+plain ingest plus compile reproduces exactly that. Ours are tracked in
+`annotations/<dataset>/`, since `datasets/bird/` is gitignored and replaced
+wholesale by the next download. Nothing has to be configured: each file is found
+by its path and preferred over the dataset's own copy, which is the fallback.
 
-| Artifact | Variable | Fallback | Applied by |
+| Artifact | Ours (preferred) | Fallback | Applied by |
 | --- | --- | --- | --- |
-| analyses | `SAVED_CUSTOM_ANALYSES_DIR` — a directory of `<db>.json` | `datasets/<dataset>/dev/<db>/custom_analyses.json` | `ingest` |
-| descriptions | `SAVED_DESCRIPTIONS_CSV` — one export covering every database | `datasets/<dataset>/dev/<db>/semantic_descriptions.csv` | `semantic --override-descriptions` |
+| analyses | `annotations/<dataset>/custom_analyses/<db>.json` — one per database | `datasets/<dataset>/dev/<db>/custom_analyses.json` | `ingest` |
+| descriptions | `annotations/<dataset>/semantic_descriptions.csv` — one export covering every database | `datasets/<dataset>/dev/<db>/semantic_descriptions.csv` | `semantic --override-descriptions` |
 
-The baseline image is already in the right shape for both:
-
-```bash
-SAVED_CUSTOM_ANALYSES_DIR=experiments/LOCAL_BL/BL_V2/image_local_baseline_v2/custom_analyses
-SAVED_DESCRIPTIONS_CSV=experiments/LOCAL_BL/BL_V2/image_local_baseline_v2/semantic_descriptions.csv
-```
+The set this repo ships for BIRD covers all 11 Dev databases, so the two commands
+below are all it takes:
 
 ```bash
 PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.ingest --dataset-name bird
-PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.semantic --override-descriptions
+PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.semantic --dataset-name bird --override-descriptions
 ```
 
-Analyses need nothing but the schema graph, so ingest takes them as it always has
-and the variable only moves the file it reads. Descriptions wait for the compile:
+`--dataset-name` is what names the `annotations/` subfolder. Omit it and every
+dataset's folder is searched instead, so the file is still found rather than
+silently skipped.
+
+Analyses need nothing but the schema graph, so ingest takes them as it always has.
+Descriptions wait for the compile:
 half of them belong to the `ColumnAttribute` nodes that hold the string retrieval
 embeds, and those do not exist until it has run. Drop the flag and the compile's own
 text stays; re-run the command after editing the export to push the edit through,
 which is cheap because the compile only visits tables that have no `Term` yet.
+
+`apply_saved_descriptions()` also takes an explicit path, for scoring one
+off-tree export without moving it into `annotations/`.
 
 Descriptions are written to the graph *and* to both vector collections, since a
 description the graph holds and the index does not is invisible to retrieval:

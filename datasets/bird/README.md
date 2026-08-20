@@ -14,7 +14,8 @@ SQLite files (no Postgres seeding step) and each question carries its own
 > **Nothing you want to keep belongs in this folder.** Everything under
 > `datasets/bird/` except this README and `.gitkeep` is gitignored and replaced
 > wholesale by the next download. Our own column descriptions and custom
-> analyses therefore live outside it and are named from `.env` — see
+> analyses therefore live outside it, in `annotations/bird/`, and are picked up
+> from there automatically — see
 > [Publishing our descriptions and analyses](../../ontology_sql_eval/ingestion/README.md#publishing-our-descriptions-and-analyses).
 
 ## Download
@@ -60,6 +61,10 @@ datasets/bird/
   dev/<db_id>/metadata.json                # derived from those CSVs (ingestion enrichment)
   train/train.json                         # Train questions (few-shot corpus; no databases)
   subsets/<name>.json                      # optional hand-picked question slices (see below)
+
+annotations/bird/                          # tracked, outside the download
+  custom_analyses/<db_id>.json             # our analyses, one file per db_id
+  semantic_descriptions.csv                # our column descriptions, all 11 databases
 ```
 
 `metadata.json` is generated per database from BIRD's `database_description`

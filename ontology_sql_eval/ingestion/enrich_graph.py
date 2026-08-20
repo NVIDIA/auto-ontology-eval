@@ -44,18 +44,19 @@ Custom analyses (optional, ``custom_analyses.json``)::
     ]
 
 Both files above describe the *downloaded* dataset. Our own analyses and our
-corrections to its annotations are kept outside it, since ``datasets/bird/`` is
-downloaded and replaced wholesale and cannot hold anything that has to survive.
-Name them in ``.env``::
+corrections to its annotations live in ``annotations/<dataset>/`` instead, since
+``datasets/bird/`` is downloaded and replaced wholesale and cannot hold anything
+that has to survive::
 
-    SAVED_CUSTOM_ANALYSES_DIR=experiments/LOCAL_BL/BL_V2/image_local_baseline_v2/custom_analyses
-    SAVED_DESCRIPTIONS_CSV=experiments/LOCAL_BL/BL_V2/image_local_baseline_v2/semantic_descriptions.csv
+    annotations/<dataset>/custom_analyses/<database_name>.json
+    annotations/<dataset>/semantic_descriptions.csv   # one export, every database
 
-Each is picked up by the stage that can use it. The analyses go in during ingest,
-which is where analyses always come from — the variable only moves where the file
-is read from (see :func:`custom_analyses_json_path`). The descriptions have to wait
-for the semantic compile, since half of them belong to ColumnAttribute nodes that
-do not exist until it runs, so the compile applies them when asked::
+Nothing has to be configured to use them: both are found by that layout and take
+precedence over the dataset's own copies. Each is picked up by the stage that can
+use it. The analyses go in during ingest, which is where analyses always come from
+(see :func:`custom_analyses_json_path`). The descriptions have to wait for the
+semantic compile, since half of them belong to ColumnAttribute nodes that do not
+exist until it runs, so the compile applies them when asked::
 
     python -m ontology_sql_eval.ingestion.ingest --dataset-name bird
     python -m ontology_sql_eval.ingestion.semantic --override-descriptions
@@ -77,7 +78,6 @@ import csv
 import json
 import logging
 import hashlib
-import os
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
@@ -89,9 +89,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 DEFAULT_DIR = Path(__file__).resolve().parents[2] / "datasets"
-
-SAVED_DESCRIPTIONS_ENV = "SAVED_DESCRIPTIONS_CSV"
-SAVED_ANALYSES_DIR_ENV = "SAVED_CUSTOM_ANALYSES_DIR"
+ANNOTATIONS_DIR = Path(__file__).resolve().parents[2] / "annotations"
 
 
 def train_json_for_dataset(dataset_name: str) -> Path:
@@ -136,13 +134,33 @@ def metadata_json_path(database_name: str, dataset: str | None = None) -> Path |
     return _dataset_file_path("metadata.json", database_name, dataset)
 
 
-def _repo_relative(value: str) -> Path:
+def _repo_relative(value: str | Path) -> Path:
     """Resolve *value* against the repository root when it is not absolute.
 
-    So one value in ``.env`` works no matter which directory a run starts from.
+    So one path works no matter which directory a run starts from.
     """
     path = Path(value).expanduser()
     return path if path.is_absolute() else Path(__file__).resolve().parents[2] / path
+
+
+def _annotations_file_path(relative: str, dataset: str | None = None) -> Path | None:
+    """Resolve one of *our own* annotation files, or ``None`` when we have none.
+
+    Ours live in ``annotations/<dataset>/`` rather than beside the database, because
+    ``datasets/bird/`` is downloaded, gitignored and replaced wholesale, so nothing
+    put inside it survives. When the caller does not name a dataset — an ingest run
+    without ``--dataset-name`` — every dataset's folder is searched, so the file is
+    still found instead of being silently skipped.
+    """
+    if dataset:
+        candidates = [ANNOTATIONS_DIR / dataset / relative]
+    else:
+        candidates = sorted(ANNOTATIONS_DIR.glob(f"*/{relative}"))
+
+    for path in candidates:
+        if path.is_file():
+            return path
+    return None
 
 
 def custom_analyses_json_path(
@@ -150,21 +168,14 @@ def custom_analyses_json_path(
 ) -> Path | None:
     """Resolve *database_name*'s custom analyses, or ``None`` when it has none.
 
-    ``SAVED_CUSTOM_ANALYSES_DIR`` wins when set, and is read as a directory of
-    ``<database_name>.json`` specs — the layout the baseline image uses. Ours have
-    to live outside ``datasets/bird/``, which is downloaded, ignored by git and
-    replaced wholesale, so nothing put there survives; the variable is how a build
-    finds them again. Unset, the database's own ``custom_analyses.json`` is used
-    (see :func:`_dataset_file_path`), which is what a hand-maintained dataset has.
+    Ours win: ``annotations/<dataset>/custom_analyses/<database_name>.json``, one
+    spec per database (see :func:`_annotations_file_path` for why they sit there).
+    Without one, the database's own ``custom_analyses.json`` is used (see
+    :func:`_dataset_file_path`), which is what a hand-maintained dataset has.
     """
-    named = os.environ.get(SAVED_ANALYSES_DIR_ENV, "").strip()
-    if named:
-        path = _repo_relative(named) / f"{database_name}.json"
-        if not path.is_file():
-            logger.warning("No analyses spec for %s at %s", database_name, path)
-        return path if path.is_file() else None
-
-    return _dataset_file_path("custom_analyses.json", database_name, dataset)
+    return _annotations_file_path(
+        f"custom_analyses/{database_name}.json", dataset
+    ) or _dataset_file_path("custom_analyses.json", database_name, dataset)
 
 
 def _existing_few_shot_questions(vdb, label: str, database_name: str) -> set[str]:
@@ -599,8 +610,8 @@ def add_custom_analyses(
 ) -> None:
     """Ingest custom analyses for *database_name* into the Neo4j graph and the VDB.
 
-    Reads the database's analyses — ours if ``SAVED_CUSTOM_ANALYSES_DIR`` names a
-    directory holding them, else its own ``custom_analyses.json``; see
+    Reads the database's analyses — ours from ``annotations/<dataset>/`` if we have
+    any, else its own ``custom_analyses.json``; see
     :func:`custom_analyses_json_path` — a list of ``{"name", "description", "sql"}``
     entries, and for each entry:
 
@@ -768,26 +779,26 @@ def saved_descriptions_csv_path(
     Three sources, in order:
 
     1. *explicit*, for a caller that names the file itself;
-    2. ``SAVED_DESCRIPTIONS_CSV``. This is the one that matters in practice: the
-       corrections have to outlive ``datasets/bird/``, which is downloaded, ignored
-       by git and replaced wholesale, so they are kept outside it — one export
-       covering every database, pointed at by the flag;
+    2. ``annotations/<dataset>/semantic_descriptions.csv``. This is the one that
+       matters in practice: the corrections have to outlive ``datasets/bird/``,
+       which is downloaded, ignored by git and replaced wholesale, so they are kept
+       outside it — one export covering every database;
     3. ``semantic_descriptions.csv`` beside the database's own ``metadata.json``,
        for a dataset whose folder is hand-maintained rather than downloaded.
 
     ``None`` means no set was found, and every caller reads that as "leave the
-    descriptions as they were ingested" rather than as an error. Relative paths
-    resolve against the repository root, not the caller's cwd, so one value works
-    from anywhere.
+    descriptions as they were ingested" rather than as an error. A relative
+    *explicit* path resolves against the repository root, not the caller's cwd.
     """
-    named = str(explicit or os.environ.get(SAVED_DESCRIPTIONS_ENV, "")).strip()
-    if named:
-        path = _repo_relative(named)
+    if explicit:
+        path = _repo_relative(explicit)
         if not path.is_file():
             logger.warning("Saved description set %s does not exist", path)
         return path if path.is_file() else None
 
-    return _dataset_file_path("semantic_descriptions.csv", database_name, dataset)
+    return _annotations_file_path(
+        "semantic_descriptions.csv", dataset
+    ) or _dataset_file_path("semantic_descriptions.csv", database_name, dataset)
 
 
 def _squash(text: str | None) -> str:
@@ -859,10 +870,9 @@ def apply_saved_descriptions(
     resolved = saved_descriptions_csv_path(database_name, dataset, csv_path)
     if resolved is None:
         logger.info(
-            "No saved description set for %s (%s unset, none beside its "
-            "metadata.json) — leaving descriptions as ingested.",
+            "No saved description set for %s (none under annotations/, none "
+            "beside its metadata.json) — leaving descriptions as ingested.",
             database_name,
-            SAVED_DESCRIPTIONS_ENV,
         )
         return 0
     csv_path = resolved

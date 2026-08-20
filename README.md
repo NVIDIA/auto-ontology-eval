@@ -112,13 +112,10 @@ Each bundled dataset's README documents how to stand up its source DB and set
 
 - **[WideWorldImporters](datasets/wideworldimporters/README.md)** — seed a
   local Postgres from pre-generated DDL + CSVs.
-  <<<<<<< HEAD
-- # **[BIRD](datasets/bird/README.md)** — download per-database SQLite files.
-- **[BIRD Mini-Dev](datasets/bird/README.md)** — download per-database SQLite
-  files.
+- **[BIRD](datasets/bird/README.md)** — download per-database SQLite files
+  (Dev or the smaller Mini-Dev subset).
 - **[FDABench-Lite](datasets/fdabench/README.md)** — download Lite tasks +
   SQLite databases (BIRD train / Spider1 / Spider2-lite local).
-  > > > > > > > origin/main
 
 ## Full pipeline (end-to-end example)
 
@@ -140,6 +137,37 @@ commands), see the per-dataset READMEs:
 [WideWorldImporters](datasets/wideworldimporters/README.md),
 [BIRD](datasets/bird/README.md). See the per-workflow READMEs under
 [Workflows](#workflows) for the details of each stage.
+
+## Semantic compile with our own descriptions
+
+A plain compile keeps whatever column annotations the dataset shipped with.
+`--override-descriptions` finishes the compile by writing our own saved
+descriptions over them, in the graph and in both vector collections. They are
+read from `annotations/<dataset>/semantic_descriptions.csv`, which the repo
+tracks — nothing to configure. Without that file (or a
+`semantic_descriptions.csv` beside the database) the flag writes nothing.
+
+Run the semantic stage on its own — one database, or every database in
+`CONNECTION_STRINGS` when `--database-name` is omitted:
+
+```bash
+PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.semantic --override-descriptions
+PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.semantic --database-name <database_name> --override-descriptions
+```
+
+Add `--dataset-name bird` for a multi-database dataset, so both our export and
+the fallback beside the database are looked for under that dataset's name. The
+same flag works on the full pipeline, where it applies to the semantic stage:
+
+```bash
+PYTHONPATH=../GSF uv run python main.py --database-name <database_name> --override-descriptions
+```
+
+Re-running is cheap — the compile only visits tables that have no `Term` yet —
+so edit the export and run the command again to push the edit through. See
+[Publishing our descriptions and analyses](ontology_sql_eval/ingestion/README.md#publishing-our-descriptions-and-analyses)
+for why descriptions wait for the compile while custom analyses go in during
+ingest.
 
 ## Datasets
 
@@ -167,6 +195,20 @@ datasets/<dataset>/
     metadata.json        # optional
     custom_analyses.json # optional
 ```
+
+A downloaded dataset's folder is gitignored and replaced wholesale by the next
+download, so our own analyses and our corrections to its column annotations are
+tracked outside it, under the dataset's name. They are preferred over the
+optional files above, which stay the fallback:
+
+```
+annotations/<dataset>/
+  custom_analyses/<database_name>.json   # ours, one per database
+  semantic_descriptions.csv              # one export covering every database
+```
+
+Nothing has to be configured to use them — see
+[Publishing our descriptions and analyses](ontology_sql_eval/ingestion/README.md#publishing-our-descriptions-and-analyses).
 
 The retrieval eval writes its results CSV to the repo-root `input/` folder
 (`input/<database_name>_<model>.csv`), not into the dataset folder, so the judge
