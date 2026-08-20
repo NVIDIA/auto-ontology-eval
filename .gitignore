@@ -19,6 +19,9 @@ venv/
 !/input/.gitkeep
 !/output/.gitkeep
 
+# Internal tooling
+/scripts/run_parallel_eval.py
+
 # OS / editor
 .DS_Store
 
