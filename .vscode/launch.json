@@ -6,10 +6,7 @@
       "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/main.py",
-      "args": [
-        "--database-name",
-        "wideworldimporters"
-      ],
+      "args": ["--database-name", "wideworldimporters"],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
@@ -37,30 +34,11 @@
       "justMyCode": false
     },
     {
-      "name": "Seed local BIRD (Mini-Dev)",
+      "name": "Seed local BIRD",
       "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/scripts/seed_bird.py",
-      "args": [
-        "--splits",
-        "mini-dev"
-      ],
-      "console": "integratedTerminal",
-      "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/bin/python",
-      "envFile": "${workspaceFolder}/.env",
-      "justMyCode": false
-    },
-    {
-      "name": "Seed local BIRD (Dev + Train)",
-      "type": "debugpy",
-      "request": "launch",
-      "program": "${workspaceFolder}/scripts/seed_bird.py",
-      "args": [
-        "--splits",
-        "dev",
-        "train"
-      ],
+      "args": ["--splits", "dev"],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
@@ -101,10 +79,7 @@
       "type": "debugpy",
       "request": "launch",
       "module": "ontology_sql_eval.ingestion.ingest",
-      "args": [
-        "--dataset-name",
-        "bird"
-      ],
+      "args": ["--dataset-name", "bird"],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
@@ -129,34 +104,11 @@
       "justMyCode": false
     },
     {
-      "name": "Eval (parallel)",
-      "type": "debugpy",
-      "request": "launch",
-      "program": "${workspaceFolder}/scripts/run_parallel_eval.py",
-      "args": [
-        "--database-name",
-        "bird",
-        "--chunk-size",
-        "64"
-      ],
-      "console": "integratedTerminal",
-      "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/bin/python",
-      "envFile": "${workspaceFolder}/.env",
-      "env": {
-        "PYTHONPATH": "${workspaceFolder}/../GSF"
-      },
-      "justMyCode": false
-    },
-    {
       "name": "Eval",
       "type": "debugpy",
       "request": "launch",
       "module": "ontology_sql_eval.retrieval.eval_chatbot",
-      "args": [
-        "--database-name",
-        "bird"
-      ],
+      "args": ["--database-name", "bird"],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
@@ -171,11 +123,7 @@
       "type": "debugpy",
       "request": "launch",
       "module": "ontology_sql_eval.retrieval.eval_chatbot",
-      "args": [
-        "--single",
-        "--database-name",
-        "wideworldimporters"
-      ],
+      "args": ["--single", "--database-name", "wideworldimporters"],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
