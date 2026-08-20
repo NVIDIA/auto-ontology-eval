@@ -35,8 +35,12 @@ llm_logic_issues
 ```
 
 The scoring model is configured via `JUDGE_MODEL_NAME` / `JUDGE_BASE_URL` /
-`JUDGE_API_KEY`, each falling back to the shared `MODEL_NAME` / `BASE_URL` /
-`NVIDIA_API_KEY` when unset.
+`JUDGE_API_KEY`. Each falls back to `DEFAULT_MODELS_MODEL` /
+`DEFAULT_MODELS_ENDPOINT` / `DEFAULT_MODELS_API_KEY`, then the legacy shared
+`MODEL_NAME` / `BASE_URL` / `NVIDIA_API_KEY`. When those are also unset, a
+built-in endpoint/model is chosen from the API key prefix (`sk-` →
+inference-api.nvidia.com, `nvapi-` → integrate.api.nvidia.com), matching GSF's
+`model_config` behavior.
 
 ## BIRD official scoring (EX + VES)
 

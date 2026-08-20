@@ -57,6 +57,7 @@ import csv
 import json
 import logging
 import shutil
+import ssl
 import tempfile
 import urllib.error
 import urllib.request
@@ -65,7 +66,20 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+try:
+    import certifi
+except ImportError:  # pragma: no cover - stdlib fallback
+    certifi = None  # type: ignore[assignment]
+
 logger = logging.getLogger(__name__)
+
+
+def _ssl_context() -> ssl.SSLContext:
+    """Build an SSL context, preferring certifi's CA bundle when available."""
+    if certifi is not None:
+        return ssl.create_default_context(cafile=certifi.where())
+    return ssl.create_default_context()
+
 
 GOOGLE_DRIVE_FILE_ID = "13VLWIwpw5E3d5DUkMvzw7hvHE67a4XkG"
 GOOGLE_DRIVE_URL = (
@@ -156,7 +170,7 @@ def _download(url: str, dest_path: Path, *, force: bool = False) -> None:
 
     try:
         request = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(request) as response:
+        with urllib.request.urlopen(request, context=_ssl_context()) as response:
             total = int(response.headers.get("Content-Length", 0))
             downloaded = 0
             last_pct = -1

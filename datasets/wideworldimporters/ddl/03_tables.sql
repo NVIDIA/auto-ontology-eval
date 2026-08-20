@@ -1,3 +1,9 @@
+-- SPDX-FileCopyrightText: Copyright (c) Microsoft Corporation
+-- SPDX-License-Identifier: MIT
+--
+-- Ported to PostgreSQL from Microsoft's WideWorldImporters sample database
+-- (https://github.com/microsoft/sql-server-samples), used under the MIT License.
+
 -- Tables (FKs deferred to 05_fkeys.sql)
 
 CREATE TABLE Application.Cities (

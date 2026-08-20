@@ -46,6 +46,17 @@
       "justMyCode": false
     },
     {
+      "name": "Seed local FDABench",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/seed_fdabench.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "envFile": "${workspaceFolder}/.env",
+      "justMyCode": false
+    },
+    {
       "name": "Judge (score CSVs)",
       "type": "debugpy",
       "request": "launch",

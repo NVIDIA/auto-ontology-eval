@@ -27,6 +27,9 @@ venv/
 
 # Datasets kept local only (not tracked on remote) — keep the folders, ignore their contents
 /datasets/bird/*
+/datasets/fdabench/*
 /datasets/dor_prod
 !/datasets/bird/.gitkeep
 !/datasets/bird/README.md
+!/datasets/fdabench/.gitkeep
+!/datasets/fdabench/README.md

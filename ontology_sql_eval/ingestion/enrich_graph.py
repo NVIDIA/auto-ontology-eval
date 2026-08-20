@@ -101,19 +101,18 @@ def train_json_for_dataset(dataset_name: str) -> Path:
 
 def _dataset_file_path(
     filename: str, database_name: str, dataset: str | None = None
-) -> Path:
-    """Resolve a per-database data file, preferring paths that exist.
+) -> Path | None:
+    """Resolve a per-database data file, or ``None`` when no layout holds it.
 
     A standalone dataset is one database and keeps its files at the dataset root
-    (``datasets/dor_prod/``); a multi-database dataset gives each database its
-    own folder (``datasets/bird/dev/card_games/``). Both layouts are searched,
-    the explicitly named *dataset* first.
+    (``datasets/wideworldimporters/``); a multi-database dataset gives each
+    database its own folder, either under a split (``datasets/bird/dev/card_games/``)
+    or directly beneath the dataset (``datasets/fdabench/<database_name>/``). All
+    three layouts are searched, the explicitly named *dataset* first.
 
     When the caller does not name a dataset, the per-database folder of every
     dataset is searched as a last resort, so an ingest run that omits
     ``--dataset-name`` still finds the file instead of silently skipping it.
-    Returns the first existing path, else the most likely one for an error
-    message.
     """
     candidates: list[Path] = []
     if dataset:
@@ -124,14 +123,15 @@ def _dataset_file_path(
     candidates.append(DEFAULT_DIR / database_name / filename)
     if not dataset:
         candidates.extend(sorted(DEFAULT_DIR.glob(f"*/dev/{database_name}/{filename}")))
+        candidates.extend(sorted(DEFAULT_DIR.glob(f"*/{database_name}/{filename}")))
 
     for path in candidates:
         if path.is_file():
             return path
-    return candidates[0]
+    return None
 
 
-def metadata_json_path(database_name: str, dataset: str | None = None) -> Path:
+def metadata_json_path(database_name: str, dataset: str | None = None) -> Path | None:
     """Resolve ``metadata.json`` for *database_name*. See :func:`_dataset_file_path`."""
     return _dataset_file_path("metadata.json", database_name, dataset)
 
@@ -164,8 +164,7 @@ def custom_analyses_json_path(
             logger.warning("No analyses spec for %s at %s", database_name, path)
         return path if path.is_file() else None
 
-    beside_database = _dataset_file_path("custom_analyses.json", database_name, dataset)
-    return beside_database if beside_database.is_file() else None
+    return _dataset_file_path("custom_analyses.json", database_name, dataset)
 
 
 def _existing_few_shot_questions(vdb, label: str, database_name: str) -> set[str]:
@@ -303,9 +302,9 @@ def add_few_shot_examples(
 def apply_metadata(database_name: str, dataset: str | None = None) -> None:
     """Stamp table/column metadata onto the Neo4j graph.
 
-    Reads ``<this dir>/<database_name>/metadata.json`` (keyed by table name) and
-    updates the following properties for every table/column belonging to
-    *database_name*:
+    Reads ``datasets/<database_name>/metadata.json`` (or, for multi-DB
+    benchmarks, ``datasets/<benchmark>/<database_name>/metadata.json``), keyed
+    by table name, and updates:
 
     * ``Table.description``
     * ``Column.description``
@@ -320,8 +319,12 @@ def apply_metadata(database_name: str, dataset: str | None = None) -> None:
 
     metadata_path = metadata_json_path(database_name, dataset=dataset)
 
-    if not metadata_path.exists():
-        logger.info("No metadata file at %s — skipping enrichment.", metadata_path)
+    if metadata_path is None:
+        logger.info(
+            "No metadata.json for %r under %s — skipping enrichment.",
+            database_name,
+            DEFAULT_DIR,
+        )
         return
 
     with metadata_path.open() as f:
@@ -784,10 +787,7 @@ def saved_descriptions_csv_path(
             logger.warning("Saved description set %s does not exist", path)
         return path if path.is_file() else None
 
-    beside_database = _dataset_file_path(
-        "semantic_descriptions.csv", database_name, dataset
-    )
-    return beside_database if beside_database.is_file() else None
+    return _dataset_file_path("semantic_descriptions.csv", database_name, dataset)
 
 
 def _squash(text: str | None) -> str:
