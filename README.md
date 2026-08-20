@@ -288,7 +288,6 @@ main.py                     end-to-end pipeline entry point (ingest -> judge)
 scripts/
   seed_wwi.py               seed a local Postgres from datasets/<db>/{ddl,data}
   seed_bird.py              download BIRD split(s) (mini-dev/dev/train) into datasets/bird/
-  run_parallel_eval.py      run the retrieval eval in parallel, resumable index chunks
 datasets/
   <database_name>/          evaluation.json, metadata.json, custom_analyses.json
     ddl/                    seed DDL (schemas, sequences, tables, indexes, fkeys, views)

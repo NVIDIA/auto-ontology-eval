@@ -59,7 +59,7 @@ datasets/bird/
   dev/<db_id>/database_description/*.csv   # BIRD's own column annotations
   dev/<db_id>/metadata.json                # derived from those CSVs (ingestion enrichment)
   train/train.json                         # Train questions (few-shot corpus; no databases)
-  subsets/<name>.json                      # optional local probe question files (see below)
+  subsets/<name>.json                      # optional hand-picked question slices (see below)
 ```
 
 `metadata.json` is generated per database from BIRD's `database_description`
@@ -117,36 +117,22 @@ uv run ontology-sql-eval
 Both ingestion commands walk every entry in `CONNECTION_STRINGS`, so all 11
 databases are handled in one invocation each.
 
-### Running 1,500+ questions
+### Evaluating a slice
 
-A single unattended pass over the whole Dev split is slow and risky to babysit,
-so run it in parallel chunks instead:
-
-```bash
-uv run python scripts/run_parallel_eval.py --database-name bird --chunk-size 100
-uv run python scripts/run_parallel_eval.py --database-name bird --ranges 0:250 250:500 500:
-```
-
-Each API key in the comma-separated `API_KEYS_LIST` gets one worker slot that
-takes chunks off a shared queue, so a key is never used by two subprocesses at
-once (unset, the runner falls back to `NVIDIA_API_KEY` and one slot). Every
-chunk writes its own shard CSV under `input/`; complete shards are reused on a
-re-run and partial ones resume at the first unanswered question, and once all
-chunks succeed the shards are merged in dataset order into
-`input/bird_<model>.csv`. Point `--questions-file` at any file in
-`evaluation.json` format to probe a slice — that's what `subsets/` is for —
-and its stem replaces the dataset name in every output path so a probe can
-never overwrite a full run:
+`eval_chatbot` takes any file in `evaluation.json` format, so a hand-picked
+subset of questions can be run on its own — one database, one difficulty, one
+reproduction. Keep those files in `subsets/` and name the output after the
+subset so a probe never overwrites a full run:
 
 ```bash
-uv run python scripts/run_parallel_eval.py \
-    --questions-file datasets/bird/subsets/formula_1.json --chunk-size 64
-# -> input/formula_1_<model>.csv
+PYTHONPATH=../GSF uv run python -m ontology_sql_eval.retrieval.eval_chatbot \
+    --input datasets/bird/subsets/formula_1.json \
+    --output input/formula_1_<model>.csv
 ```
 
-For a single-process chunked run, `eval_chatbot` takes `--start-index` /
-`--end-index` directly and appends to the existing output CSV when
-`--start-index > 0`.
+Scoring a subset needs no extra flags: `--dataset-name bird` still resolves the
+right databases, because the judge maps each `question_id` back to its `db_id`
+through the full `evaluation.json`.
 
 ## Official scoring (EX + VES)
 

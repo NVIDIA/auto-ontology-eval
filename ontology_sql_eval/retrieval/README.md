@@ -27,10 +27,11 @@ PYTHONPATH=../GSF uv run python -m ontology_sql_eval.retrieval.eval_chatbot --da
 | `--start-index N`   | 0          | Index (0-based) of the first question to run. When > 0, appends to an existing `--output` CSV instead of overwriting it — use to resume a chunked run. |
 | `--end-index N`     | run to end | Index (0-based, exclusive) of the last question to run.                                   |
 
-`--start-index`/`--end-index` are mainly useful for chunking/resuming large
-evaluation sets (e.g. the full BIRD Dev/Train splits — see
-[datasets/bird/README.md](../../datasets/bird/README.md)) that are impractical
-to run start-to-finish in one unattended shot.
+`--start-index`/`--end-index` are mainly useful for chunking and resuming large
+evaluation sets (e.g. the 1,534-question BIRD Dev split) that are impractical to
+run start-to-finish in one unattended shot. To evaluate a hand-picked slice
+instead, pass `--input` a file in `evaluation.json` format holding just those
+questions.
 
 ## Output
 
