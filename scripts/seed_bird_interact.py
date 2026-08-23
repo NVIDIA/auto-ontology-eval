@@ -2,18 +2,21 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Seed BIRD-Interact lite from the official GitHub repository.
+"""Seed BIRD-Interact (lite or full) from the official sources.
 
-Sparse-clones https://github.com/bird-bench/BIRD-Interact into
-third_party/BIRD-Interact/ and prepares datasets/bird_interact/ for use
-with the GSF adapter and run_bird_interact_cinteract.py.
+Sparse-clones https://github.com/bird-bench/BIRD-Interact (ADK code + Docker
+env only — the upstream repo no longer ships task data as git paths) into
+third_party/BIRD-Interact/, downloads the requested variant's task data from
+its HuggingFace dataset repo (birdsql/bird-interact-<variant>), and prepares
+datasets/bird_interact[_full]/ for use with the GSF adapter and
+run_bird_interact_cinteract.py.
 
-Layout after running this script::
+Layout after running this script (example: --dataset lite)::
 
     third_party/BIRD-Interact/
         BIRD-Interact-ADK/      ← orchestrator, user_simulator, db_environment
-        bird-interact-lite/     ← public task JSONL
         env/                    ← Docker Compose for PostgreSQL task DBs
+        bird-interact-lite/     ← HF dataset snapshot (task JSONL, per-DB KB)
 
     datasets/bird_interact/
         bird_interact_data.jsonl            ← public tasks (no GT)
@@ -24,14 +27,20 @@ Layout after running this script::
             README.md           ← instructions for obtaining GT files
             bird_interact_data_with_gt.jsonl  ← place emailed GT file here
 
+--dataset full uses the same layout under bird-interact-full/ and
+datasets/bird_interact_full/.
+
 Usage::
 
-    uv run python scripts/seed_bird_interact.py
-    uv run python scripts/seed_bird_interact.py --force
+    uv run python scripts/seed_bird_interact.py --dataset lite
+    uv run python scripts/seed_bird_interact.py --dataset full
+    uv run python scripts/seed_bird_interact.py --dataset lite --force
 
-GT SQLs and test cases are NOT in the public repo. After running this script,
-follow the instructions in datasets/bird_interact/gt/README.md (or the output
-printed here) to obtain them by email and re-run.
+--dataset is required — there is no default variant.
+
+GT SQLs and test cases are NOT in the public repo/dataset. After running this
+script, follow the instructions in datasets/bird_interact[_full]/gt/README.md
+(or the output printed here) to obtain them by email and re-run.
 """
 
 from __future__ import annotations
@@ -44,16 +53,22 @@ import subprocess
 import sys
 from pathlib import Path
 
+from huggingface_hub import snapshot_download
+
 logger = logging.getLogger(__name__)
 
 UPSTREAM_REPO = "https://github.com/bird-bench/BIRD-Interact.git"
 DEFAULT_UPSTREAM_REF = "main"
 
-# Cone-mode sparse-checkout paths: ADK code, lite data, Docker env.
+# Task data (JSONL + per-DB knowledge base) now lives in separate HuggingFace
+# dataset repos per variant, not as git paths in the upstream repo.
+HF_DATASET_REPO_TEMPLATE = "birdsql/bird-interact-{variant}"
+DATASET_VARIANTS = ("lite", "full")
+
+# Cone-mode sparse-checkout paths: ADK code + Docker env only.
 # Database files live in PostgreSQL Docker containers (see env/), not in git.
 _SPARSE_PATHS = (
     "BIRD-Interact-ADK",
-    "bird-interact-lite",
     "env",
 )
 
@@ -66,10 +81,13 @@ _PUBLIC_JSONL_CANDIDATES = (
 # Filename the emailed GT package is expected to provide (placed in gt/).
 GT_JSONL_NAME = "bird_interact_data_with_gt.jsonl"
 
-_GT_README = """\
+
+def _gt_readme(variant: str) -> str:
+    return f"""\
 # BIRD-Interact GT & Test Cases
 
-Ground-truth SQLs and test cases are NOT included in the public repository.
+Ground-truth SQLs and test cases are NOT included in the public repository
+or dataset.
 
 ## How to obtain them
 
@@ -79,25 +97,25 @@ Send an email to:
 
 Subject tag (copy exactly):
 
-    [bird-interact-lite GT&Test Cases]
+    [bird-interact-{variant} GT&Test Cases]
 
 The files will be sent automatically within 30 minutes.
 
 ## Where to place them
 
 Drop the received file directly into THIS directory
-(datasets/bird_interact/gt/).  The seeder expects:
+(datasets/bird_interact{'_full' if variant == 'full' else ''}/gt/).  The seeder expects:
 
-    datasets/bird_interact/gt/bird_interact_data_with_gt.jsonl
+    datasets/bird_interact{'_full' if variant == 'full' else ''}/gt/bird_interact_data_with_gt.jsonl
 
 Once the file is present, re-run the seeder to regenerate the combined data
 file and manifest:
 
-    uv run python scripts/seed_bird_interact.py
+    uv run python scripts/seed_bird_interact.py --dataset {variant}
 
 The seeder copies it to:
 
-    datasets/bird_interact/bird_interact_data_with_gt.jsonl
+    datasets/bird_interact{'_full' if variant == 'full' else ''}/bird_interact_data_with_gt.jsonl
 
 That path is what scripts/run_bird_interact_cinteract.py reads by default.
 
@@ -113,20 +131,21 @@ def _repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
-def _datasets_dir() -> Path:
-    return _repo_root() / "datasets" / "bird_interact"
+def _datasets_dir(variant: str) -> Path:
+    suffix = "_full" if variant == "full" else ""
+    return _repo_root() / "datasets" / f"bird_interact{suffix}"
 
 
-def _gt_dir() -> Path:
-    return _datasets_dir() / "gt"
+def _gt_dir(variant: str) -> Path:
+    return _datasets_dir(variant) / "gt"
 
 
 def _upstream_root() -> Path:
     return _repo_root() / "third_party" / "BIRD-Interact"
 
 
-def _lite_root() -> Path:
-    return _upstream_root() / "bird-interact-lite"
+def _data_root(variant: str) -> Path:
+    return _upstream_root() / f"bird-interact-{variant}"
 
 
 def _adk_root() -> Path:
@@ -154,11 +173,21 @@ def _current_ref(repo_dir: Path) -> str:
 
 
 def _bootstrap_upstream(ref: str = DEFAULT_UPSTREAM_REF) -> str:
-    """Clone or update the upstream BIRD-Interact repo (sparse checkout)."""
+    """Clone or update the upstream BIRD-Interact repo (sparse checkout: ADK + env only)."""
     upstream = _upstream_root()
     upstream.parent.mkdir(parents=True, exist_ok=True)
 
     if upstream.exists():
+        if not (upstream / ".git").exists():
+            # A directory here that isn't a git checkout (e.g. manually copied
+            # in) is unsafe to touch: git would walk up to the nearest parent
+            # .git (this repo's own) and run sparse-checkout/fetch/pull
+            # against THAT instead, silently corrupting its state.
+            raise SystemExit(
+                f"{upstream} exists but is not a git checkout (no .git/ found). "
+                "Remove or rename it, then re-run this script to get a fresh "
+                "sparse clone."
+            )
         logger.info("Updating existing checkout at %s", upstream)
         _run(["git", "sparse-checkout", "add", *_SPARSE_PATHS], cwd=upstream)
         _run(["git", "fetch", "--depth", "1", "origin", ref], cwd=upstream)
@@ -180,7 +209,7 @@ def _bootstrap_upstream(ref: str = DEFAULT_UPSTREAM_REF) -> str:
     commit = _current_ref(upstream)
     logger.info("Upstream BIRD-Interact at commit %s", commit)
 
-    missing = [p for p in (_lite_root(),) if not p.exists()]
+    missing = [p for p in (_adk_root(), _env_root()) if not p.exists()]
     if missing:
         paths = "\n".join(f"  - {p}" for p in missing)
         raise SystemExit(f"Upstream checkout is missing required paths:\n{paths}")
@@ -188,25 +217,42 @@ def _bootstrap_upstream(ref: str = DEFAULT_UPSTREAM_REF) -> str:
     return commit
 
 
-def _ensure_gt_readme() -> None:
-    gt = _gt_dir()
+def _bootstrap_dataset(variant: str, *, force: bool = False) -> None:
+    """Download the variant's task data from its HuggingFace dataset repo."""
+    repo_id = HF_DATASET_REPO_TEMPLATE.format(variant=variant)
+    dest = _data_root(variant)
+    dest.mkdir(parents=True, exist_ok=True)
+    logger.info("Downloading %s (HF dataset) into %s", repo_id, dest)
+    snapshot_download(
+        repo_id=repo_id,
+        repo_type="dataset",
+        local_dir=dest,
+        force_download=force,
+    )
+
+    if not any(dest.glob("*")):
+        raise SystemExit(f"HF dataset download produced no files at {dest}")
+
+
+def _ensure_gt_readme(variant: str) -> None:
+    gt = _gt_dir(variant)
     gt.mkdir(parents=True, exist_ok=True)
     readme = gt / "README.md"
-    readme.write_text(_GT_README, encoding="utf-8")
+    readme.write_text(_gt_readme(variant), encoding="utf-8")
     logger.info("Wrote GT placeholder: %s", readme)
 
 
-def _find_public_jsonl() -> Path | None:
-    lite = _lite_root()
+def _find_public_jsonl(variant: str) -> Path | None:
+    root = _data_root(variant)
     for name in _PUBLIC_JSONL_CANDIDATES:
-        candidate = lite / name
+        candidate = root / name
         if candidate.exists():
             return candidate
     return None
 
 
-def _detect_gt() -> Path | None:
-    candidate = _gt_dir() / GT_JSONL_NAME
+def _detect_gt(variant: str) -> Path | None:
+    candidate = _gt_dir(variant) / GT_JSONL_NAME
     return candidate if candidate.exists() else None
 
 
@@ -224,16 +270,16 @@ def _load_jsonl(path: Path) -> list[dict]:
     return rows
 
 
-def _build_datasets(*, upstream_commit: str | None = None, force: bool = False) -> dict:
-    dest = _datasets_dir()
+def _build_datasets(variant: str, *, upstream_commit: str | None = None, force: bool = False) -> dict:
+    dest = _datasets_dir(variant)
     dest.mkdir(parents=True, exist_ok=True)
-    _ensure_gt_readme()
+    _ensure_gt_readme(variant)
 
     # --- public JSONL ---
-    public_src = _find_public_jsonl()
+    public_src = _find_public_jsonl(variant)
     if public_src is None:
         raise SystemExit(
-            f"No public JSONL found under {_lite_root()}. "
+            f"No public JSONL found under {_data_root(variant)}. "
             "Expected one of: " + ", ".join(_PUBLIC_JSONL_CANDIDATES)
         )
 
@@ -253,7 +299,7 @@ def _build_datasets(*, upstream_commit: str | None = None, force: bool = False) 
     })
 
     # --- combined JSONL (GT copy if available, else public as development fallback) ---
-    gt_src = _detect_gt()
+    gt_src = _detect_gt(variant)
     gt_available = gt_src is not None
     combined_dest = dest / GT_JSONL_NAME
 
@@ -265,8 +311,9 @@ def _build_datasets(*, upstream_commit: str | None = None, force: bool = False) 
         logger.warning(
             "GT file not found at %s. "
             "Copied public JSONL as development fallback; scoring will be incomplete. "
-            "See datasets/bird_interact/gt/README.md to obtain GT files.",
-            _gt_dir() / GT_JSONL_NAME,
+            "See %s/gt/README.md to obtain GT files.",
+            _gt_dir(variant) / GT_JSONL_NAME,
+            dest.relative_to(_repo_root()),
         )
 
     # --- manifest ---
@@ -276,8 +323,10 @@ def _build_datasets(*, upstream_commit: str | None = None, force: bool = False) 
             "ref": DEFAULT_UPSTREAM_REF,
             "upstream_root": str(_upstream_root()),
             "upstream_commit": upstream_commit,
+            "dataset_repo": HF_DATASET_REPO_TEMPLATE.format(variant=variant),
         },
-        "scope": "bird-interact-lite",
+        "variant": variant,
+        "scope": f"bird-interact-{variant}",
         "task_count": task_count,
         "database_count": len(db_names),
         "databases": db_names,
@@ -285,7 +334,7 @@ def _build_datasets(*, upstream_commit: str | None = None, force: bool = False) 
         "paths": {
             "public_jsonl": str(public_dest.relative_to(_repo_root())),
             "combined_jsonl": str(combined_dest.relative_to(_repo_root())),
-            "gt_dir": str(_gt_dir().relative_to(_repo_root())),
+            "gt_dir": str(_gt_dir(variant).relative_to(_repo_root())),
             "adk_dir": str(_adk_root().relative_to(_repo_root())),
             "env_dir": str(_env_root().relative_to(_repo_root())),
         },
@@ -302,12 +351,13 @@ def _build_datasets(*, upstream_commit: str | None = None, force: bool = False) 
     return manifest
 
 
-def _print_summary(manifest: dict) -> None:
+def _print_summary(variant: str, manifest: dict) -> None:
     combined = _repo_root() / manifest["paths"]["combined_jsonl"]
     env_dir = _repo_root() / manifest["paths"]["env_dir"]
+    docker_service = "bird_interact_postgresql_full" if variant == "full" else "bird_interact_postgresql"
 
     logger.info("=" * 60)
-    logger.info("BIRD-Interact lite seed complete.")
+    logger.info("BIRD-Interact %s seed complete.", variant)
     logger.info("  Tasks      : %d", manifest["task_count"])
     logger.info("  Databases  : %d", manifest["database_count"])
     for db in manifest["databases"]:
@@ -321,19 +371,20 @@ def _print_summary(manifest: dict) -> None:
         print("ACTION REQUIRED: GT files not found. Scoring will be incomplete.")
         print()
         print("  1. Email bird.bench25@gmail.com")
-        print("     Subject: [bird-interact-lite GT&Test Cases]")
+        print(f"     Subject: [bird-interact-{variant} GT&Test Cases]")
+        print("     Or download the files from the shared drive")
         print()
         print("  2. Place the received file at:")
-        print(f"       {_gt_dir() / GT_JSONL_NAME}")
+        print(f"       {_gt_dir(variant) / GT_JSONL_NAME}")
         print()
-        print("  3. Re-run: uv run python scripts/seed_bird_interact.py")
+        print(f"  3. Re-run: uv run python scripts/seed_bird_interact.py --dataset {variant}")
         print("=" * 60)
         print()
 
     print("Start the BIRD-Interact PostgreSQL task databases (Docker, one-time):")
     print()
     print(f"  cd {env_dir}")
-    print("  docker compose up -d bird_interact_postgresql")
+    print(f"  docker compose up -d {docker_service}")
     print()
     print("Start pg_wrappers shims (needed for :6002 db_environment scoring):")
     print()
@@ -347,38 +398,52 @@ def _print_summary(manifest: dict) -> None:
 
 def seed_bird_interact(
     *,
+    dataset: str,
     ref: str = DEFAULT_UPSTREAM_REF,
     force: bool = False,
     skip_build: bool = False,
 ) -> dict:
-    """Clone BIRD-Interact and prepare datasets/bird_interact/. Returns the manifest."""
+    """Clone BIRD-Interact ADK + fetch the requested dataset variant. Returns the manifest."""
+    if dataset not in DATASET_VARIANTS:
+        raise ValueError(f"dataset must be one of {DATASET_VARIANTS}, got {dataset!r}")
+
     logger.info("=" * 60)
-    logger.info("Seeding BIRD-Interact lite")
+    logger.info("Seeding BIRD-Interact %s", dataset)
     logger.info("=" * 60)
 
     commit = _bootstrap_upstream(ref=ref)
     logger.info("Upstream BIRD-Interact commit: %s", commit)
 
+    _bootstrap_dataset(dataset, force=force)
+
     if skip_build:
         logger.info("Skipping dataset build (--skip-build).")
         return {}
 
-    manifest = _build_datasets(upstream_commit=commit, force=force)
-    _print_summary(manifest)
+    manifest = _build_datasets(dataset, upstream_commit=commit, force=force)
+    _print_summary(dataset, manifest)
     return manifest
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Clone BIRD-Interact from GitHub and prepare datasets/bird_interact/ "
+            "Clone BIRD-Interact ADK code and fetch the requested dataset variant "
+            "(from its HuggingFace dataset repo) into datasets/bird_interact[_full]/ "
             "with the public task JSONL, GT placeholder, and manifest."
         ),
         epilog=(
             "GT SQLs and test cases require emailing bird.bench25@gmail.com "
-            "with subject [bird-interact-lite GT&Test Cases]. "
-            "Place received files in datasets/bird_interact/gt/ and re-run."
+            "with subject [bird-interact-<variant> GT&Test Cases], or downloading "
+            "them from the shared drive. "
+            "Place received files in datasets/bird_interact[_full]/gt/ and re-run."
         ),
+    )
+    parser.add_argument(
+        "--dataset",
+        required=True,
+        choices=DATASET_VARIANTS,
+        help="Which BIRD-Interact variant to seed. Required — there is no default.",
     )
     parser.add_argument(
         "--ref",
@@ -388,12 +453,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Re-copy JSONL files even if already present in datasets/bird_interact/",
+        help="Re-download/re-copy files even if already present",
     )
     parser.add_argument(
         "--skip-build",
         action="store_true",
-        help="Only update the git clone; skip JSONL copy and manifest generation",
+        help="Only update the git clone and HF dataset download; skip JSONL copy and manifest generation",
     )
     parser.add_argument(
         "--log-level",
@@ -410,6 +475,7 @@ def main(argv: list[str] | None = None) -> None:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     seed_bird_interact(
+        dataset=args.dataset,
         ref=args.ref,
         force=args.force,
         skip_build=args.skip_build,

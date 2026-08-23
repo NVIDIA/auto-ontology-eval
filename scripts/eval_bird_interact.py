@@ -41,7 +41,8 @@ import httpx
 
 ONTOLOGY_DIR   = Path(__file__).resolve().parents[1]
 GSF_DIR        = ONTOLOGY_DIR.parent / "GSF"
-_ADK_DIR       = Path(__file__).resolve().parents[3] / "BIRD-Interact" / "BIRD-Interact-ADK"
+_default_adk   = ONTOLOGY_DIR / "third_party" / "BIRD-Interact" / "BIRD-Interact-ADK"
+_ADK_DIR       = Path(os.environ.get("BIRD_INTERACT_ADK_DIR", str(_default_adk)))
 
 
 def _read_adk_env() -> dict[str, str]:

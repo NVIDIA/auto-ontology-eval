@@ -39,8 +39,8 @@ def _graph_database_name(fallback: str) -> str:
     ``database_name`` (the ``metadata_database`` query param of
     ``CONNECTION_STRINGS``). Semantic compile must filter by the *same* name, so
     derive it from that param rather than from ``--database-name`` (which may
-    carry a dataset path prefix like ``spider2/<slug>`` used only for file
-    layout). Falls back to *fallback* when no ``metadata_database`` is present
+    carry a logical/path-style prefix used only for file layout). Falls back
+    to *fallback* when no ``metadata_database`` is present
     (e.g. Postgres, where ``database_name`` equals the URL's database).
     """
     from urllib.parse import parse_qs, unquote, urlparse

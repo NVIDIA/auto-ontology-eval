@@ -10,11 +10,7 @@ pre-generated, so no source (e.g. MSSQL) connection is required.
 
 Usage::
 
-<<<<<<< HEAD
     uv run python scripts/seed_wwi.py --database-name wideworldimporters
-=======
-    uv run python scripts/seed_wwi.py
->>>>>>> origin/add_spider2_eval
 
 Postgres credentials come from the environment / .env:
 
@@ -39,20 +35,6 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_DB = "wideworldimporters"
 
-<<<<<<< HEAD
-DDL_FILES_PRE_DATA = [
-    "01_schemas.sql",
-    "02_sequences.sql",
-    "03_tables.sql",
-    "04_indexes.sql",
-]
-DDL_FILES_POST_DATA = [
-    "05_fkeys.sql",
-    "06_views.sql",
-]
-
-=======
->>>>>>> origin/add_spider2_eval
 
 def _paths(database_name: str) -> tuple[Path, Path]:
     """Return (ddl_dir, data_dir) for ``datasets/<database_name>/``."""

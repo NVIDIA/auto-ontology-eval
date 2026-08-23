@@ -33,6 +33,7 @@ dependencies = [
     "func-timeout>=4.3.5",
     "numpy>=2.0",
     "matplotlib>=3.11.1",
+    "huggingface-hub>=1.28.0",
 ]
 
 [project.scripts]

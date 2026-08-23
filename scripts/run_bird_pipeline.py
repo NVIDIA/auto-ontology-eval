@@ -147,7 +147,7 @@ def ensure_all_per_db_evaluations(db_ids: list[str]) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Store resets (same contract as scripts/run_spider2_pipeline.py)
+# Store resets
 # ---------------------------------------------------------------------------
 
 
