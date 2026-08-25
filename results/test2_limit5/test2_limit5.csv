@@ -1,6 +1,0 @@
-instance_id,database,max_turn,turns_used,phase1_passed,phase1_debug_ran,phase2_passed,phase2_debug_ran,total_reward,exec_error_p1,exec_error_p2,error
-mental_8,mental,5,5,False,True,,False,0.0,,,
-mental_2,mental,6,3,False,True,,False,0.0,,,
-disaster_7,disaster,5,5,False,True,,False,0.0,,,
-crypto_1,crypto,3,1,False,True,,False,0.0,,,
-museum_4,museum,6,1,False,True,,False,0.0,,,

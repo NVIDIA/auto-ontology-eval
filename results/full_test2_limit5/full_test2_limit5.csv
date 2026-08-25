@@ -1,2 +1,0 @@
-instance_id,dataset,database,max_turn,turns_used,phase1_passed,phase1_debug_ran,phase2_passed,phase2_debug_ran,total_reward,exec_error_p1,exec_error_p2,error
-organ_transplant_21,full,organ_transplant,5,2,False,True,,False,0.0,,,

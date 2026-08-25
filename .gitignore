@@ -35,5 +35,8 @@ venv/
 /datasets/bird_interact/gt/*
 !/datasets/bird_interact/gt/.gitkeep
 
-# Test-run outputs (transient, local only)
-/results/full_test_limit*/
+# Test-run outputs (transient, local only) — keep the curated
+# flagged_questions notes tracked, ignore everything else under results/
+/results/*
+!/results/flagged_questions_full.txt
+!/results/flagged_questions_lite.txt
