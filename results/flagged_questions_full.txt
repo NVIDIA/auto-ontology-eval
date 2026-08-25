@@ -240,8 +240,9 @@ WEIRD / EDGE CASES — crypto_exchange, fake_account_16, cross_border_14,
 ================================================================================
 
 -- BROKEN GT --
-households_1      This computes total vehicle count in the single region with the highest comfort index — nothing about "bathroom ratio per area" survives past the CTE; it's answering a totally different question. 
-
+households_1      This computes total vehicle count in the single region with the highest comfort index — nothing about "bathroom ratio per area" survives past the CTE; it's answering a totally different question.
+labor_certification_applications_14  GT bakes in a 4th column (STRING_AGG top_occupations) that only the follow-up question asks for; priority question asks for 3 fields, so a correct 3-column answer fails the scorer's shape check no matter what.
+households_6      answers an unrelated question
 
 -- merge_follow_up drifts on debug retry --
 cross_border_14, exchange_traded_funds_19  Debug retry re-runs

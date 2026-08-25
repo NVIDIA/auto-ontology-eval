@@ -123,6 +123,22 @@ def _fmt_t_avg(vals: list[float]) -> str:
     return f"{sum(vals) / len(vals):.1f}s"
 
 
+def _abbrev_dbs(dbs: list[str]) -> dict[str, str]:
+    """Map full DB names to short forms (e.g. archeology_scan -> AS) for chart labels."""
+    used: set[str] = set()
+    short: dict[str, str] = {}
+    for db in dbs:
+        parts = db.split("_")
+        candidate = "".join(p[0] for p in parts).upper() if len(parts) > 1 else db[:2].upper()
+        n = len(candidate) + 1
+        while candidate in used:
+            candidate = db[:n].upper()
+            n += 1
+        used.add(candidate)
+        short[db] = candidate
+    return short
+
+
 def _make_charts(
     ok: list[dict],
     timestamped: list[dict],
@@ -188,6 +204,7 @@ def _make_charts(
         else:
             db_stats[db]["failed"] += 1
     dbs = sorted(db_stats)
+    db_short = _abbrev_dbs(dbs)
     both    = [db_stats[d]["both"]    for d in dbs]
     p1_only = [db_stats[d]["p1_only"] for d in dbs]
     failed  = [db_stats[d]["failed"]  for d in dbs]
@@ -195,7 +212,7 @@ def _make_charts(
     ax.bar(xi, both,    label="Pass (both phases)", color=C_PASS_BOTH)
     ax.bar(xi, p1_only, bottom=both, label="Pass (P1 only)", color=C_PASS_P1)
     ax.bar(xi, failed,  bottom=[a+b for a,b in zip(both, p1_only)], label="Fail", color=C_FAIL)
-    ax.set_xticks(list(xi)); ax.set_xticklabels(dbs, rotation=45, ha="right", fontsize=7)
+    ax.set_xticks(list(xi)); ax.set_xticklabels([db_short[d] for d in dbs], rotation=45, ha="right", fontsize=7)
     ax.set_title("Outcome per DB"); ax.set_ylabel("Tasks")
     ax.set_ylim(0, ax.get_ylim()[1] * 1.2); ax.legend(fontsize=7)
 
@@ -793,6 +810,7 @@ def main() -> None:
     db_records: dict[str, list[dict]] = defaultdict(list)
     for r in ok:
         db_records[r["database"]].append(r)
+    db_short = _abbrev_dbs(sorted(db_records))
     for db, recs in sorted(db_records.items()):
         p1_first  = sum(1 for r in recs if r.get("phase1_passed") and not r.get("phase1_debug_ran"))
         p1_total  = sum(1 for r in recs if r.get("phase1_passed"))
@@ -805,7 +823,7 @@ def main() -> None:
                       (t.get("phase2_debug_total_secs") or 0)
             if total_t > 0:
                 times.append(total_t)
-        print(f"  {db:<20}  n={len(recs):>3}  p1_1st={_pct(p1_first, len(recs)):>6}  p1_final={_pct(p1_total, len(recs)):>6}  avg_score={avg_score:.2f}  avg_time={_fmt_t_avg(times):>7}")
+        print(f"  {db_short[db]:<5} {db:<20}  n={len(recs):>3}  p1_1st={_pct(p1_first, len(recs)):>6}  p1_final={_pct(p1_total, len(recs)):>6}  avg_score={avg_score:.2f}  avg_time={_fmt_t_avg(times):>7}")
 
     # ── 8. Performance regression over time ────────────────────────────────────
     print(f"\n── Performance Regression Over Time ──────────────────────────────────")

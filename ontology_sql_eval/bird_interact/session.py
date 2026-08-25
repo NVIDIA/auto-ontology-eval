@@ -1,8 +1,9 @@
 """Per-task adapter session state."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 
 @dataclass
@@ -19,6 +20,10 @@ class AdapterSession:
     total_reward: float = 0.0
     _submitted_this_phase: bool = False
     _last_submit_raw: str = ""
+    # Phase 1 submit attempts so far (1 = first try, 2 = debug retry, ...) —
+    # mirrors ADK's own per-phase attempt counter, needed to pick the right
+    # reward when working around the p1snap collision (see known_issues.py).
+    phase1_submit_attempts: int = 0
     # Conversation history (returned to orchestrator)
     dialogue_history: list = field(default_factory=list)
     tool_trajectory: list = field(default_factory=list)
