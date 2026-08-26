@@ -243,6 +243,9 @@ WEIRD / EDGE CASES — crypto_exchange, fake_account_16, cross_border_14,
 households_1      This computes total vehicle count in the single region with the highest comfort index — nothing about "bathroom ratio per area" survives past the CTE; it's answering a totally different question.
 labor_certification_applications_14  GT bakes in a 4th column (STRING_AGG top_occupations) that only the follow-up question asks for; priority question asks for 3 fields, so a correct 3-column answer fails the scorer's shape check no matter what.
 households_6      answers an unrelated question
+organ_transplant_17 Both user and GT said compatibility_metrics.distance , but all sample values we pulled prom it were in miles. So we did a conversion and failed.
+museum_artifact_2 GT's SQL builds jsonb_agg(jsonb_build_object('type', ..., 'level', 'High')) — a JSON array of objects, the literal opposite of what the user explicitly, affirmatively rejected. Also,
+                  GT has an internal typo. Its own ERF_Calculation CTE extracts env_handling_sensitivity -> 'environment' ->> 'pollutANTS' (capital ANTS) for the score formula, but the same GT query's HighSensitivities CTE — a few lines later, same query — correctly uses lowercase 'pollutants'.
 
 -- merge_follow_up drifts on debug retry --
 cross_border_14, exchange_traded_funds_19  Debug retry re-runs
@@ -280,5 +283,7 @@ crypto_exchange (instance unconfirmed)  A column resolved via candidate
                   just within one database instead of across two — happens
                   upstream at candidate identification, before join-path or
                   relevance-filter logic runs.
+
+organ_transplant_1 We sorted by the same metric ut put nulls first and they wanted last. No way of knowing...
 
 ================================================================================

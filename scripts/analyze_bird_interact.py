@@ -778,7 +778,7 @@ def main() -> None:
     # ── Slow P1 tasks (>120s) ──────────────────────────────────────────────────
     # Flag a task when EITHER individual component (clarify or sqlgen) exceeds
     # the threshold on its own — not the combined total.
-    SLOW_THRESHOLD = 120.0
+    SLOW_THRESHOLD = 180.0
     slow_tasks: list[tuple[str, float, float, float, str]] = []  # (id, total, clarify, sqlgen, tag)
     for r in ok:
         t = r.get("timing") or {}
