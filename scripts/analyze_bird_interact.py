@@ -523,6 +523,19 @@ def main() -> None:
         1 for r in ok
         if r.get("phase1_passed") and (r.get("phase2_passed") is None or r.get("phase2_passed"))
     )
+    # Leaderboard-style SR metrics (denominator = len(ok) throughout; a task with
+    # no follow-up auto-passes the follow-up metrics as long as P1 passed — same
+    # convention as n_full_pass above).
+    n_p1_pass_no_debug = sum(
+        1 for r in ok if r.get("phase1_passed") and not r.get("phase1_debug_ran")
+    )
+    n_followup_pass_no_debug = sum(
+        1 for r in ok
+        if r.get("phase1_passed") and (
+            r.get("phase2_passed") is None
+            or (r.get("phase2_passed") and not r.get("phase2_debug_ran"))
+        )
+    )
 
     sum_rewards = sum(r.get("total_reward", 0) for r in ok)
     # Count query-only tasks in the full dataset (for denominator excluding management)
@@ -536,6 +549,11 @@ def main() -> None:
     print(f"Phase 2 pass:      {n_p2_pass}/{n_has_p2}  ({_pct(n_p2_pass, n_has_p2)})  [of tasks with follow-up that reached p2]")
     print(f"Full pass (p1+p2): {n_full_pass}/{len(ok)}  ({_pct(n_full_pass, len(ok))})")
     print(f"Avg score:         {sum_rewards / max(len(ok), 1):.3f}")
+    print(f"\n── Leaderboard-style SR ──────────────────────────────────────────────")
+    print(f"  P1 SR (no debug):         {n_p1_pass_no_debug}/{len(ok)}  ({_pct(n_p1_pass_no_debug, len(ok))})")
+    print(f"  P1 SR (+debug):           {n_p1_pass}/{len(ok)}  ({_pct(n_p1_pass, len(ok))})")
+    print(f"  Follow-up SR (no debug):  {n_followup_pass_no_debug}/{len(ok)}  ({_pct(n_followup_pass_no_debug, len(ok))})")
+    print(f"  Follow-up SR (+debug):    {n_full_pass}/{len(ok)}  ({_pct(n_full_pass, len(ok))})")
     n_completed_naturally = len(ok)   # tasks that ran without error/timeout
     n_not_natural = total - n_completed_naturally  # errors + timeouts
     # Full benchmark size (incl. management) — use the actual joined dataset
@@ -997,6 +1015,12 @@ def main() -> None:
         "phase1_pass": n_p1_pass,
         "phase2_pass": n_p2_pass,
         "full_pass": n_full_pass,
+        "p1_pass_no_debug": n_p1_pass_no_debug,
+        "p1_sr_no_debug_pct": round(n_p1_pass_no_debug / max(len(ok), 1) * 100, 2),
+        "p1_sr_with_debug_pct": round(n_p1_pass / max(len(ok), 1) * 100, 2),
+        "followup_pass_no_debug": n_followup_pass_no_debug,
+        "followup_sr_no_debug_pct": round(n_followup_pass_no_debug / max(len(ok), 1) * 100, 2),
+        "followup_sr_with_debug_pct": round(n_full_pass / max(len(ok), 1) * 100, 2),
         "sum_rewards": round(sum_rewards, 4),
         "avg_reward": round(sum_rewards / max(len(ok), 1), 4),
         "score_vs_completed_naturally_pct": round(sum_rewards / max(n_completed_naturally, 1) * 100, 2),
