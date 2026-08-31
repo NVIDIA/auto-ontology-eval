@@ -133,7 +133,7 @@ def load_task(
     if not data_path.exists():
         print(f"Data file not found: {data_path}", file=sys.stderr)
         sys.exit(1)
-    tasks = [json.loads(l) for l in data_path.open() if l.strip()]
+    tasks = [json.loads(line) for line in data_path.open() if line.strip()]
     if instance_id:
         matches = [(i, t) for i, t in enumerate(tasks) if t.get("instance_id") == instance_id]
         if not matches:
@@ -316,7 +316,7 @@ def main() -> None:
         p1_debug_ran = False
         if not p1_pass and state.get("_submitted_this_phase"):
             debug_msg = _build_debug_message(state.get("_last_submit_raw", ""))
-            print(f"\n-- Phase 1 Debug --")
+            print("\n-- Phase 1 Debug --")
             print(f"  prompt: {debug_msg[:120]}")
             resp  = post(f"{agent_url}/run_session",
                          {"task_id": task_id, "mode": "c-interact", "message": debug_msg},
@@ -362,7 +362,7 @@ def main() -> None:
             # ── 11. Phase 2 Debug ─────────────────────────────────────────────
             if not p2_pass and state.get("_submitted_this_phase"):
                 debug_msg = _build_debug_message(state.get("_last_submit_raw", ""))
-                print(f"\n-- Phase 2 Debug --")
+                print("\n-- Phase 2 Debug --")
                 print(f"  prompt: {debug_msg[:120]}")
                 resp  = post(f"{agent_url}/run_session",
                              {"task_id": task_id, "mode": "c-interact", "message": debug_msg},

@@ -24,6 +24,21 @@ class AdapterSession:
     # mirrors ADK's own per-phase attempt counter, needed to pick the right
     # reward when working around the p1snap collision (see known_issues.py).
     phase1_submit_attempts: int = 0
+    # Turn-type classification for the *next* /run_session call, derived from
+    # the previous submit_sql response's structured phase_completed field (and,
+    # for a still-failing submission, the [exec_err_flg] marker in its message)
+    # right when that response arrives — rather than re-deriving it later by
+    # pattern-matching the orchestrator's own next message. See
+    # gsf.retrieval.interactive.coordinator.step()'s turn_type/debug_error params.
+    _next_turn_type: str | None = None  # "debug" | "follow_up" | None (= initial)
+    _next_debug_error: str | None = None  # set only for the exec-error DEBUG case
+    # True once this session's first /run_session call has been handled. Used
+    # (instead of inferring from _next_turn_type, which is ambiguous between
+    # "still initial" and "task already done") to know unambiguously when the
+    # incoming message is the c-interact protocol's very first "User Query:
+    # ..." message, so it can be classified as INITIAL up front rather than
+    # via gsf's text-pattern fallback.
+    _seen_first_run_session: bool = False
     # Conversation history (returned to orchestrator)
     dialogue_history: list = field(default_factory=list)
     tool_trajectory: list = field(default_factory=list)

@@ -102,7 +102,7 @@ def load_task(data_path: Path, index: int, db_filter: str | None, random_pick: b
     if not data_path.exists():
         print(f"Data file not found: {data_path}", file=sys.stderr)
         sys.exit(1)
-    tasks = [json.loads(l) for l in data_path.open() if l.strip()]
+    tasks = [json.loads(line) for line in data_path.open() if line.strip()]
     if instance_id:
         matches = [(i, t) for i, t in enumerate(tasks) if t.get("instance_id") == instance_id]
         if not matches:

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import time
 import uuid
 import warnings
@@ -18,6 +19,7 @@ from pydantic import BaseModel
 from gsf.retrieval.interactive import (
     AskUserAction,
     SubmitSQLAction,
+    TurnType,
     create_session as gsf_create_session,
     step as gsf_step,
     apply_user_answer as gsf_apply_user_answer,
@@ -82,6 +84,29 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="BIRD-Interact GSF Adapter", lifespan=lifespan)
+
+
+# ── c-interact message-text extraction ──────────────────────────────────────
+# These parse the two pieces of question text the c-interact orchestrator
+# only ever sends embedded in free text (orchestrator/cinteract.py in the
+# reference ADK: line 136 for the initial "User Query:" message, line ~157
+# for the Phase 2 follow-up message) — there is no structured field for
+# either at the point they're needed, so this is the earliest point in the
+# adapter (not gsf) they can be pulled out once and threaded through.
+
+
+def _extract_initial_question(message: str) -> str:
+    """Extract the user question from the Phase 1 orchestrator message."""
+    match = re.search(r"User Query:\s*\n(.*?)(?:\n\n|$)", message, re.DOTALL)
+    return match.group(1).strip() if match else ""
+
+
+def _extract_followup_question(message: str) -> str:
+    """Extract the follow-up question from the Phase 2 orchestrator message."""
+    match = re.search(
+        r"follow-up question:\s*\n\n(.*?)(?:\n\nGenerate|$)", message, re.DOTALL
+    )
+    return match.group(1).strip() if match else ""
 
 
 _MAX_KG_CHILDREN = 5
@@ -264,6 +289,33 @@ async def run_session(req: RunSessionRequest):
     sess._submitted_this_phase = False
     import asyncio
 
+    # Classify this request's message once, up front, and reuse the result for
+    # every gsf_step call in this request's loop (mirrors how req.message
+    # itself is reused unchanged across ask_user round-trips within the
+    # loop). The classification itself comes from state the adapter already
+    # holds — never by asking gsf to pattern-match req.message:
+    #   - first-ever call for this session → INITIAL, with the question text
+    #     extracted from req.message here (the c-interact orchestrator has no
+    #     structured field for it — see _extract_initial_question).
+    #   - otherwise, whatever the *previous* submit_sql response already told
+    #     us about the next turn (see the submit branch below) — DEBUG (with
+    #     its pre-extracted error text) or FOLLOW_UP (with its question text
+    #     extracted from req.message here, same reasoning as INITIAL).
+    turn_type_hint: TurnType | None = None
+    debug_error_hint: str | None = None
+    initial_question_hint: str | None = None
+    follow_up_question_hint: str | None = None
+    if not sess._seen_first_run_session:
+        turn_type_hint = TurnType.INITIAL
+        initial_question_hint = _extract_initial_question(req.message)
+    elif sess._next_turn_type == "debug":
+        turn_type_hint = TurnType.DEBUG
+        debug_error_hint = sess._next_debug_error
+    elif sess._next_turn_type == "follow_up":
+        turn_type_hint = TurnType.FOLLOW_UP
+        follow_up_question_hint = _extract_followup_question(req.message)
+    sess._seen_first_run_session = True
+
     turn = 0
     t_start = time.time()
 
@@ -276,7 +328,15 @@ async def run_session(req: RunSessionRequest):
     while True:
         turn += 1
         t0 = time.time()
-        action = await asyncio.to_thread(gsf_step, sess.gsf_session, req.message)
+        action = await asyncio.to_thread(
+            gsf_step,
+            sess.gsf_session,
+            req.message,
+            turn_type=turn_type_hint,
+            debug_error=debug_error_hint,
+            initial_question=initial_question_hint,
+            follow_up_question=follow_up_question_hint,
+        )
         elapsed = time.time() - t0
 
         if isinstance(action, AskUserAction):
@@ -380,6 +440,26 @@ async def run_session(req: RunSessionRequest):
             if phase_completed == 2:
                 sess.phase2_completed = True
                 sess.task_done = True
+
+            # Classify what the *next* run_session's message will be from this
+            # submit response itself, instead of leaving it to be re-derived
+            # later by pattern-matching the orchestrator's own next message
+            # (see the turn_type_hint/debug_error_hint block above the loop).
+            if phase_completed == 1:
+                sess._next_turn_type = "follow_up"
+                sess._next_debug_error = None
+            elif phase_completed == 2:
+                # Task is done — no further run_session is expected for this
+                # task, but reset defensively in case one arrives anyway.
+                sess._next_turn_type = None
+                sess._next_debug_error = None
+            else:
+                sess._next_turn_type = "debug"
+                raw_msg = result.get("message", "")
+                if "[exec_err_flg]" in raw_msg:
+                    sess._next_debug_error = raw_msg.split("[exec_err_flg]", 1)[-1].strip()
+                else:
+                    sess._next_debug_error = None
 
             gsf_apply_submit_result(sess.gsf_session, result)
             sess._submitted_this_phase = True

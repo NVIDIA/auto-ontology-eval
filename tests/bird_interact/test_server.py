@@ -38,6 +38,14 @@ class SubmitSQLAction:
         self.sql = sql
 
 
+class TurnType:
+    """Minimal stand-in for gsf.retrieval.interactive.TurnType."""
+
+    INITIAL = "initial"
+    DEBUG = "debug"
+    FOLLOW_UP = "follow_up"
+
+
 def _ensure_gsf_mocks() -> None:
     """Populate sys.modules with lightweight stubs if gsf is absent."""
     if "gsf" in sys.modules:
@@ -50,6 +58,7 @@ def _ensure_gsf_mocks() -> None:
     # Action types used by server.py
     gsf_interactive.AskUserAction = AskUserAction  # type: ignore[attr-defined]
     gsf_interactive.SubmitSQLAction = SubmitSQLAction  # type: ignore[attr-defined]
+    gsf_interactive.TurnType = TurnType  # type: ignore[attr-defined]
 
     # Callable stubs (tests override these per-test via patch)
     gsf_interactive.create_session = MagicMock()  # type: ignore[attr-defined]
@@ -415,6 +424,112 @@ def test_exec_err_flg_preserved():
     state = resp.json()["state"]
     assert "[exec_err_flg]" in state["_last_submit_raw"]
     assert state["total_reward"] == 0.0
+
+
+def test_next_turn_type_threaded_as_debug_with_error():
+    """A failing exec-error submit on turn N must make turn N+1's run_session
+    call gsf_step with turn_type=DEBUG and the pre-extracted error text,
+    instead of leaving gsf to re-derive it by pattern-matching the next
+    orchestrator message."""
+    mock_sess = MagicMock()
+    first_result = {
+        "message": '[exec_err_flg] column "bad_column" does not exist',
+        "reward": 0.0,
+        "phase_completed": None,
+    }
+    step_mock = MagicMock(return_value=SubmitSQLAction("SELECT bad_column"))
+
+    with (
+        patch.object(server_mod, "_DATA_RETRIEVER", MagicMock()),
+        patch.object(server_mod, "_SEMANTIC_RETRIEVER", MagicMock()),
+        patch.object(server_mod, "_CONNECTORS", {"alien": [MagicMock()]}),
+        patch.object(server_mod, "gsf_create_session", return_value=mock_sess),
+        patch.object(server_mod, "gsf_step", step_mock),
+        patch.object(server_mod, "gsf_apply_user_answer", MagicMock()),
+        patch.object(server_mod, "gsf_apply_submit_result", MagicMock()),
+        patch(
+            "ontology_sql_eval.bird_interact.bird_interact_http.submit_sql",
+            AsyncMock(return_value=first_result),
+        ),
+        patch.object(app.router, "lifespan_context", _noop_lifespan),
+    ):
+        with TestClient(app) as client:
+            client.post(
+                "/init_session",
+                json={"task_id": "task-006", "state": {"db_name": "alien"}},
+            )
+            # Turn 1: fresh session — first-ever call is classified INITIAL,
+            # with the question extracted from this same message.
+            client.post(
+                "/run_session",
+                json={"task_id": "task-006", "message": "User Query:\nFind all aliens\n\n"},
+            )
+            first_call_kwargs = step_mock.call_args.kwargs
+            assert first_call_kwargs["turn_type"] == server_mod.TurnType.INITIAL
+            assert first_call_kwargs["initial_question"] == "Find all aliens"
+            assert first_call_kwargs["debug_error"] is None
+
+            # Turn 2: the orchestrator's debug-retry message arrives — the
+            # adapter already knows (from turn 1's submit result) that this is
+            # a DEBUG/exec-error turn, without needing to parse this message.
+            client.post(
+                "/run_session",
+                json={
+                    "task_id": "task-006",
+                    "message": "Your SQL is not executable: ignored anyway",
+                },
+            )
+            second_call_kwargs = step_mock.call_args.kwargs
+
+    assert second_call_kwargs["turn_type"] == server_mod.TurnType.DEBUG
+    assert second_call_kwargs["debug_error"] == 'column "bad_column" does not exist'
+
+
+def test_next_turn_type_threaded_as_follow_up():
+    """A phase-1-completing submit must make the next run_session call
+    gsf_step with turn_type=FOLLOW_UP."""
+    mock_sess = MagicMock()
+    first_result = {"message": "correct", "reward": 1.0, "phase_completed": 1}
+    step_mock = MagicMock(return_value=SubmitSQLAction("SELECT 1"))
+
+    with (
+        patch.object(server_mod, "_DATA_RETRIEVER", MagicMock()),
+        patch.object(server_mod, "_SEMANTIC_RETRIEVER", MagicMock()),
+        patch.object(server_mod, "_CONNECTORS", {"alien": [MagicMock()]}),
+        patch.object(server_mod, "gsf_create_session", return_value=mock_sess),
+        patch.object(server_mod, "gsf_step", step_mock),
+        patch.object(server_mod, "gsf_apply_user_answer", MagicMock()),
+        patch.object(server_mod, "gsf_apply_submit_result", MagicMock()),
+        patch(
+            "ontology_sql_eval.bird_interact.bird_interact_http.submit_sql",
+            AsyncMock(return_value=first_result),
+        ),
+        patch.object(app.router, "lifespan_context", _noop_lifespan),
+    ):
+        with TestClient(app) as client:
+            client.post(
+                "/init_session",
+                json={"task_id": "task-007", "state": {"db_name": "alien"}},
+            )
+            client.post(
+                "/run_session",
+                json={"task_id": "task-007", "message": "Find all aliens"},
+            )
+            client.post(
+                "/run_session",
+                json={
+                    "task_id": "task-007",
+                    "message": (
+                        "Phase 1 is complete. Here is a follow-up "
+                        "question:\n\nShow totals.\n\nGenerate the SQL."
+                    ),
+                },
+            )
+            second_call_kwargs = step_mock.call_args.kwargs
+
+    assert second_call_kwargs["turn_type"] == server_mod.TurnType.FOLLOW_UP
+    assert second_call_kwargs["debug_error"] is None
+    assert second_call_kwargs["follow_up_question"] == "Show totals."
 
 
 def test_missing_session_404():

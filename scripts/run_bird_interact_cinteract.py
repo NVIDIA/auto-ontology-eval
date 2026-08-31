@@ -113,7 +113,7 @@ def main() -> None:
         print(f"ERROR: data file not found: {data_path}", file=sys.stderr)
         sys.exit(1)
 
-    tasks = [json.loads(l) for l in data_path.open() if l.strip()]
+    tasks = [json.loads(line) for line in data_path.open() if line.strip()]
     any_filter = args.db or args.instance_id or args.category or args.difficulty or args.random
     filtered_tmp: str | None = None
     if any_filter:

@@ -9,7 +9,6 @@ The shims implement the same interface using psycopg2.
 Run once before starting Bird ADK services:
     python scripts/setup_pg_wrappers.py
 """
-import os
 import stat
 import sys
 import textwrap
@@ -95,7 +94,7 @@ def main() -> None:
         conn.close()
     """)
 
-    print(f"\nDone. Add to PATH before starting Bird services:")
+    print("\nDone. Add to PATH before starting Bird services:")
     print(f"  export PATH={WRAPPERS_DIR}:$PATH")
 
 

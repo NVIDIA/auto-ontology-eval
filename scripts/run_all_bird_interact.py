@@ -499,7 +499,7 @@ def main() -> None:
             _current_phase: list = ["phase1"]
             try:
                 record = run_task(task, agent_url, args.phase_timeout, dataset_label, _current_phase)
-            except httpx.TimeoutException as exc:
+            except httpx.TimeoutException:
                 phase_hint = _current_phase[0]
                 err_msg = f"timeout:{phase_hint} — timed out after {args.phase_timeout:.0f}s"
                 print(f"  ERROR: {err_msg}")
