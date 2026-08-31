@@ -111,6 +111,12 @@ def _pct(num: int, denom: int) -> str:
     return f"{num / denom * 100:.1f}%"
 
 
+def _pct2(num: int, denom: int) -> str:
+    if denom == 0:
+        return "N/A"
+    return f"{num / denom * 100:.2f}%"
+
+
 def _fmt_t(secs: float | None) -> str:
     if secs is None:
         return "N/A"
@@ -550,10 +556,10 @@ def main() -> None:
     print(f"Full pass (p1+p2): {n_full_pass}/{len(ok)}  ({_pct(n_full_pass, len(ok))})")
     print(f"Avg score:         {sum_rewards / max(len(ok), 1):.3f}")
     print(f"\n── Leaderboard-style SR ──────────────────────────────────────────────")
-    print(f"  P1 SR (no debug):         {n_p1_pass_no_debug}/{len(ok)}  ({_pct(n_p1_pass_no_debug, len(ok))})")
-    print(f"  P1 SR (+debug):           {n_p1_pass}/{len(ok)}  ({_pct(n_p1_pass, len(ok))})")
-    print(f"  Follow-up SR (no debug):  {n_followup_pass_no_debug}/{len(ok)}  ({_pct(n_followup_pass_no_debug, len(ok))})")
-    print(f"  Follow-up SR (+debug):    {n_full_pass}/{len(ok)}  ({_pct(n_full_pass, len(ok))})")
+    print(f"  P1 SR (no debug):         {n_p1_pass_no_debug}/{len(ok)}  ({_pct2(n_p1_pass_no_debug, len(ok))})")
+    print(f"  P1 SR (+debug):           {n_p1_pass}/{len(ok)}  ({_pct2(n_p1_pass, len(ok))})")
+    print(f"  Follow-up SR (no debug):  {n_followup_pass_no_debug}/{len(ok)}  ({_pct2(n_followup_pass_no_debug, len(ok))})")
+    print(f"  Follow-up SR (+debug):    {n_full_pass}/{len(ok)}  ({_pct2(n_full_pass, len(ok))})")
     n_completed_naturally = len(ok)   # tasks that ran without error/timeout
     n_not_natural = total - n_completed_naturally  # errors + timeouts
     # Full benchmark size (incl. management) — use the actual joined dataset

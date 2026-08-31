@@ -148,6 +148,7 @@ def _load_tasks(
     shuffle: bool,
     include_ids: set[str] | None = None,
     exclude_ids: set[str] | None = None,
+    force_include_ids: set[str] | None = None,
 ) -> list[dict]:
     if not data_path.exists():
         print(f"Data file not found: {data_path}", file=sys.stderr)
@@ -161,6 +162,27 @@ def _load_tasks(
         tasks = [t for t in tasks if t["instance_id"] in include_ids]
     if exclude_ids:
         tasks = [t for t in tasks if t["instance_id"] not in exclude_ids]
+
+    if force_include_ids:
+        # Guarantee these instance_ids are in the final set, then fill the
+        # rest of --limit (shuffled if requested) from the remaining pool.
+        forced = [t for t in tasks if t["instance_id"] in force_include_ids]
+        found_ids = {t["instance_id"] for t in forced}
+        missing = force_include_ids - found_ids
+        if missing:
+            print(f"WARNING: --force-include ids not found in filtered pool: {sorted(missing)}",
+                  file=sys.stderr)
+        rest = [t for t in tasks if t["instance_id"] not in found_ids]
+        if shuffle:
+            random.shuffle(rest)
+        if limit:
+            fill_n = max(limit - len(forced), 0)
+            rest = rest[:fill_n]
+        tasks = forced + rest
+        if shuffle:
+            random.shuffle(tasks)
+        return tasks
+
     if shuffle:
         random.shuffle(tasks)
     if limit:
@@ -396,6 +418,9 @@ def main() -> None:
                         help="Run only these instance_ids (space-separated)")
     parser.add_argument("--exclude", nargs="+", metavar="TASK_ID", default=None,
                         help="Skip these instance_ids (space-separated)")
+    parser.add_argument("--force-include", nargs="+", metavar="TASK_ID", default=None,
+                        help="Always include these instance_ids, then fill the rest of "
+                             "--limit randomly from the remaining pool (space-separated)")
     args = parser.parse_args()
 
     agent_url = f"http://127.0.0.1:{args.agent_port}"
@@ -416,9 +441,11 @@ def main() -> None:
     # ── Load tasks ────────────────────────────────────────────────────────────
     include_ids = set(args.include) if args.include else None
     exclude_ids = set(args.exclude) if args.exclude else None
+    force_include_ids = set(args.force_include) if args.force_include else None
     dataset_label = _infer_dataset_label(Path(args.data))
     tasks = _load_tasks(Path(args.data), args.difficulty, args.limit, args.shuffle,
-                        include_ids=include_ids, exclude_ids=exclude_ids)
+                        include_ids=include_ids, exclude_ids=exclude_ids,
+                        force_include_ids=force_include_ids)
     if not tasks:
         print("No tasks matched the given filters.", file=sys.stderr)
         sys.exit(1)
@@ -429,6 +456,8 @@ def main() -> None:
         print(f"  include filter:    {sorted(include_ids)}")
     if exclude_ids:
         print(f"  exclude filter:    {sorted(exclude_ids)}")
+    if force_include_ids:
+        print(f"  force-include:     {sorted(force_include_ids)}")
     print(f"  output dir: {run_dir}")
     print()
 
