@@ -27,6 +27,7 @@ venv/
 /datasets/bird/*
 /datasets/bird_interact/*
 /datasets/bird_interact_full/*
+/datasets/fdabench/*
 /datasets/dor_prod/
 !/datasets/bird/.gitkeep
 !/datasets/bird/README.md
@@ -34,6 +35,8 @@ venv/
 !/datasets/bird_interact/gt/
 /datasets/bird_interact/gt/*
 !/datasets/bird_interact/gt/.gitkeep
+!/datasets/fdabench/.gitkeep
+!/datasets/fdabench/README.md
 
 # Test-run outputs (transient, local only), including the flagged_questions
 # notes — not tracked on remote, kept local only.

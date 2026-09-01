@@ -45,6 +45,17 @@
       "justMyCode": false
     },
     {
+      "name": "Seed local FDABench",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/seed_fdabench.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "envFile": "${workspaceFolder}/.env",
+      "justMyCode": false
+    },
+    {
       "name": "Judge (score CSVs)",
       "type": "debugpy",
       "request": "launch",
@@ -60,11 +71,7 @@
       "type": "debugpy",
       "request": "launch",
       "module": "ontology_sql_eval.judge.bird",
-      "args": [
-        "--input",
-        "input/bird_nemotron-3-nano-30b-a3b.csv",
-        "--skip-ves"
-      ],
+      "args": ["--input", "input/bird_gpt-5.5.csv", "--skip-ves"],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",

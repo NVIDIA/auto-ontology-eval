@@ -1,3 +1,9 @@
+-- SPDX-FileCopyrightText: Copyright (c) Microsoft Corporation
+-- SPDX-License-Identifier: MIT
+--
+-- Ported to PostgreSQL from Microsoft's WideWorldImporters sample database
+-- (https://github.com/microsoft/sql-server-samples), used under the MIT License.
+
 -- Sequences (mirrors MSSQL Sequences schema)
 CREATE SCHEMA IF NOT EXISTS Sequences;
 CREATE SEQUENCE IF NOT EXISTS Sequences.BuyingGroupID INCREMENT BY 1 START WITH 3;

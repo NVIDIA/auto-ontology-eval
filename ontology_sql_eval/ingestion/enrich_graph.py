@@ -48,8 +48,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    import pandas as pd
-
     from nemo_retriever.common.params.models import EmbedParams
     from nemo_retriever.common.vdb.adt_vdb import VDB
 
@@ -58,18 +56,26 @@ logger = logging.getLogger(__name__)
 DEFAULT_DIR = Path(__file__).resolve().parents[2] / "datasets"
 
 
-def resolve_dataset_file(database_name: str, filename: str) -> Path | None:
-    """Locate a per-database dataset file under ``datasets/<database_name>/``."""
-    path = DEFAULT_DIR / database_name / filename
-    return path if path.is_file() else None
+def _dataset_file(database_name: str, filename: str) -> Path | None:
+    """Resolve a per-database enrichment file under ``datasets/``.
+
+    Looks first at the single-DB layout ``datasets/<database_name>/<filename>``
+    (WideWorldImporters), then at multi-DB layouts
+    ``datasets/<benchmark>/<database_name>/<filename>`` (BIRD, FDABench).
+    """
+    direct = DEFAULT_DIR / database_name / filename
+    if direct.is_file():
+        return direct
+    matches = sorted(DEFAULT_DIR.glob(f"*/{database_name}/{filename}"))
+    return matches[0] if matches else None
 
 
 def apply_metadata(database_name: str) -> None:
     """Stamp table/column metadata onto the Neo4j graph.
 
-    Reads ``metadata.json`` for *database_name* (keyed by table name) and
-    updates the following properties for every table/column belonging to
-    *database_name*:
+    Reads ``datasets/<database_name>/metadata.json`` (or, for multi-DB
+    benchmarks, ``datasets/<benchmark>/<database_name>/metadata.json``), keyed
+    by table name, and updates:
 
     * ``Table.description``
     * ``Column.description``
@@ -82,11 +88,11 @@ def apply_metadata(database_name: str) -> None:
     """
     from nemo_retriever.tabular_data.neo4j import get_neo4j_conn
 
-    metadata_path = resolve_dataset_file(database_name, "metadata.json")
+    metadata_path = _dataset_file(database_name, "metadata.json")
 
     if metadata_path is None:
         logger.info(
-            "No metadata file for database %r under %s — skipping enrichment.",
+            "No metadata.json for %r under %s — skipping enrichment.",
             database_name,
             DEFAULT_DIR,
         )
@@ -96,7 +102,7 @@ def apply_metadata(database_name: str) -> None:
         raw = json.load(f)
 
     table_rows: list[dict[str, str]] = []
-    column_rows: list[dict[str, str | None]] = []
+    column_rows: list[dict[str, str | list[str] | None]] = []
     samples_count = 0
     for table_name, table_meta in raw.items():
         table_desc = table_meta.get("description")
@@ -106,11 +112,8 @@ def apply_metadata(database_name: str) -> None:
         for col in table_meta.get("columns", []) or []:
             col_desc = col.get("description")
             value_examples = col.get("value_examples")
-            # Store as a JSON string to match the semantic-compile writer
-            # (gsf.dal.datasources.store_column_sample_values), so every
-            # Column.sample_values property has a single consistent format.
-            sample_values: str | None = (
-                json.dumps([str(v) for v in value_examples])
+            sample_values: list[str] | None = (
+                [str(v) for v in value_examples]
                 if isinstance(value_examples, list) and value_examples
                 else None
             )
@@ -163,141 +166,6 @@ def apply_metadata(database_name: str) -> None:
     )
 
 
-def _format_sample_value(value: object, *, max_len: int = 60) -> str | None:
-    """Normalize a raw cell value to a short display string, or ``None`` to skip."""
-    import math
-
-    if value is None:
-        return None
-    if isinstance(value, float) and math.isnan(value):
-        return None
-    text = str(value).strip()
-    if not text or text.lower() in {"nan", "none", "null"}:
-        return None
-    if len(text) > max_len:
-        text = text[: max_len - 1] + "\u2026"
-    return text
-
-
-def _collect_column_samples(
-    frame: "pd.DataFrame", *, max_values: int
-) -> dict[str, list[str]]:
-    """Pull up to *max_values* distinct, non-null display values per column."""
-    samples: dict[str, list[str]] = {}
-    for column in frame.columns:
-        seen: list[str] = []
-        for raw in frame[column].tolist():
-            formatted = _format_sample_value(raw)
-            if formatted is None or formatted in seen:
-                continue
-            seen.append(formatted)
-            if len(seen) >= max_values:
-                break
-        if seen:
-            samples[str(column)] = seen
-    return samples
-
-
-def backfill_sample_values(
-    database_name: str,
-    connector: object,
-    *,
-    sample_row_limit: int = 200,
-    max_values_per_column: int = 5,
-) -> None:
-    """Sample real values from the source DB onto ``Column.sample_values`` nodes.
-
-    Tabular ingest records column names/types but no example values, so the
-    text-to-SQL prompt can't tell that e.g. a ``coordinates`` TEXT column holds
-    ``(lon,lat)`` tuples rather than JSON. This scans up to *sample_row_limit*
-    rows per table and stores a few distinct non-null values per column, giving
-    the model the actual value shape to parse against.
-
-    Existing sample values (e.g. curated ``value_examples`` from
-    ``metadata.json`` applied by :func:`apply_metadata`) are preserved — this
-    only fills columns that don't already have them.
-    """
-    from nemo_retriever.tabular_data.neo4j import get_neo4j_conn
-
-    dialect = str(getattr(connector, "dialect", "") or "").lower()
-    execute = getattr(connector, "execute", None)
-    get_columns = getattr(connector, "get_columns", None)
-    if not callable(execute) or not callable(get_columns):
-        logger.info(
-            "Connector for %s exposes no execute/get_columns; "
-            "skipping sample-value backfill.",
-            database_name,
-        )
-        return
-
-    try:
-        columns_df = get_columns()
-    except Exception:
-        logger.warning(
-            "Could not list columns for %s; skipping sample-value backfill.",
-            database_name,
-            exc_info=True,
-        )
-        return
-    if columns_df is None or columns_df.empty:
-        return
-
-    column_rows: list[dict[str, object]] = []
-    for (schema_name, table_name), _group in columns_df.groupby(
-        ["table_schema", "table_name"], sort=False
-    ):
-        if dialect == "sqlite":
-            ref = f'"{table_name}"'
-        elif schema_name:
-            ref = f'"{schema_name}"."{table_name}"'
-        else:
-            ref = f'"{table_name}"'
-
-        try:
-            frame = execute(f"SELECT * FROM {ref} LIMIT {int(sample_row_limit)}")
-        except Exception:
-            logger.debug(
-                "Sampling failed for %s; skipping table.", ref, exc_info=True
-            )
-            continue
-        if frame is None or frame.empty:
-            continue
-
-        for col_name, values in _collect_column_samples(
-            frame, max_values=max_values_per_column
-        ).items():
-            column_rows.append(
-                {
-                    "table_name": str(table_name),
-                    "column_name": col_name,
-                    # JSON string to match the semantic-compile writer
-                    # (gsf.dal.datasources.store_column_sample_values).
-                    "sample_values": json.dumps(values),
-                }
-            )
-
-    if not column_rows:
-        logger.info("No sample values collected for %s.", database_name)
-        return
-
-    conn = get_neo4j_conn()
-    conn.query_write(
-        query=(
-            "UNWIND $rows AS row "
-            "MATCH (d:Database {name: $database_name})-[:CONTAINS]->"
-            "(:Schema)-[:CONTAINS]->(t:Table {name: row.table_name})"
-            "-[:CONTAINS]->(c:Column {name: row.column_name}) "
-            "SET c.sample_values = coalesce(c.sample_values, row.sample_values)"
-        ),
-        parameters={"rows": column_rows, "database_name": database_name},
-    )
-    logger.info(
-        "Backfilled sample values for %d column(s) in %s.",
-        len(column_rows),
-        database_name,
-    )
-
-
 def add_custom_analyses(
     database_name: str,
     dialect: str,
@@ -337,11 +205,11 @@ def add_custom_analyses(
     )
     from gsf.dal.custom_analyses import embed_custom_analyses
 
-    analyses_path = resolve_dataset_file(database_name, "custom_analyses.json")
+    analyses_path = _dataset_file(database_name, "custom_analyses.json")
 
     if analyses_path is None:
         logger.info(
-            "custom analyses file not found for database %r under %s; skipping",
+            "No custom_analyses.json for %r under %s; skipping",
             database_name,
             DEFAULT_DIR,
         )

@@ -98,17 +98,14 @@ command with `PYTHONPATH=../GSF` (the judge does not need it).
 > Other models may fail at
 > runtime or produce invalid scores. In particular,
 >
-> **Opus on
-> integrate.api.nvidia.com was tested and did not support structured
-> output**.
->
 > All settings are read from `.env` (see [.env.example](.env.example) for the full
 > list). Variables are grouped by the workflow that uses them:
 
 | Variable                                              | Used by       | Description                                                           |
 | ----------------------------------------------------- | ------------- | --------------------------------------------------------------------- |
-| `NVIDIA_API_KEY`, `BASE_URL`, `MODEL_NAME`            | agent (eval)  | LLM that the text-to-SQL agent generates with.                        |
-| `JUDGE_API_KEY`, `JUDGE_BASE_URL`, `JUDGE_MODEL_NAME` | judge         | LLM that the judge scores with (falls back to the shared vars above). |
+| `DEFAULT_MODELS_API_KEY`, `DEFAULT_MODELS_ENDPOINT`, `DEFAULT_MODELS_MODEL` | shared default | Default credentials/model for model-backed workflows; legacy `NVIDIA_API_KEY` / `BASE_URL` / `MODEL_NAME` remain fallbacks. |
+| `REASONING_API_KEY`, `REASONING_ENDPOINT`, `REASONING_MODEL` | agent (eval) | LLM that the text-to-SQL agent generates with (falls back to `DEFAULT_MODELS_*`). |
+| `JUDGE_API_KEY`, `JUDGE_BASE_URL`, `JUDGE_MODEL_NAME` | judge         | LLM that the judge scores with (falls back to `DEFAULT_MODELS_*`, then legacy shared vars, then a built-in default for the key prefix). |
 | `EMBED_API_KEY`, `EMBED_ENDPOINT`, `EMBED_MODEL`      | ingest + eval | Embedding endpoint (must be identical for ingest and query).          |
 | `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`       | ingest + eval | Graph store connection.                                               |
 | `POSTGRES_*`                                          | ingest + eval | pgvector store connection.                                            |
@@ -126,6 +123,8 @@ Each bundled dataset's README documents how to stand up its source DB and set
   local Postgres from pre-generated DDL + CSVs.
 - **[BIRD Mini-Dev](datasets/bird/README.md)** — download per-database SQLite
   files.
+- **[FDABench-Lite](datasets/fdabench/README.md)** — download Lite tasks +
+  SQLite databases (BIRD train / Spider1 / Spider2-lite local).
 
 ## Full pipeline (end-to-end example)
 
@@ -145,7 +144,8 @@ Individual stages can be skipped with `--skip-ingest`, `--skip-semantic`,
 For concrete, copy-pasteable walkthroughs (including the manual per-stage
 commands), see the per-dataset READMEs:
 [WideWorldImporters](datasets/wideworldimporters/README.md),
-[BIRD Mini-Dev](datasets/bird/README.md). See the per-workflow READMEs under
+[BIRD Mini-Dev](datasets/bird/README.md),
+[FDABench-Lite](datasets/fdabench/README.md). See the per-workflow READMEs under
 [Workflows](#workflows) for the details of each stage.
 
 ## Datasets
@@ -164,14 +164,24 @@ The retrieval eval writes its results CSV to the repo-root `input/` folder
 (`input/<database_name>_<model>.csv`), not into the dataset folder, so the judge
 can score it directly.
 
-The repo ships with two public worked examples:
+The repo ships with three public worked examples:
 
-### BIRD (Mini-Dev)
+### BIRD
 
-The [BIRD](https://bird-bench.github.io/) Mini-Dev subset — 11 SQLite
-databases, 500 questions, plus the official EX/VES scoring script. See
+The [BIRD](https://bird-bench.github.io/) benchmark, plus the official
+EX/VES scoring script. Defaults to the **Mini-Dev** subset (11 SQLite
+databases, 500 questions); the full **Dev** (1,534 questions) and **Train**
+(~69 additional databases) splits are also available. See
 **[datasets/bird/README.md](datasets/bird/README.md)** for how to download
-the dataset and run the full pipeline.
+the dataset(s) and run the full pipeline.
+
+### FDABench-Lite
+
+The [FDABench](https://github.com/fdabench/FDAbench) Lite subset, mapped to
+text-to-SQL: gold SQL from each task's subtasks, plus the SQLite databases
+those tasks need (169 questions, 15 databases). See
+**[datasets/fdabench/README.md](datasets/fdabench/README.md)** for how to
+download and run the full pipeline.
 
 ### WideWorldImporters (WWI)
 
@@ -284,12 +294,14 @@ ontology_sql_eval/          single namespace package
 main.py                     end-to-end pipeline entry point (ingest -> judge)
 scripts/
   seed_wwi.py               seed a local Postgres from datasets/<db>/{ddl,data}
-  seed_bird.py              download the BIRD Mini-Dev dataset into datasets/bird/
+  seed_bird.py              download BIRD split(s) (mini-dev/dev/train) into datasets/bird/
+  seed_fdabench.py          download FDABench-Lite tasks + SQLite DBs into datasets/fdabench/
 datasets/
   <database_name>/          evaluation.json, metadata.json, custom_analyses.json
     ddl/                    seed DDL (schemas, sequences, tables, indexes, fkeys, views)
     data/                   seed CSV data (COPYed into the tables)
   bird/                     README.md, evaluation.json, <db_id>/<db_id>.sqlite (11 DBs)
+  fdabench/                 README.md, evaluation.json, <db_id>/<db_id>.sqlite (15 DBs)
   wideworldimporters/       README.md, evaluation.json, custom_analyses.json, ddl/, data/
 input/                      judge input CSVs to score (contents gitignored)
 output/                     judge scored CSVs (<name>_scores.csv; contents gitignored)
@@ -299,13 +311,33 @@ output/                     judge scored CSVs (<name>_scores.csv; contents gitig
 
 VS Code launch configurations for all of the above (Run full pipeline, Judge,
 Ingest, Semantic compile, Eval, Eval single-query, Seed local WWI,
-Seed local BIRD) are provided in [.vscode/launch.json](.vscode/launch.json); they set
+Seed local BIRD, Seed local FDABench) are provided in [.vscode/launch.json](.vscode/launch.json); they set
 `PYTHONPATH=../GSF` where needed and load `.env` automatically. The type-checker
 path for `../GSF` is configured in [pyrightconfig.json](pyrightconfig.json).
 
+## Contributing
+
+This project is currently not accepting contributions.
+
 ## License and security
 
-This project is licensed under **Apache-2.0** (see the SPDX headers in the
-source files and the `license` field in [pyproject.toml](pyproject.toml)).
+This project is licensed under **Apache-2.0** (see [LICENSE](LICENSE), the SPDX
+headers in each source file, and the `license` field in
+[pyproject.toml](pyproject.toml)). Third-party dependency licenses are listed in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+Two items of third-party content are included in this repository, both MIT
+licensed and documented in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md#included-third-party-content):
+
+- [`ontology_sql_eval/judge/bird.py`](ontology_sql_eval/judge/bird.py) — ports
+  evaluation logic from the BIRD benchmark
+  ([AlibabaResearch/DAMO-ConvAI](https://github.com/AlibabaResearch/DAMO-ConvAI),
+  Copyright (c) 2022 Alibaba Research).
+- [`datasets/wideworldimporters/`](datasets/wideworldimporters/) — a Postgres
+  port of Microsoft's WideWorldImporters sample database
+  ([microsoft/sql-server-samples](https://github.com/microsoft/sql-server-samples),
+  Copyright (c) Microsoft Corporation). Its upstream notice is reproduced in
+  [datasets/wideworldimporters/LICENSE](datasets/wideworldimporters/LICENSE).
 
 To report a security vulnerability, follow the process in [SECURITY.md](SECURITY.md).
