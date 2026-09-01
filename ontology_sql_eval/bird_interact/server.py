@@ -301,7 +301,6 @@ async def run_session(req: RunSessionRequest):
     #     us about the next turn (see the submit branch below) — DEBUG (with
     #     its pre-extracted error text) or FOLLOW_UP (with its question text
     #     extracted from req.message here, same reasoning as INITIAL).
-    turn_type_hint: TurnType | None = None
     debug_error_hint: str | None = None
     initial_question_hint: str | None = None
     follow_up_question_hint: str | None = None
@@ -314,6 +313,19 @@ async def run_session(req: RunSessionRequest):
     elif sess._next_turn_type == "follow_up":
         turn_type_hint = TurnType.FOLLOW_UP
         follow_up_question_hint = _extract_followup_question(req.message)
+    else:
+        # No pending turn to classify — either the task already finished
+        # (phase_completed reached 2) or this session was never submitted
+        # to. Either way this is an unexpected extra call; fail loudly
+        # instead of guessing a turn_type for gsf.
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"run_session called for task_id={req.task_id!r} with no "
+                "pending turn — the task is already complete or no "
+                "submit_sql call has been made yet for this session."
+            ),
+        )
     sess._seen_first_run_session = True
 
     turn = 0
@@ -331,7 +343,6 @@ async def run_session(req: RunSessionRequest):
         action = await asyncio.to_thread(
             gsf_step,
             sess.gsf_session,
-            req.message,
             turn_type=turn_type_hint,
             debug_error=debug_error_hint,
             initial_question=initial_question_hint,

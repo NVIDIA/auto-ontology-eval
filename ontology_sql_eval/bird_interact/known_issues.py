@@ -1,10 +1,11 @@
-"""Workarounds for known, evidence-confirmed bugs in BIRD-Interact-ADK.
+"""Workarounds for known, evidence-confirmed bugs in BIRD-Interact-ADK
+ - the official bird-interact drive (user simulator, scorer, etc.).
 
 Nothing here modifies ADK itself — these are strictly client-side
-corrections applied to *our own* interpretation of ADK's ``/submit``
+corrections applied to interpretations of ADK's ``/submit``
 response, after the fact, for exact, narrowly-matched error signatures we've
 independently confirmed are false negatives (ADK determined the submission
-correct, then crashed in unrelated bookkeeping *after* that determination,
+correct, then crashed in unrelated bookkeeping after that determination,
 and a blanket exception handler overwrote the pass with reward=0).
 
 This module is the single choke point both eval scripts
