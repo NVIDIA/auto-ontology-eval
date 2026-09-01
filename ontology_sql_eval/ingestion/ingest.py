@@ -37,19 +37,7 @@ def database_name_for(connection_string: str) -> str:
 
 
 def run_ingest(connection_string: str) -> None:
-    """Extract the source schema into GSF's store and write embeddings.
-
-    GSF moved its catalog from Neo4j to Postgres, so the ingest pipeline this
-    used to build by hand -- ``TabularSchemaExtractOp`` into Neo4j, then
-    ``TabularFetchEmbeddingsOp >> _BatchEmbedActor >> IngestVdbOperator`` --
-    no longer has a store to write to. ``TabularExtractParams`` also type-checks
-    its ``connector`` against ``nemo_retriever``'s ``SQLDatabase``, and GSF's
-    connectors now subclass its own, so construction failed outright.
-
-    GSF exposes the whole sequence as one call, which is what this now uses. The
-    embedding path is unchanged underneath: the same ``IngestVdbOperator``
-    writes to the same pgvector collection.
-    """
+    """Extract the source schema into GSF's store and write embeddings."""
     connector = create_connector(connection_string)
     database_name = connector.database_name
     logger.info("Starting ingest for database %r", database_name)

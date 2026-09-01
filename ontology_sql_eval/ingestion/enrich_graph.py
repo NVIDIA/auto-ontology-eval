@@ -130,10 +130,6 @@ def apply_metadata(database_name: str) -> None:
                 }
             )
 
-    # `apply_metadata_batch` writes both shapes in one call and coalesces, so a
-    # curated description already in the catalog survives a batch that has
-    # nothing to say about it -- the same semantics the two Cypher statements
-    # had with `coalesce(row.description, t.description)`.
     apply_metadata_batch(database_name, table_rows, column_rows)
 
     logger.info(
@@ -204,12 +200,6 @@ def add_custom_analyses(
         "Starting to ingest %d custom analyses from %s.", len(analyses), analyses_path
     )
 
-    # GSF's service owns the whole sequence: it parses the SQL against the
-    # ingested catalog, creates the Sql row and its Table/Column links, creates
-    # the CustomAnalysis, and joins them. Previously this file assembled a
-    # Neo4jNode and edge tuples by hand and called the library's `add_query`,
-    # neither of which exists now that the catalog is relational.
-    #
     # Idempotency is preserved and is now the service's job: it raises on a
     # duplicate name or a statement already attached to another analysis, so a
     # re-run reports "already present" instead of duplicating rows.
