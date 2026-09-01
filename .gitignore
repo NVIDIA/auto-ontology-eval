@@ -35,8 +35,10 @@ venv/
 /datasets/bird_interact/gt/*
 !/datasets/bird_interact/gt/.gitkeep
 
-# Test-run outputs (transient, local only) — keep the curated
-# flagged_questions notes tracked, ignore everything else under results/
+# Test-run outputs (transient, local only), including the flagged_questions
+# notes — not tracked on remote, kept local only.
 /results/*
-!/results/flagged_questions_full.txt
-!/results/flagged_questions_lite.txt
+
+# Cursor / Claude Code local agent-plan and session state — machine-specific, never commit.
+.cursor/
+.claude/projects/
