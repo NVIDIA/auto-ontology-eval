@@ -2,9 +2,9 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Seed a local Postgres instance with Wide World Importers DDL + CSV data.
+"""Seed a local Postgres instance with pre-generated DDL + CSV data.
 
-Reads DDL and CSV files from ``datasets/wideworldimporters/`` (``ddl/`` and
+Reads DDL and CSV files from ``datasets/<database_name>/`` (``ddl/`` and
 ``data/``) and applies them to a local Postgres instance. All artifacts are
 pre-generated, so no source (e.g. MSSQL) connection is required.
 
@@ -12,7 +12,9 @@ Usage::
 
     uv run python scripts/seed_wwi.py --database-name wideworldimporters
 
-Postgres credentials come from the environment / .env:
+The ``--database-name`` value both selects the source folder
+``datasets/<name>/`` and names the target database (default
+``wideworldimporters``). Postgres credentials come from the environment / .env:
 
     POSTGRES_HOST, POSTGRES_PORT, POSTGRES_USER, POSTGRES_PASSWORD
 
@@ -34,6 +36,17 @@ from psycopg.conninfo import make_conninfo
 logger = logging.getLogger(__name__)
 
 DEFAULT_DB = "wideworldimporters"
+
+DDL_FILES_PRE_DATA = [
+    "01_schemas.sql",
+    "02_sequences.sql",
+    "03_tables.sql",
+    "04_indexes.sql",
+]
+DDL_FILES_POST_DATA = [
+    "05_fkeys.sql",
+    "06_views.sql",
+]
 
 
 def _paths(database_name: str) -> tuple[Path, Path]:
@@ -132,19 +145,6 @@ def _load_csvs(database_name: str, data_dir: Path) -> int:
     return total_rows
 
 
-DDL_FILES_PRE_DATA = [
-    "01_schemas.sql",
-    "02_sequences.sql",
-    "03_tables.sql",
-    "04_indexes.sql",
-]
-DDL_FILES_POST_DATA = [
-    "05_fkeys.sql",
-    "06_views.sql",
-    "07_custom_tables.sql",
-]
-
-
 def seed_database(
     database_name: str = DEFAULT_DB,
     *,
@@ -181,14 +181,14 @@ if __name__ == "__main__":
     load_dotenv()
 
     parser = argparse.ArgumentParser(
-        description="Seed a local Postgres database with Wide World Importers DDL + CSV data."
+        description="Seed a local Postgres database from pre-generated DDL + CSV files."
     )
     parser.add_argument(
         "--database-name",
         default=DEFAULT_DB,
         help=(
-            "Target database name. Source folder is datasets/<name>/ "
-            f"(default: {DEFAULT_DB})."
+            "Dataset / target database name. Selects the source folder "
+            f"datasets/<name>/ and names the target DB (default: {DEFAULT_DB})."
         ),
     )
     parser.add_argument(

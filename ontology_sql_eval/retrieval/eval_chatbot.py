@@ -406,13 +406,7 @@ def run_single_question(question: str) -> None:
     print(f"\n  Runtime: {elapsed}s")
 
 
-SINGLE_QUERY = (
-    "Calculate the Position Value at Risk (PVaR) for the top 5 positions ranked by the risk and margin pivot identifier in descending order, using their value and margin data and the current market volatility. Show me the risk and margin pivot, the position's notional value, the volatility measure used, and the calculated PVaR, where the Position Value at Risk (PVaR) is calculated by taking the position's notional value (extracted from the risk and margin data), multiplying it by the latest market volatility measure, and then applying a scaling factor of 0.01 (or 1%). So the formula is: PVaR = notional value × volatility × 0.01. This scaling factor converts the raw product into a percentage-based risk metric that represents the estimated value at risk for that position given current market conditions. For the market volatility measure, use the 'volmeter' field from the marketstats table, which represents a volatility metric. The 'latest' reading of this volmeter is determined by selecting the most recent record based on the marketstatsmark identifier, ordered in descending order to get the newest entry. This single latest volmeter reading is then applied to calculate the Position Value at Risk across all top positions being analyzed."
-    "\n\nEvidence: PVaR = notional_value * volatility * 0.01\n"
-    "notional_value = possum from risk_margin_profile->'position' in riskandmargin\n"
-    "volatility = volmeter from marketstats, most recent record by marketstatsmark DESC\n"
-    "top_5_positions = ORDER BY riskandmarginpivot DESC LIMIT 5"
-)
+SINGLE_QUERY = "calculate the customer count by state province name"
 
 START_INDEX = 0
 END_INDEX = None  # None = run to the end

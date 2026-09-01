@@ -21,7 +21,6 @@ import pandas as pd
 
 from nemo_retriever.tabular_data.sql_database import SQLDatabase
 
-
 _NUM_RE = re.compile(r"-?\d+(?:\.\d+)?")
 _SCORE_STR_LIMIT = 8000
 _STRINGIFY_ROW_LIMIT = 200
@@ -91,13 +90,14 @@ def score_sql(
     exec_match = 0
     if expected_df is not None and actual_df is not None:
         exec_match = 1 if _df_values_equal(expected_df, actual_df) else 0
-    expected_result = stringify_db_result(expected_df) if expected_df is not None else ""
     return {
         "sql_text_similarity": round(text_sim, 4),
         "sql_exec_match": exec_match,
         "expected_sql_error": expected_err,
         "returned_sql_error": actual_err,
-        "expected_sql_result": expected_result,
+        "expected_sql_result": stringify_db_result(expected_df)
+        if expected_df is not None
+        else "",
     }
 
 
