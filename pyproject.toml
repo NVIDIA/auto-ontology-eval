@@ -20,6 +20,7 @@ dependencies = [
     "psycopg-pool>=3.3.1",
     "snowflake-connector-python>=4.6.0",
     "databricks-sql-connector>=4.3.0",
+    "mysql-connector-python>=26.7.0",
     "kumoai>=2.22.0",
     "langchain-postgres>=0.0.17",
     "duckdb>=1.5.2",
