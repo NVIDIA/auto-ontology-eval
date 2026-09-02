@@ -2,13 +2,13 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Local ingest: source DB schema -> pgvector embeddings store.
+"""Local ingest: source DB schema -> GSF Postgres catalog + pgvector embeddings.
 
-Vendored from ``../GSF/dev_tools/local_ingest.py`` and retargeted so the graph
-enrichment step reads this repo's ``datasets/<database_name>/`` data files
-(``metadata.json`` / ``custom_analyses.json``) instead of GSF's copy.
+Vendored from ``../GSF/dev_tools/local_ingest.py`` and retargeted so the
+enrichment step reads this repo's ``datasets/`` and ``annotations/`` files
+instead of GSF's copy.
 
-Run after the Neo4j + Postgres (pgvector) services are up (see GSF's
+Run after the Postgres catalog + pgvector services are up (see GSF's
 ``docker-compose.yml``) and ``CONNECTION_STRINGS`` points at the source DB::
 
     PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.ingest
@@ -33,26 +33,15 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from nemo_retriever.graph import Graph
-from nemo_retriever.tabular_data.operators.tabular_schema_extract_operator import (
-    TabularSchemaExtractOp,
-)
-from nemo_retriever.tabular_data.operators.tabular_fetch_embeddings_operator import (
-    TabularFetchEmbeddingsOp,
-)
-from nemo_retriever.operators.embed.operators import _BatchEmbedActor
-from nemo_retriever.operators.vdb import IngestVdbOperator
-from nemo_retriever.common.params.models import TabularExtractParams
-from gsf.utils import get_embed_params
-from gsf.vdb import get_data_vdb, get_semantic_vdb, get_train_qa_vdb
 from gsf.connectors.registry import create_connector
+from gsf.ingestion_service.ingest import run_ingest as gsf_run_ingest
 from gsf.semantic.constants import FEW_SHOT_DATABASE_NAME
+from gsf.utils import get_embed_params
+from gsf.vdb import get_semantic_vdb, get_train_qa_vdb
 from ontology_sql_eval.ingestion.enrich_graph import (
     add_custom_analyses,
     add_few_shot_examples,
     apply_metadata,
-    profile_and_describe_columns,
-    sync_graph_metadata_into_schema_data,
     train_json_for_dataset,
 )
 
@@ -65,67 +54,22 @@ def database_name_for(connection_string: str) -> str:
 
 
 def run_ingest(connection_string: str, dataset_name: str | None = None) -> None:
-    """Build the tabular ingest graph, run it, and write embeddings to pgvector."""
+    """Extract the source schema into GSF's store and write embeddings."""
     connector = create_connector(connection_string)
     database_name = connector.database_name
     logger.info("Starting ingest for database %r", database_name)
 
-    TABULAR_PARAMS = TabularExtractParams(
-        connector=connector,
-    )
+    gsf_run_ingest(connector)
 
-    extract_graph = Graph() >> TabularSchemaExtractOp(tabular_params=TABULAR_PARAMS)
-    extract_results = extract_graph.execute(None)
-    schema_data = extract_results[0] if extract_results else None
-    if not (isinstance(schema_data, tuple) and len(schema_data) == 2):
-        raise RuntimeError(
-            "TabularSchemaExtractOp did not return (tables_df, columns_df); "
-            f"got {type(schema_data).__name__}."
-        )
-
+    # Catalog is populated; stamp dataset metadata and embed custom analyses.
     apply_metadata(database_name, dataset=dataset_name)
-    # Between the metadata stamp and the embed graph on purpose: "blank" must mean
-    # blank after the source descriptions land, and the descriptions generated
-    # here have to exist before the Column nodes are embedded below.
-    profile_and_describe_columns(connector, database_name)
-    # The embed graph builds its text from `schema_data`, not from Neo4j, so the
-    # two enrichment steps above have to be folded back in or they never reach an
-    # embedding.
-    schema_data = sync_graph_metadata_into_schema_data(schema_data, database_name)
+
     embed_params = get_embed_params()
-
-    embed_graph = (
-        Graph()
-        >> TabularFetchEmbeddingsOp(database_name=database_name)
-        >> _BatchEmbedActor(params=embed_params)
-    )
-    results = embed_graph.execute(schema_data)
-    result_df = results[0] if results else None
-
-    # Build the pgvector VDB once. PostgresVDB.__init__ wipes existing rows
-    # for `database_name`, so reuse the same instance for the custom-analysis
-    # append below — calling get_data_vdb(database_name=...) again would re-delete
-    # everything we just wrote.
-    vdb = get_data_vdb(database_name=database_name)
-
-    if result_df is not None and not result_df.empty:
-        ingest_op = IngestVdbOperator(vdb=vdb)
-        ingest_op(result_df.to_dict(orient="records"))
-        print(
-            "Tabular ingest result:",
-            len(result_df),
-            "rows written to pgvector)",
-        )
-    else:
-        print("Tabular ingest result: no rows produced")
-
-    # Custom analyses live in the semantic-layer collection, so embed them
-    # through a dedicated semantic VDB rather than the tabular `vdb` above.
     add_custom_analyses(
-        connector.database_name,
+        database_name,
         connector.dialect,
         embed_params=embed_params,
-        vdb=get_semantic_vdb(database_name=connector.database_name),
+        vdb=get_semantic_vdb(database_name=database_name),
         dataset=dataset_name,
     )
 
@@ -133,8 +77,8 @@ def run_ingest(connection_string: str, dataset_name: str | None = None) -> None:
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Ingest source DB schema(s) into Neo4j + pgvector, then optionally "
-            "embed a dataset's Train few-shot corpus."
+            "Ingest source DB schema(s) into the GSF Postgres catalog + pgvector, "
+            "then optionally embed a dataset's Train few-shot corpus."
         )
     )
     parser.add_argument(

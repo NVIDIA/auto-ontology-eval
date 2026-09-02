@@ -3,8 +3,8 @@
 A Text-to-SQL evaluation toolkit for benchmarking a text-to-SQL agent against a
 dataset and scoring the results. It bundles three workflows in one project:
 
-1. **ingestion** — extract a source database's schema into the pgvector + Neo4j
-   stores, compile the semantic layer, and enrich the graph with metadata and
+1. **ingestion** — extract a source database's schema into GSF's Postgres +
+   pgvector stores, compile the semantic layer, and enrich the graph with metadata and
    custom analyses.
 2. **retrieval eval** — run the text-to-SQL agent against an evaluation set and
    score its generated SQL and answers deterministically.
@@ -38,7 +38,7 @@ optionally re-score that CSV with the LLM judge.
 | [uv](https://docs.astral.sh/uv/) + Python 3.12 (3.12–3.13)                   |    yes     |      yes       |  yes  |
 | Sibling repo `../GSF` checkout ([NVIDIA/GSF](https://github.com/NVIDIA/GSF)) |    yes     |      yes       |  no   |
 | GitHub access to `NVIDIA/NeMo-Retriever`                                     |    yes     |      yes       |  no   |
-| Neo4j + Postgres (pgvector) services                                         |    yes     |      yes       |  no   |
+| Postgres (catalog + pgvector) service                                        |    yes     |      yes       |  no   |
 | Reachable source database                                                    |    yes     |      yes       |  no   |
 | LLM API key                                                                  | embed only |      yes       |  yes  |
 
@@ -51,8 +51,14 @@ The two external dependencies are provided differently:
   `nemo_retriever`, installed from GitHub by `uv sync` (see `[tool.uv.sources]`
   in [pyproject.toml](pyproject.toml)).
 
-For ingestion and retrieval eval you also need live **Neo4j** and **Postgres
-(pgvector)** services, plus a reachable source DB. The easiest way to start the
+For ingestion and retrieval eval you also need a live **Postgres** service
+(it holds both GSF's catalog and the pgvector collections), plus a reachable
+source DB. GSF's catalog schema must be migrated first:
+
+```bash
+cd ../GSF && uv run alembic upgrade head
+```
+ The easiest way to start the
 stores is GSF's `docker-compose.yml`:
 
 ```bash
@@ -273,7 +279,7 @@ A JSON **array** of question objects. Fields consumed by the retrieval eval:
 ### `metadata.json`
 
 An object keyed by table name, used only during ingestion to stamp descriptions
-and sample values onto the Neo4j graph. Optional — enrichment is skipped if the
+and sample values onto GSF's catalog. Optional — enrichment is skipped if the
 file is missing.
 
 ```json
@@ -312,7 +318,7 @@ embedded into the semantic vector store. Optional.
 Each workflow has its own README with purpose, run instructions, and outputs:
 
 - **[Ingestion](ontology_sql_eval/ingestion/README.md)** — extract + embed a
-  source DB's schema into Neo4j + pgvector and enrich the graph (requires GSF).
+  source DB's schema into GSF's Postgres catalog + pgvector (requires GSF).
 - **[Retrieval eval](ontology_sql_eval/retrieval/README.md)** — run the
   text-to-SQL agent against an eval set and score deterministically (requires
   GSF).

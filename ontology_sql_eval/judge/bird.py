@@ -887,7 +887,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--output",
         type=Path,
         default=None,
-        help="Output CSV path (default: output/<input_stem>_bird_scores.csv).",
+        help="Output CSV path (default: output/<input_stem>_scores.csv).",
     )
     parser.add_argument(
         "--dataset-name",
@@ -968,7 +968,7 @@ def main(argv: list[str] | None = None) -> None:
     output_path = (
         None
         if args.no_output_csv
-        else (args.output or Path("output") / f"{args.input.stem}_bird_scores.csv")
+        else (args.output or Path("output") / f"{args.input.stem}_scores.csv")
     )
     run(
         input_path=args.input,

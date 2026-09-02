@@ -326,7 +326,7 @@ def apply_metadata(database_name: str, dataset: str | None = None) -> None:
     (the MATCH simply finds nothing). Properties for which the JSON has no
     value are left untouched (``coalesce`` preserves the existing value).
     """
-    from nemo_retriever.tabular_data.neo4j import get_neo4j_conn
+    from gsf.dal.datasources import apply_metadata_batch
 
     metadata_path = metadata_json_path(database_name, dataset=dataset)
 
@@ -370,31 +370,7 @@ def apply_metadata(database_name: str, dataset: str | None = None) -> None:
                 }
             )
 
-    conn = get_neo4j_conn()
-
-    if table_rows:
-        conn.query_write(
-            query=(
-                "UNWIND $rows AS row "
-                "MATCH (d:Database {name: $database_name})-[:CONTAINS]->"
-                "(:Schema)-[:CONTAINS]->(t:Table {name: row.table_name}) "
-                "SET t.description = coalesce(row.description, t.description)"
-            ),
-            parameters={"rows": table_rows, "database_name": database_name},
-        )
-
-    if column_rows:
-        conn.query_write(
-            query=(
-                "UNWIND $rows AS row "
-                "MATCH (d:Database {name: $database_name})-[:CONTAINS]->"
-                "(:Schema)-[:CONTAINS]->(t:Table {name: row.table_name})"
-                "-[:CONTAINS]->(c:Column {name: row.column_name}) "
-                "SET c.description = coalesce(row.description, c.description), "
-                "    c.sample_values = coalesce(row.sample_values, c.sample_values)"
-            ),
-            parameters={"rows": column_rows, "database_name": database_name},
-        )
+    apply_metadata_batch(database_name, table_rows, column_rows)
 
     logger.info(
         "Applied metadata: %d table description(s), %d column description(s), "
@@ -603,7 +579,8 @@ def sync_graph_metadata_into_schema_data(
 
 def add_custom_analyses(
     database_name: str,
-    dialect: str,
+    dialect: str,  # noqa: ARG001 — kept for call-site compatibility; GSF resolves
+    # the dialect from the connector itself now.
     embed_params: "EmbedParams | None" = None,
     vdb: "VDB | None" = None,
     dataset: str | None = None,
@@ -631,17 +608,13 @@ def add_custom_analyses(
     skipped with a warning. Must be called *after* schema ingestion so the
     parser can resolve table/column references.
     """
-    from nemo_retriever.tabular_data.ingestion.dal.queries_dal import add_query
-    from nemo_retriever.tabular_data.ingestion.model.neo4j_node import Neo4jNode
-    from nemo_retriever.tabular_data.ingestion.model.reserved_words import Labels, Props
-    from nemo_retriever.tabular_data.ingestion.services.queries import (
-        parse_query_single,
-    )
-    from nemo_retriever.tabular_data.retrieval.data_access.graph_schemas import (
-        get_all_schemas_ids,
-        get_schemas_by_ids,
-    )
     from gsf.dal.custom_analyses import embed_custom_analyses
+    from gsf.server.custom_analyses.service import (
+        CustomAnalysisNameConflict,
+        CustomAnalysisSqlConflict,
+        CustomAnalysisSqlError,
+        create_custom_analysis,
+    )
 
     analyses_path = custom_analyses_json_path(database_name, dataset=dataset)
     if analyses_path is None:
@@ -655,54 +628,51 @@ def add_custom_analyses(
         logger.info("No custom analyses to ingest from %s.", analyses_path)
         return
 
-    schemas_ids = get_all_schemas_ids()
-    schemas = get_schemas_by_ids(schemas_ids)
-
     before = time.time()
     logger.info(
         "Starting to ingest %d custom analyses from %s.", len(analyses), analyses_path
     )
 
-    ingested = 0
+    # Idempotency is preserved and is now the service's job: it raises on a
+    # duplicate name or a statement already attached to another analysis, so a
+    # re-run reports "already present" instead of duplicating rows.
+    # Embed once at the end, not once per analysis -- unless there is no batch
+    # pass to defer to. `create_custom_analysis` embeds inline by default, which
+    # is right for a user creating one analysis and wrong here: each embed is a
+    # network round trip (~2s), so nineteen analyses cost ~40s of pure latency.
+    # Worse, embedding inline *and* running the batch below writes every
+    # analysis into the semantic index twice, and nothing there dedupes -- a
+    # duplicated analysis just occupies two of retrieval's top-k slots.
+    will_batch = embed_params is not None and vdb is not None
+
+    ingested = skipped = 0
     for entry in analyses:
         name = entry.get("name", "")
         sql = (entry.get("sql") or "").strip()
         if not sql:
             logger.warning("Skipping custom analysis %r — no SQL provided.", name)
             continue
-
-        query_obj = parse_query_single(sql=sql, dialects=[dialect], schemas=schemas)
-        if query_obj is None:
-            logger.warning(
-                "Could not resolve any tables for custom analysis %r — skipping.",
-                name,
+        try:
+            create_custom_analysis(
+                name=name,
+                description=entry.get("description", ""),
+                sql=sql,
+                embed=not will_batch,
             )
-            continue
+            ingested += 1
+        except (CustomAnalysisNameConflict, CustomAnalysisSqlConflict):
+            skipped += 1
+        except CustomAnalysisSqlError as exc:
+            logger.warning(
+                "Could not resolve any tables for custom analysis %r — skipping (%s).",
+                name,
+                exc,
+            )
 
-        # Match the Sql node by its full text so re-runs reuse the existing
-        # node instead of creating a fresh one (which would cause duplicate
-        # HAS_SQL edges from the merged CustomAnalysis node).
-        query_obj.sql_node.match_props = {"sql_full_query": sql}
-
-        # Match the CustomAnalysis node by name so re-running the script is
-        # idempotent (Tables/Columns merge by id derived from their fully
-        # qualified path; CustomAnalysis has no such id, so name is the
-        # natural key from the JSON spec).
-        analysis_node = Neo4jNode(
-            name=name,
-            label=Labels.CUSTOM_ANALYSIS,
-            props={
-                "name": name,
-                "description": entry.get("description", ""),
-            },
-            match_props={"name": name},
+    if skipped:
+        logger.info(
+            "%d custom analysis/analyses already present — left alone.", skipped
         )
-
-        edge_props = {Props.ANALYSIS_ID: analysis_node.get_id()}
-        query_obj.edges.append((analysis_node, query_obj.sql_node, edge_props))
-
-        add_query(query_obj.get_edges())
-        ingested += 1
 
     logger.info(
         "Ingested %d/%d custom analyses in %.2fs.",
@@ -714,10 +684,10 @@ def add_custom_analyses(
     if ingested == 0:
         return
 
-    if embed_params is None or vdb is None:
-        logger.info(
-            "Skipping custom-analysis embedding: embed_params/vdb not provided."
-        )
+    if not will_batch:
+        # Already embedded inline above, one at a time -- the slow path, taken
+        # only when there is no vdb to batch into.
+        logger.info("Custom analyses embedded inline: embed_params/vdb not provided.")
         return
 
     embed_custom_analyses(embed_params, vdb, database_name=database_name)

@@ -70,9 +70,7 @@ def _ssl_context() -> ssl.SSLContext:
 CHUNK_SIZE = 1024 * 1024  # 1 MiB
 ZIP_MAGIC = b"PK\x03\x04"
 
-HF_LITE_BASE = (
-    "https://huggingface.co/datasets/FDAbench2026/Fdabench-Lite/resolve/main"
-)
+HF_LITE_BASE = "https://huggingface.co/datasets/FDAbench2026/Fdabench-Lite/resolve/main"
 HF_SPLITS = ("report", "single", "multiple")
 
 
@@ -307,7 +305,9 @@ def _task_to_eval_row(task: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _download_lite_tasks(cache_dir: Path, *, force: bool = False) -> list[dict[str, Any]]:
+def _download_lite_tasks(
+    cache_dir: Path, *, force: bool = False
+) -> list[dict[str, Any]]:
     """Download FDABench-Lite JSONLs and return parsed task dicts."""
     cache_dir.mkdir(parents=True, exist_ok=True)
     tasks: list[dict[str, Any]] = []
@@ -433,9 +433,8 @@ def _metadata_from_bird_descriptions(desc_dir: Path) -> dict[str, Any]:
             reader = csv.DictReader(f)
             for row in reader:
                 name = (
-                    (row.get("original_column_name") or row.get("column_name") or "")
-                    .strip()
-                )
+                    row.get("original_column_name") or row.get("column_name") or ""
+                ).strip()
                 if not name:
                     continue
                 col_desc = _clean_bird_text(row.get("column_description"))
@@ -583,9 +582,7 @@ def _stream_member(zf: zipfile.ZipFile, member: str, target: Path) -> None:
         shutil.copyfileobj(src, out, CHUNK_SIZE)
 
 
-def _relocate_extracted_member(
-    member_name: str, db_id: str, dest: Path
-) -> Path | None:
+def _relocate_extracted_member(member_name: str, db_id: str, dest: Path) -> Path | None:
     """Map an archive member path onto ``dest/<db_id>/...``."""
     path = Path(member_name)
     lower_name = path.name.lower()
@@ -754,9 +751,7 @@ def _install_from_sources(
     return installed
 
 
-def _dbs_for_types(
-    db_types: dict[str, str], allowed: frozenset[str]
-) -> set[str]:
+def _dbs_for_types(db_types: dict[str, str], allowed: frozenset[str]) -> set[str]:
     return {db_id for db_id, dtype in db_types.items() if dtype in allowed}
 
 
@@ -869,9 +864,7 @@ def seed_fdabench(
     # re-enter the install path when metadata.json is missing so we can pull
     # database_description CSVs without --force.
     already_present = {
-        db_id
-        for db_id in db_types
-        if _target_sqlite_path(target, db_id).is_file()
+        db_id for db_id in db_types if _target_sqlite_path(target, db_id).is_file()
     }
     bird_need_metadata = {
         db_id
@@ -886,9 +879,7 @@ def seed_fdabench(
         spider2_dbs -= already_present
         spider1_dbs -= already_present
         # Keep BIRD DBs that still need metadata/descriptions.
-        bird_dbs = (bird_dbs - already_present) | (
-            bird_need_metadata & already_present
-        )
+        bird_dbs = (bird_dbs - already_present) | (bird_need_metadata & already_present)
         if bird_need_metadata & already_present:
             logger.info(
                 "Will refresh BIRD descriptions/metadata for: %s",
@@ -939,15 +930,11 @@ def seed_fdabench(
     _warn_about_missing_metadata(db_types, target)
 
     installed_ids = sorted(installed)
-    _print_summary(
-        target, installed_ids, n_questions=len(rows), write_env=write_env
-    )
+    _print_summary(target, installed_ids, n_questions=len(rows), write_env=write_env)
     return rows, installed_ids
 
 
-def _warn_about_missing_metadata(
-    db_types: dict[str, str], dest: Path
-) -> None:
+def _warn_about_missing_metadata(db_types: dict[str, str], dest: Path) -> None:
     """Log bird DBs that still lack metadata.json after seeding."""
     bird_missing = sorted(
         db_id
