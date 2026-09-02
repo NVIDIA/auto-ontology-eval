@@ -149,7 +149,8 @@ def apply_metadata(database_name: str) -> None:
 
 def add_custom_analyses(
     database_name: str,
-    dialect: str,
+    dialect: str,  # noqa: ARG001 — kept for call-site compatibility; GSF resolves
+    # the dialect from the connector itself now.
     embed_params: "EmbedParams | None" = None,
     vdb: "VDB | None" = None,
 ) -> None:
@@ -204,7 +205,19 @@ def add_custom_analyses(
         "Starting to ingest %d custom analyses from %s.", len(analyses), analyses_path
     )
 
-    ingested = 0
+    # Idempotency is preserved and is now the service's job: it raises on a
+    # duplicate name or a statement already attached to another analysis, so a
+    # re-run reports "already present" instead of duplicating rows.
+    # Embed once at the end, not once per analysis -- unless there is no batch
+    # pass to defer to. `create_custom_analysis` embeds inline by default, which
+    # is right for a user creating one analysis and wrong here: each embed is a
+    # network round trip (~2s), so nineteen analyses cost ~40s of pure latency.
+    # Worse, embedding inline *and* running the batch below writes every
+    # analysis into the semantic index twice, and nothing there dedupes -- a
+    # duplicated analysis just occupies two of retrieval's top-k slots.
+    will_batch = embed_params is not None and vdb is not None
+
+    ingested = skipped = 0
     for entry in analyses:
         name = entry.get("name", "")
         description = entry.get("description", "")
@@ -212,22 +225,27 @@ def add_custom_analyses(
         if not sql:
             logger.warning("Skipping custom analysis %r — no SQL provided.", name)
             continue
-
         try:
-            create_custom_analysis(name, description, sql, embed=False)
+            create_custom_analysis(
+                name=name,
+                description=entry.get("description", ""),
+                sql=sql,
+                embed=not will_batch,
+            )
+            ingested += 1
         except (CustomAnalysisNameConflict, CustomAnalysisSqlConflict):
-            logger.info(
-                "Custom analysis %r already exists — treating as ingested.", name
-            )
-            continue
-        except CustomAnalysisSqlError:
+            skipped += 1
+        except CustomAnalysisSqlError as exc:
             logger.warning(
-                "Could not resolve any tables for custom analysis %r — skipping.",
+                "Could not resolve any tables for custom analysis %r — skipping (%s).",
                 name,
+                exc,
             )
-            continue
 
-        ingested += 1
+    if skipped:
+        logger.info(
+            "%d custom analysis/analyses already present — left alone.", skipped
+        )
 
     logger.info(
         "Ingested %d/%d custom analyses in %.2fs.",
@@ -239,10 +257,10 @@ def add_custom_analyses(
     if ingested == 0:
         return
 
-    if embed_params is None or vdb is None:
-        logger.info(
-            "Skipping custom-analysis embedding: embed_params/vdb not provided."
-        )
+    if not will_batch:
+        # Already embedded inline above, one at a time -- the slow path, taken
+        # only when there is no vdb to batch into.
+        logger.info("Custom analyses embedded inline: embed_params/vdb not provided.")
         return
 
     embed_custom_analyses(embed_params, vdb, database_name=database_name)
