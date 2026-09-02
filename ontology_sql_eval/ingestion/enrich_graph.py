@@ -228,7 +228,7 @@ def add_custom_analyses(
         try:
             create_custom_analysis(
                 name=name,
-                description=entry.get("description", ""),
+                description=description,
                 sql=sql,
                 embed=not will_batch,
             )
