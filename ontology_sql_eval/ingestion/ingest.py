@@ -20,26 +20,32 @@ import logging
 import os
 
 from dotenv import load_dotenv
-from nemo_retriever.graph import Graph
-from nemo_retriever.tabular_data.operators.tabular_schema_extract_operator import (
+
+# Must run before any `gsf`/`ontology_sql_eval.ingestion.enrich_graph` import:
+# gsf.retrieval.generate_sql calls its own load_dotenv() at import time (no
+# explicit path), which finds ../GSF*/.env first and — since load_dotenv()
+# never overrides already-set vars — silently wins over this repo's .env for
+# any var it defines (e.g. a stale CONNECTION_STRINGS left in a sibling GSF
+# checkout's .env). Loading ours first ensures it wins the race instead.
+load_dotenv()
+
+from nemo_retriever.graph import Graph  # noqa: E402
+from nemo_retriever.tabular_data.operators.tabular_schema_extract_operator import (  # noqa: E402
     TabularSchemaExtractOp,
 )
-from nemo_retriever.tabular_data.operators.tabular_fetch_embeddings_operator import (
+from nemo_retriever.tabular_data.operators.tabular_fetch_embeddings_operator import (  # noqa: E402
     TabularFetchEmbeddingsOp,
 )
-from nemo_retriever.operators.embed.operators import _BatchEmbedActor
-from nemo_retriever.operators.vdb import IngestVdbOperator
-from nemo_retriever.common.params.models import TabularExtractParams
-from gsf.utils import get_embed_params
-from gsf.vdb import get_data_vdb, get_semantic_vdb
-from gsf.connectors.registry import create_connector
-from ontology_sql_eval.ingestion.enrich_graph import (
+from nemo_retriever.operators.embed.operators import _BatchEmbedActor  # noqa: E402
+from nemo_retriever.operators.vdb import IngestVdbOperator  # noqa: E402
+from nemo_retriever.common.params.models import TabularExtractParams  # noqa: E402
+from gsf.utils import get_embed_params  # noqa: E402
+from gsf.vdb import get_data_vdb, get_semantic_vdb  # noqa: E402
+from gsf.connectors.registry import create_connector  # noqa: E402
+from ontology_sql_eval.ingestion.enrich_graph import (  # noqa: E402
     add_custom_analyses,
     apply_metadata,
-    backfill_sample_values,
 )
-
-load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -68,11 +74,11 @@ def run_ingest(connection_string: str) -> None:
             f"got {type(schema_data).__name__}."
         )
 
+    # Curated value_examples (if any) win over what TabularSchemaExtractOp's
+    # own profiling wrote; sample-value backfill from the live DB is otherwise
+    # handled by GSF's own ingestion/semantic-compilation profiling step, so
+    # there is no separate backfill call here anymore.
     apply_metadata(database_name)
-    # Curated value_examples (if any) win; this fills the rest with real values
-    # sampled from the DB so the model sees actual column shapes (e.g. that a
-    # `coordinates` TEXT column holds `(lon,lat)` tuples, not JSON).
-    backfill_sample_values(database_name, connector)
     embed_params = get_embed_params()
 
     embed_graph = (

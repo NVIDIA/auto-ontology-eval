@@ -98,10 +98,10 @@ def post(url: str, payload: dict, timeout: float = 120.0) -> dict:
     return r.json()
 
 
-def start_gsf_adapter(port: int, log_path: Path | None = None) -> subprocess.Popen:
+def start_gsf_adapter(port: int, gsf_dir: Path, log_path: Path | None = None) -> subprocess.Popen:
     dotenv_vars = load_env(ONTOLOGY_DIR / ".env")
     existing_pp = os.environ.get("PYTHONPATH", "")
-    pp_parts = [str(ONTOLOGY_DIR), str(GSF_DIR)]
+    pp_parts = [str(ONTOLOGY_DIR), str(gsf_dir)]
     if existing_pp:
         pp_parts.append(existing_pp)
     env = {**os.environ, **dotenv_vars, "PYTHONPATH": ":".join(pp_parts)}
@@ -408,6 +408,9 @@ def main() -> None:
                         help="Randomize task order")
     parser.add_argument("--agent-port", type=int, default=6003,
                         help="Port to start the GSF adapter on (default: 6003)")
+    parser.add_argument("--gsf-dir", type=Path, default=GSF_DIR,
+                        help="Path to the GSF checkout to put on PYTHONPATH "
+                             f"(default: {GSF_DIR})")
     parser.add_argument("--phase-timeout", type=float, default=900.0,
                         help="Seconds per run_session HTTP call (default: 900 = 15 min)")
     parser.add_argument("--health-timeout", type=int, default=10,
@@ -475,7 +478,7 @@ def main() -> None:
     adapter_log = run_dir / f"{args.output}_adapter.log"
     print(f"\nStarting GSF adapter on :{args.agent_port} ...")
     print(f"  (adapter logs → {adapter_log})")
-    adapter_proc = start_gsf_adapter(args.agent_port, log_path=adapter_log)
+    adapter_proc = start_gsf_adapter(args.agent_port, args.gsf_dir, log_path=adapter_log)
 
     t_run_start = time.time()
     n_pass = n_fail = n_error = 0

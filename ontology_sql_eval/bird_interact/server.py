@@ -119,7 +119,12 @@ _MAX_KG_CHILDREN = 5
 _ADK_DIR = Path(
     os.environ.get(
         "BIRD_INTERACT_ADK_DIR",
-        str(Path(__file__).resolve().parents[2] / "third_party" / "BIRD-Interact" / "BIRD-Interact-ADK"),
+        str(
+            Path(__file__).resolve().parents[2]
+            / "third_party"
+            / "BIRD-Interact"
+            / "BIRD-Interact-ADK"
+        ),
     )
 )
 
@@ -156,7 +161,9 @@ def _load_kb_children(db_name: str) -> dict[int, list[int]]:
     return result
 
 
-def _format_external_kg(raw_json: str, db_name: str = "") -> tuple[str, dict[str, list[str]]]:
+def _format_external_kg(
+    raw_json: str, db_name: str = ""
+) -> tuple[str, dict[str, list[str]]]:
     """Parse Bird's knowledge JSON array into a formatted bullet list and a children map.
 
     Returns (formatted_kg, children_map) where children_map maps each parent entry
@@ -468,7 +475,9 @@ async def run_session(req: RunSessionRequest):
                 sess._next_turn_type = "debug"
                 raw_msg = result.get("message", "")
                 if "[exec_err_flg]" in raw_msg:
-                    sess._next_debug_error = raw_msg.split("[exec_err_flg]", 1)[-1].strip()
+                    sess._next_debug_error = raw_msg.split("[exec_err_flg]", 1)[
+                        -1
+                    ].strip()
                 else:
                     sess._next_debug_error = None
 

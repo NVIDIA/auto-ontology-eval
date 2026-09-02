@@ -1,9 +1,10 @@
 """HTTP clients for Bird ADK :6001 (user simulator) and :6002 (DB environment)."""
+
 import httpx
 
 USER_SIM_URL = "http://localhost:6001"
-DB_ENV_URL   = "http://localhost:6002"
-_TIMEOUT     = 120.0
+DB_ENV_URL = "http://localhost:6002"
+_TIMEOUT = 120.0
 
 
 async def ask_user(task_id: str, question: str) -> str:

@@ -29,6 +29,20 @@ dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.32.0",
     "importlib-metadata>=9.0.0",
+    # gsf.connectors is imported eagerly by gsf.dal/gsf.semantic, and it
+    # unconditionally imports every connector module (trino, mysql, kyuubi), so
+    # these are required even if a given run never touches those specific
+    # connectors.
+    "sqlalchemy>=2.0.52",
+    "alembic>=1.19.1",
+    "mysql-connector-python>=26.7.0",
+    "pyyaml>=6.0.3",
+    "trino>=0.339.0",
+    "pyhive[hive-pure-sasl]>=0.7.0",
+    "thrift>=0.24.0",
+    "thrift-sasl>=0.4.3",
+    "pure-sasl>=0.6.2",
+    "pyjks>=20.0.0",
     # BIRD official EX/VES judge (ontology_sql_eval/judge/bird.py)
     "func-timeout>=4.3.5",
     "numpy>=2.0",
