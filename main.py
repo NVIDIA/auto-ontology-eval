@@ -6,7 +6,7 @@
 
 Runs the full evaluation pipeline for a dataset, in order:
 
-1. Ingest      source DB schema -> Neo4j + pgvector (``CONNECTION_STRINGS``)
+1. Ingest      source DB schema -> Postgres catalog + pgvector
 2. Semantic    compile the semantic layer (``ingestion.semantic``)
 3. Eval        run the text-to-SQL agent -> ``datasets/<db>/<model>.csv``
 4. Judge       LLM re-score the eval CSV -> ``datasets/<db>/<model>_scores.csv``
@@ -52,9 +52,9 @@ def _connection_strings() -> list[str]:
     ]
 
 
-def stage_ingest() -> None:
-    """Ingest the source DB schema into Neo4j + pgvector."""
-    _banner(1, "Ingest (source DB -> pgvector + Neo4j)")
+def stage_ingest(dataset_name: str | None = None) -> None:
+    """Ingest the source DB schema into the Postgres catalog and pgvector."""
+    _banner(1, "Ingest (source DB -> Postgres catalog + pgvector)")
     connection_strings = _connection_strings()
     if not connection_strings:
         raise EnvironmentError(
@@ -71,11 +71,14 @@ def stage_ingest() -> None:
             len(connection_strings),
             connection_string,
         )
-        run_ingest(connection_string)
+        run_ingest(connection_string, dataset_name=dataset_name)
 
 
 def stage_semantic(
-    database_name: str, *, override_descriptions: bool = False
+    database_name: str,
+    *,
+    dataset_name: str | None = None,
+    override_descriptions: bool = False,
 ) -> None:
     """Compile the semantic layer in-process via ``run_semantic``."""
     _banner(2, "Semantic compile (ingestion.semantic)")
@@ -93,9 +96,17 @@ def stage_semantic(
                 len(connection_strings),
                 db_name,
             )
-            run_semantic(db_name, override_descriptions=override_descriptions)
+            run_semantic(
+                db_name,
+                dataset=dataset_name,
+                override_descriptions=override_descriptions,
+            )
     else:
-        run_semantic(database_name, override_descriptions=override_descriptions)
+        run_semantic(
+            database_name,
+            dataset=dataset_name,
+            override_descriptions=override_descriptions,
+        )
 
 
 def stage_eval(*, database_name: str) -> Path:
@@ -188,10 +199,14 @@ def main(argv: list[str] | None = None) -> None:
     load_dotenv()
 
     if not args.skip_ingest:
-        stage_ingest()
+        stage_ingest(dataset_name=db)
 
     if not args.skip_semantic:
-        stage_semantic(db, override_descriptions=args.override_descriptions)
+        stage_semantic(
+            db,
+            dataset_name=db,
+            override_descriptions=args.override_descriptions,
+        )
 
     if not args.skip_eval:
         eval_csv = stage_eval(database_name=db)

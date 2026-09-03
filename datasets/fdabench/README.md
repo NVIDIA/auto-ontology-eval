@@ -31,7 +31,7 @@ datasets/fdabench/evaluation.json
 
 For BIRD-sourced databases, column descriptions from upstream
 `database_description/*.csv` are converted into our `metadata.json` shape so
-ingest enrichment (`apply_metadata`) can stamp them onto Neo4j. Spider1 /
+ingest enrichment (`apply_metadata`) can stamp them onto Postgres. Spider1 /
 Spider2-lite packs do not ship equivalent structured descriptions.
 
 Re-running is cheap: databases already on disk are skipped (use `--force` to

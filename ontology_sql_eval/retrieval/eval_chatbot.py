@@ -218,6 +218,7 @@ def _load_questions(path: Path) -> List[Dict[str, Any]]:
 CSV_FIELDS = [
     "row_index",
     "question_id",
+    "db_id",
     "difficulty",
     "question",
     "expected_sql",
@@ -440,6 +441,7 @@ def run_evaluation(
             row: Dict[str, Any] = {
                 "row_index": idx,
                 "question_id": qid,
+                "db_id": db_id,
                 "difficulty": difficulty,
                 "question": question,
                 "expected_sql": expected_sql,
@@ -616,8 +618,8 @@ if __name__ == "__main__":
         )
 
 
-    # Neo4j (7687) and Postgres (5432) pools keep non-daemon threads alive after
-    # the CSV is written, so a normal return never reaches process exit and the
+    # Postgres pools can keep non-daemon threads alive after the CSV is written,
+    # so a normal return never reaches process exit and the
     # parent runner blocks forever on proc.wait().
     logging.shutdown()
     os._exit(0)

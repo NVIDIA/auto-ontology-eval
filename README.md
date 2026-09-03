@@ -104,8 +104,7 @@ command with `PYTHONPATH=../GSF` (the judge does not need it).
 | `REASONING_API_KEY`, `REASONING_ENDPOINT`, `REASONING_MODEL`                | agent (eval)   | LLM that the text-to-SQL agent generates with (falls back to `DEFAULT_MODELS_*`).                                                       |
 | `JUDGE_API_KEY`, `JUDGE_BASE_URL`, `JUDGE_MODEL_NAME`                       | judge          | LLM that the judge scores with (falls back to `DEFAULT_MODELS_*`, then legacy shared vars, then a built-in default for the key prefix). |
 | `EMBED_API_KEY`, `EMBED_ENDPOINT`, `EMBED_MODEL`                            | ingest + eval  | Embedding endpoint (must be identical for ingest and query).                                                                            |
-| `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`                             | ingest + eval  | Graph store connection.                                                                                                                 |
-| `POSTGRES_*`                                                                | ingest + eval  | pgvector store connection.                                                                                                              |
+| `POSTGRES_*`                                                                | ingest + eval  | Catalog, semantic layer, and pgvector store connection.                                                                                  |
 | `CONNECTION_STRINGS`                                                        | ingest + eval  | Source DB to extract schema from / execute SQL against.                                                                                 |
 
 ## Seed the local source DB (required)

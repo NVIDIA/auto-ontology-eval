@@ -34,10 +34,15 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from gsf.connectors.registry import create_connector
-from gsf.ingestion_service.ingest import run_ingest as gsf_run_ingest
+from gsf.catalog import ingest_catalog
+from gsf.dal.datasources import fetch_tables_and_columns_by_node_ids
 from gsf.semantic.constants import FEW_SHOT_DATABASE_NAME
 from gsf.utils import get_embed_params
+from gsf.utils.embedding import batch_embed
+from gsf.utils.embedding_rows import CatalogEmbeddingRowsOp
+from nemo_retriever.operators.vdb import IngestVdbOperator
 from gsf.vdb import get_semantic_vdb, get_train_qa_vdb
+from gsf.vdb import get_data_vdb
 from ontology_sql_eval.ingestion.enrich_graph import (
     add_custom_analyses,
     add_few_shot_examples,
@@ -59,12 +64,28 @@ def run_ingest(connection_string: str, dataset_name: str | None = None) -> None:
     database_name = connector.database_name
     logger.info("Starting ingest for database %r", database_name)
 
-    gsf_run_ingest(connector)
-
-    # Catalog is populated; stamp dataset metadata and embed custom analyses.
+    # Populate the catalog first, then stamp dataset metadata before building
+    # embedding rows. Embedding the frames returned directly by ingest_catalog
+    # would miss the descriptions and samples applied below.
+    tables_df, _columns_df = ingest_catalog(connector)
     apply_metadata(database_name, dataset=dataset_name)
 
     embed_params = get_embed_params()
+    table_ids = (
+        tables_df["id"].dropna().astype(str).tolist()
+        if tables_df is not None and not tables_df.empty
+        else []
+    )
+    refreshed = fetch_tables_and_columns_by_node_ids(table_ids)
+    embed_rows = CatalogEmbeddingRowsOp(database_name=database_name)(refreshed[:2])
+    result_df = batch_embed(embed_rows, embed_params)
+    if result_df is not None and not result_df.empty:
+        vdb = get_data_vdb(database_name=database_name, reset=True)
+        IngestVdbOperator(vdb=vdb)(result_df.to_dict(orient="records"))
+        logger.info("Tabular ingest: %d rows written to pgvector", len(result_df))
+    else:
+        logger.info("Tabular ingest: no embedding rows produced for %s", database_name)
+
     add_custom_analyses(
         database_name,
         connector.dialect,

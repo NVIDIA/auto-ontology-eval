@@ -44,7 +44,7 @@ from the BIRD Mini-Dev README's 2025-07-04 update — the corrected
 ``minidev.zip`` is kept as ``LEGACY_OSS_URL`` for reference but is stale; pass
 ``--url`` to override (only valid with exactly one ``--splits`` value).
 
-After download, ingest a Dev database into Neo4j via::
+After download, ingest the Dev databases into the Postgres catalog via::
 
     CONNECTION_STRINGS=sqlite:///<abs-path>/datasets/bird/dev/<db_id>/<db_id>.sqlite \\
       PYTHONPATH=../GSF uv run python main.py --database-name bird --skip-eval --skip-judge

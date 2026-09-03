@@ -14,8 +14,7 @@ dependencies = [
     # GSF is imported from the sibling ../GSF checkout via PYTHONPATH (not
     # installed). These mirror ../GSF/pyproject.toml so its runtime deps are in
     # this repo's venv.
-    "nemo-retriever[tabular]",
-    "neo4j>=6.1.0",
+    "nemo-retriever",
     "psycopg[binary]>=3.3.3",
     "psycopg-pool>=3.3.1",
     "snowflake-connector-python>=4.6.0",
@@ -33,6 +32,7 @@ dependencies = [
     "func-timeout>=4.3.5",
     "numpy>=2.0",
     "spacy>=3.7,<4",
+    "langgraph>=1.2.11",
 ]
 
 [project.scripts]

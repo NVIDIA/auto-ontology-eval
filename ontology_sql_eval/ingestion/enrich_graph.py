@@ -2,11 +2,11 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Stamp table/column metadata onto the Neo4j graph.
+"""Stamp table/column metadata onto the Postgres catalog.
 
 This module reads ``<database_name>/metadata.json`` and writes descriptions and
-sample values onto the ``Table`` and ``Column`` nodes that the tabular ingest
-pipeline created in Neo4j. It is intentionally a small, dev-tools-only helper
+sample values onto the ``Table`` and ``Column`` rows that the tabular ingest
+pipeline created in Postgres. It is intentionally a small, dev-tools-only helper
 and is meant to be invoked at the end of an ingest run.
 
 JSON shape (per table)::
@@ -80,7 +80,7 @@ import logging
 import hashlib
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from nemo_retriever.common.params.models import EmbedParams
@@ -90,6 +90,13 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_DIR = Path(__file__).resolve().parents[2] / "datasets"
 ANNOTATIONS_DIR = Path(__file__).resolve().parents[2] / "annotations"
+
+
+def _removed_graph_connection() -> Any:
+    """Fail closed if a retired graph-era helper is called."""
+    raise RuntimeError(
+        "This graph-era helper was retired by the Postgres catalog migration."
+    )
 
 
 def train_json_for_dataset(dataset_name: str) -> Path:
@@ -311,7 +318,7 @@ def add_few_shot_examples(
 
 
 def apply_metadata(database_name: str, dataset: str | None = None) -> None:
-    """Stamp table/column metadata onto the Neo4j graph.
+    """Stamp table/column metadata onto the Postgres catalog.
 
     Reads ``datasets/<database_name>/metadata.json`` (or, for multi-DB
     benchmarks, ``datasets/<benchmark>/<database_name>/metadata.json``), keyed
@@ -403,13 +410,11 @@ def profile_and_describe_columns(connector, database_name: str) -> int:
 
     Returns the number of descriptions written.
     """
-    from nemo_retriever.tabular_data.neo4j import get_neo4j_conn
-
-    from gsf.dal.datasources import store_column_descriptions
+    from gsf.dal.datasources import store_column_descriptions  # type: ignore
     from gsf.semantic.deterministic import (
-        blank_column_descriptions,
-        columns_to_describe,
-        describe_mode,
+        blank_column_descriptions,  # type: ignore
+        columns_to_describe,  # type: ignore
+        describe_mode,  # type: ignore
     )
     from gsf.semantic.visit_enter import calculate_columns_profiling
 
@@ -431,7 +436,7 @@ def profile_and_describe_columns(connector, database_name: str) -> int:
     # which resolves a column's description through its ColumnAttribute and would
     # therefore report every column as documented on a re-run over a graph the
     # semantic layer had already populated.
-    rows = get_neo4j_conn().query_read(
+    rows = _removed_graph_connection().query_read(
         query=(
             "MATCH (d:Database {name: $database_name})-[:CONTAINS]->"
             "(s:Schema)-[:CONTAINS]->(t:Table)-[:CONTAINS]->(c:Column) "
@@ -491,21 +496,19 @@ def sync_graph_metadata_into_schema_data(
 
     ``TabularSchemaExtractOp`` returns ``(tables_df, columns_df)`` and
     ``TabularFetchEmbeddingsOp`` builds its text from that pair directly, "without
-    a Neo4j round-trip" — so anything written to the graph *after* extraction is
+    a catalog round-trip" — so anything written to the old graph *after* extraction is
     invisible to the embeddings. For a SQLite source that is everything worth
     embedding: the introspected DataFrames carry no descriptions at all, and both
-    :func:`apply_metadata` and :func:`profile_and_describe_columns` write only to
-    Neo4j. Without this step a Column is embedded as name, type and nothing else.
+    :func:`apply_metadata` and :func:`profile_and_describe_columns` wrote only to
+    that graph. Without this step a Column was embedded as name and type alone.
 
-    Joins on the Neo4j UUID that extraction already placed in each frame's ``id``
+    Joins on the catalog UUID that extraction already placed in each frame's ``id``
     column, so it is immune to name-casing and duplicate table names across
     schemas. Returns the patched pair; frames missing ``id`` are passed through.
     """
     import pandas as pd
-    from nemo_retriever.tabular_data.neo4j import get_neo4j_conn
-
     tables_df, columns_df = schema_data
-    conn = get_neo4j_conn()
+    conn = _removed_graph_connection()
 
     def _apply(df, rows: list[dict], fields: tuple[str, ...]):
         if df is None or getattr(df, "empty", True) or "id" not in df.columns:
@@ -585,7 +588,7 @@ def add_custom_analyses(
     vdb: "VDB | None" = None,
     dataset: str | None = None,
 ) -> None:
-    """Ingest custom analyses for *database_name* into the Neo4j graph and the VDB.
+    """Ingest custom analyses for *database_name* into Postgres and the VDB.
 
     Reads the database's analyses — ours from ``annotations/<dataset>/`` if we have
     any, else its own ``custom_analyses.json``; see
@@ -690,6 +693,7 @@ def add_custom_analyses(
         logger.info("Custom analyses embedded inline: embed_params/vdb not provided.")
         return
 
+    assert embed_params is not None and vdb is not None
     embed_custom_analyses(embed_params, vdb, database_name=database_name)
 
 
@@ -713,31 +717,6 @@ SAVED_DESCRIPTION_FIELDS = (
     "column_attribute",
     "column_attribute_description",
 )
-
-# The attribute is reached through the HAS_ATTRIBUTE edge, never by its name: the
-# semantic layer names attributes itself ("Charter School (Y/N)" becomes "Is
-# Charter School"), and a rebuild is free to name the same column differently. The
-# column is the stable identity, so that is what the saved rows are matched on.
-_LIVE_COLUMNS = """
-UNWIND $rows AS row
-MATCH (d:Database {name: $database_name})-[:CONTAINS]->(:Schema)
-      -[:CONTAINS]->(t:Table {name: row.table_name})
-      -[:CONTAINS]->(c:Column {name: row.column_name})
-OPTIONAL MATCH (c)-[:HAS_ATTRIBUTE]->(a:ColumnAttribute)
-RETURN row.table_name AS table_name, row.column_name AS column_name,
-       c.id AS column_id, c.description AS column_description,
-       collect(CASE WHEN a IS NULL THEN NULL ELSE {
-           id: a.id, name: a.name, term_name: a.term_name,
-           source_column: a.source_column, description: a.description
-       } END) AS attributes
-"""
-
-_SET_ATTRIBUTE_DESCRIPTIONS = """
-UNWIND $rows AS row
-MATCH (a:ColumnAttribute {id: row.id})
-SET a.description = row.description
-"""
-
 
 def saved_descriptions_csv_path(
     database_name: str,
@@ -832,8 +811,16 @@ def apply_saved_descriptions(
     columns carrying more than one attribute are counted and named in the log
     rather than guessed at. Returns the number of nodes written.
     """
-    from nemo_retriever.tabular_data.neo4j import get_neo4j_conn
-
+    from gsf.dal.attributes import (
+        fetch_attr_column_contexts,
+        find_column_attribute_by_column_id,
+        update_column_attribute,
+    )
+    from gsf.dal.datasources import (
+        fetch_schema_ids_for_database,
+        fetch_tables_and_columns_by_node_ids,
+        fetch_tables_for_schema,
+    )
     from gsf.semantic.embed import build_semantic_embedder
     from gsf.server.datasources.service import update_node_properties
 
@@ -852,20 +839,56 @@ def apply_saved_descriptions(
         logger.info("%s holds no rows for %s — skipping.", csv_path, database_name)
         return 0
 
-    conn = get_neo4j_conn()
-    rows = cast(
-        "list[dict]",
-        conn.query_read(
-            _LIVE_COLUMNS,
-            parameters={
-                "database_name": database_name,
-                "rows": [
-                    {"table_name": table, "column_name": column}
-                    for table, column in sorted(saved)
-                ],
-            },
-        ),
+    table_ids: list[str] = []
+    for schema_id in fetch_schema_ids_for_database(database_name):
+        table_ids.extend(
+            str(table["id"])
+            for table in fetch_tables_for_schema(
+                schema_id, database_name=database_name
+            )
+            if table.get("id")
+        )
+    _tables_df, columns_df, _database_name = fetch_tables_and_columns_by_node_ids(
+        table_ids
     )
+    column_rows = columns_df.to_dict(orient="records")
+    attr_id_by_column = {
+        str(row["id"]): find_column_attribute_by_column_id(str(row["id"]))
+        for row in column_rows
+        if row.get("id")
+    }
+    attr_contexts = fetch_attr_column_contexts(
+        [attr_id for attr_id in attr_id_by_column.values() if attr_id],
+        database_name=database_name,
+    )
+    rows: list[dict] = []
+    for column in column_rows:
+        key = (str(column.get("table_name") or ""), str(column.get("column_name") or ""))
+        if key not in saved:
+            continue
+        attr_id = attr_id_by_column.get(str(column.get("id") or ""))
+        context = attr_contexts.get(attr_id or "")
+        attributes = []
+        if attr_id and context:
+            attributes.append(
+                {
+                    "id": attr_id,
+                    "name": context.get("attr_name", ""),
+                    "term_id": context.get("term_id"),
+                    "term_name": context.get("term_name", ""),
+                    "source_column": context.get("col_name", ""),
+                    "description": context.get("attr_description", ""),
+                }
+            )
+        rows.append(
+            {
+                "table_name": key[0],
+                "column_name": key[1],
+                "column_id": str(column.get("id") or ""),
+                "column_description": column.get("description") or "",
+                "attributes": attributes,
+            }
+        )
     live = {(r["table_name"], r["column_name"]): r for r in rows}
 
     column_writes: list[tuple[tuple[str, str], str, str]] = []
@@ -947,29 +970,33 @@ def apply_saved_descriptions(
             logger.warning("  %s.%s: column patch reported no change", *key)
 
     if attribute_writes:
-        conn.query_write(
-            _SET_ATTRIBUTE_DESCRIPTIONS,
-            parameters={
-                "rows": [
-                    {"id": attribute["id"], "description": attribute["description"]}
-                    for _key, attribute in attribute_writes
-                ]
-            },
-        )
+        updated_attributes: list[dict] = []
+        for key, attribute in attribute_writes:
+            term_id = attribute.get("term_id")
+            if not term_id:
+                logger.warning("  %s.%s: attribute has no owning term", *key)
+                continue
+            updated = update_column_attribute(
+                attribute["id"],
+                term_id,
+                description=attribute["description"],
+            )
+            if updated:
+                updated_attributes.append(updated)
+            else:
+                logger.warning("  %s.%s: attribute patch reported no change", *key)
         embedder = build_semantic_embedder(database_name, reset=False)
         if embedder is None:
             logger.warning(
                 "Semantic embedding disabled — %d attribute description(s) written to "
-                "the graph but the vector index still serves the old text",
-                len(attribute_writes),
+                "Postgres but the vector index still serves the old text",
+                len(updated_attributes),
             )
         else:
-            for _key, attribute in attribute_writes:
+            for attribute in updated_attributes:
                 # The embed path appends, so the superseded row has to go first.
                 embedder.vdb.delete_by_id(attribute["id"])
-            written = embedder.embed_column_attributes(
-                [attribute for _key, attribute in attribute_writes]
-            )
+            written = embedder.embed_column_attributes(updated_attributes)
             logger.info("re-embedded %d attribute row(s)", written)
 
     total = len(column_writes) + len(attribute_writes)

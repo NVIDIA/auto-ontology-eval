@@ -2,7 +2,7 @@
 
 [← Back to main README](../../README.md)
 
-Populates the Neo4j graph and pgvector stores from a source database so the
+Populates the Postgres catalog and pgvector stores from a source database so the
 text-to-SQL agent has schema and semantic context to retrieve. Set
 `CONNECTION_STRINGS` to point at the source DB, then run the pipeline.
 
@@ -75,9 +75,9 @@ rather than adding to a store that already has them.
 
 1. Create a connector from `CONNECTION_STRINGS` (the first entry) and derive the
    database name from it.
-2. Extract the tabular schema (tables/columns) into the Neo4j graph.
+2. Extract the tabular schema (tables/columns) into the Postgres catalog.
 3. `apply_metadata()` — stamp `metadata.json` descriptions and sample values
-   onto the graph nodes (skipped if the file is missing).
+   onto the catalog rows (skipped if the file is missing).
 4. Embed the schema rows via the embedding endpoint and write them to the
    pgvector **data** store.
 5. `add_custom_analyses()` — parse the database's analyses (see the table above
@@ -92,8 +92,7 @@ Data destinations:
 
 | Destination                      | Content                                                                                        |
 | -------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Neo4j (`NEO4J_*`)                | Schema graph (Database → Schema → Table → Column), metadata properties, custom-analysis nodes. |
-| Postgres pgvector (`POSTGRES_*`) | Schema embeddings (data store) + custom-analysis embeddings (semantic store) + Train Q→SQL embeddings (``train_qa`` store). |
+| Postgres (`POSTGRES_*`) | Catalog and semantic rows plus schema, custom-analysis, and Train Q→SQL embeddings. |
 
 ## Quick smoke test (DB-free)
 
