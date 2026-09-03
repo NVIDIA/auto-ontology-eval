@@ -21,6 +21,13 @@ venv/
 
 # Internal tooling
 /scripts/run_parallel_eval.py
+/scripts/monitor_bird.py
+/scripts/monitor_fda.py
+/scripts/retry_empty_sql.py
+
+# Generated run output — live monitor reports and run logs
+/scoreboard/
+/logs/
 
 # OS / editor
 .DS_Store
