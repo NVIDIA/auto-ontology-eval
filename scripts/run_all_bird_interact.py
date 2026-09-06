@@ -482,6 +482,7 @@ def main() -> None:
 
     t_run_start = time.time()
     n_pass = n_fail = n_error = 0
+    sum_reward = 0.0
 
     try:
         if not check_health(agent_url, f"GSF adapter :{args.agent_port}", timeout=60):
@@ -614,6 +615,7 @@ def main() -> None:
                     print("  Phase 2: skipped (phase 1 failed)")
 
                 print(f"  reward={record['total_reward']:.2f}")
+                sum_reward += record["total_reward"]
 
                 if record["phase1_passed"] and (record["phase2_passed"] is None or record["phase2_passed"]):
                     n_pass += 1
@@ -638,8 +640,7 @@ def main() -> None:
     print("=" * 60)
     print(f"Tasks:   {total_tasks}  |  Pass: {n_pass}  Fail: {n_fail}  Error: {n_error}")
     if total_tasks > 0:
-        print(f"Pass rate: {n_pass / total_tasks * 100:.1f}%  (excluding errors: "
-              f"{n_pass / max(n_pass + n_fail, 1) * 100:.1f}%)")
+        print(f"Score: {sum_reward / total_tasks * 100:.1f}%  (sum of rewards / tasks run)")
     print(f"Wall time: {total_t / 3600:.2f}h  ({total_t:.0f}s)")
     print(f"Output:    {jsonl_path}")
     print(f"           {csv_path}")
