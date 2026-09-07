@@ -42,7 +42,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 logging.getLogger("gsf.retrieval.interactive.clarify").setLevel(logging.DEBUG)
-logging.getLogger("gsf.retrieval.interactive.kg_coverage").setLevel(logging.DEBUG)
+logging.getLogger("gsf.retrieval.interactive.kb_coverage").setLevel(logging.DEBUG)
 logging.getLogger("gsf.retrieval.interactive.entity_resolution").setLevel(logging.DEBUG)
 logging.getLogger("gsf.retrieval.interactive.completeness").setLevel(logging.DEBUG)
 logging.getLogger("gsf.retrieval.interactive.coordinator").setLevel(logging.INFO)
@@ -161,12 +161,12 @@ def _load_kb_children(db_name: str) -> dict[int, list[int]]:
     return result
 
 
-def _format_external_kg(
+def _format_external_kb(
     raw_json: str, db_name: str = ""
 ) -> tuple[str, dict[str, list[str]]]:
     """Parse Bird's knowledge JSON array into a formatted bullet list and a children map.
 
-    Returns (formatted_kg, children_map) where children_map maps each parent entry
+    Returns (formatted_kb, children_map) where children_map maps each parent entry
     name to the full formatted texts of its declared children_knowledge entries.
     """
     try:
@@ -192,7 +192,7 @@ def _format_external_kg(
             id_to_name[item_id] = name
             id_to_text[item_id] = "\n".join(parts)
 
-    formatted_kg = "\n".join(id_to_text.values())
+    formatted_kb = "\n".join(id_to_text.values())
 
     kb_children = _load_kb_children(db_name) if db_name else {}
     children_map: dict[str, list[str]] = {}
@@ -210,7 +210,7 @@ def _format_external_kg(
         if child_texts:
             children_map[name] = child_texts
 
-    return formatted_kg, children_map
+    return formatted_kb, children_map
 
 
 # ── Request models ────────────────────────────────────────────────────────────
@@ -241,8 +241,8 @@ async def health():
 async def init_session(req: InitSessionRequest):
     db_name = req.state.get("db_name", "")
     db_schema = req.state.get("db_schema", "")
-    external_kg, external_kg_children_map = _format_external_kg(
-        req.state.get("external_kg", "[]"), db_name
+    external_kb, external_kb_children_map = _format_external_kb(
+        req.state.get("external_kb", "[]"), db_name
     )
     session_id = uuid.uuid4().hex
 
@@ -256,13 +256,13 @@ async def init_session(req: InitSessionRequest):
         task_id=req.task_id,
         db_name=db_name,
         db_schema=db_schema,
-        external_kg=external_kg,
+        external_kb=external_kb,
         question="",
         data_retriever=_DATA_RETRIEVER,
         semantic_retriever=_SEMANTIC_RETRIEVER,
         connectors=connectors,
         max_clarify_turns=max_turn,
-        external_kg_children_map=external_kg_children_map,
+        external_kb_children_map=external_kb_children_map,
     )
 
     sess = AdapterSession(

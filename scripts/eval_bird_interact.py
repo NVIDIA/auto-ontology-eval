@@ -266,9 +266,9 @@ def main() -> None:
         # ── 5. Get schema and knowledge from :6002 ────────────────────────────
         print("-- fetching schema + knowledge from :6002 --")
         db_schema   = post(f"{DB_ENV_URL}/schema",    {"task_id": task_id}).get("schema", "")
-        external_kg = post(f"{DB_ENV_URL}/knowledge", {"task_id": task_id}).get("knowledge", "[]")
+        external_kb = post(f"{DB_ENV_URL}/knowledge", {"task_id": task_id}).get("knowledge", "[]")
         print(f"  schema: {db_schema[:60] if db_schema else '(empty)'}")
-        print(f"  knowledge items: {len(json.loads(external_kg)) if external_kg and external_kg != '[]' else 0}")
+        print(f"  knowledge items: {len(json.loads(external_kb)) if external_kb and external_kb != '[]' else 0}")
 
         # ── 6. Compute clarification budget ───────────────────────────────────
         n_critical  = len(task.get("user_query_ambiguity", {}).get("critical_ambiguity", []))
@@ -285,7 +285,7 @@ def main() -> None:
                 "mode": "c-interact",
                 "db_name": db_name,
                 "db_schema": db_schema,
-                "external_kg": external_kg,
+                "external_kb": external_kb,
                 "max_turn": max_turn,
                 "phase_max_turns": max_turn * 3,
                 "model_turns": 0,

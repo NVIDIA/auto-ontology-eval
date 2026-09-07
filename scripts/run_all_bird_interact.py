@@ -270,7 +270,7 @@ def run_task(
 
     # ── fetch schema + knowledge from :6002 ──────────────────────────────────
     db_schema   = post(f"{DB_ENV_URL}/schema",    {"task_id": task_id}).get("schema", "")
-    external_kg = post(f"{DB_ENV_URL}/knowledge", {"task_id": task_id}).get("knowledge", "[]")
+    external_kb = post(f"{DB_ENV_URL}/knowledge", {"task_id": task_id}).get("knowledge", "[]")
 
     # ── init_session on GSF adapter ──────────────────────────────────────────
     post(f"{agent_url}/init_session", {
@@ -281,7 +281,7 @@ def run_task(
             "mode":            "c-interact",
             "db_name":         db_name,
             "db_schema":       db_schema,
-            "external_kg":     external_kg,
+            "external_kb":     external_kb,
             "max_turn":        max_turn,
             "phase_max_turns": max_turn * 3,
             "model_turns":     0,
