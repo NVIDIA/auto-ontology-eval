@@ -12,6 +12,9 @@ shuts the adapter down.
 Prerequisites — the Bird services must already be running:
   :6001  user_simulator
   :6002  db_environment
+Start them with scripts/start_bird_services.sh (not ADK's own
+scripts/start_services.sh directly) — it applies our required ADK patches
+first (see known_issues.py).
 
 Usage:
     python scripts/smoke_bird_interact.py

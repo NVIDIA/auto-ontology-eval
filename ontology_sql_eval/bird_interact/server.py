@@ -26,7 +26,7 @@ from gsf.retrieval.interactive import (
     apply_submit_result as gsf_apply_submit_result,
 )
 from . import bird_interact_http as bird_http
-from .known_issues import corrected_phase1_result
+from .known_issues import is_p1snap_collision
 from .session import AdapterSession, get_session, put_session
 
 # ── Logging setup ─────────────────────────────────────────────────────────────
@@ -417,29 +417,26 @@ async def run_session(req: RunSessionRequest):
                 logger.error("[turn %d] submit_sql failed: %s", turn, e)
                 raise HTTPException(status_code=502, detail=f"submit_sql error: {e}")
 
-            # Known-issue workaround (see known_issues.py): ADK's Phase-1
-            # snapshot step can crash on a DB-name-length collision *after*
-            # already determining the submission correct, overwriting a real
-            # pass with reward=0. Only applies while Phase 1 hasn't already
-            # completed — the collision can't occur for Phase 2 submissions.
-            if not sess.phase1_completed:
-                sess.phase1_submit_attempts += 1
-                fix = corrected_phase1_result(
-                    msg, is_first_try=sess.phase1_submit_attempts == 1
+            # This ADK crash signature (see known_issues.py) should be
+            # unreachable: scripts/start_bird_services.sh mandatorily patches
+            # ADK's create_task_db() before ADK's services ever start, so a
+            # run reaching here has an unpatched/bypassed ADK setup — a setup
+            # bug worth stopping the run for, not a score to silently correct.
+            if is_p1snap_collision(msg):
+                logger.error(
+                    "[turn %d] ADK p1snap name-collision signature seen despite "
+                    "the mandatory patch (see known_issues.py) — ADK services were "
+                    "likely started without scripts/start_bird_services.sh, or the "
+                    "patch stopped applying after an ADK update.",
+                    turn,
                 )
-                if fix is not None:
-                    logger.warning(
-                        "[turn %d] known-issue workaround: ADK p1snap collision "
-                        "detected — correcting reward %.2f -> %.2f, "
-                        "phase_completed None -> 1 (see known_issues.py)",
-                        turn,
-                        reward,
-                        fix["reward"],
-                    )
-                    result["reward"] = fix["reward"]
-                    result["phase_completed"] = fix["phase_completed"]
-                    reward = fix["reward"]
-                    phase = fix["phase_completed"]
+                raise HTTPException(
+                    status_code=500,
+                    detail=(
+                        "ADK p1snap name-collision bug detected; this should be "
+                        "impossible with the patch applied — see known_issues.py"
+                    ),
+                )
 
             t_submit = time.time()
             sess._last_submit_raw = result.get("message", "")

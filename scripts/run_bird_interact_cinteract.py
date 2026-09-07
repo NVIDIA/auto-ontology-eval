@@ -9,6 +9,14 @@ results CSV.
 Run scripts/seed_bird_interact.py first to clone the upstream repo and
 prepare datasets/bird_interact/.
 
+WARNING: the manual uvicorn bootstrap below does not go through
+scripts/start_bird_services.sh, so it does not apply our required ADK
+patches (see known_issues.py) — notably the labor_certification_applications
+p1snap name-collision fix. Phase 2 for that DB will silently mis-grade if
+run this way. Prefer start_bird_services.sh if possible; if you must use
+this path, apply patches/adk_p1snap_name_collision.patch to the ADK checkout
+manually first.
+
 Prerequisites — start separately BEFORE running this script:
   PG_WRAPPERS=/tmp/pg_wrappers   # psql/createdb/dropdb shims
 
@@ -54,6 +62,26 @@ BIRD_ADK_DIR = Path(os.environ.get("BIRD_INTERACT_ADK_DIR", str(_default_adk)))
 DEFAULT_DATA = ONTOLOGY_DIR / "datasets" / "bird_interact" / "bird_interact_data_with_gt.jsonl"
 
 
+def _warn_if_adk_unpatched() -> None:
+    """This script's manual uvicorn bootstrap doesn't go through
+    scripts/start_bird_services.sh, so it never applies our required ADK
+    patches (see known_issues.py). Surface it loudly, first, rather than let a
+    labor_certification_applications phase 2 silently mis-grade.
+    """
+    db_utils = BIRD_ADK_DIR / "shared" / "db_utils.py"
+    marker = "NAMEDATALEN"
+    if not db_utils.is_file() or marker not in db_utils.read_text():
+        print(
+            "WARNING: ADK checkout at "
+            f"{BIRD_ADK_DIR} does not have patches/adk_p1snap_name_collision.patch "
+            "applied (see known_issues.py). labor_certification_applications "
+            "phase 2 will silently mis-grade. Apply the patch or use "
+            "scripts/start_bird_services.sh instead of this script's manual "
+            "bootstrap.",
+            file=sys.stderr,
+        )
+
+
 def wait_for_health(url: str, timeout: int = 30, label: str = "") -> bool:
     for _ in range(timeout):
         try:
@@ -68,6 +96,7 @@ def wait_for_health(url: str, timeout: int = 30, label: str = "") -> bool:
 
 
 def main() -> None:
+    _warn_if_adk_unpatched()
     parser = argparse.ArgumentParser(description="Run Bird c-Interact with GSF adapter")
     parser.add_argument(
         "--data",

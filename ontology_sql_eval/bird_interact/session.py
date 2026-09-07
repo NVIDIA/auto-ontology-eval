@@ -20,10 +20,6 @@ class AdapterSession:
     total_reward: float = 0.0
     _submitted_this_phase: bool = False
     _last_submit_raw: str = ""
-    # Phase 1 submit attempts so far (1 = first try, 2 = debug retry, ...) —
-    # mirrors ADK's own per-phase attempt counter, needed to pick the right
-    # reward when working around the p1snap collision (see known_issues.py).
-    phase1_submit_attempts: int = 0
     # Turn-type classification for the *next* /run_session call, derived from
     # the previous submit_sql response's structured phase_completed field (and,
     # for a still-failing submission, the [exec_err_flg] marker in its message)

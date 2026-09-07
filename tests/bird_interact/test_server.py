@@ -238,14 +238,15 @@ def test_run_session_submit_only():
     assert state["total_reward"] == 1.0
 
 
-def test_run_session_corrects_known_p1snap_collision():
-    """A Phase 1 submission that ADK crashed on with the known p1snap
-    name-collision signature must be reported as the pass it actually was
-    (see known_issues.py), not the reward=0.0 the crash produced.
+def test_run_session_fails_loud_on_known_p1snap_collision():
+    """The ADK p1snap name-collision signature should be unreachable now that
+    scripts/start_bird_services.sh mandatorily patches ADK before it starts
+    (see known_issues.py) — seeing it means ADK was started some other way,
+    or the patch stopped applying, so the run should fail loud, not silently
+    reinterpret the crash as a pass.
     """
     mock_sess = MagicMock()
     mock_sess.phase1_completed = False
-    mock_sess.phase1_submit_attempts = 0
     submit_result = {
         "reward": 0.0,
         "phase_completed": None,
@@ -288,11 +289,7 @@ def test_run_session_corrects_known_p1snap_collision():
                 json={"task_id": "task-003", "message": "Find something"},
             )
 
-    assert resp.status_code == 200
-    state = resp.json()["state"]
-    # First submit attempt on this session → the "first try" reward (0.7).
-    assert state["total_reward"] == 0.7
-    assert state["phase1_completed"] is True
+    assert resp.status_code == 500
 
 
 def test_run_session_ask_then_submit():
