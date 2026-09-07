@@ -615,9 +615,13 @@ def main() -> None:
     if wall_span is not None:
         print(f"  Wall-clock span:     {wall_span / 3600:.2f}h  ({wall_span:.0f}s)  [first→last task start]")
 
+    pct_vs_ran = sum_rewards / max(n_completed_naturally, 1) * 100
+    # Scaled to reflect management tasks (fixed 410/600 query-task ratio) without
+    # letting the estimate swing based on how many tasks this particular run completed.
+    pct_vs_full = pct_vs_ran * 410 / 600
     print("\n── Score (BIRD-Interact SR) ───────────────────────────────────────────")
-    print(f"  vs tasks ran        ({n_completed_naturally} tasks):   {sum_rewards / max(n_completed_naturally, 1) * 100:.2f}%")
-    print(f"  vs full benchmark   (~{estimated_full_benchmark} tasks, incl. management):  {sum_rewards / estimated_full_benchmark * 100:.2f}%")
+    print(f"  vs tasks ran        ({n_completed_naturally} tasks):   {pct_vs_ran:.2f}%")
+    print(f"  vs full benchmark   (~{estimated_full_benchmark} tasks, incl. management):  {pct_vs_full:.2f}%")
     print("\n── Task Completion ───────────────────────────────────────────────────")
     print(f"  Completed naturally: {n_completed_naturally}/{total}  ({_pct(n_completed_naturally, total)})")
     print(f"  Did NOT complete:    {n_not_natural}/{total}  ({_pct(n_not_natural, total)})  ← errors + timeouts")
@@ -1049,7 +1053,7 @@ def main() -> None:
         "avg_reward": round(sum_rewards / max(len(ok), 1), 4),
         "score_vs_completed_naturally_pct": round(sum_rewards / max(n_completed_naturally, 1) * 100, 2),
         "score_vs_query_tasks_pct": round(sum_rewards / max(n_query_in_dataset, 1) * 100, 2),
-        "score_vs_full_benchmark_pct": round(sum_rewards / estimated_full_benchmark * 100, 2),
+        "score_vs_full_benchmark_pct": round(pct_vs_full, 2),
         "n_query_in_dataset": n_query_in_dataset,
         "n_completed_naturally": n_completed_naturally,
         "n_not_completed_naturally": n_not_natural,
