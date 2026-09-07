@@ -317,7 +317,7 @@ def main() -> None:
 
         # ── 9. Phase 1 Debug ─────────────────────────────────────────────────
         p1_debug_ran = False
-        if not p1_pass and state.get("_submitted_this_phase"):
+        if not p1_pass:
             debug_msg = _build_debug_message(state.get("_last_submit_raw", ""))
             print("\n-- Phase 1 Debug --")
             print(f"  prompt: {debug_msg[:120]}")
@@ -363,7 +363,7 @@ def main() -> None:
             _print_trajectory(state)
 
             # ── 11. Phase 2 Debug ─────────────────────────────────────────────
-            if not p2_pass and state.get("_submitted_this_phase"):
+            if not p2_pass:
                 debug_msg = _build_debug_message(state.get("_last_submit_raw", ""))
                 print("\n-- Phase 2 Debug --")
                 print(f"  prompt: {debug_msg[:120]}")

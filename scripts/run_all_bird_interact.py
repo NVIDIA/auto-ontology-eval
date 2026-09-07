@@ -324,7 +324,7 @@ def run_task(
     # ── Phase 1 Debug ─────────────────────────────────────────────────────────
     if _current_phase is not None:
         _current_phase[0] = "phase1_debug"
-    if not p1_pass and state.get("_submitted_this_phase"):
+    if not p1_pass:
         debug_msg = _build_debug_message(state.get("_last_submit_raw", ""))
         t0 = time.time()
         resp  = post(f"{agent_url}/run_session",
@@ -365,7 +365,7 @@ def run_task(
         # ── Phase 2 Debug ─────────────────────────────────────────────────────
         if _current_phase is not None:
             _current_phase[0] = "phase2_debug"
-        if not p2_pass and state.get("_submitted_this_phase"):
+        if not p2_pass:
             debug_msg = _build_debug_message(state.get("_last_submit_raw", ""))
             t0 = time.time()
             resp  = post(f"{agent_url}/run_session",
