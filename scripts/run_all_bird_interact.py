@@ -28,7 +28,7 @@ Usage:
     caffeinate -i uv run python scripts/run_all_bird_interact.py --output overnight_run_1
     caffeinate -i uv run python scripts/run_all_bird_interact.py --limit 10 --shuffle
     caffeinate -i uv run python scripts/run_all_bird_interact.py --difficulty challenging
-    caffeinate -i uv run python scripts/run_all_bird_interact.py --phase-timeout 600
+    caffeinate -i uv run python scripts/run_all_bird_interact.py --phase-timeout 1200
 """
 from __future__ import annotations
 
@@ -414,8 +414,9 @@ def main() -> None:
     parser.add_argument("--gsf-dir", type=Path, default=GSF_DIR,
                         help="Path to the GSF checkout to put on PYTHONPATH "
                              f"(default: {GSF_DIR})")
-    parser.add_argument("--phase-timeout", type=float, default=900.0,
-                        help="Seconds per run_session HTTP call (default: 900 = 15 min)")
+    parser.add_argument("--phase-timeout", type=float, default=600.0,
+                        help="Seconds per run_session HTTP call (default: 600 = 10 min, "
+                             "matching the official cinteract orchestrator's hard-coded timeout)")
     parser.add_argument("--health-timeout", type=int, default=10,
                         help="Health-check timeout per Bird service (default: 10s)")
     parser.add_argument("--overwrite", action="store_true",
