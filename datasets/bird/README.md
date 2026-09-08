@@ -65,7 +65,7 @@ uv run python -m ontology_sql_eval.judge.bird \
   --skip-ves   # omit to also compute VES (slower — runs timing on EX-passing rows)
 ```
 
-This writes `output/<name>_bird_scores.csv`. See
+This writes `output/<name>_scores.csv`. See
 [ontology_sql_eval/judge/bird.py](../../ontology_sql_eval/judge/bird.py) for the
 full flag reference (`--evaluation-json`, `--db-root`, `--num-cpus`,
 `--meta-time-out`, `--iterate-num`, `--no-output-csv`).

@@ -248,9 +248,7 @@ def _update_env_file(env_path: Path, connection_strings_value: str) -> bool:
     return True
 
 
-def _print_summary(
-    dest: Path, db_ids: list[str], *, write_env: bool = True
-) -> None:
+def _print_summary(dest: Path, db_ids: list[str], *, write_env: bool = True) -> None:
     """Log a summary, write ``CONNECTION_STRINGS`` to ``.env``, and print it."""
     logger.info("=" * 60)
     logger.info("BIRD Mini-Dev download complete.")
