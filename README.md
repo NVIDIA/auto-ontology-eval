@@ -116,6 +116,8 @@ Each bundled dataset's README documents how to stand up its source DB and set
   files.
 - **[FDABench-Lite](datasets/fdabench/README.md)** — download Lite tasks +
   SQLite databases (BIRD train / Spider1 / Spider2-lite local).
+- **[BEAVER](datasets/beaverbench/README.md)** — download BeaverBench questions +
+  MySQL dumps (`dw` / `nova` / `neutron`).
 
 ## Full pipeline (end-to-end example)
 
@@ -136,7 +138,8 @@ For concrete, copy-pasteable walkthroughs (including the manual per-stage
 commands), see the per-dataset READMEs:
 [WideWorldImporters](datasets/wideworldimporters/README.md),
 [BIRD Mini-Dev](datasets/bird/README.md),
-[FDABench-Lite](datasets/fdabench/README.md). See the per-workflow READMEs under
+[FDABench-Lite](datasets/fdabench/README.md),
+[BEAVER](datasets/beaverbench/README.md). See the per-workflow READMEs under
 [Workflows](#workflows) for the details of each stage.
 
 ## Datasets
@@ -155,7 +158,7 @@ The retrieval eval writes its results CSV to the repo-root `input/` folder
 (`input/<database_name>_<model>.csv`), not into the dataset folder, so the judge
 can score it directly.
 
-The repo ships with three public worked examples:
+The repo ships with four public worked examples:
 
 ### BIRD
 
@@ -173,6 +176,13 @@ text-to-SQL: gold SQL from each task's subtasks, plus the SQLite databases
 those tasks need (169 questions, 15 databases). See
 **[datasets/fdabench/README.md](datasets/fdabench/README.md)** for how to
 download and run the full pipeline.
+
+### BEAVER (BeaverBench)
+
+The [BEAVER](https://beaverbench.github.io/) enterprise text-to-SQL benchmark
+(gated HuggingFace questions + MySQL dumps). Defaults to a 100-question `dw`
+sample. See **[datasets/beaverbench/README.md](datasets/beaverbench/README.md)**
+for how to download, import MySQL, and run the full pipeline.
 
 ### WideWorldImporters (WWI)
 
@@ -287,12 +297,14 @@ scripts/
   seed_wwi.py               seed a local Postgres from datasets/<db>/{ddl,data}
   seed_bird.py              download BIRD split(s) (mini-dev/dev/train) into datasets/bird/
   seed_fdabench.py          download FDABench-Lite tasks + SQLite DBs into datasets/fdabench/
+  seed_beaverbench.py       download BEAVER questions + MySQL dumps into datasets/beaverbench/
 datasets/
   <database_name>/          evaluation.json, metadata.json, custom_analyses.json
     ddl/                    seed DDL (schemas, sequences, tables, indexes, fkeys, views)
     data/                   seed CSV data (COPYed into the tables)
   bird/                     README.md, evaluation.json, <db_id>/<db_id>.sqlite (11 DBs)
   fdabench/                 README.md, evaluation.json, <db_id>/<db_id>.sqlite (15 DBs)
+  beaverbench/              README.md, evaluation.json, dumps/*.sql, <db_id>/metadata.json
   wideworldimporters/       README.md, evaluation.json, custom_analyses.json, ddl/, data/
 input/                      judge input CSVs to score (contents gitignored)
 output/                     judge scored CSVs (<name>_scores.csv; contents gitignored)
@@ -302,7 +314,7 @@ output/                     judge scored CSVs (<name>_scores.csv; contents gitig
 
 VS Code launch configurations for all of the above (Run full pipeline, Judge,
 Ingest, Semantic compile, Eval, Eval single-query, Seed local WWI,
-Seed local BIRD, Seed local FDABench) are provided in [.vscode/launch.json](.vscode/launch.json); they set
+Seed local BIRD, Seed local FDABench, Seed local BEAVER) are provided in [.vscode/launch.json](.vscode/launch.json); they set
 `PYTHONPATH=../GSF` where needed and load `.env` automatically. The type-checker
 path for `../GSF` is configured in [pyrightconfig.json](pyrightconfig.json).
 

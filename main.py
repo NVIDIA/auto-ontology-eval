@@ -71,25 +71,33 @@ def stage_ingest() -> None:
 
 
 def stage_semantic(database_name: str) -> None:
-    """Compile the semantic layer in-process via ``run_semantic``."""
+    """Compile the semantic layer in-process via ``run_semantic``.
+
+    Compilation is keyed by the *connector's* database name, which is what the
+    ingest stage wrote onto the graph. That differs from the dataset folder name
+    whenever a benchmark bundles differently-named databases (e.g. dataset
+    ``beaverbench`` over database ``dw``), so ``--database-name`` is only used as
+    a fallback when no connection strings are configured.
+    """
     _banner(2, "Semantic compile (ingestion.semantic)")
     from ontology_sql_eval.ingestion.semantic import run_semantic
 
     connection_strings = _connection_strings()
-    if len(connection_strings) > 1:
-        from ontology_sql_eval.ingestion.ingest import database_name_for
-
-        for i, connection_string in enumerate(connection_strings, start=1):
-            db_name = database_name_for(connection_string)
-            logger.info(
-                "Compiling semantic layer %d/%d: %s",
-                i,
-                len(connection_strings),
-                db_name,
-            )
-            run_semantic(db_name)
-    else:
+    if not connection_strings:
         run_semantic(database_name)
+        return
+
+    from ontology_sql_eval.ingestion.ingest import database_name_for
+
+    for i, connection_string in enumerate(connection_strings, start=1):
+        db_name = database_name_for(connection_string)
+        logger.info(
+            "Compiling semantic layer %d/%d: %s",
+            i,
+            len(connection_strings),
+            db_name,
+        )
+        run_semantic(db_name)
 
 
 def stage_eval(*, database_name: str) -> Path:
