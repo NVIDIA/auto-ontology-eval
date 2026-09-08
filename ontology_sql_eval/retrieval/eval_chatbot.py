@@ -362,7 +362,14 @@ def _run_agent_traced(
                 # Stamped on the thread's context so the LLM callback --
                 # which fires deeper in the stack, inside GSF -- can
                 # attribute its call to the node that made it.
-                current_question()["node"] = event["node"]
+                _ctx = current_question()
+                _ctx["node"] = event["node"]
+                # When the node began, so each LLM call can report how long
+                # it waited before reaching the network. The profile shows
+                # the process is ~99% blocked with almost no CPU use, so any
+                # growth in that gap is queueing between the eval thread, the
+                # graph runner's executor, and the HTTP client -- not work.
+                _ctx["node_started"] = now
                 open_node = {
                     "node": event["node"],
                     "started": now,

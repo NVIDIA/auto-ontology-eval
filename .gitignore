@@ -1,5 +1,8 @@
 # Secrets / local environment
 .env
+# Backups made while swapping keys between runs hold live credentials
+# just as the real file does, and are easy to `git add -A` by accident.
+.env.*
 
 # Python
 __pycache__/

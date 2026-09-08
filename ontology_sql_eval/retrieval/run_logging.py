@@ -37,6 +37,7 @@ import json
 import logging
 import os
 import platform
+import queue
 import re
 import resource
 import statistics
@@ -44,6 +45,7 @@ import threading
 import time
 from contextvars import ContextVar
 from datetime import datetime, timezone
+from logging.handlers import QueueHandler, QueueListener
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -259,6 +261,7 @@ class LLMCallRecorder(_callback_base()):  # type: ignore[misc]
                     "qid": ctx.get("qid"),
                     "node": ctx.get("node"),
                     "worker": ctx.get("worker"),
+                    "node_started": ctx.get("node_started"),
                 },
             )
 
@@ -283,12 +286,19 @@ class LLMCallRecorder(_callback_base()):  # type: ignore[misc]
             return
         begin, ctx = started
         usage = _token_usage(response)
+        node_started = ctx.pop("node_started", None)
         record = {
             "t": round(begin - self._t0, 3),
             "duration_s": round(time.perf_counter() - begin, 3),
             **ctx,
             **usage,
         }
+        if node_started is not None:
+            # Time from the node starting to this call reaching the wire. For a
+            # node's first call this is dispatch overhead; later calls include
+            # the preceding calls' own time, so analysis should take the minimum
+            # per (question, node).
+            record["since_node_start_s"] = round(begin - node_started, 3)
         if error:
             record["error"] = error
         with self._lock:
@@ -714,6 +724,8 @@ class RunLogger:
         # not end up with a silent root logger.
         self._displaced: list[logging.Handler] = []
         self._prior_level: int | None = None
+        self._listener: QueueListener | None = None
+        self._sinks: tuple[logging.Handler, ...] = ()
 
     # -- timeline -------------------------------------------------------
 
@@ -761,26 +773,43 @@ class RunLogger:
         console = logging.StreamHandler()
         console.setLevel(console_level)
         console.setFormatter(logging.Formatter(_CONSOLE_FORMAT))
-        console.addFilter(ctx_filter)
         console.addFilter(_ConsoleQuietFilter())
 
         console_file = logging.FileHandler(self.console_log_path, encoding="utf-8")
         console_file.setLevel(console_level)
         console_file.setFormatter(file_formatter)
-        console_file.addFilter(ctx_filter)
 
         run_file = logging.FileHandler(self.run_log_path, encoding="utf-8")
         run_file.setLevel(logging.DEBUG)
         run_file.setFormatter(file_formatter)
-        run_file.addFilter(ctx_filter)
 
         per_question = _PerQuestionFileRouter(self.questions_dir)
         per_question.setFormatter(file_formatter)
-        per_question.addFilter(ctx_filter)
 
-        for handler in (console, console_file, run_file, per_question):
-            root.addHandler(handler)
-            self._handlers.append(handler)
+        # Every one of these handlers writes and flushes synchronously, and
+        # each holds its own lock while doing so. Attached to the root logger
+        # directly, every worker thread serialises through all four on every
+        # record -- profiling a 12-worker run put 6.5% of all samples, and 96%
+        # of all lock contention, in logging.Handler.acquire alone.
+        #
+        # A QueueHandler makes the worker's side of that a queue put: the
+        # formatting and the file I/O move to one listener thread, off the
+        # critical path. The context filter goes on the QueueHandler rather
+        # than on the downstream handlers so the question slug is stamped in
+        # the worker thread, while the record still knows which question it
+        # belongs to.
+        self._log_queue: queue.SimpleQueue = queue.SimpleQueue()
+        queue_handler = QueueHandler(self._log_queue)
+        queue_handler.setLevel(logging.DEBUG)
+        queue_handler.addFilter(ctx_filter)
+        root.addHandler(queue_handler)
+        self._handlers.append(queue_handler)
+
+        self._sinks = (console, console_file, run_file, per_question)
+        self._listener = QueueListener(
+            self._log_queue, *self._sinks, respect_handler_level=True
+        )
+        self._listener.start()
 
         for name in _NOISY_LOGGERS:
             logging.getLogger(name).setLevel(logging.INFO)
@@ -970,6 +999,24 @@ class RunLogger:
         self.resources.stop()
         self.llm_calls.close()
         root = logging.getLogger()
+        # Detach the queue first, then stop the listener: stop() drains what is
+        # already queued, and anything logged after this point should go to the
+        # restored handlers rather than into a queue nobody is reading.
+        if self._listener is not None:
+            for handler in list(self._handlers):
+                if isinstance(handler, QueueHandler):
+                    root.removeHandler(handler)
+            try:
+                self._listener.stop()
+            except Exception:  # pragma: no cover
+                pass
+            for sink in self._sinks:
+                try:
+                    sink.close()
+                except Exception:  # pragma: no cover
+                    pass
+            self._listener = None
+            self._sinks = ()
         if self._httpx_logger is not None:
             _unpin_logger_level(self._httpx_logger)
         for handler in self._handlers:
