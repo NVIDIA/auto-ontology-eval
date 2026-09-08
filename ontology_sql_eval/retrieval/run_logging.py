@@ -40,7 +40,6 @@ import platform
 import re
 import resource
 import statistics
-import subprocess
 import threading
 import time
 from contextvars import ContextVar
@@ -339,38 +338,29 @@ def peak_rss_mb() -> float:
 
 
 def system_memory() -> dict[str, Any]:
-    """Best-effort host memory pressure snapshot (macOS ``vm_stat``).
+    """Host memory snapshot, or ``{}`` when psutil is unavailable.
 
-    Returns ``{}`` when the numbers cannot be read; this is diagnostic context,
-    never something a run should fail on.
+    Previously shelled out to ``vm_stat`` and returned ``{}`` on anything but
+    macOS -- which meant it returned nothing on the Linux hosts these sweeps
+    actually run on, while still writing two empty fields into every summary.
+    psutil is already a dependency for CPU/RAM sampling and works on both.
     """
-    if platform.system() != "Darwin":
+    try:
+        import psutil
+    except ImportError:  # pragma: no cover - diagnostics only
         return {}
     try:
-        out = subprocess.run(
-            ["vm_stat"], capture_output=True, text=True, timeout=5
-        ).stdout
-    except Exception:  # pragma: no cover - diagnostics only
+        mem = psutil.virtual_memory()
+        swap = psutil.swap_memory()
+        return {
+            "total_gb": round(mem.total / 1024**3, 2),
+            "available_gb": round(mem.available / 1024**3, 2),
+            "used_gb": round((mem.total - mem.available) / 1024**3, 2),
+            "percent": mem.percent,
+            "swap_used_gb": round(swap.used / 1024**3, 2),
+        }
+    except Exception:  # pragma: no cover - never fail a run over diagnostics
         return {}
-
-    page_size = 16384
-    if match := re.search(r"page size of (\d+) bytes", out):
-        page_size = int(match.group(1))
-
-    def pages(label: str) -> int:
-        match = re.search(rf"{label}:\s+(\d+)", out)
-        return int(match.group(1)) if match else 0
-
-    to_gb = page_size / 1024**3
-    return {
-        "free_gb": round(pages("Pages free") * to_gb, 2),
-        "active_gb": round(pages("Pages active") * to_gb, 2),
-        "inactive_gb": round(pages("Pages inactive") * to_gb, 2),
-        "wired_gb": round(pages(r"Pages wired down") * to_gb, 2),
-        "compressed_gb": round(pages(r"Pages occupied by compressor") * to_gb, 2),
-        "swapins": pages("Swapins"),
-        "swapouts": pages("Swapouts"),
-    }
 
 
 def _pin_logger_level(logger: logging.Logger, level: int) -> None:
@@ -536,6 +526,12 @@ class RunLogger:
         self._memory_at_start: dict[str, Any] = system_memory()
         self.resources = ResourceSampler(self.dir / "resources.jsonl")
         self.resources.start()
+        # Fields merged into every summary this run writes. Provenance that a
+        # caller has to remember to pass is provenance that goes missing: the
+        # module entry point passed node_timing_mode while the pipeline in
+        # main.py did not, so pipeline runs wrote summaries with no timing mode
+        # and downstream analysis silently fell back to the wrong one.
+        self._summary_fields: dict[str, Any] = {}
         # Handlers displaced by attach_logging, restored on close so a caller
         # that keeps running after the eval (the pipeline's judge stage) does
         # not end up with a silent root logger.
@@ -656,6 +652,10 @@ class RunLogger:
 
     # -- summary --------------------------------------------------------
 
+    def note(self, **fields: Any) -> None:
+        """Record fields to merge into every summary this run writes."""
+        self._summary_fields.update(fields)
+
     def write_summary(self, **extra: Any) -> dict[str, Any]:
         """Aggregate the per-question records into ``summary.json``; return it."""
         records = list(self._question_records)
@@ -751,6 +751,7 @@ class RunLogger:
                     key=lambda kv: -kv[1],
                 )
             ),
+            **self._summary_fields,
             "http_calls_per_question": (
                 round(
                     sum(

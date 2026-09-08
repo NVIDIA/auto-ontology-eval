@@ -779,6 +779,16 @@ def run_evaluation(
     if workers > 1:
         _sort_csv_by_row_index(output_path)
 
+    if run_log is not None:
+        # Recorded here rather than at the CLI so the pipeline in main.py gets
+        # it too. Downstream analysis reads node_timing_mode to decide whether
+        # per-node entries need merging; a summary missing it is silently
+        # treated as the older format and mis-aggregated.
+        run_log.note(
+            node_timing_mode=_node_timing_mode,
+            evidence_as_parameter=_SUPPORTS_EVIDENCE_PARAM,
+        )
+
     logger.info("Wrote scores to %s", output_path)
 
 
@@ -933,8 +943,6 @@ def main() -> None:
                 workers=args.workers,
                 dataset=dataset_name,
                 output_path=str(output_path),
-                node_timing_mode=_node_timing_mode,
-                evidence_as_parameter=_SUPPORTS_EVIDENCE_PARAM,
             )
             _log_summary(summary)
             logger.info("Full run logs: %s", run_log.dir)
