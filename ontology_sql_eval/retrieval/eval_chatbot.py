@@ -66,6 +66,7 @@ from dotenv import load_dotenv
 # ``python -m`` run (VS Code masked this by injecting ``envFile`` itself).
 load_dotenv()
 
+from gsf.retrieval.text_to_sql import main as gsf_agent_main  # noqa: E402
 from gsf.retrieval.text_to_sql.main import stream_agent_response  # noqa: E402
 from gsf.retrieval.text_to_sql.state import TextToSQLPayload  # noqa: E402
 from gsf.connectors import get_connectors  # noqa: E402
@@ -76,6 +77,7 @@ from gsf.utils import (  # noqa: E402
 
 from ontology_sql_eval.retrieval.run_logging import (  # noqa: E402
     RunLogger,
+    current_question,
     http_calls,
     question_context,
     setup_run_logging,
@@ -357,6 +359,10 @@ def _run_agent_traced(
                 _node_timing_mode = "phase"
 
             if phase == "start":
+                # Stamped on the thread's context so the LLM callback --
+                # which fires deeper in the stack, inside GSF -- can
+                # attribute its call to the node that made it.
+                current_question()["node"] = event["node"]
                 open_node = {
                     "node": event["node"],
                     "started": now,
@@ -425,6 +431,25 @@ def _run_agent_traced(
             entry["http_calls"],
         )
     return answer, timings
+
+
+def _attach_llm_recorder(run_log: RunLogger) -> None:
+    """Register the per-call recorder on the agent's shared LLM client.
+
+    ``gsf.retrieval.text_to_sql.main`` builds one client at import time and
+    every node calls through it, so a single attachment covers the whole graph.
+    Appending rather than replacing leaves any callbacks GSF configured itself
+    in place.
+    """
+    client = getattr(gsf_agent_main, "llm_client", None)
+    if client is None:
+        logger.warning("No GSF llm_client — per-call LLM timing disabled")
+        return
+    existing = list(getattr(client, "callbacks", None) or [])
+    if any(cb is run_log.llm_calls for cb in existing):
+        return
+    client.callbacks = existing + [run_log.llm_calls]
+    logger.info("Per-call LLM timing enabled (duration + token usage)")
 
 
 def _blank_row(idx: int, item: Dict[str, Any]) -> Dict[str, Any]:
@@ -707,6 +732,9 @@ def run_evaluation(
         input_path,
         workers,
     )
+
+    if run_log is not None:
+        _attach_llm_recorder(run_log)
 
     t_setup = time.perf_counter()
     retrievers = {

@@ -57,6 +57,7 @@ __all__ = [
     "peak_rss_mb",
     "system_memory",
     "ResourceSampler",
+    "LLMCallRecorder",
 ]
 
 _UNSET = "-"
@@ -208,6 +209,181 @@ def _resolved_model_config() -> dict[str, Any]:
         except Exception:  # pragma: no cover
             continue
     return resolved
+
+
+def _callback_base() -> Any:
+    """LangChain's callback base class, or a stand-in when it is unavailable."""
+    try:
+        from langchain_core.callbacks import BaseCallbackHandler
+
+        return BaseCallbackHandler
+    except Exception:  # pragma: no cover - instrumentation is optional
+        return object
+
+
+class LLMCallRecorder(_callback_base()):  # type: ignore[misc]
+    """Record duration and token usage for every chat-model call.
+
+    Concurrency slows this workload down inside chat-completion nodes -- 94% of
+    the added time at 8 workers -- while the number of calls stays flat, so the
+    whole effect is per-call latency. Aggregate node timings cannot say *why*:
+    a call that waits longer to start is indistinguishable from one that
+    generates more tokens. Recording duration alongside prompt and completion
+    tokens separates them, which is the difference between "the endpoint is
+    queueing us" and "we are asking it for more work".
+
+    Attached to the shared LLM client, so it fires on whichever thread made the
+    call and picks up that thread's question and node from the context.
+    ``run_id`` pairs start with end, which matters because many calls are in
+    flight at once.
+    """
+
+    raise_error = False
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self.calls: list[dict[str, Any]] = []
+        self._pending: dict[Any, tuple[float, dict[str, Any]]] = {}
+        self._lock = threading.Lock()
+        self._t0 = time.perf_counter()
+        self._handle = path.open("w", encoding="utf-8")
+
+    # -- LangChain hooks -------------------------------------------------
+
+    def _start(self, run_id: Any) -> None:
+        ctx = current_question()
+        with self._lock:
+            self._pending[run_id] = (
+                time.perf_counter(),
+                {
+                    "qid": ctx.get("qid"),
+                    "node": ctx.get("node"),
+                    "worker": ctx.get("worker"),
+                },
+            )
+
+    def on_chat_model_start(self, serialized, messages, **kwargs: Any) -> None:
+        self._start(kwargs.get("run_id"))
+
+    def on_llm_start(self, serialized, prompts, **kwargs: Any) -> None:
+        self._start(kwargs.get("run_id"))
+
+    def on_llm_end(self, response: Any, **kwargs: Any) -> None:
+        self._finish(kwargs.get("run_id"), response, None)
+
+    def on_llm_error(self, error: BaseException, **kwargs: Any) -> None:
+        self._finish(kwargs.get("run_id"), None, repr(error)[:200])
+
+    # -- recording -------------------------------------------------------
+
+    def _finish(self, run_id: Any, response: Any, error: str | None) -> None:
+        with self._lock:
+            started = self._pending.pop(run_id, None)
+        if started is None:
+            return
+        begin, ctx = started
+        usage = _token_usage(response)
+        record = {
+            "t": round(begin - self._t0, 3),
+            "duration_s": round(time.perf_counter() - begin, 3),
+            **ctx,
+            **usage,
+        }
+        if error:
+            record["error"] = error
+        with self._lock:
+            self.calls.append(record)
+            self._handle.write(json.dumps(record, default=str) + "\n")
+            self._handle.flush()
+
+    def stats(self) -> dict[str, Any]:
+        """Latency and token aggregates, overall and per node."""
+        with self._lock:
+            calls = list(self.calls)
+        if not calls:
+            return {}
+
+        def agg(rows: list[dict[str, Any]]) -> dict[str, Any]:
+            durs = sorted(r["duration_s"] for r in rows)
+            out: dict[str, Any] = {
+                "calls": len(rows),
+                "seconds_mean": round(statistics.fmean(durs), 3),
+                "seconds_median": round(statistics.median(durs), 3),
+                "seconds_p95": round(
+                    durs[min(len(durs) - 1, int(0.95 * len(durs)))], 3
+                ),
+                "seconds_max": round(durs[-1], 3),
+            }
+            for field in ("prompt_tokens", "completion_tokens"):
+                vals = [r[field] for r in rows if isinstance(r.get(field), int)]
+                if vals:
+                    out[f"{field}_mean"] = round(statistics.fmean(vals), 1)
+                    out[f"{field}_total"] = sum(vals)
+            # The number this exists to expose: seconds per generated token.
+            # If latency rises while this holds, the extra time is queueing and
+            # prefill, not generation.
+            gen = [
+                r["duration_s"] / r["completion_tokens"]
+                for r in rows
+                if isinstance(r.get("completion_tokens"), int)
+                and r["completion_tokens"] > 0
+            ]
+            if gen:
+                out["seconds_per_completion_token"] = round(statistics.fmean(gen), 5)
+            return out
+
+        by_node: dict[str, list[dict[str, Any]]] = {}
+        for call in calls:
+            by_node.setdefault(call.get("node") or "unknown", []).append(call)
+        return {
+            "overall": agg(calls),
+            "by_node": {
+                node: agg(rows)
+                for node, rows in sorted(by_node.items(), key=lambda kv: -len(kv[1]))
+            },
+        }
+
+    def close(self) -> None:
+        try:
+            self._handle.close()
+        except Exception:  # pragma: no cover
+            pass
+
+
+def _token_usage(response: Any) -> dict[str, Any]:
+    """Pull token counts off an ``LLMResult``, tolerating client differences.
+
+    ``llm_output["token_usage"]`` is the ChatOpenAI shape;
+    ``generations[0][0].message.usage_metadata`` is the provider-neutral one
+    newer LangChain populates. Try both so a client swap does not silently stop
+    recording tokens.
+    """
+    if response is None:
+        return {}
+    out: dict[str, Any] = {}
+    try:
+        usage = (getattr(response, "llm_output", None) or {}).get("token_usage") or {}
+        if usage:
+            out["prompt_tokens"] = usage.get("prompt_tokens")
+            out["completion_tokens"] = usage.get("completion_tokens")
+            out["total_tokens"] = usage.get("total_tokens")
+            details = usage.get("completion_tokens_details") or {}
+            if details.get("reasoning_tokens") is not None:
+                out["reasoning_tokens"] = details.get("reasoning_tokens")
+            cached = (usage.get("prompt_tokens_details") or {}).get("cached_tokens")
+            if cached is not None:
+                out["cached_prompt_tokens"] = cached
+    except Exception:  # pragma: no cover
+        pass
+    if out.get("prompt_tokens") is None:
+        try:
+            meta = response.generations[0][0].message.usage_metadata or {}
+            out["prompt_tokens"] = meta.get("input_tokens")
+            out["completion_tokens"] = meta.get("output_tokens")
+            out["total_tokens"] = meta.get("total_tokens")
+        except Exception:  # pragma: no cover
+            pass
+    return {k: v for k, v in out.items() if v is not None}
 
 
 class ResourceSampler:
@@ -532,6 +708,7 @@ class RunLogger:
         # main.py did not, so pipeline runs wrote summaries with no timing mode
         # and downstream analysis silently fell back to the wrong one.
         self._summary_fields: dict[str, Any] = {}
+        self.llm_calls = LLMCallRecorder(self.dir / "llm_calls.jsonl")
         # Handlers displaced by attach_logging, restored on close so a caller
         # that keeps running after the eval (the pipeline's judge stage) does
         # not end up with a silent root logger.
@@ -728,6 +905,10 @@ class RunLogger:
             "peak_rss_mb": peak_rss_mb(),
             # Average and max CPU / RAM for this run, process and system-wide.
             "resources": self.resources.stats(),
+            # Per-call latency and tokens. Node-level timings show *that* calls
+            # got slower under concurrency; these show whether the extra time is
+            # generation or waiting to start.
+            "llm_calls": self.llm_calls.stats(),
             # Repeated from run_config.json so each level's summary is
             # self-describing: comparing levels across a sweep is meaningless if
             # one of them silently ran a different embedding model.
@@ -787,6 +968,7 @@ class RunLogger:
 
     def close(self) -> None:
         self.resources.stop()
+        self.llm_calls.close()
         root = logging.getLogger()
         if self._httpx_logger is not None:
             _unpin_logger_level(self._httpx_logger)
