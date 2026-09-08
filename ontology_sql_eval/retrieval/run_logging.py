@@ -384,6 +384,11 @@ def _pin_logger_level(logger: logging.Logger, level: int) -> None:
     per-node model-call count silently reads zero.
     """
     logging.Logger.setLevel(logger, level)
+    # Shadow the instance's bound setLevel so later callers cannot lower it.
+    # The requested level is discarded on purpose -- that is the whole point --
+    # and the class method is called directly to avoid recursing into this
+    # replacement. Instance-level only: other loggers are untouched, and
+    # _unpin_logger_level puts the original method back.
     logger.setLevel = (  # type: ignore[method-assign]
         lambda _ignored, _logger=logger, _level=level: logging.Logger.setLevel(
             _logger, _level
@@ -393,6 +398,9 @@ def _pin_logger_level(logger: logging.Logger, level: int) -> None:
 
 def _unpin_logger_level(logger: logging.Logger) -> None:
     """Undo :func:`_pin_logger_level`, restoring the class-level ``setLevel``."""
+    # Deleting the instance attribute is what restores the real method: the
+    # lambda only ever shadowed it in the instance __dict__, so the class
+    # implementation was never modified and re-emerges via normal lookup.
     logger.__dict__.pop("setLevel", None)
 
 
