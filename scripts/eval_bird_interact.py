@@ -28,6 +28,11 @@ Usage:
     python scripts/eval_bird_interact.py --random
     python scripts/eval_bird_interact.py --random --category query --difficulty challenging
     python scripts/eval_bird_interact.py --agent-port 6003
+
+Management-category tasks are not supported by this toolchain (query-category
+only — see run_all_bird_interact.py). load_task() always excludes them from
+the selection pool and warns; explicitly requesting --category management, or
+an --instance-id/--db that resolves to one, warns and exits instead of running.
 """
 from __future__ import annotations
 
@@ -142,8 +147,23 @@ def load_task(
         if not matches:
             print(f"No task found with instance_id={instance_id!r}", file=sys.stderr)
             sys.exit(1)
-        return matches[0]
+        idx, task = matches[0]
+        if (task.get("category") or "").lower() == "management":
+            print(f"WARNING: instance_id={instance_id!r} is a management-category task; "
+                  "management is not supported by this toolchain (query-category only). "
+                  "Skipping.", file=sys.stderr)
+            sys.exit(1)
+        return idx, task
+    if category_filter == "management":
+        print("WARNING: --category management is not supported by this toolchain "
+              "(query-category only). Skipping.", file=sys.stderr)
+        sys.exit(1)
     pool = [(i, t) for i, t in enumerate(tasks) if t.get("selected_database") == db_filter] if db_filter else list(enumerate(tasks))
+    n_before = len(pool)
+    pool = [(i, t) for i, t in pool if (t.get("category") or "").lower() != "management"]
+    if n_before != len(pool):
+        print(f"WARNING: excluded {n_before - len(pool)} management-category task(s) "
+              "from the selection pool (not supported by this toolchain).", file=sys.stderr)
     if category_filter:
         pool = [(i, t) for i, t in pool if (t.get("category") or "").lower() == category_filter.lower()]
     if difficulty_filter:

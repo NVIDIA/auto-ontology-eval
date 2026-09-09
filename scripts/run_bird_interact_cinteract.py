@@ -142,7 +142,26 @@ def main() -> None:
         print(f"ERROR: data file not found: {data_path}", file=sys.stderr)
         sys.exit(1)
 
+    if args.category == "management":
+        print("WARNING: --category management is not supported by this toolchain "
+              "(query-category only). Skipping.", file=sys.stderr)
+        sys.exit(1)
+
     tasks = [json.loads(line) for line in data_path.open() if line.strip()]
+    if args.instance_id:
+        matches = [t for t in tasks if t.get("instance_id") == args.instance_id]
+        if matches and (matches[0].get("category") or "").lower() == "management":
+            print(f"WARNING: instance_id={args.instance_id!r} is a management-category "
+                  "task; management is not supported by this toolchain (query-category "
+                  "only). Skipping.", file=sys.stderr)
+            sys.exit(1)
+
+    n_tasks_before = len(tasks)
+    tasks = [t for t in tasks if (t.get("category") or "").lower() != "management"]
+    if n_tasks_before != len(tasks):
+        print(f"WARNING: excluded {n_tasks_before - len(tasks)} management-category "
+              "task(s) (not supported by this toolchain).", file=sys.stderr)
+
     any_filter = args.db or args.instance_id or args.category or args.difficulty or args.random
     filtered_tmp: str | None = None
     if any_filter:
@@ -172,7 +191,14 @@ def main() -> None:
         data_file = filtered_tmp
         print(f"Filtered to {len(pool)} task(s) → {data_file}")
     else:
-        data_file = args.data
+        tmp = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".jsonl", delete=False, prefix="bird_filtered_"
+        )
+        for t in tasks:
+            tmp.write(json.dumps(t) + "\n")
+        tmp.close()
+        filtered_tmp = tmp.name
+        data_file = filtered_tmp
 
     # Check Bird :6001 and :6002 are already up
     print("Checking Bird services...")
