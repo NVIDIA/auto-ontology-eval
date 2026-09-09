@@ -47,7 +47,7 @@ from contextvars import ContextVar
 from datetime import datetime, timezone
 from logging.handlers import QueueHandler, QueueListener
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 __all__ = [
     "RunLogger",
@@ -248,6 +248,7 @@ class LLMCallRecorder(_callback_base()):  # type: ignore[misc]
         self._pending: dict[Any, tuple[float, dict[str, Any]]] = {}
         self._lock = threading.Lock()
         self._t0 = time.perf_counter()
+        self._closed = False
         self._handle = path.open("w", encoding="utf-8")
 
     # -- LangChain hooks -------------------------------------------------
@@ -255,6 +256,8 @@ class LLMCallRecorder(_callback_base()):  # type: ignore[misc]
     def _start(self, run_id: Any) -> None:
         ctx = current_question()
         with self._lock:
+            if self._closed:
+                return
             self._pending[run_id] = (
                 time.perf_counter(),
                 {
@@ -281,6 +284,8 @@ class LLMCallRecorder(_callback_base()):  # type: ignore[misc]
 
     def _finish(self, run_id: Any, response: Any, error: str | None) -> None:
         with self._lock:
+            if self._closed:
+                return
             started = self._pending.pop(run_id, None)
         if started is None:
             return
@@ -354,10 +359,22 @@ class LLMCallRecorder(_callback_base()):  # type: ignore[misc]
         }
 
     def close(self) -> None:
-        try:
-            self._handle.close()
-        except Exception:  # pragma: no cover
-            pass
+        """Stop recording and release the file.
+
+        Recording stops under the same lock that guards the write, so a call
+        in flight on another thread either finishes its record first or is
+        dropped -- it can never reach a handle this method has already closed.
+        ``raise_error = False`` means LangChain would swallow that
+        ``ValueError``, so the failure would be silent zeros rather than a
+        crash.
+        """
+        with self._lock:
+            self._closed = True
+            self._pending.clear()
+            try:
+                self._handle.close()
+            except Exception:  # pragma: no cover
+                pass
 
 
 def _token_usage(response: Any) -> dict[str, Any]:
@@ -723,6 +740,10 @@ class RunLogger:
         # that keeps running after the eval (the pipeline's judge stage) does
         # not end up with a silent root logger.
         self._displaced: list[logging.Handler] = []
+        # Teardown for anything a caller wired onto shared, process-lifetime
+        # state on this run's behalf -- the LLM recorder hangs off GSF's
+        # import-time client, which outlives every RunLogger built against it.
+        self._on_close: list[Callable[[], None]] = []
         self._prior_level: int | None = None
         self._listener: QueueListener | None = None
         self._sinks: tuple[logging.Handler, ...] = ()
@@ -1012,7 +1033,26 @@ class RunLogger:
         )
         return summary
 
+    def on_close(self, teardown: Callable[[], None]) -> None:
+        """Register *teardown* to run when this logger closes.
+
+        Attaching to shared state without registering the matching detach is
+        what makes a second run in the same process misbehave: the first run's
+        objects stay wired to a client that outlives it, still being called
+        after their files are shut. Registering the undo here keeps the pair
+        together and means a caller cannot close without unwinding.
+        """
+        self._on_close.append(teardown)
+
     def close(self) -> None:
+        # Before the recorder's file is shut, so nothing can be called after
+        # its handle closes.
+        for teardown in reversed(self._on_close):
+            try:
+                teardown()
+            except Exception:  # pragma: no cover - teardown is best-effort
+                logging.getLogger(__name__).debug("teardown failed", exc_info=True)
+        self._on_close.clear()
         self.resources.stop()
         self.llm_calls.close()
         root = logging.getLogger()

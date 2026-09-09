@@ -456,6 +456,23 @@ def _attach_llm_recorder(run_log: RunLogger) -> None:
     if any(cb is run_log.llm_calls for cb in existing):
         return
     client.callbacks = existing + [run_log.llm_calls]
+
+    def detach() -> None:
+        """Take this run's recorder back off the shared client.
+
+        The client is built once at GSF import time and outlives every run
+        attached to it, so a recorder left behind keeps being called by the
+        next one -- with its file already closed and its records landing
+        nowhere. The guard above compares identity, and a second run brings a
+        different recorder object, so it would not catch the stale one either.
+        """
+        client.callbacks = [
+            cb
+            for cb in (getattr(client, "callbacks", None) or [])
+            if cb is not run_log.llm_calls
+        ]
+
+    run_log.on_close(detach)
     logger.info("Per-call LLM timing enabled (duration + token usage)")
 
 
