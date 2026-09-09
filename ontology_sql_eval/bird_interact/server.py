@@ -16,7 +16,19 @@ from typing import Any, Dict
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from gsf.retrieval.interactive import (
+# Load GSF/.env into this process before importing any gsf.* module — several
+# (e.g. gsf.retrieval.interactive.entity_resolution) read feature-flag env
+# vars (INTERACTIVE, DB_PROBE_*, BIRD_INTERACT, ...) at import time via
+# module-level constants, so this must run first or those flags silently
+# fall back to defaults. Every other GSF entrypoint (gsf/server/__main__.py,
+# ingestion_service, semantic, alembic) already does this; this adapter is
+# the one process that runs gsf.retrieval code without it, so GSF/.env
+# (including the BIRD_INTERACT master flag) was previously never read here.
+from gsf.env import load_env as _load_gsf_env
+
+_load_gsf_env()
+
+from gsf.retrieval.interactive import (  # noqa: E402
     AskUserAction,
     SubmitSQLAction,
     TurnType,
@@ -25,9 +37,9 @@ from gsf.retrieval.interactive import (
     apply_user_answer as gsf_apply_user_answer,
     apply_submit_result as gsf_apply_submit_result,
 )
-from . import bird_interact_http as bird_http
-from .known_issues import is_p1snap_collision
-from .session import AdapterSession, get_session, put_session
+from . import bird_interact_http as bird_http  # noqa: E402
+from .known_issues import is_p1snap_collision  # noqa: E402
+from .session import AdapterSession, get_session, put_session  # noqa: E402
 
 # ── Logging setup ─────────────────────────────────────────────────────────────
 # Suppress noisy third-party warnings
