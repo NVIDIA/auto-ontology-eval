@@ -13,7 +13,45 @@ ties them together and calls out the things that are easy to miss.
   new run script, carry this filter forward or call out that it doesn't.
 - Two dataset variants are supported: **Lite** (~300 tasks / 18 DBs) and
   **Full** (600 tasks / 22 DBs).
-- See also the `[!NOTE]` in the top-level [README.md](README.md).
+- See also the [BIRD-Interact entry](README.md#bird-interact) in the top-level README.md.
+
+## Pipeline flow
+
+Each task runs `init → Phase 1 (clarify + generate SQL) → [Phase 1 debug retry
+if wrong] → Phase 2 (follow-up + generate SQL) → [Phase 2 debug retry if
+wrong]`. Phase 1 is the only phase that asks the user clarifying questions —
+Phase 2 asks none.
+
+**Clarification (Phase 1 only).** Each turn checks output type, resolves
+entities against the schema/KB, and scans for incomplete formulas, then an
+LLM decides ASK or PROCEED. After each answer, **merge question** (`merge.py`)
+folds it into the running question, preserving prior formulas/definitions, so
+SQL generation sees one coherent question instead of a scattered Q&A
+transcript.
+
+**Debug phase.** If a submitted SQL fails, an execution error is relayed back
+verbatim; a wrong-but-executable result gets a generic retry prompt plus a
+couple of correctness checklists instead. Straight to another SQL-generation
+attempt.
+
+**Follow-up (Phase 2).** No clarification. **Merge follow-up question**
+(`followup_merge.py`) rewrites the follow-up into a self-contained question by
+resolving references against the Phase 1 question and its SQL, carrying forward
+the columns/tables/formulas/values it depends on.
+
+```
+init
+├─ Phase 1
+│   ├─ clarify loop: ask user ⇄ merge question   (repeats until ready)
+│   ├─ generate SQL → submit
+│   └─ if failed → debug retry (no clarify) → submit
+├─ phase_transition
+├─ Phase 2
+│   ├─ merge follow-up question
+│   ├─ generate SQL → submit
+│   └─ if failed → debug retry → submit
+└─ cleanup
+```
 
 ## 1. Seed the dataset
 
@@ -81,7 +119,7 @@ Three run scripts, same underlying pipeline (`init → phase1 [→ debug] → ph
 | --- | --- |
 | `scripts/smoke_bird_interact.py` | One task, minimal — sanity-check the three-port setup end to end, then shuts the adapter down. |
 | `scripts/eval_bird_interact.py` | One task, full parity with the real orchestrator flow (pick by `--instance-id`, `--db`, or `--random`). |
-| `scripts/run_all_bird_interact.py` | Batch/overnight — all (or filtered) query tasks, adapter started once and reused, results written incrementally so a crash doesn't lose progress.
+| `scripts/run_all_bird_interact.py` | Batch/overnight — all (or filtered) query tasks, adapter started once and reused, results written incrementally so a crash doesn't lose progress. |
 | `scripts/run_bird_interact_cinteract.py` | Runs the **official** Bird c-Interact orchestrator (not our own re-implementation) against the GSF adapter. ⚠️ Its manual uvicorn bootstrap does **not** go through `start_bird_services.sh`, so it does **not** apply the ADK patches — prefer one of the scripts above unless you specifically need the official orchestrator, and if you do use it, apply `patches/adk_p1snap_name_collision.patch` to the ADK checkout manually first (the script prints a loud warning if it detects the checkout is unpatched). |
 
 All three (except `run_bird_interact_cinteract.py`) require `:6001` and
@@ -168,3 +206,34 @@ apply here too.
   `run_bird_interact_cinteract.py`'s manual bootstrap), this bug can silently
   overwrite a real Phase 1 pass with `reward=0` and mis-grade Phase 2 against
   Phase 1's solution instead of the follow-up's.
+
+## Work process and solution method
+
+### Clarification
+
+Initially, most failures were due to insufficient clarification. The fix was
+to examine conversation flows to identify which questions users tended not to
+answer, then add guards to catch them — LLM-based guards like a completeness
+check (especially useful for questions with an incompletely specified
+formula), and deterministic guards like flagging 2+ close VDB hits (an
+embedding-distance gap check, not regex).
+
+Eventually, a large majority of remaining failures were categorized as
+SQL-generation failures rather than clarification failures. That drove the
+next debugging stage, handled two ways:
+
+### SQL-generation
+
+- **Error buckets** — use an LLM to compare GT SQL against submitted SQL
+  across hundreds of tasks, producing a short failure reason for each. Cluster
+  those reasons by similarity into failure "buckets," each tagged with how
+  many tasks it affects. That count, combined with how solvable the bucket
+  looked, set the priority for which bugs to address first. Typical fixes
+  were adding a guard, an entry in a prompt, or another line in the debug
+  seed.
+
+- **Outliers** — scan the codebase for non-standard errors, such as timeouts
+  or unusual cases (e.g. the submitted SQL being identical to gold, which
+  pointed to a different class of bug). Example fixes included adding
+  fallback options so a single LLM crash doesn't lose all information for
+  that task.
