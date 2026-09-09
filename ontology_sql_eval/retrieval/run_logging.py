@@ -759,7 +759,16 @@ class RunLogger:
     # -- logging wiring -------------------------------------------------
 
     def attach_logging(self, console_level: int = logging.INFO) -> None:
-        """Route the root logger into this run's files (and the console)."""
+        """Route the root logger into this run's files (and the console).
+
+        Idempotent: a second call without an intervening :meth:`close` returns
+        rather than building a second queue and listener. Without the guard the
+        first listener thread would keep running with four open file handles
+        that nothing then closes, since ``close`` only knows about the most
+        recent one.
+        """
+        if self._listener is not None:
+            return
         root = logging.getLogger()
         self._prior_level = root.level
         self._displaced = list(root.handlers)
@@ -798,6 +807,14 @@ class RunLogger:
         # than on the downstream handlers so the question slug is stamped in
         # the worker thread, while the record still knows which question it
         # belongs to.
+        #
+        # The queue is deliberately unbounded. The alternative -- a maxsize
+        # with a drop policy -- would silently discard records from a run whose
+        # whole purpose is to be the record, and the backlog is self-limiting
+        # in practice: the listener only has to outpace what the workers emit
+        # between network waits, and a 15-worker run at DEBUG peaked at 660 MB
+        # RSS in total. If a future run does grow the backlog without bound,
+        # that is a signal about log volume, not something to paper over here.
         self._log_queue: queue.SimpleQueue = queue.SimpleQueue()
         queue_handler = QueueHandler(self._log_queue)
         queue_handler.setLevel(logging.DEBUG)
