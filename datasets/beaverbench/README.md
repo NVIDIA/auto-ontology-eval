@@ -13,8 +13,8 @@ Public HuggingFace data (gated — accept the terms, then `hf auth login`):
 - Tables / MySQL dumps: [`beaverbench/beaver-table`](https://huggingface.co/datasets/beaverbench/beaver-table)
 
 Splits: `dw`, `nova`, `neutron`, `dw_real` (`dw_real` questions run against the
-`dw` database). Gold SQL is MySQL dialect, so GSF needs the MySQL connector
-(sibling `../GSF` on a branch that registers `mysql://` URLs).
+`dw` database). Gold SQL is MySQL dialect; GSF's MySQL connector is on `main`
+(`gsf/connectors/mysql.py`, PR #195).
 
 ## Download / seed
 

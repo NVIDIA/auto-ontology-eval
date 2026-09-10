@@ -1,15 +1,14 @@
 #!/usr/bin/env bash
-# Run the remaining BEAVER eval questions as parallel shards, then merge.
-#
-# Questions 0-6 already completed in the sequential run and are preserved in
-# input/beaverbench_nemotron_first7.csv, so sharding starts at index 7.
+# Run the BEAVER eval as parallel shards, merge, judge, and score with the
+# official BEAVER ex_acc. Output filenames derive from MODEL_NAME in .env
+# (same slug rule as eval_chatbot), so the judge stage scores the same file
+# the shards produced.
 set -euo pipefail
 
 cd "$(dirname "$0")"
-mkdir -p logs input
+mkdir -p logs input output
 
-START=${START:-7}
-TOTAL=${TOTAL:-100}
+START=${START:-0}
 SHARDS=${SHARDS:-4}
 STAMP=$(date +%Y%m%d_%H%M%S)
 VENV_PY="$PWD/.venv/bin/python"
@@ -18,18 +17,28 @@ VENV_PY="$PWD/.venv/bin/python"
 uv sync --quiet
 [ -x "$VENV_PY" ] || { echo "missing interpreter: $VENV_PY" >&2; exit 1; }
 
-for c in neo4j postgres beaver-mysql; do
+TOTAL=${TOTAL:-$("$VENV_PY" -c "import json; print(len(json.load(open('datasets/beaverbench/evaluation.json'))))")}
+# Same slug rule as eval_chatbot: last '/' segment of MODEL_NAME, default nemotron.
+MODEL_SLUG=$("$VENV_PY" -c "
+from dotenv import dotenv_values
+name = (dotenv_values('.env').get('MODEL_NAME') or 'nemotron')
+print(name.rsplit('/', 1)[-1])
+")
+MERGED="input/beaverbench_${MODEL_SLUG}.csv"
+
+for c in postgres beaver-mysql; do
   docker start "$c" >/dev/null 2>&1 || true
 done
 sleep 4
 
-caffeinate -imsw $$ &
+command -v caffeinate >/dev/null && caffeinate -imsw $$ &
 
 REMAINING=$((TOTAL - START))
 PER=$(( (REMAINING + SHARDS - 1) / SHARDS ))
 
 pids=()
 outputs=()
+echo "Model slug: ${MODEL_SLUG}  ->  ${MERGED}"
 echo "Sharding questions ${START}..$((TOTAL - 1)) across ${SHARDS} processes (~${PER} each)"
 for ((i = 0; i < SHARDS; i++)); do
   s=$((START + i * PER))
@@ -65,24 +74,24 @@ produced=0
 for out in "${outputs[@]}"; do
   [ -s "$out" ] && produced=$((produced + 1))
 done
-if [ "$produced" -eq 0 ]; then
-  echo "ERROR: no shard produced output; refusing to merge/judge a partial set." >&2
+if [ "$produced" -ne "${#outputs[@]}" ]; then
+  echo "ERROR: only ${produced}/${#outputs[@]} shards produced output; refusing to merge/judge a partial set." >&2
   echo "Check logs/beaver_shard*_${STAMP}.log" >&2
   exit 1
 fi
 
 echo
-echo "Merging ${produced} shard file(s) with the 7 sequential rows…"
+echo "Merging ${produced} shard file(s)…"
 "$VENV_PY" scripts/merge_eval_shards.py \
-  --output input/beaverbench_nemotron.csv \
-  input/beaverbench_nemotron_first7.csv "${outputs[@]}"
+  --output "$MERGED" \
+  "${outputs[@]}"
 
 echo
 echo "Verifying ground truth on merged rows…"
 # evaluation.json already carries materialized answers, so shards write
 # expected_answer_raw natively; this only repairs rows that predate that.
 PYTHONPATH=../GSF "$VENV_PY" scripts/backfill_gold_answers.py \
-  --csv input/beaverbench_nemotron.csv \
+  --csv "$MERGED" \
   --dataset datasets/beaverbench/evaluation.json \
   --skip-dataset
 
@@ -92,6 +101,11 @@ PYTHONPATH=../GSF "$VENV_PY" main.py \
   --database-name beaverbench \
   --skip-ingest --skip-semantic --skip-eval \
   --workers 4 2>&1 | tee "logs/beaver_judge_${STAMP}.log"
+
+echo
+echo "Running official BEAVER ex_acc…"
+"$VENV_PY" -m ontology_sql_eval.judge.beaver \
+  --input "$MERGED" 2>&1 | tee "logs/beaver_exacc_${STAMP}.log"
 
 [ "$failed" -eq 0 ] || echo "NOTE: at least one shard reported an error; check logs/beaver_shard*.log"
 echo "Done."
