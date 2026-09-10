@@ -23,6 +23,10 @@ venv/
 !/input/.gitkeep
 !/output/.gitkeep
 
+# Per-run eval instrumentation bundles — keep the folder, ignore the runs
+/logs/*
+!/logs/.gitkeep
+
 # OS / editor
 .DS_Store
 
