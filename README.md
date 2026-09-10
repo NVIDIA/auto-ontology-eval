@@ -15,15 +15,6 @@ The typical lifecycle is **ingest → eval → judge**: you ingest a database so
 agent can retrieve its schema, run an evaluation to produce a results CSV, then
 optionally re-score that CSV with the LLM judge.
 
-> [!NOTE]
-> **Current BIRD-Interact scope.** This toolkit has been run against both the
-> **Lite** (~300 tasks / 18 DBs) and **Full** (600 tasks / 22 DBs) BIRD-Interact
-> datasets. It only exercises the **c-Interact** conversation mode — a-Interact
-> is not implemented. It only handles **query-category** tasks; management
-> tasks are explicitly excluded (`ontology-sql-eval/scripts/run_all_bird_interact.py`
-> hardcodes a query-only filter). Expanding to a-Interact and management tasks
-> is tracked as future work and needs separate investigation before enabling.
-
 > [!IMPORTANT]
 > **You need [GSF](https://github.com/NVIDIA/GSF).**
 >
@@ -147,6 +138,22 @@ Individual stages can be skipped with `--skip-ingest`, `--skip-semantic`,
 `--skip-eval`, `--skip-judge` (e.g. to re-judge an existing eval CSV:
 `--skip-ingest --skip-semantic --skip-eval`).
 
+The eval stage runs `--eval-workers` questions concurrently and can be limited
+to a slice of the eval set with `--start-index` / `--end-index` / `--limit`
+(`--workers` stays the judge's concurrency). A ten-question smoke run against
+an already-ingested dataset, two questions at a time:
+
+```bash
+PYTHONPATH=../GSF uv run python main.py --database-name bird \
+    --skip-ingest --skip-semantic --limit 10 --eval-workers 2
+```
+
+Each eval run writes a full instrumentation bundle to `logs/<run-id>/` —
+per-question log files, per-agent-node timings, a phase timeline, and an
+aggregated `summary.json`. See
+[Retrieval eval → Run logs](ontology_sql_eval/retrieval/README.md#run-logs)
+for what to read when hunting a bottleneck.
+
 For concrete, copy-pasteable walkthroughs (including the manual per-stage
 commands), see the per-dataset READMEs:
 [WideWorldImporters](datasets/wideworldimporters/README.md),
@@ -195,6 +202,13 @@ Microsoft's WideWorldImporters sample OLTP database, ported to Postgres and
 seeded from pre-generated DDL + CSVs. See
 **[datasets/wideworldimporters/README.md](datasets/wideworldimporters/README.md)**
 for how to seed the database and run the full pipeline.
+
+### BIRD-Interact
+
+Runs against Lite (~300 tasks / 18 DBs) and Full (600 tasks / 22 DBs)
+BIRD-Interact, c-Interact mode only, query-category tasks only. See
+**[BIRD_INTERACT_README.md](BIRD_INTERACT_README.md)** for seeding, GT,
+running, and results.
 
 The schemas below (`evaluation.json`, `metadata.json`, `custom_analyses.json`)
 are generic across datasets; the examples use `wideworldimporters` throughout.
@@ -295,7 +309,8 @@ ontology_sql_eval/          single namespace package
     mock_ingest.py          in-memory 4-table demo ingest (mock_shop)
   retrieval/                GSF-backed retrieval eval
     README.md               retrieval-eval workflow guide
-    eval_chatbot.py         retrieval eval driver
+    eval_chatbot.py         retrieval eval driver (--workers runs N in parallel)
+    run_logging.py          per-run log bundle, phase timeline, timing summary
     scoring.py              SQL/answer scoring helpers
 main.py                     end-to-end pipeline entry point (ingest -> judge)
 scripts/
@@ -311,6 +326,7 @@ datasets/
   wideworldimporters/       README.md, evaluation.json, custom_analyses.json, ddl/, data/
 input/                      judge input CSVs to score (contents gitignored)
 output/                     judge scored CSVs (<name>_scores.csv; contents gitignored)
+logs/<run-id>/              per-eval-run logs + timings (contents gitignored)
 ```
 
 ## Development
