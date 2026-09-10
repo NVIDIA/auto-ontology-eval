@@ -22,11 +22,14 @@ from pydantic import BaseModel
 # module-level constants, so this must run first or those flags silently
 # fall back to defaults. Every other GSF entrypoint (gsf/server/__main__.py,
 # ingestion_service, semantic, alembic) already does this; this adapter is
-# the one process that runs gsf.retrieval code without it, so GSF/.env
-# (including the BIRD_INTERACT master flag) was previously never read here.
-from gsf.env import load_env as _load_gsf_env
+# the one process that runs gsf.retrieval code without it, so GSF/.env was
+# previously never read here.
+#
+# BIRD_INTERACT itself is this repo's own master flag (ontology_sql_eval.env),
+# not GSF's — GSF just provides the flags it cascades onto.
+from ontology_sql_eval.env import load_env
 
-_load_gsf_env()
+load_env()
 
 from gsf.retrieval.interactive import (  # noqa: E402
     AskUserAction,

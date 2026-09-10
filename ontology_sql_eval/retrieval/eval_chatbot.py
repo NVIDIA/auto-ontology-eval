@@ -49,20 +49,19 @@ import traceback
 from pathlib import Path
 from typing import Any, Dict, List
 
-from dotenv import load_dotenv
-
 from gsf.retrieval.text_to_sql.main import get_agent_response
 from gsf.retrieval.text_to_sql.state import TextToSQLPayload
 from gsf.connectors import get_connectors
 from gsf.utils import get_data_objects_retriever, get_semantic_objects_retriever
 
+from ontology_sql_eval.env import load_env
 from ontology_sql_eval.retrieval.scoring import (
     score_answer,
     score_sql,
     stringify_db_result,
 )
 
-load_dotenv()
+load_env()
 
 # The text-to-SQL agent stores executed-DB rows under this key on its result dict.
 _DB_RESULT_KEY = "sql_response_from_db"

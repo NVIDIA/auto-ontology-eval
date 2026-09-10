@@ -19,7 +19,7 @@ from __future__ import annotations
 import logging
 import os
 
-from dotenv import load_dotenv
+from ontology_sql_eval.env import load_env
 
 # Must run before any `gsf`/`ontology_sql_eval.ingestion.enrich_graph` import:
 # gsf.retrieval.generate_sql calls its own load_dotenv() at import time (no
@@ -27,7 +27,7 @@ from dotenv import load_dotenv
 # never overrides already-set vars — silently wins over this repo's .env for
 # any var it defines (e.g. a stale CONNECTION_STRINGS left in a sibling GSF
 # checkout's .env). Loading ours first ensures it wins the race instead.
-load_dotenv()
+load_env()
 
 from gsf.ingestion_service.ingest import run_ingest as gsf_run_ingest  # noqa: E402
 from gsf.utils import get_embed_params  # noqa: E402

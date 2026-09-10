@@ -193,9 +193,9 @@ def main(argv: list[str] | None = None) -> None:
     args = _parse_args(argv)
     db = args.database_name
 
-    from dotenv import load_dotenv
+    from ontology_sql_eval.env import load_env
 
-    load_dotenv()
+    load_env()
 
     if not args.skip_ingest:
         stage_ingest()
