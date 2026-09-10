@@ -101,6 +101,8 @@ Subject tag (copy exactly):
 
 The files will be sent automatically within 30 minutes.
 
+Alternatively, get the file from the shared Google Drive.
+
 ## Where to place them
 
 Drop the received file directly into THIS directory
@@ -270,6 +272,54 @@ def _load_jsonl(path: Path) -> list[dict]:
     return rows
 
 
+def _combine_public_with_gt(public_path: Path, gt_path: Path, output_path: Path) -> int:
+    """Merge public task data with GT fields, keyed by instance_id.
+
+    Ported verbatim (field list and all) from BIRD-Interact's own
+    ``combine_public_with_gt.py`` (see the upstream repo's "Combine the
+    Public Data with the Ground Truth and Test Cases" instructions) rather
+    than reimplemented, so this matches upstream's official merge exactly:
+    only sol_sql/external_knowledge/test_cases (and their follow_up
+    equivalents) come from GT -- everything else (question text, db name,
+    ambiguity structure, conditions, ...) is expected to already be present
+    on the public row. Returns the number of instances actually merged.
+    """
+    gt_data: dict[str, dict] = {}
+    for row in _load_jsonl(gt_path):
+        instance_id = row.get("instance_id")
+        if instance_id:
+            gt_data[instance_id] = row
+
+    combined = 0
+    missing: list[str] = []
+    with output_path.open("w", encoding="utf-8") as f_out:
+        for public_entry in _load_jsonl(public_path):
+            instance_id = public_entry.get("instance_id")
+            if not instance_id:
+                continue
+            gt_entry = gt_data.get(instance_id)
+            if gt_entry is not None:
+                public_entry["sol_sql"] = gt_entry.get("sol_sql", [])
+                public_entry["external_knowledge"] = gt_entry.get("external_knowledge", [])
+                public_entry["test_cases"] = gt_entry.get("test_cases", [])
+                if isinstance(gt_entry.get("follow_up"), dict):
+                    follow_up = public_entry.setdefault("follow_up", {})
+                    follow_up["sol_sql"] = gt_entry["follow_up"].get("sol_sql", [])
+                    follow_up["external_knowledge"] = gt_entry["follow_up"].get("external_knowledge", [])
+                    follow_up["test_cases"] = gt_entry["follow_up"].get("test_cases", [])
+                combined += 1
+            else:
+                missing.append(instance_id)
+            f_out.write(json.dumps(public_entry) + "\n")
+
+    if missing:
+        logger.warning(
+            "%d instance(s) had no matching GT entry (first few: %s)",
+            len(missing), missing[:5],
+        )
+    return combined
+
+
 def _build_datasets(variant: str, *, upstream_commit: str | None = None, force: bool = False) -> dict:
     dest = _datasets_dir(variant)
     dest.mkdir(parents=True, exist_ok=True)
@@ -298,14 +348,17 @@ def _build_datasets(variant: str, *, upstream_commit: str | None = None, force: 
         if row.get("db_name") or row.get("db_id") or row.get("database")
     })
 
-    # --- combined JSONL (GT copy if available, else public as development fallback) ---
+    # --- combined JSONL (public + GT merged if available, else public as development fallback) ---
     gt_src = _detect_gt(variant)
     gt_available = gt_src is not None
     combined_dest = dest / GT_JSONL_NAME
 
     if gt_available:
-        shutil.copy2(gt_src, combined_dest)
-        logger.info("GT detected — copied to %s", combined_dest)
+        n_combined = _combine_public_with_gt(public_dest, gt_src, combined_dest)
+        logger.info(
+            "GT detected — merged %d/%d instances into %s",
+            n_combined, task_count, combined_dest,
+        )
     else:
         shutil.copy2(public_dest, combined_dest)
         logger.warning(
