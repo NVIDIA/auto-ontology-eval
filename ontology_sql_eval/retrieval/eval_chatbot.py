@@ -93,6 +93,15 @@ _INPUT_DIR = _REPO_ROOT / "input"
 
 _DEFAULT_MODEL_NAME = os.environ.get("MODEL_NAME", "nemotron")
 
+# BEAVER "setting 0" runs must withhold the dataset's domain-knowledge
+# evidence; the official leaderboard's end-to-end column provides only the
+# question. Default keeps evidence (BIRD-style).
+_INCLUDE_EVIDENCE = os.environ.get("EVAL_INCLUDE_EVIDENCE", "1") not in (
+    "0",
+    "false",
+    "False",
+)
+
 
 def _connection_strings() -> list[str]:
     return [
@@ -310,7 +319,7 @@ def run_evaluation(
             db_id = item.get("db_id", "")
 
             agent_question = question
-            if evidence:
+            if evidence and _INCLUDE_EVIDENCE:
                 agent_question = f"{question}\n\nEvidence: {evidence}"
 
             logger.info("[%d/%d] q%s: %s", idx + 1, len(questions), qid, question)
