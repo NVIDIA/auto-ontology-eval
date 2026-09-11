@@ -9,7 +9,11 @@ from __future__ import annotations
 
 import argparse
 import csv
+import sys
 from pathlib import Path
+
+# Eval rows carry full result sets; the 128 KiB default field limit is too small.
+csv.field_size_limit(sys.maxsize)
 
 
 def main() -> None:
