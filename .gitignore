@@ -1,5 +1,8 @@
 # Secrets / local environment
 .env
+# Backups made while swapping keys between runs hold live credentials
+# just as the real file does, and are easy to `git add -A` by accident.
+.env.*
 
 # Python
 __pycache__/
@@ -27,7 +30,10 @@ venv/
 
 # Generated run output — live monitor reports and run logs
 /scoreboard/
-/logs/
+
+# Per-run eval instrumentation bundles — keep the folder, ignore the runs
+/logs/*
+!/logs/.gitkeep
 
 # OS / editor
 .DS_Store

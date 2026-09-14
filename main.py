@@ -21,6 +21,14 @@ Any stage can be skipped with ``--skip-ingest`` / ``--skip-semantic`` /
 Pass ``--override-descriptions`` to finish the semantic stage with our own saved
 column descriptions rather than the annotations the dataset shipped; it is handed
 to :func:`ontology_sql_eval.ingestion.semantic.run_semantic` unchanged.
+
+The eval stage runs ``--eval-workers`` questions concurrently and can be
+restricted with ``--start-index`` / ``--end-index`` / ``--limit``. It writes a
+full instrumentation bundle (per-question logs, node timings, a phase timeline
+and an aggregated summary) to ``logs/<run-id>/``::
+
+    PYTHONPATH=../GSF uv run python main.py --database-name bird \
+        --skip-ingest --skip-semantic --limit 10 --eval-workers 2
 """
 
 from __future__ import annotations
@@ -34,6 +42,7 @@ logger = logging.getLogger("pipeline")
 
 _REPO_ROOT = Path(__file__).resolve().parent
 OUTPUT_DIR = _REPO_ROOT / "output"
+LOG_DIR = _REPO_ROOT / "logs"
 
 
 def _banner(step: int, title: str) -> None:
@@ -109,20 +118,57 @@ def stage_semantic(
         )
 
 
-def stage_eval(*, database_name: str) -> Path:
+def stage_eval(
+    *,
+    database_name: str,
+    workers: int = 1,
+    start_index: int = 0,
+    end_index: int | None = None,
+    log_dir: Path | None = None,
+    run_id: str | None = None,
+) -> Path:
     """Run the retrieval eval; return the path of the model CSV it wrote.
 
     The CSV lands in the repo-root ``input/`` folder so the judge stage (and the
-    standalone judge) can pick it up directly.
+    standalone judge) can pick it up directly. ``workers`` questions run
+    concurrently; the run's instrumentation bundle is written to
+    ``logs/<run-id>/``.
     """
     _banner(3, "Retrieval eval (text-to-SQL agent)")
     from ontology_sql_eval.retrieval.eval_chatbot import _resolve_paths, run_evaluation
+    from ontology_sql_eval.retrieval.run_logging import setup_run_logging
 
     input_path, output_path = _resolve_paths(database_name, None, None)
-    run_evaluation(
-        input_path=input_path,
-        output_path=output_path,
+    run_log = setup_run_logging(log_dir or LOG_DIR, run_id)
+    run_log.log_environment(
+        dataset=database_name,
+        input_path=str(input_path),
+        output_path=str(output_path),
+        workers=workers,
+        start_index=start_index,
+        end_index=end_index,
+        stage="pipeline",
     )
+    logger.info("Eval run logs: %s", run_log.dir)
+    try:
+        run_evaluation(
+            input_path=input_path,
+            output_path=output_path,
+            start_index=start_index,
+            end_index=end_index,
+            workers=workers,
+            run_log=run_log,
+        )
+        summary = run_log.write_summary(workers=workers, dataset=database_name)
+        logger.info(
+            "Eval finished: %d questions in %.1fs (%s q/min, effective parallelism %s)",
+            summary["questions"],
+            summary["wall_clock_seconds"],
+            summary["questions_per_minute"],
+            summary["effective_parallelism"],
+        )
+    finally:
+        run_log.close()
     return output_path
 
 
@@ -183,6 +229,43 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=1,
         help="Number of concurrent judge scoring workers (default: 1).",
     )
+    parser.add_argument(
+        "--eval-workers",
+        type=int,
+        default=1,
+        help="Number of questions the retrieval eval runs concurrently (default: 1).",
+    )
+    parser.add_argument(
+        "--start-index",
+        type=int,
+        default=0,
+        help="First question index the eval runs (0-based, default: 0).",
+    )
+    parser.add_argument(
+        "--end-index",
+        type=int,
+        default=None,
+        help="Stop the eval before this question index (default: run to the end).",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Run at most this many questions from --start-index "
+        "(ignored when --end-index is given).",
+    )
+    parser.add_argument(
+        "--log-dir",
+        type=Path,
+        default=LOG_DIR,
+        help=f"Root directory for eval run logs (default: {LOG_DIR}).",
+    )
+    parser.add_argument(
+        "--run-id",
+        type=str,
+        default=None,
+        help="Name for the eval run's log directory (default: a timestamp).",
+    )
     return parser.parse_args(argv)
 
 
@@ -208,8 +291,19 @@ def main(argv: list[str] | None = None) -> None:
             override_descriptions=args.override_descriptions,
         )
 
+    end_index = args.end_index
+    if end_index is None and args.limit is not None:
+        end_index = args.start_index + args.limit
+
     if not args.skip_eval:
-        eval_csv = stage_eval(database_name=db)
+        eval_csv = stage_eval(
+            database_name=db,
+            workers=args.eval_workers,
+            start_index=args.start_index,
+            end_index=end_index,
+            log_dir=args.log_dir,
+            run_id=args.run_id,
+        )
     else:
         eval_csv = _eval_output_path(database_name=db)
         logger.info("Skipping eval; using existing %s", eval_csv)
