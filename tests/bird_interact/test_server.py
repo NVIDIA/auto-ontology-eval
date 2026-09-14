@@ -75,15 +75,22 @@ def _ensure_gsf_mocks() -> None:
     gsf_utils.get_data_objects_retriever = MagicMock()  # type: ignore[attr-defined]
     gsf_utils.get_semantic_objects_retriever = MagicMock()  # type: ignore[attr-defined]
 
+    # Reached via server.py -> ontology_sql_eval.env, which falls back to
+    # GSF's .env for anything this repo's own .env does not define.
+    gsf_env = types.ModuleType("gsf.env")
+    gsf_env.load_env = MagicMock()  # type: ignore[attr-defined]
+
     gsf_mod.retrieval = gsf_retrieval  # type: ignore[attr-defined]
     gsf_retrieval.interactive = gsf_interactive  # type: ignore[attr-defined]
     gsf_mod.utils = gsf_utils  # type: ignore[attr-defined]
+    gsf_mod.env = gsf_env  # type: ignore[attr-defined]
 
     sys.modules["gsf"] = gsf_mod
     sys.modules["gsf.retrieval"] = gsf_retrieval
     sys.modules["gsf.retrieval.interactive"] = gsf_interactive
     sys.modules["gsf.retrieval.interactive.types"] = gsf_interactive_types
     sys.modules["gsf.utils"] = gsf_utils
+    sys.modules["gsf.env"] = gsf_env
 
 
 _ensure_gsf_mocks()
@@ -527,6 +534,51 @@ def test_next_turn_type_threaded_as_follow_up():
     assert second_call_kwargs["turn_type"] == server_mod.TurnType.FOLLOW_UP
     assert second_call_kwargs["debug_error"] is None
     assert second_call_kwargs["follow_up_question"] == "Show totals."
+
+
+def test_first_turn_stays_retryable_after_transient_failure():
+    """A 502 on the first run_session must leave the session retryable: the
+    retry is still the INITIAL turn, not a 400 'no pending turn'."""
+    mock_sess = MagicMock()
+    step_mock = MagicMock(return_value=SubmitSQLAction("SELECT 1"))
+    submit_mock = AsyncMock(
+        side_effect=[
+            RuntimeError("connection reset"),
+            {"message": "correct", "reward": 1.0, "phase_completed": 1},
+        ]
+    )
+
+    with (
+        patch.object(server_mod, "_DATA_RETRIEVER", MagicMock()),
+        patch.object(server_mod, "_SEMANTIC_RETRIEVER", MagicMock()),
+        patch.object(server_mod, "_CONNECTORS", {"alien": [MagicMock()]}),
+        patch.object(server_mod, "gsf_create_session", return_value=mock_sess),
+        patch.object(server_mod, "gsf_step", step_mock),
+        patch.object(server_mod, "gsf_apply_user_answer", MagicMock()),
+        patch.object(server_mod, "gsf_apply_submit_result", MagicMock()),
+        patch(
+            "ontology_sql_eval.bird_interact.bird_interact_http.submit_sql",
+            submit_mock,
+        ),
+        patch.object(app.router, "lifespan_context", _noop_lifespan),
+    ):
+        with TestClient(app) as client:
+            client.post(
+                "/init_session",
+                json={"task_id": "task-008", "state": {"db_name": "alien"}},
+            )
+            payload = {
+                "task_id": "task-008",
+                "message": "User Query:\nFind all aliens\n\n",
+            }
+            failed = client.post("/run_session", json=payload)
+            retried = client.post("/run_session", json=payload)
+            retry_kwargs = step_mock.call_args.kwargs
+
+    assert failed.status_code == 502
+    assert retried.status_code == 200
+    assert retry_kwargs["turn_type"] == server_mod.TurnType.INITIAL
+    assert retry_kwargs["initial_question"] == "Find all aliens"
 
 
 def test_missing_session_404():

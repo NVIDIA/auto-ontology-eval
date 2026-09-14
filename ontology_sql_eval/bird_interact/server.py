@@ -348,7 +348,6 @@ async def run_session(req: RunSessionRequest):
                 "submit_sql call has been made yet for this session."
             ),
         )
-    sess._seen_first_run_session = True
 
     turn = 0
     t_start = time.time()
@@ -501,6 +500,13 @@ async def run_session(req: RunSessionRequest):
             "[turn %d] unexpected action type %s — aborting", turn, type(action)
         )
         break
+
+    # Only once the turn has actually run to completion. Setting it before the
+    # loop would make a transient failure (the 502s above) unrecoverable: on
+    # the first call _next_turn_type is still unset, so the orchestrator's
+    # retry of the same turn would fall through to the "no pending turn" 400
+    # instead of being re-classified as INITIAL.
+    sess._seen_first_run_session = True
 
     logger.info(
         "[done] %d turns in %.1fs | reward=%.2f",
