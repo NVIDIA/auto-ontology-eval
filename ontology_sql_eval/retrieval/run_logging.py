@@ -790,7 +790,9 @@ class RunLogger:
             stream.flush()
         except Exception:  # pragma: no cover - logging must never break the run
             logging.getLogger(__name__).debug(
-                "failed to write %s to %s", what, getattr(stream, "name", stream),
+                "failed to write %s to %s",
+                what,
+                getattr(stream, "name", stream),
                 exc_info=True,
             )
 
