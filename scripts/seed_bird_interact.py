@@ -342,11 +342,19 @@ def _build_datasets(variant: str, *, upstream_commit: str | None = None, force: 
 
     rows = _load_jsonl(public_dest)
     task_count = len(rows)
+    # selected_database is what BIRD-Interact actually ships (and what every
+    # runner reads); the rest are tolerated aliases from sibling BIRD datasets.
+    _DB_KEYS = ("selected_database", "db_name", "db_id", "database")
     db_names: list[str] = sorted({
-        str(row.get("db_name") or row.get("db_id") or row.get("database") or "")
-        for row in rows
-        if row.get("db_name") or row.get("db_id") or row.get("database")
+        name for row in rows
+        if (name := next((str(row[k]) for k in _DB_KEYS if row.get(k)), ""))
     })
+    if rows and not db_names:
+        logger.warning(
+            "No database name found on any of the %d rows (looked for: %s) — "
+            "the manifest's databases list will be empty.",
+            len(rows), ", ".join(_DB_KEYS),
+        )
 
     # --- combined JSONL (public + GT merged if available, else public as development fallback) ---
     gt_src = _detect_gt(variant)
