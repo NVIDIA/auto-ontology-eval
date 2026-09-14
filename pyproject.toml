@@ -29,6 +29,9 @@ dependencies = [
     "httpx>=0.28.1",
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.32.0",
+    # Imported directly by bird_interact/bird_interact_http.py. Also reachable
+    # transitively through nemo-retriever, but that is an unpinned git HEAD.
+    "sqlglot>=30.12.0",
     "importlib-metadata>=9.0.0",
     # gsf.connectors is imported eagerly by gsf.dal/gsf.semantic, and it
     # unconditionally imports every connector module (trino, mysql, kyuubi), so
