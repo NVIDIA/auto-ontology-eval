@@ -43,11 +43,10 @@ from pathlib import Path
 import httpx
 
 ONTOLOGY_DIR = Path(__file__).resolve().parents[1]
-GSF_DIR      = ONTOLOGY_DIR.parent / "GSF"
+GSF_DIR = ONTOLOGY_DIR.parent / "GSF"
 DEFAULT_DATA = ONTOLOGY_DIR / "datasets" / "bird_interact" / "bird_interact_data_with_gt.jsonl"
-
 USER_SIM_URL = "http://127.0.0.1:6001"
-DB_ENV_URL   = "http://127.0.0.1:6002"
+DB_ENV_URL = "http://127.0.0.1:6002"
 
 PATIENCE = 3
 
@@ -149,12 +148,10 @@ def load_task(data_path: Path, index: int, db_filter: str | None, random_pick: b
     if random_pick:
         idx, task = random.choice(pool)
         return idx, task
-    if db_filter:
-        return pool[0]
-    if index >= len(tasks):
-        print(f"Task index {index} out of range (file has {len(tasks)} tasks)", file=sys.stderr)
+    if index < 0 or index >= len(pool):
+        print(f"Task index {index} out of range (selection pool has {len(pool)} task(s))", file=sys.stderr)
         sys.exit(1)
-    return index, tasks[index]
+    return pool[index]
 
 
 def start_gsf_adapter(port: int) -> subprocess.Popen:
@@ -179,9 +176,10 @@ def start_gsf_adapter(port: int) -> subprocess.Popen:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Live smoke test for BIRD-Interact + GSF adapter")
     parser.add_argument("--data", default=str(DEFAULT_DATA))
-    parser.add_argument("--task-index", type=int, default=0, help="0-based task index")
+    parser.add_argument("--task-index", type=int, default=0,
+                        help="0-based index into the filtered selection pool")
     parser.add_argument("--instance-id", default=None, help="Pick task by instance_id (e.g. alien_1)")
-    parser.add_argument("--db", default=None, help="Pick first task for this database name")
+    parser.add_argument("--db", default=None, help="Restrict selection to this database name")
     parser.add_argument("--random", action="store_true", help="Pick a random task")
     parser.add_argument("--category", default=None, choices=["query", "management"], type=str.lower,
                         help="Restrict selection to 'query' or 'management' tasks (case-insensitive)")
