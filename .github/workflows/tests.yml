@@ -1,0 +1,39 @@
+# SPDX-FileCopyrightText: Copyright (c) 2024-2026, NVIDIA CORPORATION & AFFILIATES.
+# All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+name: Python Tests
+
+# Deliberately unfiltered by path: the suite broke in fd61814 via an import
+# added to ontology_sql_eval/, and stayed broken unnoticed, so narrowing this
+# to tests/** would miss exactly the case this workflow exists to catch.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  pytest:
+    name: Pytest
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10
+        with:
+          python-version: '3.12'
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --group dev --frozen
+
+      # The suite stubs out gsf entirely (see tests/bird_interact/test_server.py),
+      # so the sibling ../GSF checkout the scripts rely on is not needed here.
+      - name: Pytest
+        run: uv run pytest
