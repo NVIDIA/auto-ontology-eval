@@ -126,6 +126,10 @@ def _extract_followup_question(message: str) -> str:
 
 _MAX_KG_CHILDREN = 5
 
+# Slack allowed on top of a task's max_turn before /run_session stops looping.
+# Wide enough that only a genuinely stuck coordinator trips it.
+_TURN_CAP_MARGIN = 5
+
 # Root of the (symlinked) BIRD-Interact dataset checkout. children_knowledge is a
 # dataset field the upstream db_environment /knowledge endpoint does not expose to
 # agents (see KNOWLEDGE_VISIBLE_FIELDS in db_environment/server.py, which we leave
@@ -145,6 +149,12 @@ _ADK_DIR = Path(
 
 _kb_children_cache: dict[str, dict[int, list[int]]] = {}
 
+# db_name arrives in the /init_session request body and is interpolated into a
+# filesystem path below, so it is constrained to the shape BIRD-Interact
+# database names actually take. Anything else would let a caller walk out of
+# _ADK_DIR (and poison the cache under a key no real database can produce).
+_SAFE_DB_NAME = re.compile(r"^[A-Za-z0-9_-]+$")
+
 
 def _load_kb_children(db_name: str) -> dict[int, list[int]]:
     """Read {db_name}_kb.jsonl directly and return {id: children_knowledge} for entries that declare it.
@@ -153,6 +163,12 @@ def _load_kb_children(db_name: str) -> dict[int, list[int]]:
     _load_db_data) but only ever reads the field locally — it never depends on
     upstream relaying children_knowledge over the /knowledge HTTP endpoint.
     """
+    if not _SAFE_DB_NAME.match(db_name):
+        # Empty is routine (a task whose state carries no db_name); anything
+        # else non-conforming is worth surfacing.
+        if db_name:
+            logger.warning("[kb] refusing to load kb for unsafe db_name %r", db_name)
+        return {}
     if db_name in _kb_children_cache:
         return _kb_children_cache[db_name]
     result: dict[int, list[int]] = {}
@@ -286,6 +302,7 @@ async def init_session(req: InitSessionRequest):
         session_id=session_id,
         bird_state=req.state,
         gsf_session=gsf_sess,
+        max_turn=max_turn,
     )
     put_session(sess)
     logger.info("[session] %s | init db=%s max_turn=%d", req.task_id, db_name, max_turn)
@@ -358,7 +375,14 @@ async def run_session(req: RunSessionRequest):
     t_submit: float | None = None
     unresolved_start = list(getattr(sess.gsf_session, "persistent_unresolved", []))
 
-    while True:
+    # Backstop only: gsf stops asking once clarify_history reaches
+    # max_clarify_turns, and that history spans the whole session rather than
+    # this one call, so a healthy run never comes near this. Without it, a gsf
+    # that keeps returning AskUserAction would issue unbounded LLM-backed
+    # ask_user calls (120s timeout each) and hold this request open forever.
+    turn_cap = sess.max_turn + _TURN_CAP_MARGIN
+
+    while turn < turn_cap:
         turn += 1
         t0 = time.time()
         action = await asyncio.to_thread(
@@ -500,6 +524,15 @@ async def run_session(req: RunSessionRequest):
             "[turn %d] unexpected action type %s — aborting", turn, type(action)
         )
         break
+
+    if turn >= turn_cap and not sess._submitted_this_phase:
+        logger.error(
+            "[turn %d] hit the %d-turn cap without a SUBMIT — gsf kept asking "
+            "past max_clarify_turns=%d; returning this turn unsubmitted",
+            turn,
+            turn_cap,
+            sess.max_turn,
+        )
 
     # Only once the turn has actually run to completion. Setting it before the
     # loop would make a transient failure (the 502s above) unrecoverable: on

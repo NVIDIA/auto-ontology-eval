@@ -35,6 +35,10 @@ class AdapterSession:
     # ..." message, so it can be classified as INITIAL up front rather than
     # via gsf's text-pattern fallback.
     _seen_first_run_session: bool = False
+    # Bird's max_turn for this task, as handed to gsf's max_clarify_turns. Kept
+    # here so /run_session can bound its own clarification loop rather than
+    # trusting gsf to always stop asking.
+    max_turn: int = 5
     # Conversation history (returned to orchestrator)
     dialogue_history: list = field(default_factory=list)
     tool_trajectory: list = field(default_factory=list)

@@ -581,6 +581,71 @@ def test_first_turn_stays_retryable_after_transient_failure():
     assert retry_kwargs["initial_question"] == "Find all aliens"
 
 
+def test_run_session_caps_a_never_ending_clarification_loop():
+    """A coordinator that only ever asks must not keep the request open: the
+    loop stops at max_turn + _TURN_CAP_MARGIN instead of asking forever."""
+    mock_sess = MagicMock()
+    max_turn = 3
+    step_mock = MagicMock(return_value=AskUserAction("Which year?"))
+    ask_mock = AsyncMock(return_value="2023")
+    submit_mock = AsyncMock()
+
+    with (
+        patch.object(server_mod, "_DATA_RETRIEVER", MagicMock()),
+        patch.object(server_mod, "_SEMANTIC_RETRIEVER", MagicMock()),
+        patch.object(server_mod, "_CONNECTORS", {"alien": [MagicMock()]}),
+        patch.object(server_mod, "gsf_create_session", return_value=mock_sess),
+        patch.object(server_mod, "gsf_step", step_mock),
+        patch.object(server_mod, "gsf_apply_user_answer", MagicMock()),
+        patch.object(server_mod, "gsf_apply_submit_result", MagicMock()),
+        patch("ontology_sql_eval.bird_interact.bird_interact_http.ask_user", ask_mock),
+        patch(
+            "ontology_sql_eval.bird_interact.bird_interact_http.submit_sql", submit_mock
+        ),
+        patch.object(app.router, "lifespan_context", _noop_lifespan),
+    ):
+        with TestClient(app) as client:
+            client.post(
+                "/init_session",
+                json={
+                    "task_id": "task-009",
+                    "state": {"db_name": "alien", "max_turn": max_turn},
+                },
+            )
+            resp = client.post(
+                "/run_session",
+                json={"task_id": "task-009", "message": "User Query:\nHow many?\n\n"},
+            )
+
+    expected_turns = max_turn + server_mod._TURN_CAP_MARGIN
+    assert resp.status_code == 200
+    assert ask_mock.await_count == expected_turns
+    assert step_mock.call_count == expected_turns
+    submit_mock.assert_not_awaited()
+    # The turn is reported as unsubmitted rather than faking a submission.
+    assert resp.json()["state"]["_submitted_this_phase"] is False
+
+
+def test_load_kb_children_rejects_unsafe_db_name():
+    """db_name reaches a filesystem path straight from the request body, so
+    anything outside the real name shape is refused and left uncached."""
+    server_mod._kb_children_cache.clear()
+    try:
+        for unsafe in ("../../../etc", "foo/../bar", "a/b", "x\x00y"):
+            assert server_mod._load_kb_children(unsafe) == {}
+            assert unsafe not in server_mod._kb_children_cache
+
+        # An empty name is routine (state with no db_name) and also yields {}.
+        assert server_mod._load_kb_children("") == {}
+
+        # A legitimate name is still accepted and memoised -- {} here only
+        # because no *_kb.jsonl exists for it in the test checkout.
+        assert server_mod._load_kb_children("labor_certification_applications") == {}
+        assert "labor_certification_applications" in server_mod._kb_children_cache
+    finally:
+        server_mod._kb_children_cache.clear()
+
+
 def test_missing_session_404():
     """run_session for an unknown task_id returns 404."""
     with (
