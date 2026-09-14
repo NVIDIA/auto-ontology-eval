@@ -675,10 +675,19 @@ def _sort_csv_by_row_index(path: Path) -> None:
             return 0
 
     rows.sort(key=key)
-    with path.open("w", encoding="utf-8", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)
+    # Via a sibling temp file rather than reopening *path* with "w": truncating
+    # in place puts the only copy of an expensive run's results in memory, so an
+    # interrupt between the truncate and the writerows loses all of them.
+    tmp = path.with_name(path.name + ".sorted.tmp")
+    try:
+        with tmp.open("w", encoding="utf-8", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
 
 
 def _log_summary(summary: Dict[str, Any]) -> None:
