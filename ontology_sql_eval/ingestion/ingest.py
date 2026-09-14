@@ -49,27 +49,31 @@ def database_name_for(connection_string: str) -> str:
 def run_ingest(connection_string: str) -> None:
     """Extract the source schema into GSF's store and write embeddings."""
     connector = create_connector(connection_string)
-    database_name = connector.database_name
-    logger.info("Starting ingest for database %r", database_name)
+    try:
+        database_name = connector.database_name
+        logger.info("Starting ingest for database %r", database_name)
 
-    gsf_run_ingest(connector)
+        gsf_run_ingest(connector)
 
-    # After the catalog write, as before. Metadata never fed the embeddings --
-    # those are built from the frames the extract step returned, not re-read
-    # from the store -- so its position relative to embedding does not matter.
-    apply_metadata(database_name)
+        # After the catalog write, as before. Metadata never fed the embeddings
+        # -- those are built from the frames the extract step returned, not
+        # re-read from the store -- so its position relative to embedding does
+        # not matter.
+        apply_metadata(database_name)
 
-    embed_params = get_embed_params()
+        embed_params = get_embed_params()
 
-    # Custom analyses live in the semantic-layer collection, so they go through
-    # a dedicated semantic VDB rather than the tabular one the ingest wrote to.
-    add_custom_analyses(
-        database_name,
-        connector.dialect,
-        embed_params=embed_params,
-        vdb=get_semantic_vdb(database_name=database_name),
-    )
-    connector.close()
+        # Custom analyses live in the semantic-layer collection, so they go
+        # through a dedicated semantic VDB rather than the tabular one the
+        # ingest wrote to.
+        add_custom_analyses(
+            database_name,
+            connector.dialect,
+            embed_params=embed_params,
+            vdb=get_semantic_vdb(database_name=database_name),
+        )
+    finally:
+        connector.close()
 
 
 if __name__ == "__main__":
