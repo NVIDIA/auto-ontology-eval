@@ -62,7 +62,7 @@ exist until it runs, so the compile applies them when asked::
     python -m ontology_sql_eval.ingestion.semantic --override-descriptions
 
 Without the flag the compile leaves its own text in place. Re-run the same command
-after editing the saved set to push the edit into the graph and the vector store;
+after editing the saved set to push the edit into the catalog and vector store;
 the compile itself only revisits tables that have no ``Term``, so a second pass is
 cheap. The export's header is::
 
@@ -78,10 +78,9 @@ from __future__ import annotations
 import csv
 import json
 import logging
-import hashlib
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from nemo_retriever.common.params.models import EmbedParams
@@ -91,21 +90,6 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_DIR = Path(__file__).resolve().parents[2] / "datasets"
 ANNOTATIONS_DIR = Path(__file__).resolve().parents[2] / "annotations"
-TRAIN_QA_COLLECTION_NAME = "train_qa"
-TRAIN_QA_DATABASE_NAME = "train_qa"
-TRAIN_QA_LABEL = "FewShotQA"
-
-
-def _removed_graph_connection() -> Any:
-    """Fail closed if a retired graph-era helper is called."""
-    raise RuntimeError(
-        "This graph-era helper was retired by the Postgres catalog migration."
-    )
-
-
-def train_json_for_dataset(dataset_name: str) -> Path:
-    """Return ``datasets/<dataset_name>/train/train.json``."""
-    return DEFAULT_DIR / dataset_name / "train" / "train.json"
 
 
 def _dataset_file_path(
@@ -189,186 +173,6 @@ def custom_analyses_json_path(
     ) or _dataset_file_path("custom_analyses.json", database_name, dataset)
 
 
-def _existing_few_shot_questions(vdb, label: str, database_name: str) -> set[str]:
-    """Return normalized questions already stored in the semantic VDB."""
-    import psycopg
-    from psycopg import sql
-
-    if not vdb._table_exists():
-        return set()
-
-    query = sql.SQL(
-        """
-        SELECT COALESCE(
-            langchain_metadata ->> 'question',
-            langchain_metadata ->> 'name'
-        )
-        FROM {table}
-        WHERE {db_col} = %s AND {label_col} = %s
-        """
-    ).format(
-        table=sql.Identifier(vdb.schema_name, vdb.collection_name),
-        db_col=sql.Identifier("database_name"),
-        label_col=sql.Identifier("label"),
-    )
-    with psycopg.connect(vdb.connection_string) as conn:
-        with conn.cursor() as cur:
-            cur.execute(query, (database_name, label))
-            return {
-                str(row[0]).strip().casefold()
-                for row in cur.fetchall()
-                if row[0] and str(row[0]).strip()
-            }
-
-
-def _embed_train_qa_docs(
-    docs: list[dict],
-    embed_params: "EmbedParams",
-    vdb: "VDB",
-) -> int:
-    """Embed Train QA docs without dropping retrieval metadata."""
-    from gsf.utils.embedding import batch_embed
-    from nemo_retriever.operators.vdb import IngestVdbOperator
-
-    rows: list[dict] = []
-    for item in docs:
-        node_id = item["id"]
-        path = f"bird-train:{node_id}"
-        metadata = {
-            "id": node_id,
-            "label": item["label"],
-            "name": item["name"],
-            "question": item["question"],
-            "sql": item["sql"],
-            "evidence": item["evidence"],
-            "db_id": item["db_id"],
-            "source_path": path,
-            "database_name": TRAIN_QA_DATABASE_NAME,
-        }
-        rows.append(
-            {
-                "text": item["text"],
-                "_embed_modality": "text",
-                "path": path,
-                "page_number": -1,
-                "metadata": {
-                    **metadata,
-                    "content_metadata": dict(metadata),
-                },
-            }
-        )
-
-    embedded = batch_embed(rows, embed_params)
-    records = [
-        row
-        for row in embedded.to_dict(orient="records")
-        if (row.get("metadata") or {}).get("embedding")
-    ]
-    if not records:
-        raise RuntimeError(
-            f"Embedding step produced no vectors for {len(rows)} Train QA row(s)."
-        )
-    IngestVdbOperator(vdb=vdb)(records)
-    return len(records)
-
-
-def add_few_shot_examples(
-    *,
-    train_json: Path,
-    embed_params: "EmbedParams",
-    vdb: "VDB",
-    batch_size: int = 64,
-) -> int:
-    """Embed new Train Q→SQL examples into ``train_qa``.
-
-    *train_json* must be an explicit corpus file (typically
-    ``datasets/<dataset>/train/train.json``). Existing questions are read from
-    Postgres and skipped, so repeated ingest runs are incremental. Questions
-    are embedded verbatim because GSF main does not expose a masking API.
-    """
-    if not train_json.is_file():
-        logger.info("Few-shot corpus not found at %s; skipping.", train_json)
-        return 0
-
-    with train_json.open(encoding="utf-8") as f:
-        rows = json.load(f)
-    if not isinstance(rows, list):
-        raise ValueError(f"{train_json} must contain a JSON list")
-
-    existing = _existing_few_shot_questions(
-        vdb,
-        TRAIN_QA_LABEL,
-        TRAIN_QA_DATABASE_NAME,
-    )
-    docs: list[dict] = []
-    skipped_existing = 0
-    skipped_empty = 0
-    dataset_name = (
-        train_json.parents[1].name
-        if train_json.parent.name == "train"
-        else train_json.stem
-    )
-
-    for row in rows:
-        question = str(row.get("question") or "").strip()
-        sql = str(row.get("SQL") or row.get("sql") or "").strip()
-        if not question or not sql:
-            skipped_empty += 1
-            continue
-
-        normalized = question.casefold()
-        if normalized in existing:
-            skipped_existing += 1
-            continue
-        existing.add(normalized)
-
-        digest = hashlib.sha256(question.encode("utf-8")).hexdigest()[:24]
-        docs.append(
-            {
-                "id": f"{dataset_name}:train:{digest}",
-                "name": question,
-                "label": TRAIN_QA_LABEL,
-                "text": question,
-                "question": question,
-                "sql": sql,
-                "evidence": str(row.get("evidence") or ""),
-                "db_id": str(row.get("db_id") or ""),
-            }
-        )
-
-    if not docs:
-        logger.info(
-            "Few-shot enrichment: nothing new from %s (%d existing, %d empty).",
-            train_json,
-            skipped_existing,
-            skipped_empty,
-        )
-        return 0
-
-    logger.info(
-        "Few-shot enrichment: embedding %d new question(s) from %s "
-        "(skipped %d existing, %d empty).",
-        len(docs),
-        train_json,
-        skipped_existing,
-        skipped_empty,
-    )
-    written = 0
-    for start in range(0, len(docs), batch_size):
-        chunk = docs[start : start + batch_size]
-        written += _embed_train_qa_docs(
-            chunk,
-            embed_params,
-            vdb,
-        )
-        logger.info(
-            "Few-shot enrichment progress: %d/%d",
-            min(start + len(chunk), len(docs)),
-            len(docs),
-        )
-    return written
-
-
 def apply_metadata(database_name: str, dataset: str | None = None) -> None:
     """Stamp table/column metadata onto the Postgres catalog.
 
@@ -381,10 +185,8 @@ def apply_metadata(database_name: str, dataset: str | None = None) -> None:
     * ``Column.sample_values`` (from the JSON's ``value_examples`` field, when
       present and non-empty)
 
-    Tables/columns that aren't present in the graph are silently skipped
-    (:func:`~gsf.dal.datasources.apply_metadata_batch`'s ``MATCH`` simply
-    finds nothing). Properties for which the JSON has no value are left
-    untouched (``coalesce`` preserves the existing value).
+    Tables/columns that aren't present in the catalog are silently skipped.
+    Properties for which the JSON has no value are left untouched.
     """
     from gsf.dal.datasources import apply_metadata_batch
 
@@ -446,197 +248,6 @@ def apply_metadata(database_name: str, dataset: str | None = None) -> None:
     )
 
 
-def profile_and_describe_columns(connector, database_name: str) -> int:
-    """Profile every column and describe the ones worth describing.
-
-    Which those are is ``SEMANTIC_DESCRIBE_MODE``'s decision, made in
-    :func:`gsf.semantic.deterministic.columns_to_describe`; unset, it means the
-    ones the source metadata left blank.
-
-    Must run after :func:`apply_metadata` (so a supplied annotation is in view
-    when deciding, and re-stamped ahead of any description this replaces) and
-    before the embed graph (so the descriptions it writes are part of what the
-    Column nodes are embedded from). The semantic layer then only copies them
-    onto ColumnAttributes.
-
-    Profiling has to happen here rather than in the semantic layer because a
-    description is only worth generating with the column's values in view, and the
-    embeddings are computed at ingest. Doing it here also reaches the foreign-key
-    columns, which the semantic layer excludes from description generation by
-    design — they are linked to the attribute they reference instead of owning one.
-
-    Returns the number of descriptions written.
-    """
-    from gsf.dal.datasources import store_column_descriptions  # type: ignore
-    from gsf.semantic.deterministic import (
-        blank_column_descriptions,  # type: ignore
-        columns_to_describe,  # type: ignore
-        describe_mode,  # type: ignore
-    )
-    from gsf.semantic.visit_enter import calculate_columns_profiling
-
-    def _profile(
-        table: dict[str, object], columns: list[dict[str, object]]
-    ) -> dict[str, dict]:
-        """Profile one table, degrading to no values rather than aborting ingest."""
-        try:
-            return calculate_columns_profiling(table, columns, connector)
-        except Exception:
-            logger.warning(
-                "profiling failed for %s — describing without values",
-                table.get("name"),
-                exc_info=True,
-            )
-            return {}
-
-    # Reads ``c.description`` rather than going through the DAL's table fetch,
-    # which resolves a column's description through its ColumnAttribute and would
-    # therefore report every column as documented on a re-run over a graph the
-    # semantic layer had already populated.
-    rows = _removed_graph_connection().query_read(
-        query=(
-            "MATCH (d:Database {name: $database_name})-[:CONTAINS]->"
-            "(s:Schema)-[:CONTAINS]->(t:Table)-[:CONTAINS]->(c:Column) "
-            "WITH t, s, c ORDER BY c.ordinal_position "
-            "RETURN t.id AS table_id, t.name AS table_name, "
-            "       s.name AS schema_name, "
-            "       collect({name: c.name, data_type: c.data_type, "
-            "                description: c.description}) AS columns "
-            "ORDER BY table_name"
-        ),
-        parameters={"database_name": database_name},
-    )
-
-    mode = describe_mode()
-    written = 0
-    target_total = 0
-    for row in rows:
-        columns = [c for c in row.get("columns") or [] if c.get("name")]
-        if not columns:
-            continue
-        # Asking the same question the describe step will ask, rather than
-        # counting blanks: under the wider modes a table with no blank column
-        # still has work, and a mismatch here silently skips it.
-        wanted = columns_to_describe(columns, mode)
-        target_total += len(wanted)
-        table = {
-            "id": row["table_id"],
-            "name": row.get("table_name") or "",
-            "schema_name": row.get("schema_name"),
-        }
-        if not wanted:
-            # Still profiled: sample values and uniqueness are persisted by the
-            # profiler, and the embed graph below reads them off the Column nodes.
-            _profile(table, columns)
-            continue
-        profiling = _profile(table, columns)
-        descriptions = blank_column_descriptions(
-            columns, profiling, table_name=table["name"]
-        )
-        store_column_descriptions(table["id"], descriptions)
-        written += len(descriptions)
-
-    logger.info(
-        "Column descriptions (mode=%s): %d of %d targeted column(s) described "
-        "at ingest",
-        mode,
-        written,
-        target_total,
-    )
-    return written
-
-
-def sync_graph_metadata_into_schema_data(
-    schema_data: tuple, database_name: str
-) -> tuple:
-    """Copy graph descriptions and sample values back into the embed input.
-
-    ``TabularSchemaExtractOp`` returns ``(tables_df, columns_df)`` and
-    ``TabularFetchEmbeddingsOp`` builds its text from that pair directly, "without
-    a catalog round-trip" — so anything written to the old graph *after* extraction is
-    invisible to the embeddings. For a SQLite source that is everything worth
-    embedding: the introspected DataFrames carry no descriptions at all, and both
-    :func:`apply_metadata` and :func:`profile_and_describe_columns` wrote only to
-    that graph. Without this step a Column was embedded as name and type alone.
-
-    Joins on the catalog UUID that extraction already placed in each frame's ``id``
-    column, so it is immune to name-casing and duplicate table names across
-    schemas. Returns the patched pair; frames missing ``id`` are passed through.
-    """
-    import pandas as pd
-
-    tables_df, columns_df = schema_data
-    conn = _removed_graph_connection()
-
-    def _apply(df, rows: list[dict], fields: tuple[str, ...]):
-        if df is None or getattr(df, "empty", True) or "id" not in df.columns:
-            return df, 0
-        by_id = {r["id"]: r for r in rows if r.get("id")}
-        patched = 0
-        for field in fields:
-            # object dtype so a list assignment is legal, and so an all-empty
-            # column is not inferred as float64 (whose NaN is truthy — the embed
-            # operator does `(sample_values or [])[:5]` and would raise on it).
-            df[field] = (
-                df[field].astype(object)
-                if field in df.columns
-                else pd.Series([None] * len(df), index=df.index, dtype=object)
-            )
-        for idx, node_id in df["id"].items():
-            row = by_id.get(node_id)
-            if not row:
-                continue
-            for field in fields:
-                value = row.get(field)
-                if field == "sample_values" and isinstance(value, str):
-                    try:
-                        value = json.loads(value)
-                    except json.JSONDecodeError:
-                        value = None
-                if value is None or (isinstance(value, str) and not value.strip()):
-                    continue
-                df.at[idx, field] = value
-                if field == "description":
-                    patched += 1
-        if "sample_values" in fields:
-            # NaN reaches the embed operator as a truthy float and breaks it; None
-            # is what its `or []` fallback expects.
-            df["sample_values"] = df["sample_values"].apply(
-                lambda v: v if isinstance(v, list) else None
-            )
-        return df, patched
-
-    table_rows = conn.query_read(
-        query=(
-            "MATCH (d:Database {name: $database_name})-[:CONTAINS]->"
-            "(:Schema)-[:CONTAINS]->(t:Table) "
-            "RETURN t.id AS id, t.description AS description"
-        ),
-        parameters={"database_name": database_name},
-    )
-    column_rows = conn.query_read(
-        query=(
-            "MATCH (d:Database {name: $database_name})-[:CONTAINS]->"
-            "(:Schema)-[:CONTAINS]->(:Table)-[:CONTAINS]->(c:Column) "
-            "RETURN c.id AS id, c.description AS description, "
-            "       c.sample_values AS sample_values"
-        ),
-        parameters={"database_name": database_name},
-    )
-
-    tables_df, n_tables = _apply(tables_df, table_rows, ("description",))
-    columns_df, n_columns = _apply(
-        columns_df, column_rows, ("description", "sample_values")
-    )
-
-    logger.info(
-        "Synced graph metadata into embed input: %d table and %d column description(s)",
-        n_tables,
-        n_columns,
-    )
-    return tables_df, columns_df
-
-
 def add_custom_analyses(
     database_name: str,
     dialect: str,  # noqa: ARG001 — kept for call-site compatibility; GSF resolves
@@ -651,7 +262,7 @@ def add_custom_analyses(
     present, otherwise its own ``custom_analyses.json``; see
     :func:`custom_analyses_json_path`. For each
     ``{"name", "description", "sql"}`` entry it creates a ``CustomAnalysis``
-    node linked to its parsed ``Sql`` node via
+    catalog row linked to its parsed ``Sql`` row via
     :func:`~gsf.server.custom_analyses.service.create_custom_analysis` (the
     same write path the server's create-analysis endpoint uses).
 
@@ -756,10 +367,10 @@ def add_custom_analyses(
 
 
 # ---------------------------------------------------------------------------
-# Writing a saved description set over a freshly compiled graph
+# Writing a saved description set over a freshly compiled catalog
 # ---------------------------------------------------------------------------
 #
-# BIRD ships its own column annotations, so a graph built from a fresh download
+# BIRD ships its own column annotations, so a catalog built from a fresh download
 # carries the original text. Replacing it with ours happens after the semantic
 # layer is compiled — the ColumnAttribute nodes that hold the string retrieval
 # embeds do not exist before then — which is why the semantic stage, not ingest,
@@ -849,9 +460,9 @@ def apply_saved_descriptions(
 ) -> int:
     """Overwrite descriptions with a saved set, columns and attributes alike.
 
-    Run this after the semantic layer is compiled: the ColumnAttribute nodes it
+    Run this after the semantic layer is compiled: the ColumnAttribute rows it
     corrects do not exist before then. Both stores are updated, since a description
-    the graph holds and the vector index does not is invisible to retrieval:
+    the catalog holds and the vector index does not is invisible to retrieval:
 
     * ``Column.description`` goes through the same call the server makes when a
       description is edited in the UI, which also deletes and re-appends the
@@ -866,7 +477,7 @@ def apply_saved_descriptions(
     and recomputing would fold in whatever the fresh profile sampled, which is the
     drift this step exists to remove.
 
-    Columns absent from the graph, columns whose saved attribute text is empty, and
+    Columns absent from the catalog, columns whose saved attribute text is empty, and
     columns carrying more than one attribute are counted and named in the log
     rather than guessed at. Returns the number of nodes written.
     """
@@ -985,7 +596,7 @@ def apply_saved_descriptions(
 
     logger.info(
         "Saved descriptions for %s from %s: %d saved column(s), %d matched in the "
-        "graph, %d column description(s) and %d attribute description(s) to write",
+        "catalog, %d column description(s) and %d attribute description(s) to write",
         database_name,
         csv_path,
         len(saved),
@@ -1009,7 +620,7 @@ def apply_saved_descriptions(
             now,
         )
     for label, keys in (
-        ("absent from the graph", sorted(set(saved) - set(live))),
+        ("absent from the catalog", sorted(set(saved) - set(live))),
         ("no ColumnAttribute", without_attribute),
         ("several ColumnAttributes, left alone", ambiguous),
     ):
@@ -1060,5 +671,5 @@ def apply_saved_descriptions(
             logger.info("re-embedded %d attribute row(s)", written)
 
     total = len(column_writes) + len(attribute_writes)
-    logger.info("Applied saved descriptions: %d node(s) written", total)
+    logger.info("Applied saved descriptions: %d catalog row(s) written", total)
     return total

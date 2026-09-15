@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+from contextlib import nullcontext
 
 # ruff: noqa: E402 - GSF imports must follow environment bootstrap.
 from ontology_sql_eval.env import load_env
@@ -33,17 +34,17 @@ from ontology_sql_eval.env import load_env
 # checkout's .env). Loading ours first ensures it wins the race instead.
 load_env()
 
+from gsf.catalog import ingest_catalog
 from gsf.connectors.registry import create_connector
-from gsf.ingestion_service.ingest import run_ingest as gsf_run_ingest  # noqa: E402
+from gsf.dal.datasources import fetch_tables_and_columns_by_node_ids
 from gsf.utils import get_embed_params  # noqa: E402
-from gsf.vdb import get_semantic_vdb, get_vdb  # noqa: E402
+from gsf.utils.embedding import batch_embed_chunks
+from gsf.utils.embedding_rows import CatalogEmbeddingRowsOp
+from gsf.vdb import get_data_vdb, get_semantic_vdb  # noqa: E402
+from nemo_retriever.common.vdb.records import to_client_vdb_records
 from ontology_sql_eval.ingestion.enrich_graph import (  # noqa: E402
-    TRAIN_QA_COLLECTION_NAME,
-    TRAIN_QA_DATABASE_NAME,
     add_custom_analyses,
-    add_few_shot_examples,
     apply_metadata,
-    train_json_for_dataset,
 )
 
 logger = logging.getLogger(__name__)
@@ -58,6 +59,51 @@ def database_name_for(connection_string: str) -> str:
         connector.close()
 
 
+def _ingest_catalog_with_metadata(
+    connector, dataset_name: str | None, embed_params
+) -> None:
+    """Write the catalog, enrich it, then embed the enriched Postgres rows."""
+    database_name = connector.database_name
+    reuse_connection = getattr(connector, "reuse_connection", None)
+    connection_context = reuse_connection() if reuse_connection else nullcontext()
+    with connection_context:
+        tables_df, columns_df = ingest_catalog(connector)
+
+    # Enrichment must precede embedding. CatalogEmbeddingRowsOp builds text from
+    # DataFrames, so refresh them from Postgres after apply_metadata updates the
+    # catalog instead of embedding the pre-enrichment extraction frames.
+    apply_metadata(database_name, dataset=dataset_name)
+    table_ids = (
+        [
+            str(value)
+            for value in tables_df["id"].dropna().tolist()
+            if str(value).strip()
+        ]
+        if "id" in tables_df.columns
+        else []
+    )
+    if table_ids:
+        tables_df, columns_df, _ = fetch_tables_and_columns_by_node_ids(table_ids)
+
+    embed_rows = CatalogEmbeddingRowsOp(database_name=database_name)(
+        (tables_df, columns_df)
+    )
+    data_vdb = None
+    rows_written = 0
+    for chunk in batch_embed_chunks(embed_rows, embed_params, label=database_name):
+        records = to_client_vdb_records(chunk)
+        if not records:
+            continue
+        if data_vdb is None:
+            data_vdb = get_data_vdb(database_name=database_name, reset=True)
+        rows_written += data_vdb.run(records)
+
+    logger.info(
+        "Tabular ingest: %d enriched catalog row(s) written to pgvector.",
+        rows_written,
+    )
+
+
 def run_ingest(connection_string: str, dataset_name: str | None = None) -> None:
     """Extract the source schema into GSF's store and write embeddings."""
     connector = create_connector(connection_string)
@@ -65,12 +111,8 @@ def run_ingest(connection_string: str, dataset_name: str | None = None) -> None:
         database_name = connector.database_name
         logger.info("Starting ingest for database %r", database_name)
 
-        gsf_run_ingest(connector)
-
-        # Dataset metadata is persisted after GSF's catalog/embedding pipeline.
-        apply_metadata(database_name, dataset=dataset_name)
-
         embed_params = get_embed_params()
+        _ingest_catalog_with_metadata(connector, dataset_name, embed_params)
 
         # Custom analyses live in the semantic-layer collection, so they go
         # through a dedicated semantic VDB rather than the tabular one the
@@ -86,32 +128,16 @@ def run_ingest(connection_string: str, dataset_name: str | None = None) -> None:
         connector.close()
 
 
-def run_train_qa_ingest(dataset_name: str) -> int:
-    """Embed a dataset's Train Q→SQL corpus into the dedicated VDB."""
-    return add_few_shot_examples(
-        train_json=train_json_for_dataset(dataset_name),
-        embed_params=get_embed_params(),
-        vdb=get_vdb(
-            database_name=TRAIN_QA_DATABASE_NAME,
-            collection_name=TRAIN_QA_COLLECTION_NAME,
-        ),
-    )
-
-
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description=(
-            "Ingest source DB schema(s) into the GSF Postgres catalog + pgvector, "
-            "then optionally embed a dataset's Train few-shot corpus."
-        )
+        description="Ingest source DB schema(s) into the GSF Postgres catalog + pgvector."
     )
     parser.add_argument(
         "--dataset-name",
         default=None,
         help=(
-            "Dataset folder under datasets/ whose Train corpus to embed "
-            "(e.g. bird → datasets/bird/train/train.json). "
-            "Omit to skip few-shot enrichment."
+            "Dataset folder under datasets/ used to locate metadata and annotations "
+            "(for example, bird)."
         ),
     )
     return parser.parse_args(argv)
@@ -145,10 +171,6 @@ if __name__ == "__main__":
             )
             run_ingest(connection_string, dataset_name=args.dataset_name)
 
-        # Train few-shots are dataset-scoped (e.g. BIRD), not per SQLite DB.
-        # Only run when the caller names the dataset; missing train.json is a no-op.
-        if args.dataset_name:
-            run_train_qa_ingest(args.dataset_name)
     except KeyboardInterrupt:
         logger.info("ingestion: shutting down")
         raise SystemExit(0)

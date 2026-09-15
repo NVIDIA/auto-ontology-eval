@@ -2,14 +2,14 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Semantic-layer compilation: build the business taxonomy over the graph.
+"""Semantic-layer compilation: build the business taxonomy in Postgres.
 
 Thin in-process wrapper around GSF's ``run_semantic_compilation`` (the same
 routine as ``python -m gsf.semantic``) so it can be imported, called, and
 stepped through in a debugger without spawning a subprocess.
 
 Run after :mod:`ontology_sql_eval.ingestion.ingest` has populated the schema
-graph and embeddings. Compile a single database, or omit ``--database-name``
+catalog and embeddings. Compile a single database, or omit ``--database-name``
 to compile every database in ``CONNECTION_STRINGS`` (same source as ingest)::
 
     uv run python -m ontology_sql_eval.ingestion.semantic                            # all CONNECTION_STRINGS
@@ -56,7 +56,7 @@ def run_semantic(
     Runs the same routine as ``python -m gsf.semantic`` (Term/ColumnAttribute
     taxonomy, embeddings, semantic FK edges, SqlAttribute suggestions) but
     without spawning a subprocess, so it can be stepped through in a debugger.
-    Requires the schema graph and embeddings to already exist (i.e. run
+    Requires the schema catalog and embeddings to already exist (i.e. run
     :func:`ontology_sql_eval.ingestion.ingest.run_ingest` first).
 
     With *override_descriptions*, our saved column and attribute descriptions are

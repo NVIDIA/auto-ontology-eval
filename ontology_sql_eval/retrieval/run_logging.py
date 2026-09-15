@@ -666,7 +666,6 @@ _NOISY_LOGGERS = (
     "httpcore",
     "urllib3",
     "asyncio",
-    "neo4j",
     "openai._base_client",
     "sqlalchemy.engine",
     "matplotlib",
@@ -676,7 +675,7 @@ _NOISY_LOGGERS = (
 # Loggers whose INFO output is worth keeping in the files but is pure noise on
 # a live console -- SQLAlchemy's engine echo alone prints every catalog query,
 # several per node, times every worker.
-_CONSOLE_QUIET_LOGGERS = ("sqlalchemy.engine", "neo4j")
+_CONSOLE_QUIET_LOGGERS = ("sqlalchemy.engine",)
 
 
 class _ConsoleQuietFilter(logging.Filter):
@@ -891,7 +890,6 @@ class RunLogger:
             "POSTGRES_HOST",
             "POSTGRES_PORT",
             "POSTGRES_DATABASE",
-            "NEO4J_URI",
         )
         info = {
             "run_id": self.run_id,
