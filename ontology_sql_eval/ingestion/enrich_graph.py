@@ -90,6 +90,9 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_DIR = Path(__file__).resolve().parents[2] / "datasets"
 ANNOTATIONS_DIR = Path(__file__).resolve().parents[2] / "annotations"
+TRAIN_QA_COLLECTION_NAME = "train_qa"
+TRAIN_QA_DATABASE_NAME = "train_qa"
+TRAIN_QA_LABEL = "FewShotQA"
 
 
 def _removed_graph_connection() -> Any:
@@ -221,14 +224,13 @@ def add_few_shot_examples(
     vdb: "VDB",
     batch_size: int = 64,
 ) -> int:
-    """Mask and embed new Train Q→SQL examples into ``train_qa``.
+    """Embed new Train Q→SQL examples into ``train_qa``.
 
     *train_json* must be an explicit corpus file (typically
     ``datasets/<dataset>/train/train.json``). Existing questions are read from
-    Postgres and skipped, so repeated ingest runs are incremental.
+    Postgres and skipped, so repeated ingest runs are incremental. Questions
+    are embedded verbatim because GSF main does not expose a masking API.
     """
-    from gsf.retrieval.text_to_sql.question_masking import mask_question
-    from gsf.semantic.constants import FEW_SHOT_DATABASE_NAME, LABEL_FEW_SHOT_QA
     from gsf.utils.embedding import embed_docs_into_vdb
 
     if not train_json.is_file():
@@ -242,8 +244,8 @@ def add_few_shot_examples(
 
     existing = _existing_few_shot_questions(
         vdb,
-        LABEL_FEW_SHOT_QA,
-        FEW_SHOT_DATABASE_NAME,
+        TRAIN_QA_LABEL,
+        TRAIN_QA_DATABASE_NAME,
     )
     docs: list[dict] = []
     skipped_existing = 0
@@ -267,15 +269,13 @@ def add_few_shot_examples(
             continue
         existing.add(normalized)
 
-        masked = mask_question(question) or question
         digest = hashlib.sha256(question.encode("utf-8")).hexdigest()[:24]
         docs.append(
             {
                 "id": f"{dataset_name}:train:{digest}",
                 "name": question,
-                "label": LABEL_FEW_SHOT_QA,
-                "text": masked,
-                "masked_question": masked,
+                "label": TRAIN_QA_LABEL,
+                "text": question,
                 "question": question,
                 "sql": sql,
                 "evidence": str(row.get("evidence") or ""),
@@ -307,7 +307,7 @@ def add_few_shot_examples(
             chunk,
             embed_params,
             vdb,
-            database_name=FEW_SHOT_DATABASE_NAME,
+            database_name=TRAIN_QA_DATABASE_NAME,
         )
         logger.info(
             "Few-shot enrichment progress: %d/%d",

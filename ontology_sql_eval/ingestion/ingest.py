@@ -36,14 +36,15 @@ load_dotenv()
 from gsf.connectors.registry import create_connector
 from gsf.catalog import ingest_catalog
 from gsf.dal.datasources import fetch_tables_and_columns_by_node_ids
-from gsf.semantic.constants import FEW_SHOT_DATABASE_NAME
 from gsf.utils import get_embed_params
 from gsf.utils.embedding import batch_embed
 from gsf.utils.embedding_rows import CatalogEmbeddingRowsOp
 from nemo_retriever.operators.vdb import IngestVdbOperator
-from gsf.vdb import get_semantic_vdb, get_train_qa_vdb
+from gsf.vdb import get_semantic_vdb, get_vdb
 from gsf.vdb import get_data_vdb
 from ontology_sql_eval.ingestion.enrich_graph import (
+    TRAIN_QA_COLLECTION_NAME,
+    TRAIN_QA_DATABASE_NAME,
     add_custom_analyses,
     add_few_shot_examples,
     apply_metadata,
@@ -92,6 +93,18 @@ def run_ingest(connection_string: str, dataset_name: str | None = None) -> None:
         embed_params=embed_params,
         vdb=get_semantic_vdb(database_name=database_name),
         dataset=dataset_name,
+    )
+
+
+def run_train_qa_ingest(dataset_name: str) -> int:
+    """Embed a dataset's Train Q→SQL corpus into the dedicated VDB."""
+    return add_few_shot_examples(
+        train_json=train_json_for_dataset(dataset_name),
+        embed_params=get_embed_params(),
+        vdb=get_vdb(
+            database_name=TRAIN_QA_DATABASE_NAME,
+            collection_name=TRAIN_QA_COLLECTION_NAME,
+        ),
     )
 
 
@@ -145,11 +158,7 @@ if __name__ == "__main__":
         # Train few-shots are dataset-scoped (e.g. BIRD), not per SQLite DB.
         # Only run when the caller names the dataset; missing train.json is a no-op.
         if args.dataset_name:
-            add_few_shot_examples(
-                train_json=train_json_for_dataset(args.dataset_name),
-                embed_params=get_embed_params(),
-                vdb=get_train_qa_vdb(database_name=FEW_SHOT_DATABASE_NAME),
-            )
+            run_train_qa_ingest(args.dataset_name)
     except KeyboardInterrupt:
         logger.info("ingestion: shutting down")
         raise SystemExit(0)

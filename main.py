@@ -71,7 +71,7 @@ def stage_ingest(dataset_name: str | None = None) -> None:
             "    CONNECTION_STRINGS=postgresql://user:password@host:5432/wideworldimporters"
         )
 
-    from ontology_sql_eval.ingestion.ingest import run_ingest
+    from ontology_sql_eval.ingestion.ingest import run_ingest, run_train_qa_ingest
 
     for i, connection_string in enumerate(connection_strings, start=1):
         logger.info(
@@ -81,6 +81,9 @@ def stage_ingest(dataset_name: str | None = None) -> None:
             connection_string,
         )
         run_ingest(connection_string, dataset_name=dataset_name)
+
+    if dataset_name:
+        run_train_qa_ingest(dataset_name)
 
 
 def stage_semantic(

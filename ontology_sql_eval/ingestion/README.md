@@ -86,7 +86,10 @@ rather than adding to a store that already has them.
 After all source DBs finish, if ``--dataset-name <name>`` was passed, embed
 that dataset's Train few-shot corpus from ``datasets/<name>/train/train.json``
 into the pgvector **train_qa** store (incremental; existing questions skipped).
-Omit ``--dataset-name`` to skip few-shot enrichment.
+Questions are embedded verbatim because GSF `main` has no masking API and does
+not consume this collection. Omit ``--dataset-name`` to skip Train ingestion.
+On GSF branches that support Train retrieval, set ``BIRD_FEW_SHOT=false`` to
+keep the collection ingestion-only.
 
 Data destinations:
 

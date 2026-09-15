@@ -33,10 +33,13 @@ uv run python scripts/seed_bird.py --splits dev train   # Dev to evaluate on + T
 | `train`    |     9,428 | none                | Fine-tuning split, kept as a few-shot corpus only — no SQLite files, no evaluation rows.    |
 
 `train` deliberately installs no databases: only its `train.json` is extracted
-from the archive and the rows are preserved whole for few-shot retrieval. Train
-and Dev database sets are disjoint, so Train's (large) SQLite files would never
-be queried during a Dev evaluation. That makes `--splits dev train` the
-interesting combination — evaluate on Dev, retrieve examples from Train.
+from the archive and the rows are preserved whole for ingestion into the
+dedicated `train_qa` VDB. Train and Dev database sets are disjoint, so Train's
+(large) SQLite files would never be queried during a Dev evaluation.
+
+GSF `main` does not consume `train_qa`; the collection is populated for future
+use only. On GSF branches that support Train-example retrieval, set
+`BIRD_FEW_SHOT=false` in `.env` to keep retrieval disabled.
 
 Only the SQLite dialect is kept (the MySQL/PostgreSQL question JSONs and the
 `*_gold.sql` / `*_tables.json` files are ignored). Options: `--splits` (one or
