@@ -72,6 +72,7 @@ cheap. The export's header is::
 Only the column and attribute description fields are read; the rest identify the
 row. See :func:`apply_saved_descriptions`.
 """
+
 from __future__ import annotations
 
 import csv
@@ -563,6 +564,7 @@ def sync_graph_metadata_into_schema_data(
     schemas. Returns the patched pair; frames missing ``id`` are passed through.
     """
     import pandas as pd
+
     tables_df, columns_df = schema_data
     conn = _removed_graph_connection()
 
@@ -576,9 +578,9 @@ def sync_graph_metadata_into_schema_data(
             # column is not inferred as float64 (whose NaN is truthy — the embed
             # operator does `(sample_values or [])[:5]` and would raise on it).
             df[field] = (
-                df[field].astype(object) if field in df.columns else pd.Series(
-                    [None] * len(df), index=df.index, dtype=object
-                )
+                df[field].astype(object)
+                if field in df.columns
+                else pd.Series([None] * len(df), index=df.index, dtype=object)
             )
         for idx, node_id in df["id"].items():
             row = by_id.get(node_id)
@@ -628,8 +630,7 @@ def sync_graph_metadata_into_schema_data(
     )
 
     logger.info(
-        "Synced graph metadata into embed input: %d table and %d column "
-        "description(s)",
+        "Synced graph metadata into embed input: %d table and %d column description(s)",
         n_tables,
         n_columns,
     )
@@ -901,9 +902,7 @@ def apply_saved_descriptions(
     for schema_id in fetch_schema_ids_for_database(database_name):
         table_ids.extend(
             str(table["id"])
-            for table in fetch_tables_for_schema(
-                schema_id, database_name=database_name
-            )
+            for table in fetch_tables_for_schema(schema_id, database_name=database_name)
             if table.get("id")
         )
     _tables_df, columns_df, _database_name = fetch_tables_and_columns_by_node_ids(
@@ -921,7 +920,10 @@ def apply_saved_descriptions(
     )
     rows: list[dict] = []
     for column in column_rows:
-        key = (str(column.get("table_name") or ""), str(column.get("column_name") or ""))
+        key = (
+            str(column.get("table_name") or ""),
+            str(column.get("column_name") or ""),
+        )
         if key not in saved:
             continue
         attr_id = attr_id_by_column.get(str(column.get("id") or ""))
