@@ -22,27 +22,22 @@ import argparse
 import logging
 import os
 
-# ruff: noqa: E402 - file-scoped: the imports after load_dotenv() below are
-# deliberately late, for the reason described next.
-# Load .env BEFORE importing gsf: gsf.utils.embedding (and semantic_fk/embed)
-# capture EMBED_API_KEY / EMBED_ENDPOINT / EMBED_MODEL into module-level
-# constants at import time. Importing gsf first freezes those to the shell's
-# NVIDIA_API_KEY fallback (an sk- proxy key), causing 401s against the public
-# integrate.api.nvidia.com embeddings endpoint.
-from dotenv import load_dotenv
+# ruff: noqa: E402 - GSF imports must follow environment bootstrap.
+from ontology_sql_eval.env import load_env
 
-load_dotenv()
+# Must run before any `gsf`/`ontology_sql_eval.ingestion.enrich_graph` import:
+# gsf.retrieval.generate_sql calls its own load_dotenv() at import time (no
+# explicit path), which finds ../GSF*/.env first and — since load_dotenv()
+# never overrides already-set vars — silently wins over this repo's .env for
+# any var it defines (e.g. a stale CONNECTION_STRINGS left in a sibling GSF
+# checkout's .env). Loading ours first ensures it wins the race instead.
+load_env()
 
 from gsf.connectors.registry import create_connector
-from gsf.catalog import ingest_catalog
-from gsf.dal.datasources import fetch_tables_and_columns_by_node_ids
-from gsf.utils import get_embed_params
-from gsf.utils.embedding import batch_embed
-from gsf.utils.embedding_rows import CatalogEmbeddingRowsOp
-from nemo_retriever.operators.vdb import IngestVdbOperator
-from gsf.vdb import get_semantic_vdb, get_vdb
-from gsf.vdb import get_data_vdb
-from ontology_sql_eval.ingestion.enrich_graph import (
+from gsf.ingestion_service.ingest import run_ingest as gsf_run_ingest  # noqa: E402
+from gsf.utils import get_embed_params  # noqa: E402
+from gsf.vdb import get_semantic_vdb, get_vdb  # noqa: E402
+from ontology_sql_eval.ingestion.enrich_graph import (  # noqa: E402
     TRAIN_QA_COLLECTION_NAME,
     TRAIN_QA_DATABASE_NAME,
     add_custom_analyses,
@@ -56,44 +51,39 @@ logger = logging.getLogger(__name__)
 
 def database_name_for(connection_string: str) -> str:
     """Return the database name a connection string resolves to."""
-    return create_connector(connection_string).database_name
+    connector = create_connector(connection_string)
+    try:
+        return connector.database_name
+    finally:
+        connector.close()
 
 
 def run_ingest(connection_string: str, dataset_name: str | None = None) -> None:
     """Extract the source schema into GSF's store and write embeddings."""
     connector = create_connector(connection_string)
-    database_name = connector.database_name
-    logger.info("Starting ingest for database %r", database_name)
+    try:
+        database_name = connector.database_name
+        logger.info("Starting ingest for database %r", database_name)
 
-    # Populate the catalog first, then stamp dataset metadata before building
-    # embedding rows. Embedding the frames returned directly by ingest_catalog
-    # would miss the descriptions and samples applied below.
-    tables_df, _columns_df = ingest_catalog(connector)
-    apply_metadata(database_name, dataset=dataset_name)
+        gsf_run_ingest(connector)
 
-    embed_params = get_embed_params()
-    table_ids = (
-        tables_df["id"].dropna().astype(str).tolist()
-        if tables_df is not None and not tables_df.empty
-        else []
-    )
-    refreshed = fetch_tables_and_columns_by_node_ids(table_ids)
-    embed_rows = CatalogEmbeddingRowsOp(database_name=database_name)(refreshed[:2])
-    result_df = batch_embed(embed_rows, embed_params)
-    if result_df is not None and not result_df.empty:
-        vdb = get_data_vdb(database_name=database_name, reset=True)
-        IngestVdbOperator(vdb=vdb)(result_df.to_dict(orient="records"))
-        logger.info("Tabular ingest: %d rows written to pgvector", len(result_df))
-    else:
-        logger.info("Tabular ingest: no embedding rows produced for %s", database_name)
+        # Dataset metadata is persisted after GSF's catalog/embedding pipeline.
+        apply_metadata(database_name, dataset=dataset_name)
 
-    add_custom_analyses(
-        database_name,
-        connector.dialect,
-        embed_params=embed_params,
-        vdb=get_semantic_vdb(database_name=database_name),
-        dataset=dataset_name,
-    )
+        embed_params = get_embed_params()
+
+        # Custom analyses live in the semantic-layer collection, so they go
+        # through a dedicated semantic VDB rather than the tabular one the
+        # ingest wrote to.
+        add_custom_analyses(
+            database_name,
+            connector.dialect,
+            embed_params=embed_params,
+            vdb=get_semantic_vdb(database_name=database_name),
+            dataset=dataset_name,
+        )
+    finally:
+        connector.close()
 
 
 def run_train_qa_ingest(dataset_name: str) -> int:

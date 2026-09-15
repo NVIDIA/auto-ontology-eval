@@ -24,7 +24,12 @@ import logging
 import os
 from typing import Optional
 
+# ruff: noqa: E402 - GSF imports must follow environment bootstrap.
 import pandas as pd
+from ontology_sql_eval.env import load_env
+
+load_env()
+
 from nemo_retriever.common.params.models import EmbedParams
 from nemo_retriever.operators.vdb import IngestVdbOperator
 from gsf.catalog import ingest_catalog
@@ -33,9 +38,6 @@ from gsf.utils.embedding import batch_embed
 from gsf.utils.embedding_rows import CatalogEmbeddingRowsOp
 
 from gsf.vdb import get_data_vdb
-from dotenv import load_dotenv
-
-load_dotenv()
 
 
 logger = logging.getLogger(__name__)

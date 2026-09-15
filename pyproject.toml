@@ -28,10 +28,29 @@ dependencies = [
     "httpx>=0.28.1",
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.32.0",
+    # Imported directly by bird_interact/bird_interact_http.py. Also reachable
+    # transitively through nemo-retriever, but that is an unpinned git HEAD.
+    "sqlglot>=30.12.0",
     "importlib-metadata>=9.0.0",
+    # gsf.connectors is imported eagerly by gsf.dal/gsf.semantic, and it
+    # unconditionally imports every connector module (trino, mysql, kyuubi), so
+    # these are required even if a given run never touches those specific
+    # connectors.
+    "sqlalchemy>=2.0.52",
+    "alembic>=1.19.1",
+    "pyyaml>=6.0.3",
+    "trino>=0.339.0",
+    "pyhive[hive-pure-sasl]>=0.7.0",
+    "thrift>=0.24.0",
+    "thrift-sasl>=0.4.3",
+    "pure-sasl>=0.6.2",
+    "pyjks>=20.0.0",
+    # BIRD official EX/VES judge (ontology_sql_eval/judge/bird.py)
     "func-timeout>=4.3.5",
     "numpy>=2.0",
     "langgraph>=1.2.11",
+    "matplotlib>=3.11.1",
+    "huggingface-hub>=1.28.0",
     "psutil>=7.2.2",
 ]
 
@@ -39,7 +58,10 @@ dependencies = [
 ontology-sql-eval = "ontology_sql_eval.judge.main:main"
 
 [dependency-groups]
-dev = ["ruff==0.15.9"]
+dev = [
+    "pytest>=9.1.1",
+    "ruff==0.15.9",
+]
 
 [build-system]
 requires = ["hatchling"]

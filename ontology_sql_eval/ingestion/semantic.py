@@ -27,18 +27,18 @@ import argparse
 import logging
 import os
 
-# ruff: noqa: E402 - file-scoped: the imports after load_dotenv() below are
-# deliberately late, for the reason described next.
-# Load .env BEFORE importing gsf: gsf.utils.embedding (and semantic_fk/embed)
-# capture EMBED_API_KEY / EMBED_ENDPOINT / EMBED_MODEL into module-level
-# constants at import time. Importing gsf first freezes those to the shell's
-# NVIDIA_API_KEY fallback (an sk- proxy key), causing 401s against the public
-# integrate.api.nvidia.com embeddings endpoint.
-from dotenv import load_dotenv
+# ruff: noqa: E402 - GSF imports must follow environment bootstrap.
+from ontology_sql_eval.env import load_env
 
-load_dotenv()
+# Must run before any `gsf` import: gsf.retrieval.generate_sql calls its own
+# load_dotenv() at import time (no explicit path), which finds ../GSF*/.env
+# first and — since load_dotenv() never overrides already-set vars — silently
+# wins over this repo's .env for any var it defines (e.g. a stale
+# CONNECTION_STRINGS left in a sibling GSF checkout's .env). Loading ours
+# first ensures it wins the race instead.
+load_env()
 
-from gsf.semantic.compile import run_semantic_compilation
+from gsf.semantic.compile import run_semantic_compilation  # noqa: E402
 
 from ontology_sql_eval.ingestion.enrich_graph import apply_saved_descriptions
 
