@@ -26,7 +26,7 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from pydantic import ConfigDict
+from pydantic import ConfigDict, Field
 
 from nemo_gym.base_resources_server import (
     BaseResourcesServerConfig,
@@ -41,6 +41,7 @@ from nemo_gym.reward_profile import (
 )
 
 from ontology_sql_eval.gym.exec_match import (
+    drop_unusable_tasks,
     FailureCode,
     PostgresExecutor,
     SqliteExecutor,
@@ -51,6 +52,9 @@ from ontology_sql_eval.gym.exec_match import (
 from ontology_sql_eval.gym.tasks import DATASETS
 
 logger = logging.getLogger(__name__)
+
+# Failures that mean the benchmark, not the model, is at fault.
+_UNUSABLE = {FailureCode.GOLD_EXECUTION_ERROR, FailureCode.GOLD_EXECUTION_TIMEOUT}
 
 
 class SchemaOnlySqlResourcesServerConfig(BaseResourcesServerConfig):
@@ -77,6 +81,13 @@ class SchemaOnlySqlVerifyRequest(BaseVerifyRequest):
 
 class SchemaOnlySqlVerifyResponse(BaseVerifyResponse):
     model_config = ConfigDict(extra="allow")
+
+    # Read by nemo-gym's token-id capture to keep a sample out of training data.
+    # It does *not* affect pass@k -- reward_profile ignores it -- so the accuracy
+    # denominator is corrected separately in compute_metrics.
+    instance_config: Dict[str, Any] = Field(
+        default_factory=lambda: {"mask_sample": False}
+    )
 
     question: str
     gt_sql: str
@@ -159,6 +170,11 @@ class SchemaOnlySqlResourcesServer(SimpleResourcesServer):
             return SchemaOnlySqlVerifyResponse(
                 **carried,
                 reward=reward,
+                # Masked when the *gold* query never ran: the rollout says
+                # nothing about the policy, so it should not train on it.
+                instance_config={
+                    "mask_sample": failure in _UNUSABLE,
+                },
                 question=body.question,
                 gt_sql=body.gt_sql,
                 db_id=body.db_id,
@@ -231,13 +247,18 @@ class SchemaOnlySqlResourcesServer(SimpleResourcesServer):
 
     def compute_metrics(self, tasks: List[List[Dict[str, Any]]]) -> Dict[str, Any]:
         """Overall pass@k, plus per-difficulty, per-dataset, and health counters."""
+        # Accuracy is computed over tasks whose gold query actually ran. A
+        # benchmark query that errors or times out says nothing about the model,
+        # so counting it as a miss understates every arm equally and invisibly.
+        usable, dropped = drop_unusable_tasks(tasks)
         metrics, *_ = compute_pass_majority_metrics(
-            tasks, score_fn=self._score_fn, answer_key="extracted_sql"
+            usable, score_fn=self._score_fn, answer_key="extracted_sql"
         )
         for subset in ("difficulty", "dataset"):
             metrics.update(
-                compute_subset_metrics(tasks, subset, self._score_fn, "extracted_sql")
+                compute_subset_metrics(usable, subset, self._score_fn, "extracted_sql")
             )
+        metrics["health/excluded_unusable_gold_count"] = dropped
 
         # Health counters. A rate-limited run and a genuinely weak model both
         # score near zero; these are what tell them apart, so they are reported

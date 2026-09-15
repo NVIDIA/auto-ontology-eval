@@ -29,7 +29,37 @@ from typing import Any, Optional, Protocol
 
 ResultSet = list[tuple[Any, ...]]
 
+UNUSABLE_FAILURES = frozenset({"gold_execution_error", "gold_execution_timeout"})
+
+
+def drop_unusable_tasks(
+    tasks: "list[list[dict]]",
+) -> "tuple[list[list[dict]], int]":
+    """Split out tasks whose *gold* query never ran.
+
+    A task whose benchmark-supplied query errors or times out tells us nothing
+    about the model, so counting it as a miss depresses every arm equally and
+    silently understates all of them. Returns ``(usable_tasks, dropped_count)``.
+
+    This has to be done here rather than by setting ``instance_config.mask_sample``:
+    that flag is consumed by nemo-gym's token-id capture to mask samples out of
+    *training* data, and ``nemo_gym.reward_profile`` -- which computes pass@k --
+    does not consult it. Both are set, for their respective consumers.
+    """
+    usable: "list[list[dict]]" = []
+    dropped = 0
+    for repeats in tasks:
+        kept = [r for r in repeats if r.get("failure_reason") not in UNUSABLE_FAILURES]
+        if kept:
+            usable.append(kept)
+        elif repeats:
+            dropped += 1
+    return usable, dropped
+
+
 __all__ = [
+    "UNUSABLE_FAILURES",
+    "drop_unusable_tasks",
     "FailureCode",
     "SqliteExecutor",
     "PostgresExecutor",

@@ -22,6 +22,7 @@ contains:
 
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -142,7 +143,17 @@ def build_records(
         evidence = (q.get("evidence") or "").strip()
         # question_id is an int on BIRD/WWI but a string like "FDA0002" on
         # FDABench, so the joinable key is always rendered as text.
-        raw_id = q.get("question_id", index)
+        #
+        # Never fall back to the list index: task_id is what compare_arms.py
+        # joins the two arms on, and an index shifts under --limit or any
+        # reordering of evaluation.json, silently pairing a control question
+        # with a *different* treatment question. A content hash is stable
+        # whatever the position. Note `.get(k, default)` would not help here --
+        # it returns None when the key exists with a null value.
+        raw_id = q.get("question_id")
+        if raw_id is None:
+            digest = hashlib.sha1(question.encode("utf-8")).hexdigest()[:12]
+            raw_id = f"q{digest}"
 
         yield {
             "responses_create_params": {

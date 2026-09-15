@@ -38,7 +38,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
-from pydantic import ConfigDict
+from pydantic import ConfigDict, Field
 
 # Must precede the gsf imports: GSF resolves endpoints and constructs an LLM
 # client while its modules are being imported.
@@ -65,6 +65,7 @@ from gsf.utils import (  # noqa: E402
 )
 
 from ontology_sql_eval.gym.exec_match import (  # noqa: E402
+    drop_unusable_tasks,
     FailureCode,
     PostgresExecutor,
     SqliteExecutor,
@@ -73,6 +74,9 @@ from ontology_sql_eval.gym.exec_match import (  # noqa: E402
 from ontology_sql_eval.gym.tasks import DATASETS  # noqa: E402
 
 logger = logging.getLogger(__name__)
+
+# Failures that mean the benchmark, not the model, is at fault.
+_UNUSABLE = {FailureCode.GOLD_EXECUTION_ERROR, FailureCode.GOLD_EXECUTION_TIMEOUT}
 
 # Older GSF builds fold the BIRD-style hint into the question text instead of
 # taking it as its own field. Probe rather than pin a version, so one checkout of
@@ -107,6 +111,13 @@ class GsfOntologySqlVerifyRequest(BaseVerifyRequest):
 
 class GsfOntologySqlVerifyResponse(BaseVerifyResponse):
     model_config = ConfigDict(extra="allow")
+
+    # Read by nemo-gym's token-id capture to keep a sample out of training data.
+    # It does *not* affect pass@k -- reward_profile ignores it -- so the accuracy
+    # denominator is corrected separately in compute_metrics.
+    instance_config: Dict[str, Any] = Field(
+        default_factory=lambda: {"mask_sample": False}
+    )
 
     question: str
     gt_sql: str
@@ -238,6 +249,11 @@ class GsfOntologySqlResourcesServer(SimpleResourcesServer):
             return GsfOntologySqlVerifyResponse(
                 **carried,
                 reward=reward,
+                # Masked when the *gold* query never ran: the rollout says
+                # nothing about the policy, so it should not train on it.
+                instance_config={
+                    "mask_sample": failure in _UNUSABLE,
+                },
                 question=body.question,
                 gt_sql=body.gt_sql,
                 db_id=body.db_id,
@@ -313,13 +329,18 @@ class GsfOntologySqlResourcesServer(SimpleResourcesServer):
         return {"accuracy": float(r.get("reward", 0.0) > 0)}
 
     def compute_metrics(self, tasks: List[List[Dict[str, Any]]]) -> Dict[str, Any]:
+        # Accuracy is computed over tasks whose gold query actually ran. A
+        # benchmark query that errors or times out says nothing about the model,
+        # so counting it as a miss understates every arm equally and invisibly.
+        usable, dropped = drop_unusable_tasks(tasks)
         metrics, *_ = compute_pass_majority_metrics(
-            tasks, score_fn=self._score_fn, answer_key="extracted_sql"
+            usable, score_fn=self._score_fn, answer_key="extracted_sql"
         )
         for subset in ("difficulty", "dataset"):
             metrics.update(
-                compute_subset_metrics(tasks, subset, self._score_fn, "extracted_sql")
+                compute_subset_metrics(usable, subset, self._score_fn, "extracted_sql")
             )
+        metrics["health/excluded_unusable_gold_count"] = dropped
 
         rollouts = [r for task in tasks for r in task]
         total = len(rollouts) or 1

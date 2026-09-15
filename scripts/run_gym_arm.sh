@@ -18,6 +18,11 @@ shift 2
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+if [[ ! -f .env ]]; then
+  echo "run_gym_arm.sh: no .env in $ROOT (copy .env.example and fill it in)" >&2
+  exit 1
+fi
+
 set -a
 # shellcheck disable=SC1091
 . ./.env
@@ -30,6 +35,14 @@ set +a
 # policy model's key and leave GSF on the old one.
 if [[ -n "${GYM_API_KEY:-}" ]]; then
   export DEFAULT_MODELS_API_KEY="$GYM_API_KEY"
+fi
+
+# Named explicitly: under `set -u` an unset key would otherwise abort with a bare
+# "DEFAULT_MODELS_API_KEY: unbound variable" at the exec line below.
+if [[ -z "${DEFAULT_MODELS_API_KEY:-}" ]]; then
+  echo "run_gym_arm.sh: no model API key. Set DEFAULT_MODELS_API_KEY in .env," \
+       "or pass GYM_API_KEY=<key> to override it for this run." >&2
+  exit 1
 fi
 
 # Absolute, because Gym runs each server after `cd`-ing into its own directory.
