@@ -5,8 +5,8 @@
 [BIRD](https://bird-bench.github.io/) is a large-scale cross-domain Text-to-SQL
 benchmark. [scripts/seed_bird.py](../../scripts/seed_bird.py) installs the full
 official **Dev** split by default (1,534 questions over 11 SQLite databases) and
-can also install the cheaper **Mini-Dev** subset or the **Train** split's
-question corpus. The repo additionally ships the official EX/VES scoring script
+can also install the cheaper **Mini-Dev** subset. The repo additionally ships the
+official EX/VES scoring script
 ported from the BIRD repo. Unlike WideWorldImporters, BIRD's source DBs are
 SQLite files (no Postgres seeding step) and each question carries its own
 `db_id`, routing to the matching connector at eval time.
@@ -23,27 +23,16 @@ SQLite files (no Postgres seeding step) and each question carries its own
 ```bash
 uv run python scripts/seed_bird.py                     # Dev (default): 1,534 Qs, 11 DBs
 uv run python scripts/seed_bird.py --splits mini-dev    # 500-Q subset of the same 11 DBs
-uv run python scripts/seed_bird.py --splits dev train   # Dev to evaluate on + Train few-shots
 ```
 
 | Split      | Questions | Databases installed | Role                                                                                       |
 | ---------- | --------: | ------------------- | ------------------------------------------------------------------------------------------ |
 | `dev`      |     1,534 | 11                  | Default. The official Dev split behind the BIRD leaderboard; becomes `evaluation.json`.    |
 | `mini-dev` |       500 | 11 (the same DBs)   | Cheap/fast subset for day-to-day development; also becomes `evaluation.json`.              |
-| `train`    |     9,428 | none                | Fine-tuning split, kept as a few-shot corpus only — no SQLite files, no evaluation rows.    |
-
-`train` deliberately installs no databases: only its `train.json` is extracted
-from the archive and the rows are preserved whole for ingestion into the
-dedicated `train_qa` VDB. Train and Dev database sets are disjoint, so Train's
-(large) SQLite files would never be queried during a Dev evaluation.
-
-GSF `main` does not consume `train_qa`; the collection is populated for future
-use only. On GSF branches that support Train-example retrieval, set
-`BIRD_FEW_SHOT=false` in `.env` to keep retrieval disabled.
 
 Only the SQLite dialect is kept (the MySQL/PostgreSQL question JSONs and the
 `*_gold.sql` / `*_tables.json` files are ignored). Options: `--splits` (one or
-more of `mini-dev`/`dev`/`train`, default `dev`), `--force` (re-download and
+more of `mini-dev`/`dev`, default `dev`), `--force` (re-download and
 overwrite), `--keep-archive` (keep the cached zip), `--url` (use a
 different/local zip — only valid with a single `--splits` value), `--dest`
 (default `datasets/bird/`), `--no-write-env` (see [Configure](#configure)),
@@ -62,7 +51,6 @@ datasets/bird/
   dev/<db_id>/<db_id>.sqlite               # one evaluation database per db_id
   dev/<db_id>/database_description/*.csv   # BIRD's own column annotations
   dev/<db_id>/metadata.json                # derived from those CSVs (ingestion enrichment)
-  train/train.json                         # Train questions (few-shot corpus; no databases)
   subsets/<name>.json                      # optional hand-picked question slices (see below)
 
 annotations/bird/                          # tracked, outside the download
@@ -72,12 +60,12 @@ annotations/bird/                          # tracked, outside the download
 
 `metadata.json` is generated per database from BIRD's `database_description`
 CSVs, in the shape [`enrich_graph.apply_metadata`](../../ontology_sql_eval/ingestion/enrich_graph.py)
-consumes, so column meanings and value descriptions reach the graph and from
-there the text-to-SQL prompt. A `value_description` cell that reads exactly
-`not useful` is dropped (it's an annotator note about an opaque column) but the
-column entry is kept, since some of those columns are join keys many gold
-queries need. Columns BIRD leaves undocumented are described at ingest time
-from profiled values instead.
+consumes, so column meanings and value descriptions reach the Postgres catalog
+and from there the text-to-SQL prompt. A `value_description` cell that reads
+exactly `not useful` is dropped (it's an annotator note about an opaque column)
+but the column entry is kept, since some of those columns are join keys many
+gold queries need. The semantic compile can describe columns BIRD leaves
+undocumented after profiling their values.
 
 ## Configure
 
@@ -89,8 +77,7 @@ CONNECTION_STRINGS=sqlite:///<abs>/datasets/bird/dev/california_schools/californ
 ```
 
 One comma-separated entry per evaluation `db_id` (11 for `mini-dev`/`dev`).
-Train contributes nothing here — it has no databases to connect to. Pass
-`--no-write-env` to skip the rewrite and just log the value for manual
+Pass `--no-write-env` to skip the rewrite and just log the value for manual
 copy-paste.
 
 ## Run the full pipeline
@@ -110,8 +97,7 @@ set once the compile has run.
 ### Manual (per-stage) equivalent
 
 ```bash
-# 1. Ingest all 11 DBs, embed the Train few-shot corpus, then compile semantics.
-#    --dataset-name is what pulls in train/train.json; omit it to skip few-shots.
+# 1. Ingest all 11 DBs, then compile semantics.
 PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.ingest --dataset-name bird
 PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.semantic --dataset-name bird
 
@@ -159,11 +145,7 @@ uv run python -m ontology_sql_eval.judge.bird \
 map) and the `dev/` SQLite root; override either with `--evaluation-json` /
 `--db-root`. Results are written to `output/<input_stem>_bird_scores.csv`.
 
-By default the run also scores every candidate in the input CSV's
-`candidate_sqls` column and records the best-of-N ceiling per question in
-`bird_oracle_match` / `bird_candidate_hits` / `bird_n_candidates`. That roughly
-multiplies EX runtime by the pool size, so pass `--no-include-oracle` to skip
-it. See [ontology_sql_eval/judge/bird.py](../../ontology_sql_eval/judge/bird.py)
+See [ontology_sql_eval/judge/bird.py](../../ontology_sql_eval/judge/bird.py)
 for the remaining flags (`--num-cpus`, `--meta-time-out`, `--iterate-num`,
 `--no-output-csv`, `--debug`).
 

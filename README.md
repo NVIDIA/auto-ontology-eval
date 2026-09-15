@@ -4,8 +4,8 @@ A Text-to-SQL evaluation toolkit for benchmarking a text-to-SQL agent against a
 dataset and scoring the results. It bundles three workflows in one project:
 
 1. **ingestion** — extract a source database's schema into GSF's Postgres +
-   pgvector stores, compile the semantic layer, and enrich the graph with metadata and
-   custom analyses.
+   pgvector stores, compile the semantic layer, and enrich the catalog with metadata
+   and custom analyses.
 2. **retrieval eval** — run the text-to-SQL agent against an evaluation set and
    score its generated SQL and answers deterministically.
 3. **sql judge** — a standalone, LLM-powered re-scorer for Text-to-SQL
@@ -163,7 +163,7 @@ commands), see the per-dataset READMEs:
 
 A plain compile keeps whatever column annotations the dataset shipped with.
 `--override-descriptions` finishes the compile by writing our own saved
-descriptions over them, in the graph and in both vector collections. They are
+descriptions over them, in the catalog and in both vector collections. They are
 read from `annotations/<dataset>/semantic_descriptions.csv`, which the repo
 tracks — nothing to configure. Without that file (or a
 `semantic_descriptions.csv` beside the database) the flag writes nothing.
@@ -242,7 +242,7 @@ The repo ships with three public worked examples:
 The [BIRD](https://bird-bench.github.io/) benchmark, plus the official
 EX/VES scoring script. Defaults to the full **Dev** split (11 SQLite
 databases, 1,534 questions); the smaller **Mini-Dev** subset (500 questions)
-and the **Train** split's few-shot question corpus are also available. See
+is also available. See
 **[datasets/bird/README.md](datasets/bird/README.md)** for how to download
 the dataset(s) and run the full pipeline.
 
@@ -322,8 +322,8 @@ file is missing.
 ### `custom_analyses.json`
 
 An array of named example analyses. During ingestion each analysis is parsed
-against the ingested schema, added to the graph as a `CustomAnalysis` node, and
-embedded into the semantic vector store. Optional.
+against the ingested schema, added to the Postgres catalog as a `CustomAnalysis`
+row, and embedded into the semantic vector store. Optional.
 
 ```json
 [
@@ -362,8 +362,8 @@ ontology_sql_eval/          single namespace package
   ingestion/                GSF-backed ingestion pipeline
     README.md               ingestion workflow guide
     ingest.py               source DB -> pgvector ingest (calls enrich_graph)
-    semantic.py             compile the semantic layer over the ingested graph
-    enrich_graph.py         graph metadata + custom-analysis enrichment
+    semantic.py             compile the semantic layer over the ingested catalog
+    enrich_graph.py         Postgres catalog metadata + analysis enrichment
     mock_ingest.py          in-memory 4-table demo ingest (mock_shop)
   retrieval/                GSF-backed retrieval eval
     README.md               retrieval-eval workflow guide
@@ -373,15 +373,14 @@ ontology_sql_eval/          single namespace package
 main.py                     end-to-end pipeline entry point (ingest -> judge)
 scripts/
   seed_wwi.py               seed a local Postgres from datasets/<db>/{ddl,data}
-  seed_bird.py              download BIRD split(s) (mini-dev/dev/train) into datasets/bird/
+  seed_bird.py              download BIRD split(s) (mini-dev/dev) into datasets/bird/
   seed_fdabench.py          download FDABench-Lite tasks + SQLite DBs into datasets/fdabench/
 datasets/
   <database_name>/          evaluation.json, metadata.json, custom_analyses.json
     ddl/                    seed DDL (schemas, sequences, tables, indexes, fkeys, views)
     data/                   seed CSV data (COPYed into the tables)
   bird/                     README.md, evaluation.json,
-                            dev/<db_id>/ -> <db_id>.sqlite + metadata.json (11 DBs),
-                            train/train.json (few-shot corpus; contents gitignored)
+                            dev/<db_id>/ -> <db_id>.sqlite + metadata.json (11 DBs)
   fdabench/                 README.md, evaluation.json, <db_id>/<db_id>.sqlite (15 DBs)
   wideworldimporters/       README.md, evaluation.json, custom_analyses.json, ddl/, data/
 input/                      judge input CSVs to score (contents gitignored)

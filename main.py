@@ -45,29 +45,6 @@ OUTPUT_DIR = _REPO_ROOT / "output"
 LOG_DIR = _REPO_ROOT / "logs"
 
 
-def _graph_database_name(fallback: str) -> str:
-    """Graph / pgvector database name used by ingest + semantic compile.
-
-    Ingest keys the Neo4j DB node and pgvector rows off the connector's
-    ``database_name`` (the ``metadata_database`` query param of
-    ``CONNECTION_STRINGS``). Semantic compile must filter by the *same* name, so
-    derive it from that param rather than from ``--database-name`` (which may
-    carry a logical/path-style prefix used only for file layout). Falls back
-    to *fallback* when no ``metadata_database`` is present
-    (e.g. Postgres, where ``database_name`` equals the URL's database).
-    """
-    from urllib.parse import parse_qs, unquote, urlparse
-
-    conns = [s for s in os.environ.get("CONNECTION_STRINGS", "").split(",") if s.strip()]
-    if conns:
-        values = parse_qs(urlparse(conns[0]).query).get("metadata_database")
-        if values:
-            name = unquote(values[0]).strip()
-            if name:
-                return name
-    return fallback
-
-
 def _banner(step: int, title: str) -> None:
     sep = "=" * 70
     logger.info("%s", sep)
@@ -94,7 +71,7 @@ def stage_ingest(dataset_name: str | None = None) -> None:
             "    CONNECTION_STRINGS=postgresql://user:password@host:5432/wideworldimporters"
         )
 
-    from ontology_sql_eval.ingestion.ingest import run_ingest, run_train_qa_ingest
+    from ontology_sql_eval.ingestion.ingest import run_ingest
 
     for i, connection_string in enumerate(connection_strings, start=1):
         logger.info(
@@ -104,10 +81,6 @@ def stage_ingest(dataset_name: str | None = None) -> None:
             connection_string,
         )
         run_ingest(connection_string, dataset_name=dataset_name)
-
-    if dataset_name:
-        run_train_qa_ingest(dataset_name)
-
 
 def stage_semantic(
     database_name: str,
