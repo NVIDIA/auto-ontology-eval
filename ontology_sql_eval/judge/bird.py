@@ -60,9 +60,6 @@ BIRD_SCORE_FIELDS = [
     "bird_ves_ratio",
     "bird_pred_error",
     "bird_gold_error",
-    "bird_oracle_match",
-    "bird_candidate_hits",
-    "bird_n_candidates",
 ]
 
 
@@ -76,10 +73,6 @@ class BirdRow:
     predicted_sql: str
     ground_truth_sql: str
     db_path: Path
-    # The generator writes its whole pool to the ``candidate_sqls`` column, so
-    # re-scoring them here puts the best-of-N ceiling in the same CSV as the
-    # shipped result without reading anything outside the eval output.
-    candidates: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -529,7 +522,6 @@ def _prepare_rows(
                     predicted_sql=str(row.get("returned_sql") or "").strip(),
                     ground_truth_sql=str(row.get("expected_sql") or "").strip(),
                     db_path=db_path,
-                    candidates=_parse_candidates(row.get("candidate_sqls")),
                 )
             )
     return rows
@@ -558,123 +550,6 @@ def _run_ex_parallel(
     with mp.Pool(processes=num_cpus) as pool:
         results = pool.starmap(_execute_ex_model, worker_args)
     return sorted(results, key=lambda r: r.sql_idx)
-
-
-def _parse_candidates(raw: Any) -> tuple[str, ...]:
-    """Read one row's ``candidate_sqls`` cell, a JSON list of SQL strings."""
-    text = str(raw or "").strip()
-    if not text:
-        return ()
-    try:
-        parsed = json.loads(text)
-    except json.JSONDecodeError:
-        logger.warning("Could not parse candidate_sqls cell; skipping its pool")
-        return ()
-    if not isinstance(parsed, list):
-        return ()
-    return tuple(str(sql or "") for sql in parsed)
-
-
-def _run_oracle_parallel(
-    bird_rows: list[BirdRow],
-    *,
-    num_cpus: int,
-    meta_time_out: float,
-) -> dict[int, list[int]]:
-    """Score every pooled candidate, returning ``sql_idx -> per-slot hits``."""
-    jobs: list[tuple[str, str, str, int, float]] = []
-    tags: list[tuple[int, int]] = []
-    for row in bird_rows:
-        for slot, sql in enumerate(row.candidates):
-            jobs.append(
-                (sql, row.ground_truth_sql, str(row.db_path), len(tags), meta_time_out)
-            )
-            tags.append((row.sql_idx, slot))
-
-    if not jobs:
-        return {}
-
-    if num_cpus <= 1:
-        results = [_execute_ex_model(*args) for args in jobs]
-    else:
-        with mp.Pool(processes=num_cpus) as pool:
-            results = pool.starmap(_execute_ex_model, jobs)
-    results.sort(key=lambda r: r.sql_idx)
-
-    hits: dict[int, list[int]] = {
-        row.sql_idx: [0] * len(row.candidates) for row in bird_rows if row.candidates
-    }
-    for result, (sql_idx, slot) in zip(results, tags):
-        hits[sql_idx][slot] = int(result.res)
-    return hits
-
-
-def _print_oracle_table(
-    hits: dict[int, list[int]],
-    bird_rows: list[BirdRow],
-    *,
-    n_unmatched: int,
-) -> None:
-    scored = [row for row in bird_rows if row.sql_idx in hits]
-    if not scored:
-        print(
-            "\nOracle (best of candidate pool)\n"
-            "  No candidate pools found; skipping. Pools are read from the "
-            "'candidate_sqls' column of the input CSV.\n",
-            flush=True,
-        )
-        return
-
-    difficulties = [row.difficulty for row in scored]
-    width = max(len(hits[row.sql_idx]) for row in scored)
-
-    def _scores(per_row: list[int]) -> list[float]:
-        results = [ExResult(sql_idx=i, res=h) for i, h in enumerate(per_row)]
-        simple, moderate, challenging, total, _ = compute_acc_by_diff(
-            results, difficulties
-        )
-        return [simple, moderate, challenging, total]
-
-    metric_rows = [
-        (
-            f"candidate {slot}",
-            _scores(
-                [
-                    hits[row.sql_idx][slot] if slot < len(hits[row.sql_idx]) else 0
-                    for row in scored
-                ]
-            ),
-            "",
-        )
-        for slot in range(width)
-    ]
-    metric_rows.append(
-        (
-            "ORACLE (best of pool)",
-            _scores([int(any(hits[r.sql_idx])) for r in scored]),
-            "",
-        )
-    )
-
-    _, _, _, _, counts = compute_acc_by_diff(
-        [
-            ExResult(sql_idx=i, res=int(any(hits[r.sql_idx])))
-            for i, r in enumerate(scored)
-        ],
-        difficulties,
-    )
-    description = (
-        "Oracle: score every generated candidate, then count the question correct "
-        "when ANY candidate matches gold. This is the ceiling a perfect selector "
-        f"could reach. Scored on {len(scored)} questions with a recovered pool"
-        + (f"; {n_unmatched} had none." if n_unmatched else ".")
-    )
-    print(
-        _format_score_table(
-            "Oracle (best of candidate pool)", description, metric_rows, counts
-        ),
-        flush=True,
-    )
 
 
 def _run_ves_parallel(
@@ -745,7 +620,6 @@ def run(
     iterate_num: int = 100,
     skip_ves: bool = False,
     debug: bool = False,
-    include_oracle: bool = True,
 ) -> None:
     """Score ``input_path`` with official BIRD EX (+ VES) and optionally write CSV."""
     bird_rows = _prepare_rows(input_path, evaluation_json, db_root)
@@ -778,20 +652,6 @@ def run(
         [incl_simple, incl_moderate, incl_challenging, incl_all],
         debug=debug,
     )
-
-    oracle_hits: dict[int, list[int]] = {}
-    if include_oracle:
-        n_unmatched = sum(1 for r in bird_rows if not r.candidates)
-        logger.info(
-            "Oracle: %d/%d questions carry a candidate pool (%d candidates total)",
-            len(bird_rows) - n_unmatched,
-            len(bird_rows),
-            sum(len(r.candidates) for r in bird_rows),
-        )
-        oracle_hits = _run_oracle_parallel(
-            bird_rows, num_cpus=num_cpus, meta_time_out=meta_time_out
-        )
-        _print_oracle_table(oracle_hits, bird_rows, n_unmatched=n_unmatched)
 
     ves_by_idx: dict[int, VesResult] = {}
     if not skip_ves:
@@ -862,12 +722,6 @@ def run(
             row["bird_ves_ratio"] = round(ves.time_ratio, 6) if ves.time_ratio else 0
             row["bird_pred_error"] = ex.pred_error
             row["bird_gold_error"] = ex.gold_error
-            hits = oracle_hits.get(sql_idx)
-            # Empty rather than 0 when no pool was recovered, so "no candidates
-            # found" stays distinguishable from "no candidate was correct".
-            row["bird_oracle_match"] = int(any(hits)) if hits else ""
-            row["bird_candidate_hits"] = ",".join(str(h) for h in hits) if hits else ""
-            row["bird_n_candidates"] = len(hits) if hits else 0
             writer.writerow(row)
 
     logger.info("Wrote BIRD scores to %s", output_path)
@@ -935,17 +789,6 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Print summary only; do not write scored CSV.",
     )
     parser.add_argument(
-        "--include-oracle",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help=(
-            "Also score every candidate in the input CSV's 'candidate_sqls' "
-            "column and record the best-of-N ceiling per question (default: "
-            "enabled). Roughly multiplies EX runtime by the pool size; "
-            "disable with --no-include-oracle."
-        ),
-    )
-    parser.add_argument(
         "--debug",
         action="store_true",
         help="Also print the extra-column near-miss diagnostic rows "
@@ -980,7 +823,6 @@ def main(argv: list[str] | None = None) -> None:
         iterate_num=args.iterate_num,
         skip_ves=args.skip_ves,
         debug=args.debug,
-        include_oracle=args.include_oracle,
     )
 
 

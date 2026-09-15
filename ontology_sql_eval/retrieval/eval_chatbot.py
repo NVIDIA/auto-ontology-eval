@@ -292,9 +292,8 @@ CSV_FIELDS = [
     "question",
     "expected_sql",
     "returned_sql",
-    # JSON list of every candidate the generator produced, so oracle is
-    # computable from this file alone rather than from the generator's debug
-    # log, which is cleared between runs.
+    # JSON list of every candidate the generator produced for result auditing;
+    # the generator's debug log is cleared between runs.
     "candidate_sqls",
     "sql_text_similarity",
     "sql_exec_match",
