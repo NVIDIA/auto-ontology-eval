@@ -138,6 +138,10 @@ class SchemaOnlySqlResourcesServer(SimpleResourcesServer):
         generated = body.response.output_text or ""
 
         carried = body.model_dump()
+        # sql_context is the entire CREATE TABLE dump (~16k chars); echoing it
+        # into every rollout line multiplies the output by --num-repeats for no
+        # diagnostic value, since it is reproducible from the task JSONL.
+        carried.pop("sql_context", None)
         for field in (
             "question",
             "gt_sql",
@@ -192,8 +196,12 @@ class SchemaOnlySqlResourcesServer(SimpleResourcesServer):
                 execution_match=False,
             )
 
-        if err == "gold_sql_error":
+        if err == "gold_sql_timeout":
+            failure = FailureCode.GOLD_EXECUTION_TIMEOUT
+        elif err == "gold_sql_error":
             failure = FailureCode.GOLD_EXECUTION_ERROR
+        elif err == "pred_sql_timeout":
+            failure = FailureCode.EXECUTION_TIMEOUT
         elif err == "pred_sql_error":
             failure = (
                 FailureCode.EXECUTION_ERROR
@@ -203,10 +211,10 @@ class SchemaOnlySqlResourcesServer(SimpleResourcesServer):
         elif match:
             failure = FailureCode.NONE
         else:
+            # The query ran and returned rows, they just did not match. That is
+            # an ordinary wrong answer, not an execution failure.
             failure = (
-                FailureCode.EXECUTION_ERROR
-                if had_block
-                else FailureCode.NO_SQL_EXTRACTED
+                FailureCode.WRONG_RESULT if had_block else FailureCode.NO_SQL_EXTRACTED
             )
 
         return _response(
@@ -240,6 +248,10 @@ class SchemaOnlySqlResourcesServer(SimpleResourcesServer):
             FailureCode.NO_MODEL_OUTPUT,
             FailureCode.GOLD_EXECUTION_ERROR,
             FailureCode.GOLD_EXECUTION_TIMEOUT,
+            # Without this, an arm that errors on every task (a db_id the
+            # connectors do not know, say) reports 0% with every health
+            # counter green, and compare_arms.py publishes it.
+            FailureCode.UNKNOWN_ERROR,
         ):
             n = sum(1 for r in rollouts if r.get("failure_reason") == code.value)
             metrics[f"health/{code.value}_rate"] = n / total

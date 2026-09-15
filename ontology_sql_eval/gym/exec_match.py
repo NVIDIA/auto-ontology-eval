@@ -54,6 +54,7 @@ class FailureCode(str, Enum):
 
     NONE = "none"
     NO_MODEL_OUTPUT = "no_model_output"
+    WRONG_RESULT = "wrong_result"
     NO_SQL_EXTRACTED = "no_sql_extracted"
     EXECUTION_ERROR = "execution_error"
     EXECUTION_TIMEOUT = "execution_timeout"

@@ -294,7 +294,9 @@ class GsfOntologySqlResourcesServer(SimpleResourcesServer):
         elif err == "pred_sql_error":
             failure = FailureCode.EXECUTION_ERROR
         else:
-            failure = FailureCode.NONE if match else FailureCode.EXECUTION_ERROR
+            # Ran and returned rows, but the wrong ones -- a wrong answer, not
+            # an execution failure.
+            failure = FailureCode.NONE if match else FailureCode.WRONG_RESULT
 
         return _response(
             1.0 if match else 0.0,
@@ -325,6 +327,10 @@ class GsfOntologySqlResourcesServer(SimpleResourcesServer):
             FailureCode.NO_MODEL_OUTPUT,
             FailureCode.GOLD_EXECUTION_ERROR,
             FailureCode.GOLD_EXECUTION_TIMEOUT,
+            # Without this, an arm that errors on every task (a db_id the
+            # connectors do not know, say) reports 0% with every health
+            # counter green, and compare_arms.py publishes it.
+            FailureCode.UNKNOWN_ERROR,
         ):
             n = sum(1 for r in rollouts if r.get("failure_reason") == code.value)
             metrics[f"health/{code.value}_rate"] = n / total
