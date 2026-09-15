@@ -14,7 +14,7 @@ dependencies = [
     # GSF is imported from the sibling ../GSF checkout via PYTHONPATH (not
     # installed). These mirror ../GSF/pyproject.toml so its runtime deps are in
     # this repo's venv.
-    "nemo-retriever",
+    "nemo-retriever>=26.8.1",
     "psycopg[binary]>=3.3.3",
     "psycopg-pool>=3.3.1",
     "snowflake-connector-python>=4.6.0",
@@ -47,6 +47,3 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["ontology_sql_eval"]
-
-[tool.uv.sources]
-nemo-retriever = { git = "https://github.com/NVIDIA/NeMo-Retriever.git", subdirectory = "nemo_retriever" }

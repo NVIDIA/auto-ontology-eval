@@ -97,7 +97,7 @@ def stage_semantic(
     from ontology_sql_eval.ingestion.semantic import run_semantic
 
     connection_strings = _connection_strings()
-    if len(connection_strings) > 1:
+    if connection_strings:
         from ontology_sql_eval.ingestion.ingest import database_name_for
 
         for i, connection_string in enumerate(connection_strings, start=1):

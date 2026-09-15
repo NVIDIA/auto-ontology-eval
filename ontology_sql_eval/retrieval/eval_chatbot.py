@@ -259,6 +259,37 @@ def _load_questions(path: Path) -> List[Dict[str, Any]]:
     return data
 
 
+def _validate_question_routing(
+    questions: List[Dict[str, Any]],
+    connectors: List[Any],
+    connectors_by_name: Dict[str, Any],
+) -> None:
+    """Reject question sets that could route to the wrong database."""
+    if not connectors:
+        raise ValueError("No database connectors are configured.")
+
+    requested = {
+        str(item.get("db_id") or "").strip()
+        for item in questions
+        if str(item.get("db_id") or "").strip()
+    }
+    unknown = sorted(requested - connectors_by_name.keys())
+    if unknown:
+        available = ", ".join(sorted(connectors_by_name)) or "(none)"
+        raise ValueError(
+            f"Evaluation references unknown db_id value(s): {', '.join(unknown)}. "
+            f"Configured connector databases: {available}."
+        )
+
+    if len(connectors) > 1:
+        missing = sum(not str(item.get("db_id") or "").strip() for item in questions)
+        if missing:
+            raise ValueError(
+                f"{missing} evaluation question(s) have no db_id, but "
+                f"{len(connectors)} database connectors are configured."
+            )
+
+
 CSV_FIELDS = [
     "row_index",
     "question_id",
@@ -903,6 +934,7 @@ def run_evaluation(
         name = getattr(connector, "database_name", None)
         if name:
             connectors_by_name[name] = connector
+    _validate_question_routing(questions, connectors, connectors_by_name)
     setup_seconds = time.perf_counter() - t_setup
     logger.info(
         "Retrievers + %d connector(s) ready in %.2fs", len(connectors), setup_seconds

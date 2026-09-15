@@ -198,7 +198,10 @@ def _existing_few_shot_questions(vdb, label: str, database_name: str) -> set[str
 
     query = sql.SQL(
         """
-        SELECT langchain_metadata ->> 'question'
+        SELECT COALESCE(
+            langchain_metadata ->> 'question',
+            langchain_metadata ->> 'name'
+        )
         FROM {table}
         WHERE {db_col} = %s AND {label_col} = %s
         """
@@ -217,6 +220,57 @@ def _existing_few_shot_questions(vdb, label: str, database_name: str) -> set[str
             }
 
 
+def _embed_train_qa_docs(
+    docs: list[dict],
+    embed_params: "EmbedParams",
+    vdb: "VDB",
+) -> int:
+    """Embed Train QA docs without dropping retrieval metadata."""
+    from gsf.utils.embedding import batch_embed
+    from nemo_retriever.operators.vdb import IngestVdbOperator
+
+    rows: list[dict] = []
+    for item in docs:
+        node_id = item["id"]
+        path = f"bird-train:{node_id}"
+        metadata = {
+            "id": node_id,
+            "label": item["label"],
+            "name": item["name"],
+            "question": item["question"],
+            "sql": item["sql"],
+            "evidence": item["evidence"],
+            "db_id": item["db_id"],
+            "source_path": path,
+            "database_name": TRAIN_QA_DATABASE_NAME,
+        }
+        rows.append(
+            {
+                "text": item["text"],
+                "_embed_modality": "text",
+                "path": path,
+                "page_number": -1,
+                "metadata": {
+                    **metadata,
+                    "content_metadata": dict(metadata),
+                },
+            }
+        )
+
+    embedded = batch_embed(rows, embed_params)
+    records = [
+        row
+        for row in embedded.to_dict(orient="records")
+        if (row.get("metadata") or {}).get("embedding")
+    ]
+    if not records:
+        raise RuntimeError(
+            f"Embedding step produced no vectors for {len(rows)} Train QA row(s)."
+        )
+    IngestVdbOperator(vdb=vdb)(records)
+    return len(records)
+
+
 def add_few_shot_examples(
     *,
     train_json: Path,
@@ -231,8 +285,6 @@ def add_few_shot_examples(
     Postgres and skipped, so repeated ingest runs are incremental. Questions
     are embedded verbatim because GSF main does not expose a masking API.
     """
-    from gsf.utils.embedding import embed_docs_into_vdb
-
     if not train_json.is_file():
         logger.info("Few-shot corpus not found at %s; skipping.", train_json)
         return 0
@@ -303,11 +355,10 @@ def add_few_shot_examples(
     written = 0
     for start in range(0, len(docs), batch_size):
         chunk = docs[start : start + batch_size]
-        written += embed_docs_into_vdb(
+        written += _embed_train_qa_docs(
             chunk,
             embed_params,
             vdb,
-            database_name=TRAIN_QA_DATABASE_NAME,
         )
         logger.info(
             "Few-shot enrichment progress: %d/%d",
@@ -718,6 +769,7 @@ SAVED_DESCRIPTION_FIELDS = (
     "column_attribute_description",
 )
 
+
 def saved_descriptions_csv_path(
     database_name: str,
     dataset: str | None = None,
@@ -1002,7 +1054,3 @@ def apply_saved_descriptions(
     total = len(column_writes) + len(attribute_writes)
     logger.info("Applied saved descriptions: %d node(s) written", total)
     return total
-
-
-
-
