@@ -22,10 +22,17 @@ import argparse
 import logging
 import os
 
-from dotenv import load_dotenv
-from gsf.semantic.compile import run_semantic_compilation
+from ontology_sql_eval.env import load_env
 
-load_dotenv()
+# Must run before any `gsf` import: gsf.retrieval.generate_sql calls its own
+# load_dotenv() at import time (no explicit path), which finds ../GSF*/.env
+# first and — since load_dotenv() never overrides already-set vars — silently
+# wins over this repo's .env for any var it defines (e.g. a stale
+# CONNECTION_STRINGS left in a sibling GSF checkout's .env). Loading ours
+# first ensures it wins the race instead.
+load_env()
+
+from gsf.semantic.compile import run_semantic_compilation  # noqa: E402
 
 logger = logging.getLogger(__name__)
 

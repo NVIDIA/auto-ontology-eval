@@ -83,8 +83,9 @@ def apply_metadata(database_name: str) -> None:
       present and non-empty)
 
     Tables/columns that aren't present in the graph are silently skipped
-    (the MATCH simply finds nothing). Properties for which the JSON has no
-    value are left untouched (``coalesce`` preserves the existing value).
+    (:func:`~gsf.dal.datasources.apply_metadata_batch`'s ``MATCH`` simply
+    finds nothing). Properties for which the JSON has no value are left
+    untouched (``coalesce`` preserves the existing value).
     """
     from gsf.dal.datasources import apply_metadata_batch
 
@@ -102,7 +103,7 @@ def apply_metadata(database_name: str) -> None:
         raw = json.load(f)
 
     table_rows: list[dict[str, str]] = []
-    column_rows: list[dict[str, str | list[str] | None]] = []
+    column_rows: list[dict[str, str | None]] = []
     samples_count = 0
     for table_name, table_meta in raw.items():
         table_desc = table_meta.get("description")
@@ -112,8 +113,12 @@ def apply_metadata(database_name: str) -> None:
         for col in table_meta.get("columns", []) or []:
             col_desc = col.get("description")
             value_examples = col.get("value_examples")
-            sample_values: list[str] | None = (
-                [str(v) for v in value_examples]
+            # Column.sample_values is stored as a JSON string, matching
+            # gsf.dal.datasources.store_column_sample_values (profiling's own
+            # writer) and gsf.utils.sample_values.parse_sample_values (the
+            # shared reader, which accepts either a JSON string or a list).
+            sample_values: str | None = (
+                json.dumps([str(v) for v in value_examples])
                 if isinstance(value_examples, list) and value_examples
                 else None
             )
@@ -152,13 +157,10 @@ def add_custom_analyses(
     """Ingest custom analyses for *database_name* into the Neo4j graph and the VDB.
 
     Reads ``<this dir>/<database_name>/custom_analyses.json`` — a list of
-    ``{"name", "description", "sql"}`` entries — and, for each entry:
-
-    * parses the SQL against the schemas already in the graph (via
-      :func:`parse_query_single`), which produces a :class:`Sql` node and the
-      corresponding ``Sql -> Table/Column`` edges;
-    * creates a :class:`CustomAnalysis` node with ``name`` and ``description``;
-    * connects ``CustomAnalysis -[:HAS_SQL]-> Sql``.
+    ``{"name", "description", "sql"}`` entries — and, for each entry, creates a
+    ``CustomAnalysis`` node linked to its parsed ``Sql`` node via
+    :func:`~gsf.server.custom_analyses.service.create_custom_analysis` (the
+    same write path the server's create-analysis endpoint uses).
 
     When *embed_params* and *vdb* are provided, the function then embeds
     each newly-ingested analysis (name + description + SQL) and **appends**
@@ -167,8 +169,11 @@ def add_custom_analyses(
     append semantics mean the main pipeline must run *before* this function.
 
     Entries with no SQL, or whose SQL doesn't resolve to any known table, are
-    skipped with a warning. Must be called *after* schema ingestion so the
-    parser can resolve table/column references.
+    skipped with a warning. An entry whose name or SQL already exists — e.g.
+    re-running ingest without resetting the store first — is treated as
+    already-ingested and skipped without a warning, so the script stays
+    re-runnable. Must be called *after* schema ingestion so the parser can
+    resolve table/column references.
     """
     from gsf.dal.custom_analyses import embed_custom_analyses
     from gsf.server.custom_analyses.service import (
@@ -215,6 +220,7 @@ def add_custom_analyses(
     ingested = skipped = 0
     for entry in analyses:
         name = entry.get("name", "")
+        description = entry.get("description", "")
         sql = (entry.get("sql") or "").strip()
         if not sql:
             logger.warning("Skipping custom analysis %r — no SQL provided.", name)
@@ -222,7 +228,7 @@ def add_custom_analyses(
         try:
             create_custom_analysis(
                 name=name,
-                description=entry.get("description", ""),
+                description=description,
                 sql=sql,
                 embed=not will_batch,
             )

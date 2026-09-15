@@ -755,7 +755,13 @@ class RunLogger:
         return time.perf_counter() - self._t0
 
     def event(self, kind: str, **fields: Any) -> None:
-        """Append one timeline record (monotonic offset from the run start)."""
+        """Append one timeline record (monotonic offset from the run start).
+
+        Never raises: both callers sit in ``_evaluate_question``'s ``finally``,
+        so a full disk or a closed handle here would propagate out through the
+        worker's future and abort the whole run -- instrumentation killing the
+        evaluation it exists to measure.
+        """
         ctx = current_question()
         record = {
             "t": round(self.elapsed, 4),
@@ -767,15 +773,28 @@ class RunLogger:
             **fields,
         }
         with self._write_lock:
-            self._events.write(json.dumps(record, default=str) + "\n")
-            self._events.flush()
+            self._write(self._events, record, "timeline event")
 
     def question(self, record: dict[str, Any]) -> None:
-        """Append one finished-question record."""
+        """Append one finished-question record. Never raises -- see ``event``."""
         with self._write_lock:
+            # Appended before the write so the summary still aggregates this
+            # question even if its jsonl line could not be persisted.
             self._question_records.append(record)
-            self._questions.write(json.dumps(record, default=str) + "\n")
-            self._questions.flush()
+            self._write(self._questions, record, "question record")
+
+    def _write(self, stream: Any, record: dict[str, Any], what: str) -> None:
+        """Serialize *record* onto *stream*. Caller holds ``_write_lock``."""
+        try:
+            stream.write(json.dumps(record, default=str) + "\n")
+            stream.flush()
+        except Exception:  # pragma: no cover - logging must never break the run
+            logging.getLogger(__name__).debug(
+                "failed to write %s to %s",
+                what,
+                getattr(stream, "name", stream),
+                exc_info=True,
+            )
 
     # -- logging wiring -------------------------------------------------
 

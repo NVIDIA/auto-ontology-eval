@@ -19,14 +19,24 @@ from __future__ import annotations
 import logging
 import os
 
-from dotenv import load_dotenv
-from gsf.ingestion_service.ingest import run_ingest as gsf_run_ingest
-from gsf.utils import get_embed_params
-from gsf.vdb import get_semantic_vdb
-from gsf.connectors.registry import create_connector
-from ontology_sql_eval.ingestion.enrich_graph import add_custom_analyses, apply_metadata
+from ontology_sql_eval.env import load_env
 
-load_dotenv()
+# Must run before any `gsf`/`ontology_sql_eval.ingestion.enrich_graph` import:
+# gsf.retrieval.generate_sql calls its own load_dotenv() at import time (no
+# explicit path), which finds ../GSF*/.env first and — since load_dotenv()
+# never overrides already-set vars — silently wins over this repo's .env for
+# any var it defines (e.g. a stale CONNECTION_STRINGS left in a sibling GSF
+# checkout's .env). Loading ours first ensures it wins the race instead.
+load_env()
+
+from gsf.ingestion_service.ingest import run_ingest as gsf_run_ingest  # noqa: E402
+from gsf.utils import get_embed_params  # noqa: E402
+from gsf.vdb import get_semantic_vdb  # noqa: E402
+from gsf.connectors.registry import create_connector  # noqa: E402
+from ontology_sql_eval.ingestion.enrich_graph import (  # noqa: E402
+    add_custom_analyses,
+    apply_metadata,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -39,26 +49,31 @@ def database_name_for(connection_string: str) -> str:
 def run_ingest(connection_string: str) -> None:
     """Extract the source schema into GSF's store and write embeddings."""
     connector = create_connector(connection_string)
-    database_name = connector.database_name
-    logger.info("Starting ingest for database %r", database_name)
+    try:
+        database_name = connector.database_name
+        logger.info("Starting ingest for database %r", database_name)
 
-    gsf_run_ingest(connector)
+        gsf_run_ingest(connector)
 
-    # After the catalog write, as before. Metadata never fed the embeddings --
-    # those are built from the frames the extract step returned, not re-read
-    # from the store -- so its position relative to embedding does not matter.
-    apply_metadata(database_name)
+        # After the catalog write, as before. Metadata never fed the embeddings
+        # -- those are built from the frames the extract step returned, not
+        # re-read from the store -- so its position relative to embedding does
+        # not matter.
+        apply_metadata(database_name)
 
-    embed_params = get_embed_params()
+        embed_params = get_embed_params()
 
-    # Custom analyses live in the semantic-layer collection, so they go through
-    # a dedicated semantic VDB rather than the tabular one the ingest wrote to.
-    add_custom_analyses(
-        database_name,
-        connector.dialect,
-        embed_params=embed_params,
-        vdb=get_semantic_vdb(database_name=database_name),
-    )
+        # Custom analyses live in the semantic-layer collection, so they go
+        # through a dedicated semantic VDB rather than the tabular one the
+        # ingest wrote to.
+        add_custom_analyses(
+            database_name,
+            connector.dialect,
+            embed_params=embed_params,
+            vdb=get_semantic_vdb(database_name=database_name),
+        )
+    finally:
+        connector.close()
 
 
 if __name__ == "__main__":

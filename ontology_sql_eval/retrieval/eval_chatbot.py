@@ -58,13 +58,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
-from dotenv import load_dotenv
+from ontology_sql_eval.env import load_env
 
 # Must run before the GSF imports below: ``gsf.retrieval.text_to_sql.main``
 # builds its LLM client at import time and raises if the credentials are not
 # already in ``os.environ``. Loading .env afterwards is too late for a plain
 # ``python -m`` run (VS Code masked this by injecting ``envFile`` itself).
-load_dotenv()
+load_env()
 
 from gsf.retrieval.text_to_sql import main as gsf_agent_main  # noqa: E402
 from gsf.retrieval.text_to_sql.main import stream_agent_response  # noqa: E402
@@ -675,10 +675,19 @@ def _sort_csv_by_row_index(path: Path) -> None:
             return 0
 
     rows.sort(key=key)
-    with path.open("w", encoding="utf-8", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)
+    # Via a sibling temp file rather than reopening *path* with "w": truncating
+    # in place puts the only copy of an expensive run's results in memory, so an
+    # interrupt between the truncate and the writerows loses all of them.
+    tmp = path.with_name(path.name + ".sorted.tmp")
+    try:
+        with tmp.open("w", encoding="utf-8", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
 
 
 def _log_summary(summary: Dict[str, Any]) -> None:

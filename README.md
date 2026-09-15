@@ -203,6 +203,13 @@ seeded from pre-generated DDL + CSVs. See
 **[datasets/wideworldimporters/README.md](datasets/wideworldimporters/README.md)**
 for how to seed the database and run the full pipeline.
 
+### BIRD-Interact
+
+Runs against Lite (~300 tasks / 18 DBs) and Full (600 tasks / 22 DBs)
+BIRD-Interact, c-Interact mode only, query-category tasks only. See
+**[BIRD_INTERACT_README.md](BIRD_INTERACT_README.md)** for seeding, GT,
+running, and results.
+
 The schemas below (`evaluation.json`, `metadata.json`, `custom_analyses.json`)
 are generic across datasets; the examples use `wideworldimporters` throughout.
 
