@@ -52,3 +52,20 @@ venv/
 # Cursor / Claude Code local agent-plan and session state — machine-specific, never commit.
 .cursor/
 .claude/projects/
+
+# NeMo Gym: generated artifacts, not sources.
+# Task JSONL is rebuilt deterministically by scripts/build_gym_tasks.py and
+# embeds full schema dumps, so it is large and regenerable.
+# Full task splits are regenerable by scripts/build_gym_tasks.py and embed whole
+# schema dumps. Following NeMo Gym's own convention (see any bundled server's
+# data/.gitignore), the full splits are ignored but a 5-row example.jsonl is
+# committed -- `gym env test` requires one.
+resources_servers/*/data/*
+!resources_servers/*/data/example.jsonl
+!resources_servers/*/data/example_metrics.json
+!resources_servers/*/data/example_rollouts.jsonl
+# Rollouts, aggregate metrics and materialized inputs from `gym eval run`.
+runs/
+# bird60 is a locally-built BIRD subset; see scripts/build_gym_tasks.py --limit
+# and datasets/bird60/build_bird60.py on branch benchmark-results-run4-run5.
+datasets/bird60/

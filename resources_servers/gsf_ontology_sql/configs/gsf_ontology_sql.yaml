@@ -1,0 +1,41 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES.
+# All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Treatment arm: GSF's ontology-grounded LangGraph agent, wrapped opaquely.
+# Graded by the same execution-match verifier as the schema-only control.
+
+gsf_ontology_sql_resources_server:
+  resources_servers:
+    gsf_ontology_sql:
+      entrypoint: app.py
+      datasets_dir: datasets
+      # Sized against the model endpoint's rate limit, not CPU. See app.py.
+      max_concurrency: 3
+      sql_execution_timeout_s: 30.0
+      domain: coding
+      verified: false
+      description: >-
+        Ontology-grounded text-to-SQL. GSF's agent retrieves its own schema,
+        join paths and semantic hints; binary reward from unordered result-set
+        equality against the same databases as the control arm.
+      value: >-
+        Measures how much ontology grounding adds over a schema-only baseline.
+
+gsf_ontology_sql_simple_agent:
+  responses_api_agents:
+    simple_agent:
+      entrypoint: app.py
+      resources_server:
+        type: resources_servers
+        name: gsf_ontology_sql_resources_server
+      model_server:
+        type: responses_api_models
+        name: policy_model
+      datasets:
+        # `type` is the split gym selects with --split. Use `validation`: the
+        # `benchmark` type demands a prepare_script/prompt_config we do not need.
+        - name: bird60
+          type: validation
+          jsonl_fpath: resources_servers/gsf_ontology_sql/data/bird60.jsonl
+          license: Creative Commons Attribution-ShareAlike 4.0 International

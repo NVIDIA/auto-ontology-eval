@@ -1,0 +1,181 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES.
+# All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+"""Convert the eval datasets into NeMo Gym task records.
+
+Our datasets are JSON *arrays* (``datasets/<name>/evaluation.json``); Gym wants
+JSONL where each line carries the prompt under ``responses_create_params`` plus
+whatever extra fields the resources server's verify request declares. The record
+shape here deliberately mirrors Gym's own ``bird_sql`` environment
+(``question`` / ``gt_sql`` / ``sql_context`` / ``difficulty`` / ``db_id`` / ``id``)
+so our numbers stay comparable to the published ones.
+
+One JSONL is built per (dataset, arm). The arms differ only in what the prompt
+contains:
+
+* ``schema_only`` -- the full schema dump is inlined, and the model answers in
+  one shot. This is the control.
+* ``gsf`` -- only the question travels; grounding is retrieved by GSF behind a
+  tool call, so inlining a schema would defeat the comparison.
+"""
+
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Iterator, Literal
+
+from ontology_sql_eval.gym.ddl import (
+    column_description_block,
+    postgres_schema_dump,
+    sqlite_schema_dump,
+)
+
+Arm = Literal["schema_only", "gsf"]
+
+SYSTEM_PROMPT = (
+    "Please reason step by step, and put your final answer within the tags "
+    '"```sql" and "```".'
+)
+
+__all__ = ["DATASETS", "DatasetSpec", "build_records", "write_jsonl", "load_questions"]
+
+
+@dataclass(frozen=True)
+class DatasetSpec:
+    """Where a dataset's questions, databases and schema live."""
+
+    name: str
+    dialect: str
+    # bird60 reuses BIRD's databases, so the questions and the databases can
+    # live in different directories.
+    db_root: str
+
+    @property
+    def evaluation_json(self) -> Path:
+        return Path("datasets") / self.name / "evaluation.json"
+
+    def sqlite_path(self, db_id: str) -> Path:
+        return Path("datasets") / self.db_root / db_id / f"{db_id}.sqlite"
+
+    def description_dir(self, db_id: str) -> Path:
+        return Path("datasets") / self.db_root / db_id / "database_description"
+
+
+DATASETS: dict[str, DatasetSpec] = {
+    "bird": DatasetSpec("bird", "sqlite", "bird"),
+    "bird60": DatasetSpec("bird60", "sqlite", "bird"),
+    "fdabench": DatasetSpec("fdabench", "sqlite", "fdabench"),
+    "wideworldimporters": DatasetSpec(
+        "wideworldimporters", "postgres", "wideworldimporters"
+    ),
+}
+
+
+def load_questions(spec: DatasetSpec, root: Path) -> list[dict[str, Any]]:
+    """Read a dataset's ``evaluation.json`` (a JSON array, not JSONL)."""
+    path = root / spec.evaluation_json
+    with path.open() as fh:
+        data = json.load(fh)
+    if not isinstance(data, list):
+        raise ValueError(f"{path} is not a JSON array")
+    return data
+
+
+def _schema_for(spec: DatasetSpec, root: Path, db_id: str, descriptions: bool) -> str:
+    """Build the schema text for one database, cached by the caller."""
+    if spec.dialect == "postgres":
+        return postgres_schema_dump(root / "datasets" / spec.db_root / "ddl")
+
+    dump = sqlite_schema_dump(root / spec.sqlite_path(db_id))
+    if not descriptions:
+        return dump
+    block = column_description_block(root / spec.description_dir(db_id))
+    return f"{dump}\n\n{block}" if block else dump
+
+
+def _user_prompt(question: str, evidence: str, dialect: str, schema: str | None) -> str:
+    """Assemble the user turn.
+
+    ``schema`` is ``None`` for the GSF arm, which retrieves its own grounding.
+    The dialect is always stated: unlike upstream's BIRD-only environment our
+    corpora span SQLite and Postgres, and the model cannot infer which from the
+    question alone.
+    """
+    parts = [f"### Question\n{question}"]
+    if evidence:
+        parts.append(f"### Evidence\n{evidence}")
+    parts.append(f"Write a single {dialect} query that answers the question.")
+    if schema is not None:
+        parts.append(
+            "The following is a SQL dump that describes the database and the "
+            f"tables in it.\n{schema}"
+        )
+    return "\n\n".join(parts)
+
+
+def build_records(
+    spec: DatasetSpec,
+    root: Path,
+    arm: Arm,
+    *,
+    descriptions: bool = True,
+    limit: int | None = None,
+) -> Iterator[dict[str, Any]]:
+    """Yield one Gym task record per question."""
+    questions = load_questions(spec, root)
+    if limit is not None:
+        questions = questions[:limit]
+
+    schema_cache: dict[str, str] = {}
+    for index, q in enumerate(questions):
+        db_id = q["db_id"]
+        schema: str | None = None
+        if arm == "schema_only":
+            if db_id not in schema_cache:
+                schema_cache[db_id] = _schema_for(spec, root, db_id, descriptions)
+            schema = schema_cache[db_id]
+
+        question = q["question"]
+        evidence = (q.get("evidence") or "").strip()
+        # question_id is an int on BIRD/WWI but a string like "FDA0002" on
+        # FDABench, so the joinable key is always rendered as text.
+        raw_id = q.get("question_id", index)
+
+        yield {
+            "responses_create_params": {
+                "input": [
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {
+                        "role": "user",
+                        "content": _user_prompt(
+                            question, evidence, spec.dialect, schema
+                        ),
+                    },
+                ]
+            },
+            "task_id": f"{spec.name}-{raw_id}",
+            "question": question,
+            "gt_sql": q["SQL"],
+            "sql_context": schema or "",
+            "difficulty": q.get("difficulty") or "",
+            "db_id": db_id,
+            "dataset": spec.name,
+            "dialect": spec.dialect,
+            "evidence": evidence,
+            "answer_raw": q.get("answer_raw") or "",
+            "id": raw_id,
+        }
+
+
+def write_jsonl(records: Iterator[dict[str, Any]], path: Path) -> int:
+    """Write records as JSONL, returning the count."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    n = 0
+    with path.open("w") as fh:
+        for rec in records:
+            fh.write(json.dumps(rec) + "\n")
+            n += 1
+    return n

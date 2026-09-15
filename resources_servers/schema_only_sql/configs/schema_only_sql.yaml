@@ -1,0 +1,40 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES.
+# All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Control arm: single-shot text-to-SQL from a raw schema dump, no retrieval and
+# no ontology. Execution-match reward against the dataset's own database.
+
+schema_only_sql_resources_server:
+  resources_servers:
+    schema_only_sql:
+      entrypoint: app.py
+      datasets_dir: datasets
+      max_concurrency: 32
+      sql_execution_timeout_s: 30.0
+      domain: coding
+      verified: false
+      description: >-
+        Schema-only text-to-SQL control arm. The model sees the question and a
+        raw schema dump; binary reward from unordered result-set equality.
+      value: >-
+        Establishes the no-ontology baseline that GSF's ontology grounding is
+        measured against.
+
+schema_only_sql_simple_agent:
+  responses_api_agents:
+    simple_agent:
+      entrypoint: app.py
+      resources_server:
+        type: resources_servers
+        name: schema_only_sql_resources_server
+      model_server:
+        type: responses_api_models
+        name: policy_model
+      datasets:
+        # `type` is the split gym selects with --split. Use `validation`: the
+        # `benchmark` type demands a prepare_script/prompt_config we do not need.
+        - name: bird60
+          type: validation
+          jsonl_fpath: resources_servers/schema_only_sql/data/bird60.jsonl
+          license: Creative Commons Attribution-ShareAlike 4.0 International

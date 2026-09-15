@@ -1,0 +1,20 @@
+# Gym builds this server its own venv from this file.
+#
+# This arm imports GSF in-process, so it needs the parent project's dependency
+# set (GSF's runtime deps are mirrored there). `-e ../..` installs it editable.
+#
+# GSF itself is not here: it is not yet an installable package, so it arrives via
+# PYTHONPATH (see scripts/run_gym_arm.sh). When GSF becomes installable it
+# becomes an ordinary line in this file and the PYTHONPATH export goes away.
+#
+# The [tool.uv] override-dependencies in the parent pyproject lifts
+# nemo-retriever's stale prometheus-fastapi-instrumentator<8 cap, which would
+# otherwise pin starlette<1.0.0 and collide with nemo-gym's ray[serve]. That
+# table is not read by the `uv pip install` Gym generates here, so
+# scripts/run_gym_arm.sh also exports UV_OVERRIDE.
+-e ../..
+
+# Listed explicitly: Gym decides whether to install nemo-gym by looking for a
+# pyproject.toml two levels up, finds this repo's, and wrongly concludes it is
+# an editable Gym checkout.
+nemo-gym==0.6.0

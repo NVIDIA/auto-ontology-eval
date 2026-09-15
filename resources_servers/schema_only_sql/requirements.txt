@@ -1,0 +1,13 @@
+# Gym builds this server its own venv from this file.
+#
+# Deliberately does NOT install the parent ontology_sql_eval package: that would
+# pull in nemo-retriever, whose starlette<1.0.0 pin is incompatible with
+# nemo-gym's ray[serve] (starlette>=1.0.1). The shared modules under
+# ontology_sql_eval/gym/ are stdlib-only and are reached via PYTHONPATH instead.
+psycopg[binary]
+
+# nemo-gym is listed explicitly: Gym decides whether to install it for us by
+# checking for a pyproject.toml two levels up, which finds *this repo's*
+# pyproject rather than a Gym checkout, so it wrongly assumes an editable Gym
+# install and skips it.
+nemo-gym==0.6.0
