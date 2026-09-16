@@ -61,10 +61,9 @@ def run_semantic(
     belong to are what the compile creates. (Custom analyses need no such wait and
     are ingested during ingest.)
 
-    When the physical database and benchmark have the same name, callers may
-    omit *benchmark_name*.
+    When *benchmark_name* is omitted, annotation resolution searches every
+    benchmark folder for a matching saved description set.
     """
-    benchmark_name = benchmark_name or database_name
     logger.info("Compiling semantic layer for %s", database_name)
     result = run_semantic_compilation(database_name)
     apply_saved_descriptions(database_name, benchmark_name)
