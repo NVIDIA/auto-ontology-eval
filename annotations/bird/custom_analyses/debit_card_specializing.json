@@ -1,0 +1,7 @@
+[
+  {
+    "name": "Yearmonth YYYYMM Key",
+    "description": "yearmonth.Date is an integer-like YYYYMM string such as '201201' for January 2012 \u2014 NOT '2012-01-01' and NOT '2012-01'. transactions_1k.Date stays ISO 'YYYY-MM-DD'. When joining spend-by-month to a transaction day, filter yearmonth.Date with YYYYMM. When a question first identifies a customer indirectly \u2014 'for the customer who paid 124.05 on 2012/8/24, how much did he/she spend during January 2012, and what is the date and expenses exactly' \u2014 the answer projects the identifying CustomerID alongside the requested measures, because the customer is part of the answer and not only a filter. Keep transactions_1k as the identifying table, join yearmonth on CustomerID, and project CustomerID, yearmonth.Date and yearmonth.Consumption. Related phrasings: January 2012, yearmonth, consumption by month, YYYYMM, for the customer who, how much did he/she spend, what is the date and expenses exactly, which customer.",
+    "sql": "SELECT T1.CustomerID, T2.Date, T2.Consumption FROM transactions_1k AS T1 INNER JOIN yearmonth AS T2 ON T1.CustomerID = T2.CustomerID WHERE T1.Date = '2012-08-24' AND T1.Price = 124.05 AND T2.Date = '201201'"
+  }
+]
