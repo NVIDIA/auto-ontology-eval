@@ -2,7 +2,7 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Download BIRD evaluation split(s) (Mini-Dev / Dev).
+"""Download BIRD evaluation split(s) and the Dev training corpus.
 
 Fetches the official zip(s) for one or more BIRD splits and writes::
 
@@ -10,18 +10,21 @@ Fetches the official zip(s) for one or more BIRD splits and writes::
     datasets/bird/dev/<db_id>/<db_id>.sqlite      # evaluation databases
     datasets/bird/dev/<db_id>/database_description/*.csv
     datasets/bird/dev/<db_id>/metadata.json       # derived column descriptions
+    datasets/bird/train/train.json                # Train Q/evidence/SQL rows
 
 Mini-Dev / Dev SQLite DBs land under ``dev/`` and drive evaluation.
+Selecting Dev also stores the Train questions under ``train/`` for future
+few-shot use; Train databases are not installed.
 
 The per-database ``metadata.json`` is derived from BIRD's own
 ``database_description/*.csv`` files and written in the shape consumed by the
 ingest enrichment step (``enrich_graph.apply_metadata``), so column meanings /
 value descriptions reach the text-to-SQL prompt at eval time.
 
-Two splits are available via ``--splits`` (default: ``dev``):
+Two evaluation splits are available via ``--splits`` (default: ``dev``):
 
 - ``mini-dev`` — 500 questions, 11 SQLite DBs under ``dev/``.
-- ``dev`` — the full 1,534-question Dev split, same 11 DBs under ``dev/``.
+- ``dev`` — the full 1,534-question Dev split plus the 9,428-row Train corpus.
 
 Usage::
 
@@ -115,6 +118,12 @@ _SPLITS: dict[str, _SplitConfig] = {
     ),
 }
 
+_TRAIN_CONFIG = _SplitConfig(
+    url="https://bird-bench.oss-cn-beijing.aliyuncs.com/train.zip",
+    archive_name="train.zip",
+    json_names=("train.json",),
+)
+
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
@@ -133,11 +142,14 @@ def _eval_db_root(dest: Path) -> Path:
     return dest / "dev"
 
 
+def _train_root(dest: Path) -> Path:
+    """Train question rows live under ``datasets/bird/train/``."""
+    return dest / "train"
+
+
 def _is_macos_junk(path: Path) -> bool:
     """True for AppleDouble / ``__MACOSX`` sidecar paths."""
-    return "__MACOSX" in path.parts or any(
-        part.startswith("._") for part in path.parts
-    )
+    return "__MACOSX" in path.parts or any(part.startswith("._") for part in path.parts)
 
 
 def _download(url: str, dest_path: Path, *, force: bool = False) -> None:
@@ -193,6 +205,26 @@ def _extract(archive_path: Path, extract_dir: Path) -> None:
     logger.info("Extraction complete.")
 
 
+def _extract_train_questions(archive_path: Path, extract_dir: Path) -> None:
+    """Extract only ``train.json`` and skip the Train database archives."""
+    logger.info("Extracting Train questions from %s ...", archive_path.name)
+    with zipfile.ZipFile(archive_path, "r") as zf:
+        members = [
+            name
+            for name in zf.namelist()
+            if Path(name).name == "train.json" and not _is_macos_junk(Path(name))
+        ]
+        if not members:
+            raise RuntimeError(
+                f"No train.json found in {archive_path}. "
+                "The archive layout may have changed."
+            )
+        for name in members:
+            zf.extract(name, extract_dir)
+            logger.info("  extracted %s", name)
+    logger.info("Train question extraction complete.")
+
+
 def _extract_nested_zips(root: Path) -> None:
     """Recursively extract any nested zip archives found under *root*.
 
@@ -205,9 +237,7 @@ def _extract_nested_zips(root: Path) -> None:
         # Skip AppleDouble / __MACOSX sidecar stubs (e.g. ._train_databases.zip),
         # which match *.zip but are not valid archives.
         nested = [
-            p
-            for p in root.rglob("*.zip")
-            if p not in seen and not _is_macos_junk(p)
+            p for p in root.rglob("*.zip") if p not in seen and not _is_macos_junk(p)
         ]
         if not nested:
             return
@@ -376,7 +406,9 @@ def _organize_extracted(extract_dir: Path, dest: Path) -> list[str]:
     return sorted(set(db_ids))
 
 
-def _load_eval_rows(extract_dir: Path, json_names: tuple[str, ...]) -> list[dict[str, Any]]:
+def _load_eval_rows(
+    extract_dir: Path, json_names: tuple[str, ...]
+) -> list[dict[str, Any]]:
     """Load a split's question JSON, trying *json_names* in order.
 
     BIRD ships one question JSON per split (``mini_dev_sqlite.json``,
@@ -425,6 +457,15 @@ def _write_evaluation_file(dest: Path, rows: list[dict[str, Any]]) -> None:
     with eval_path.open("w") as f:
         json.dump(rows, f, indent=2)
     logger.info("  evaluation.json (%d question(s))", len(rows))
+
+
+def _write_train_file(dest: Path, rows: list[dict[str, Any]]) -> None:
+    """Preserve complete BIRD Train rows for future few-shot retrieval."""
+    dest.mkdir(parents=True, exist_ok=True)
+    train_path = dest / "train.json"
+    with train_path.open("w", encoding="utf-8") as f:
+        json.dump(rows, f, indent=2, ensure_ascii=False)
+    logger.info("  train/train.json (%d question(s))", len(rows))
 
 
 def _cleanup_legacy_flat_layout(dest: Path) -> None:
@@ -544,6 +585,8 @@ def _print_summary(
     logger.info("  Eval DBs    : %s (%d)", eval_root, len(db_ids))
     for db_id in db_ids:
         logger.info("    - %s", db_id)
+    if "dev" in splits:
+        logger.info("  Train Qs    : %s/train.json", _train_root(dest))
     logger.info("=" * 60)
 
     if not db_ids:
@@ -625,6 +668,25 @@ def download_bird(
         elif keep_archive:
             logger.info("Kept cached archive at %s", archive_path)
 
+    if "dev" in split_names:
+        train_archive = _archive_cache_path(target, _TRAIN_CONFIG.archive_name)
+        logger.info("--- Training corpus (included with Dev) ---")
+        _download(_TRAIN_CONFIG.url, train_archive, force=force)
+        with tempfile.TemporaryDirectory(prefix="bird_train_") as tmp:
+            extract_dir = Path(tmp)
+            _extract_train_questions(train_archive, extract_dir)
+            train_rows = _load_eval_rows(extract_dir, _TRAIN_CONFIG.json_names)
+            if train_rows:
+                _write_train_file(_train_root(target), train_rows)
+            else:
+                logger.warning("No Train rows collected; train/train.json not written.")
+
+        if not keep_archive and train_archive.exists():
+            train_archive.unlink()
+            logger.info("Removed cached archive %s", train_archive)
+        elif keep_archive:
+            logger.info("Kept cached archive at %s", train_archive)
+
     if evaluation_rows:
         _write_evaluation_file(target, evaluation_rows)
     else:
@@ -643,13 +705,14 @@ def download_bird(
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Download BIRD evaluation split(s) (mini-dev / dev) and populate "
-            "datasets/bird/dev/ plus evaluation.json."
+            "Download BIRD evaluation split(s) (mini-dev / dev). Dev also "
+            "installs the Train question corpus."
         ),
         epilog=(
             f"mini-dev source (corrected 2025-07-04 set): {GOOGLE_DRIVE_URL}\n"
             f"mini-dev legacy Aliyun OSS mirror (stale 2024 data): {LEGACY_OSS_URL}\n"
             f"dev source: {_SPLITS['dev'].url}\n"
+            f"train source (included with dev): {_TRAIN_CONFIG.url}\n"
             "Pass --url to override the URL for a single --splits value "
             "(e.g. to host a local copy of the zip)."
         ),
@@ -663,7 +726,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help=(
             "Which BIRD split(s) to install (default: "
             f"{DEFAULT_SPLIT}). mini-dev/dev write SQLite under "
-            "datasets/bird/dev/ and evaluation.json."
+            "datasets/bird/dev/ and evaluation.json; dev also writes "
+            "datasets/bird/train/train.json."
         ),
     )
     parser.add_argument(

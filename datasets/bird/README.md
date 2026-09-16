@@ -5,11 +5,11 @@
 [BIRD](https://bird-bench.github.io/) is a large-scale cross-domain Text-to-SQL
 benchmark. [scripts/seed_bird.py](../../scripts/seed_bird.py) installs the full
 official **Dev** split by default (1,534 questions over 11 SQLite databases) and
-can also install the cheaper **Mini-Dev** subset. The repo additionally ships the
-official EX/VES scoring script
-ported from the BIRD repo. Unlike WideWorldImporters, BIRD's source DBs are
-SQLite files (no Postgres seeding step) and each question carries its own
-`db_id`, routing to the matching connector at eval time.
+its Train question corpus, or can install the cheaper **Mini-Dev** subset alone.
+The repo additionally ships the official EX/VES scoring script ported from the
+BIRD repo. Unlike WideWorldImporters, BIRD's source DBs are SQLite files (no
+Postgres seeding step) and each question carries its own `db_id`, routing to the
+matching connector at eval time.
 
 > **Nothing you want to keep belongs in this folder.** Everything under
 > `datasets/bird/` except this README and `.gitkeep` is gitignored and replaced
@@ -27,8 +27,13 @@ uv run python scripts/seed_bird.py --splits mini-dev    # 500-Q subset of the sa
 
 | Split      | Questions | Databases installed | Role                                                                                       |
 | ---------- | --------: | ------------------- | ------------------------------------------------------------------------------------------ |
-| `dev`      |     1,534 | 11                  | Default. The official Dev split behind the BIRD leaderboard; becomes `evaluation.json`.    |
+| `dev`      |     1,534 | 11                  | Default evaluation split; also downloads the Train question corpus.                        |
 | `mini-dev` |       500 | 11 (the same DBs)   | Cheap/fast subset for day-to-day development; also becomes `evaluation.json`.              |
+| Train      |     9,428 | none                | Stored as `train/train.json` when Dev is selected; reserved for future few-shot retrieval.  |
+
+Train contributes no connection strings and installs no databases. Its database
+set is disjoint from Dev, so the seeder retains only complete question,
+evidence, and SQL rows.
 
 Only the SQLite dialect is kept (the MySQL/PostgreSQL question JSONs and the
 `*_gold.sql` / `*_tables.json` files are ignored). Options: `--splits` (one or
@@ -51,6 +56,7 @@ datasets/bird/
   dev/<db_id>/<db_id>.sqlite               # one evaluation database per db_id
   dev/<db_id>/database_description/*.csv   # BIRD's own column annotations
   dev/<db_id>/metadata.json                # derived from those CSVs (ingestion enrichment)
+  train/train.json                         # Train corpus, included with Dev
   subsets/<name>.json                      # optional hand-picked question slices (see below)
 
 annotations/bird/                          # tracked, outside the download
