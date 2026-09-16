@@ -245,6 +245,39 @@ def test_run_session_submit_only():
     assert state["total_reward"] == 1.0
 
 
+def test_run_session_treats_null_reward_as_zero():
+    mock_sess = MagicMock()
+    submit_result = {"reward": None, "phase_completed": 1, "message": "no score"}
+
+    with (
+        patch.object(server_mod, "_DATA_RETRIEVER", MagicMock()),
+        patch.object(server_mod, "_SEMANTIC_RETRIEVER", MagicMock()),
+        patch.object(server_mod, "_CONNECTORS", {"alien": [MagicMock()]}),
+        patch.object(server_mod, "gsf_create_session", return_value=mock_sess),
+        patch.object(
+            server_mod, "gsf_step", MagicMock(return_value=SubmitSQLAction("SELECT 1"))
+        ),
+        patch.object(server_mod, "gsf_apply_submit_result", MagicMock()),
+        patch(
+            "ontology_sql_eval.bird_interact.bird_interact_http.submit_sql",
+            AsyncMock(return_value=submit_result),
+        ),
+        patch.object(app.router, "lifespan_context", _noop_lifespan),
+    ):
+        with TestClient(app) as client:
+            client.post(
+                "/init_session",
+                json={"task_id": "task-null-reward", "state": {"db_name": "alien"}},
+            )
+            resp = client.post(
+                "/run_session",
+                json={"task_id": "task-null-reward", "message": "Find all aliens"},
+            )
+
+    assert resp.status_code == 200
+    assert resp.json()["state"]["total_reward"] == 0.0
+
+
 def test_run_session_fails_loud_on_known_p1snap_collision():
     """The ADK p1snap name-collision signature should be unreachable now that
     scripts/start_bird_services.sh mandatorily patches ADK before it starts
@@ -466,7 +499,10 @@ def test_next_turn_type_threaded_as_debug_with_error():
             # with the question extracted from this same message.
             client.post(
                 "/run_session",
-                json={"task_id": "task-006", "message": "User Query:\nFind all aliens\n\n"},
+                json={
+                    "task_id": "task-006",
+                    "message": "User Query:\nFind all aliens\n\n",
+                },
             )
             first_call_kwargs = step_mock.call_args.kwargs
             assert first_call_kwargs["turn_type"] == server_mod.TurnType.INITIAL
