@@ -27,7 +27,9 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@v7
         with:
-          python-version: '3.12'
+          # Must satisfy requires-python (>=3.13.14): nemo-gym 0.6.0, which the
+          # Gym benchmark environments depend on, does not support 3.12.
+          python-version: '3.13'
           enable-cache: true
 
       - name: Install dependencies
