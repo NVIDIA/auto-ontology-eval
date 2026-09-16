@@ -118,6 +118,16 @@ _LOG_DIR = _REPO_ROOT / "logs"
 
 _DEFAULT_MODEL_NAME = os.environ.get("MODEL_NAME", "nemotron")
 
+# BEAVER "setting 0" runs must withhold the dataset's domain-knowledge
+# evidence; the official leaderboard's end-to-end column provides only the
+# question. Default keeps evidence (BIRD-style).
+_INCLUDE_EVIDENCE = os.environ.get("EVAL_INCLUDE_EVIDENCE", "1") not in (
+    "0",
+    "false",
+    "False",
+)
+
+
 # Whether this GSF build accepts BIRD-style evidence as its own payload field
 # (added in "Evidence as parameter", #226) rather than requiring it to be glued
 # onto the question text. Probed rather than assumed so one eval checkout works
@@ -523,7 +533,7 @@ def _evaluate_question(
 
     # Each question may carry its own db_id / evidence; both are optional so
     # single-dataset eval files without them still work.
-    evidence = item.get("evidence", "")
+    evidence = item.get("evidence", "") if _INCLUDE_EVIDENCE else ""
     db_id = item.get("db_id", "")
     # Newer GSF takes evidence as its own payload field and uses it to refine
     # entity extraction, leaving the question text clean. Older builds have no

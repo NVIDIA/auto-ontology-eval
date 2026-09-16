@@ -80,7 +80,14 @@ def stage_ingest(benchmark_name: str) -> None:
 
 
 def stage_semantic(benchmark_name: str) -> None:
-    """Compile semantic layers and apply this benchmark's saved descriptions."""
+    """Compile semantic layers and apply this benchmark's saved descriptions.
+
+    Compilation is keyed by the *connector's* database name, which is what the
+    ingest stage wrote onto the graph. That differs from the dataset folder name
+    whenever a benchmark bundles differently-named databases (e.g. dataset
+    ``beaverbench`` over database ``dw``), so ``--database-name`` is only used as
+    a fallback when no connection strings are configured.
+    """
     _banner(2, "Semantic compile (ingestion.semantic)")
     from ontology_sql_eval.ingestion.semantic import run_semantic
 

@@ -56,6 +56,18 @@
       "justMyCode": false
     },
     {
+      "name": "Seed local BEAVER",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/seed_beaverbench.py",
+      "args": ["--import-mysql"],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "envFile": "${workspaceFolder}/.env",
+      "justMyCode": false
+    },
+    {
       "name": "Judge (score CSVs)",
       "type": "debugpy",
       "request": "launch",
