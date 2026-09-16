@@ -1,0 +1,34 @@
+Fix: create_task_db() name-truncation collision (labor_certification_applications
+phase-2 snapshot). See ontology_sql_eval/bird_interact/known_issues.py for the
+full evidence trail. Postgres truncates identifiers over 63 bytes; for long
+base_db/task_id combos this made the phase-1 task DB and its "__p1snap" phase-2
+snapshot resolve to the identical name, so createdb always failed and phase 2
+was silently graded against phase 1's solution instead of the follow-up's.
+Applied automatically by scripts/start_services.sh — safe to re-run.
+
+--- a/shared/db_utils.py
++++ b/shared/db_utils.py
+@@ -1,5 +1,6 @@
+ """Database utilities ported from BIRD-Interact evaluation code."""
+ 
++import hashlib
+ import json
+ import logging
+ import os
+@@ -136,6 +137,16 @@
+     """
+     safe_id = task_id.replace("-", "_").replace(".", "_")
+     task_db = f"{base_db}__{safe_id}"
++    # Postgres silently truncates identifiers over NAMEDATALEN (63 bytes).
++    # Left unguarded, two different (base_db, task_id) pairs whose "{base_db}__{task_id}"
++    # both exceed 63 chars can truncate to the *same* string (e.g. a task_id of
++    # "p1snap" appended to an already-63+-char task_db resolves to an identical
++    # name, so `createdb --template X X` fails every time). Deterministically
++    # hash-truncate instead of relying on Postgres's silent truncation, so the
++    # result stays unique and ≤63 bytes regardless of base_db/task_id length.
++    if len(task_db) > 63:
++        h = hashlib.sha1(task_db.encode()).hexdigest()[:8]
++        task_db = task_db[:54] + "_" + h
+     template_db = template or f"{base_db}_template"
+     _drop_and_create_db(task_db, template_db)
+     return task_db

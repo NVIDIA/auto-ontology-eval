@@ -34,9 +34,9 @@ from gsf.utils.embedding_rows import CatalogEmbeddingRowsOp
 
 from gsf.vdb import get_data_vdb
 
-from dotenv import load_dotenv
+from ontology_sql_eval.env import load_env
 
-load_dotenv()
+load_env()
 
 logger = logging.getLogger(__name__)
 

@@ -22,13 +22,13 @@ import argparse
 import logging
 import os
 from contextlib import nullcontext
-from pathlib import Path
 
-from dotenv import load_dotenv
+from ontology_sql_eval.env import load_env
 
 # ruff: noqa: E402 - GSF imports must follow environment bootstrap.
-# Load this repository's environment before importing GSF modules that read it.
-load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+# Load this repository's environment before importing GSF modules that read it,
+# while retaining GSF's environment as a fallback.
+load_env()
 
 from gsf.catalog import ingest_catalog
 from gsf.connectors.registry import create_connector

@@ -25,17 +25,19 @@ from __future__ import annotations
 import argparse
 import logging
 import os
-from pathlib import Path
 
-from dotenv import load_dotenv
+from ontology_sql_eval.env import load_env
 
 # ruff: noqa: E402 - GSF imports must follow environment bootstrap.
-# Load this repository's environment before importing GSF modules that read it.
-load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+# Load this repository's environment before importing GSF modules that read it,
+# while retaining GSF's environment as a fallback.
+load_env()
 
 from gsf.semantic.compile import run_semantic_compilation  # noqa: E402
 
-from ontology_sql_eval.ingestion.enrich_graph import apply_saved_descriptions
+from ontology_sql_eval.ingestion.enrich_graph import (  # noqa: E402
+    apply_saved_descriptions,
+)
 
 logger = logging.getLogger(__name__)
 
