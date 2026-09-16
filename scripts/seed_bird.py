@@ -530,7 +530,7 @@ def _migrate_legacy_flat_layout(dest: Path) -> None:
                     leftover_history.unlink()
                 moved_dev += 1
 
-        shutil.rmtree(child)
+            shutil.rmtree(child)
 
     if moved_dev:
         logger.info(

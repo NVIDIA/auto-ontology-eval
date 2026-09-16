@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -63,6 +64,36 @@ class SeedBirdTrainCorpusTest(unittest.TestCase):
         self.assertEqual(download.call_count, 1)
         extract_train.assert_not_called()
         write_train.assert_not_called()
+
+
+class SeedBirdLegacyMigrationTest(unittest.TestCase):
+    def test_migration_preserves_unrecognized_directories(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            dest = Path(tmp)
+            (dest / "evaluation.json").write_text(
+                json.dumps([{"db_id": "bird_db"}]), encoding="utf-8"
+            )
+
+            bird_db = dest / "bird_db"
+            bird_db.mkdir()
+            (bird_db / "bird_db.sqlite").touch()
+
+            unrelated = dest / "unrelated"
+            unrelated.mkdir()
+            (unrelated / "keep.txt").write_text("keep", encoding="utf-8")
+
+            other_db = dest / "other_db"
+            other_db.mkdir()
+            (other_db / "other_db.sqlite").touch()
+
+            seed_bird._migrate_legacy_flat_layout(dest)
+
+            self.assertFalse(bird_db.exists())
+            self.assertTrue((dest / "dev" / "bird_db" / "bird_db.sqlite").is_file())
+            self.assertEqual(
+                (unrelated / "keep.txt").read_text(encoding="utf-8"), "keep"
+            )
+            self.assertTrue((other_db / "other_db.sqlite").is_file())
 
 
 if __name__ == "__main__":

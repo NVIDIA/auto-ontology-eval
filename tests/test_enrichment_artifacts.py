@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import csv
 import json
+import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
+from unittest.mock import MagicMock, call, patch
 
 from ontology_sql_eval.ingestion import enrich_graph
 
@@ -70,11 +73,101 @@ class EnrichmentArtifactResolutionTest(unittest.TestCase):
             annotation_copy,
         )
 
+    def test_custom_analysis_embeddings_are_scoped_to_created_ids(self) -> None:
+        analyses_path = self._write(
+            self.annotations / "bird" / "custom_analyses" / "cards.json",
+            json.dumps(
+                [
+                    {"name": "First", "description": "one", "sql": "SELECT 1"},
+                    {"name": "Second", "description": "two", "sql": "SELECT 2"},
+                ]
+            ),
+        )
+        embed_params = object()
+        vdb = object()
+        embed = MagicMock()
+        create = MagicMock(
+            side_effect=[
+                {"id": "analysis-1"},
+                {"id": "analysis-2"},
+            ]
+        )
+
+        custom_analyses_module = types.ModuleType("gsf.dal.custom_analyses")
+        custom_analyses_module.embed_custom_analyses = embed
+        service_module = types.ModuleType("gsf.server.custom_analyses.service")
+
+        class AnalysisConflict(Exception):
+            pass
+
+        class AnalysisSqlError(Exception):
+            pass
+
+        service_module.CustomAnalysisNameConflict = AnalysisConflict
+        service_module.CustomAnalysisSqlConflict = AnalysisConflict
+        service_module.CustomAnalysisSqlError = AnalysisSqlError
+        service_module.create_custom_analysis = create
+
+        with (
+            patch.object(
+                enrich_graph,
+                "custom_analyses_json_path",
+                return_value=analyses_path,
+            ),
+            patch.dict(
+                sys.modules,
+                {
+                    "gsf.dal": types.ModuleType("gsf.dal"),
+                    "gsf.dal.custom_analyses": custom_analyses_module,
+                    "gsf.server": types.ModuleType("gsf.server"),
+                    "gsf.server.custom_analyses": types.ModuleType(
+                        "gsf.server.custom_analyses"
+                    ),
+                    "gsf.server.custom_analyses.service": service_module,
+                },
+            ),
+        ):
+            enrich_graph.add_custom_analyses(
+                "cards",
+                "sqlite",
+                embed_params=embed_params,
+                vdb=vdb,
+                benchmark_name="bird",
+            )
+
+        self.assertEqual(
+            embed.call_args_list,
+            [
+                call(
+                    embed_params,
+                    vdb,
+                    analysis_id="analysis-1",
+                    database_name="cards",
+                ),
+                call(
+                    embed_params,
+                    vdb,
+                    analysis_id="analysis-2",
+                    database_name="cards",
+                ),
+            ],
+        )
+
     def test_lookup_without_dataset_keeps_legacy_fallback(self) -> None:
         expected = self._write(
             self.datasets / "fdabench" / "database_c" / "metadata.json"
         )
         self.assertEqual(enrich_graph.metadata_json_path("database_c"), expected)
+
+    def test_saved_descriptions_without_benchmark_search_annotations(self) -> None:
+        expected = self._write(
+            self.annotations / "bird" / "semantic_descriptions.csv",
+            "database,table,column,column_description,"
+            "column_attribute,column_attribute_description\n",
+        )
+        self.assertEqual(
+            enrich_graph.saved_descriptions_csv_path("card_games"), expected
+        )
 
     def test_missing_artifacts_return_none(self) -> None:
         self.assertIsNone(enrich_graph.metadata_json_path("missing", "benchmark"))

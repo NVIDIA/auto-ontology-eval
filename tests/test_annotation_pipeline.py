@@ -36,14 +36,12 @@ class AnnotationPipelineTest(unittest.TestCase):
         compile_semantic.assert_called_once_with("cards")
         apply_descriptions.assert_called_once_with("cards", "bird")
 
-    def test_semantic_defaults_benchmark_to_database_name(self) -> None:
+    def test_semantic_preserves_global_annotation_fallback(self) -> None:
         semantic, compile_semantic = self._semantic_module()
         with patch.object(semantic, "apply_saved_descriptions") as apply_descriptions:
             self.assertEqual(semantic.run_semantic("wideworldimporters"), 7)
         compile_semantic.assert_called_once_with("wideworldimporters")
-        apply_descriptions.assert_called_once_with(
-            "wideworldimporters", "wideworldimporters"
-        )
+        apply_descriptions.assert_called_once_with("wideworldimporters", None)
 
     def test_main_passes_benchmark_name_to_each_ingest(self) -> None:
         ingest = types.ModuleType("ontology_sql_eval.ingestion.ingest")

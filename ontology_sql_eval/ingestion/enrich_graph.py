@@ -309,16 +309,14 @@ def add_custom_analyses(
     # Idempotency is preserved and is now the service's job: it raises on a
     # duplicate name or a statement already attached to another analysis, so a
     # re-run reports "already present" instead of duplicating rows.
-    # Embed once at the end, not once per analysis -- unless there is no batch
-    # pass to defer to. `create_custom_analysis` embeds inline by default, which
-    # is right for a user creating one analysis and wrong here: each embed is a
-    # network round trip (~2s), so nineteen analyses cost ~40s of pure latency.
-    # Worse, embedding inline *and* running the batch below writes every
-    # analysis into the semantic index twice, and nothing there dedupes -- a
-    # duplicated analysis just occupies two of retrieval's top-k slots.
-    will_batch = embed_params is not None and vdb is not None
+    # Defer embedding when the caller supplied a VDB, then scope every write to
+    # the ID returned by create_custom_analysis. Passing analysis_id=None would
+    # select every CustomAnalysis in the shared catalog and incorrectly tag
+    # other databases' analyses with this database_name.
+    defer_embedding = embed_params is not None and vdb is not None
 
     ingested = skipped = 0
+    created_analysis_ids: list[str] = []
     for entry in analyses:
         name = entry.get("name", "")
         description = entry.get("description", "")
@@ -327,12 +325,13 @@ def add_custom_analyses(
             logger.warning("Skipping custom analysis %r — no SQL provided.", name)
             continue
         try:
-            create_custom_analysis(
+            created = create_custom_analysis(
                 name=name,
                 description=description,
                 sql=sql,
-                embed=not will_batch,
+                embed=not defer_embedding,
             )
+            created_analysis_ids.append(str(created["id"]))
             ingested += 1
         except (CustomAnalysisNameConflict, CustomAnalysisSqlConflict):
             skipped += 1
@@ -355,17 +354,23 @@ def add_custom_analyses(
         time.time() - before,
     )
 
-    if ingested == 0:
+    if not created_analysis_ids:
         return
 
-    if not will_batch:
+    if not defer_embedding:
         # Already embedded inline above, one at a time -- the slow path, taken
-        # only when there is no vdb to batch into.
+        # only when no explicit embedding destination was provided.
         logger.info("Custom analyses embedded inline: embed_params/vdb not provided.")
         return
 
     assert embed_params is not None and vdb is not None
-    embed_custom_analyses(embed_params, vdb, database_name=database_name)
+    for analysis_id in created_analysis_ids:
+        embed_custom_analyses(
+            embed_params,
+            vdb,
+            analysis_id=analysis_id,
+            database_name=database_name,
+        )
 
 
 # ---------------------------------------------------------------------------
