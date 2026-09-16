@@ -550,19 +550,21 @@ def _evaluate_question(
                 difficulty=row["difficulty"],
             )
 
-        # Route to the connector matching this question's db_id; fall back to
-        # the first connector when the question is not db-scoped.
-        active_connector = connectors_by_name.get(db_id) if db_id else None
-        if active_connector is None:
-            active_connector = connectors[0]
-
         t0 = time.perf_counter()
         agent_seconds = scoring_seconds = 0.0
         node_timings: List[Dict[str, Any]] = []
         try:
+            # A scoped question must use its matching database. Falling back
+            # would execute and score the SQL against an unrelated connector.
+            if db_id:
+                active_connector = connectors_by_name.get(db_id)
+                if active_connector is None:
+                    raise ValueError(f"No connector configured for db_id={db_id!r}")
+            else:
+                active_connector = connectors[0]
+
             payload: TextToSQLPayload = {
                 "question": agent_question,
-                **({"evidence": evidence} if _SUPPORTS_EVIDENCE_PARAM else {}),
                 "data_retriever": retrievers["data"],
                 "semantic_retriever": retrievers["semantic"],
                 "connectors": [active_connector],
@@ -570,6 +572,8 @@ def _evaluate_question(
                 "custom_prompts": "",
                 "acronyms": [],
             }
+            if _SUPPORTS_EVIDENCE_PARAM:
+                payload["evidence"] = evidence
             logger.info("Running question %s", payload["question"])
 
             t_agent = time.perf_counter()
