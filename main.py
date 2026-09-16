@@ -6,7 +6,7 @@
 
 Runs the full evaluation pipeline for a dataset, in order:
 
-1. Ingest      source DB schema -> Neo4j + pgvector (``CONNECTION_STRINGS``)
+1. Ingest      source DB schema -> Postgres + pgvector (``CONNECTION_STRINGS``)
 2. Semantic    compile the semantic layer (``ingestion.semantic``)
 3. Eval        run the text-to-SQL agent -> ``datasets/<db>/<model>.csv``
 4. Judge       LLM re-score the eval CSV -> ``datasets/<db>/<model>_scores.csv``
@@ -57,9 +57,9 @@ def _connection_strings() -> list[str]:
     ]
 
 
-def stage_ingest() -> None:
-    """Ingest the source DB schema into Neo4j + pgvector."""
-    _banner(1, "Ingest (source DB -> pgvector + Neo4j)")
+def stage_ingest(benchmark_name: str) -> None:
+    """Ingest source schemas and apply this benchmark's enrichment artifacts."""
+    _banner(1, "Ingest (source DB -> Postgres + pgvector)")
     connection_strings = _connection_strings()
     if not connection_strings:
         raise EnvironmentError(
@@ -76,29 +76,29 @@ def stage_ingest() -> None:
             len(connection_strings),
             connection_string,
         )
-        run_ingest(connection_string)
+        run_ingest(connection_string, benchmark_name)
 
 
-def stage_semantic(database_name: str) -> None:
-    """Compile the semantic layer in-process via ``run_semantic``."""
+def stage_semantic(benchmark_name: str) -> None:
+    """Compile semantic layers and apply this benchmark's saved descriptions."""
     _banner(2, "Semantic compile (ingestion.semantic)")
     from ontology_sql_eval.ingestion.semantic import run_semantic
 
     connection_strings = _connection_strings()
-    if len(connection_strings) > 1:
+    if connection_strings:
         from ontology_sql_eval.ingestion.ingest import database_name_for
 
         for i, connection_string in enumerate(connection_strings, start=1):
-            db_name = database_name_for(connection_string)
+            database_name = database_name_for(connection_string)
             logger.info(
                 "Compiling semantic layer %d/%d: %s",
                 i,
                 len(connection_strings),
-                db_name,
+                database_name,
             )
-            run_semantic(db_name)
+            run_semantic(database_name, benchmark_name)
     else:
-        run_semantic(database_name)
+        run_semantic(benchmark_name)
 
 
 def stage_eval(
@@ -251,17 +251,17 @@ def main(argv: list[str] | None = None) -> None:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     args = _parse_args(argv)
-    db = args.database_name
+    database_name = args.database_name
 
     from dotenv import load_dotenv
 
     load_dotenv()
 
     if not args.skip_ingest:
-        stage_ingest()
+        stage_ingest(database_name)
 
     if not args.skip_semantic:
-        stage_semantic(db)
+        stage_semantic(database_name)
 
     end_index = args.end_index
     if end_index is None and args.limit is not None:
@@ -269,7 +269,7 @@ def main(argv: list[str] | None = None) -> None:
 
     if not args.skip_eval:
         eval_csv = stage_eval(
-            database_name=db,
+            database_name=database_name,
             workers=args.eval_workers,
             start_index=args.start_index,
             end_index=end_index,
@@ -277,7 +277,7 @@ def main(argv: list[str] | None = None) -> None:
             run_id=args.run_id,
         )
     else:
-        eval_csv = _eval_output_path(database_name=db)
+        eval_csv = _eval_output_path(database_name=database_name)
         logger.info("Skipping eval; using existing %s", eval_csv)
 
     if not args.skip_judge:
