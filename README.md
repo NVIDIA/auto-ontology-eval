@@ -118,8 +118,8 @@ Each bundled dataset's README documents how to stand up its source DB and set
 
 - **[WideWorldImporters](datasets/wideworldimporters/README.md)** — seed a
   local Postgres from pre-generated DDL + CSVs.
-- **[BIRD Mini-Dev](datasets/bird/README.md)** — download per-database SQLite
-  files.
+- **[BIRD](datasets/bird/README.md)** — download Dev or Mini-Dev SQLite files;
+  Dev also includes the Train question corpus.
 - **[FDABench-Lite](datasets/fdabench/README.md)** — download Lite tasks +
   SQLite databases (BIRD train / Spider1 / Spider2-lite local).
 - **[BEAVER](datasets/beaverbench/README.md)** — download BeaverBench questions +
@@ -185,9 +185,9 @@ The repo ships with four public worked examples:
 ### BIRD
 
 The [BIRD](https://bird-bench.github.io/) benchmark, plus the official
-EX/VES scoring script. Defaults to the **Mini-Dev** subset (11 SQLite
-databases, 500 questions); the full **Dev** (1,534 questions) and **Train**
-(~69 additional databases) splits are also available. See
+EX/VES scoring script. Defaults to full **Dev** (11 SQLite databases,
+1,534 questions) and stores the **Train** question corpus without its
+databases; the cheaper **Mini-Dev** subset (500 questions) is also available. See
 **[datasets/bird/README.md](datasets/bird/README.md)** for how to download
 the dataset(s) and run the full pipeline.
 
@@ -212,6 +212,13 @@ Microsoft's WideWorldImporters sample OLTP database, ported to Postgres and
 seeded from pre-generated DDL + CSVs. See
 **[datasets/wideworldimporters/README.md](datasets/wideworldimporters/README.md)**
 for how to seed the database and run the full pipeline.
+
+### BIRD-Interact
+
+Runs against Lite (~300 tasks / 18 DBs) and Full (600 tasks / 22 DBs)
+BIRD-Interact, c-Interact mode only, query-category tasks only. See
+**[BIRD_INTERACT_README.md](BIRD_INTERACT_README.md)** for seeding, GT,
+running, and results.
 
 The schemas below (`evaluation.json`, `metadata.json`, `custom_analyses.json`)
 are generic across datasets; the examples use `wideworldimporters` throughout.
@@ -318,7 +325,7 @@ ontology_sql_eval/          single namespace package
 main.py                     end-to-end pipeline entry point (ingest -> judge)
 scripts/
   seed_wwi.py               seed a local Postgres from datasets/<db>/{ddl,data}
-  seed_bird.py              download BIRD split(s) (mini-dev/dev/train) into datasets/bird/
+  seed_bird.py              download BIRD eval data and the Dev Train corpus
   seed_fdabench.py          download FDABench-Lite tasks + SQLite DBs into datasets/fdabench/
   seed_beaverbench.py       download BEAVER questions + MySQL dumps into datasets/beaverbench/
 datasets/
