@@ -1,7 +1,7 @@
 # Ontology SQL Eeval
 
 A Text-to-SQL evaluation toolkit for benchmarking a text-to-SQL agent against a
-dataset and scoring the results. It bundles three workflows in one project:
+dataset and scoring the results. It bundles four workflows in one project:
 
 1. **ingestion** — extract a source database's schema into GSF's Postgres +
    pgvector stores, compile the semantic layer, and enrich the graph with metadata and
@@ -10,10 +10,18 @@ dataset and scoring the results. It bundles three workflows in one project:
    score its generated SQL and answers deterministically.
 3. **sql judge** — a standalone, LLM-powered re-scorer for Text-to-SQL
    evaluation CSVs (works on its own, no database or GSF/NeMo install required).
+4. **NeMo Gym benchmark** — run the same questions as a controlled A/B: a
+   schema-only LLM baseline against GSF's ontology-grounded agent, graded by one
+   deterministic verifier, reported as a single delta.
 
 The typical lifecycle is **ingest → eval → judge**: you ingest a database so the
 agent can retrieve its schema, run an evaluation to produce a results CSV, then
 optionally re-score that CSV with the LLM judge.
+
+The Gym benchmark answers a different question. The first three workflows measure
+*how well GSF does*; the benchmark measures *how much the ontology is worth* by
+running a no-ontology control over the same questions and databases. See
+**[NeMo Gym environments](resources_servers/README.md)**.
 
 > [!IMPORTANT]
 > **You need [GSF](https://github.com/NVIDIA/GSF).**
@@ -33,14 +41,19 @@ optionally re-score that CSV with the LLM judge.
 
 ## Prerequisites
 
-| Requirement                                                                  | Ingestion  | Retrieval eval | Judge |
-| ---------------------------------------------------------------------------- | :--------: | :------------: | :---: |
-| [uv](https://docs.astral.sh/uv/) + Python 3.12 (3.12–3.13)                   |    yes     |      yes       |  yes  |
-| Sibling repo `../GSF` checkout ([NVIDIA/GSF](https://github.com/NVIDIA/GSF)) |    yes     |      yes       |  no   |
-| GitHub access to `NVIDIA/NeMo-Retriever`                                     |    yes     |      yes       |  no   |
-| Postgres (catalog + pgvector) service                                        |    yes     |      yes       |  no   |
-| Reachable source database                                                    |    yes     |      yes       |  no   |
-| LLM API key                                                                  | embed only |      yes       |  yes  |
+| Requirement                                                                  | Ingestion  | Retrieval eval | Judge | Gym benchmark |
+| ---------------------------------------------------------------------------- | :--------: | :------------: | :---: | :-----------: |
+| [uv](https://docs.astral.sh/uv/) + Python **3.13.14+**                       |    yes     |      yes       |  yes  |      yes      |
+| Sibling repo `../GSF` checkout ([NVIDIA/GSF](https://github.com/NVIDIA/GSF)) |    yes     |      yes       |  no   |  GSF arm only |
+| GitHub access to `NVIDIA/NeMo-Retriever`                                     |    yes     |      yes       |  no   |      yes      |
+| Postgres (catalog + pgvector) service                                        |    yes     |      yes       |  no   |  GSF arm only |
+| Reachable source database                                                    |    yes     |      yes       |  no   |      yes      |
+| LLM API key                                                                  | embed only |      yes       |  yes  |      yes      |
+
+> [!NOTE]
+> The Python floor is **3.13.14**, raised from 3.12 when the Gym benchmark was
+> added: `nemo-gym` 0.6.0 requires it. It applies to the whole project because
+> all four workflows share one venv.
 
 The two external dependencies are provided differently:
 
@@ -68,7 +81,7 @@ cd ../GSF && docker compose up -d
 ## Setup
 
 ```bash
-uv sync                # creates the unified .venv (Python 3.12), pulling nemo_retriever from GitHub
+uv sync                # creates the unified .venv (Python 3.13.14+), pulling nemo_retriever from GitHub
 cp .env.example .env   # then fill in your values
 ```
 
@@ -288,6 +301,39 @@ Each workflow has its own README with purpose, run instructions, and outputs:
   GSF).
 - **[SQL judge](ontology_sql_eval/judge/README.md)** — standalone LLM re-scorer
   for eval CSVs (no GSF required).
+- **[NeMo Gym benchmark](resources_servers/README.md)** — schema-only control vs
+  GSF ontology grounding, one deterministic verifier, one delta.
+
+### Running the benchmark
+
+Build the task files once per dataset and arm, then run each arm into its **own
+output directory**:
+
+```bash
+python scripts/build_gym_tasks.py --dataset bird --arm schema_only
+python scripts/build_gym_tasks.py --dataset bird --arm gsf
+
+scripts/run_gym_arm.sh schema_only_sql  runs/control/bird.jsonl
+scripts/run_gym_arm.sh gsf_ontology_sql runs/gsf/bird.jsonl --max-output-tokens 16
+
+python scripts/compare_arms.py \
+  --control runs/control/bird.jsonl --treatment runs/gsf/bird.jsonl
+```
+
+Datasets: `bird` (500q), `fdabench` (169q), `wideworldimporters` (41q, Postgres).
+The GSF arm additionally needs the database ingested and its semantic layer
+compiled (workflow 1) — it drives GSF's agent in-process.
+
+Useful knobs: `GYM_CONCURRENCY` (default 3 — size it against the model
+endpoint's **rate limit**, not CPU), `GYM_API_KEY` (overrides the key for both
+the policy model and GSF's own calls), `GSF_PATH` (which GSF checkout to
+import). Details and the Gym CLI's sharp edges are in
+[resources_servers/README.md](resources_servers/README.md).
+
+> [!WARNING]
+> Always read `health/no_model_output_rate` next to the accuracy. A
+> rate-limited run scores near zero and looks exactly like a weak model —
+> `compare_arms.py` refuses to print a headline number when that rate exceeds 5%.
 
 ## Layout
 
@@ -312,11 +358,22 @@ ontology_sql_eval/          single namespace package
     eval_chatbot.py         retrieval eval driver (--workers runs N in parallel)
     run_logging.py          per-run log bundle, phase timeline, timing summary
     scoring.py              SQL/answer scoring helpers
+  gym/                      NeMo Gym benchmark support (pure, no server code)
+    ddl.py                  schema dumping: SQLite introspection, Postgres DDL files
+    tasks.py                evaluation.json -> Gym task JSONL, per dataset and arm
+    exec_match.py           executors, BIRD set-equality, failure codes
+resources_servers/          NeMo Gym environments (Gym's expected layout)
+  README.md                 benchmark guide, Gym CLI gotchas, known issues
+  schema_only_sql/          control arm: question + raw schema dump, no tools
+  gsf_ontology_sql/         treatment arm: GSF's agent, driven in-process
 main.py                     end-to-end pipeline entry point (ingest -> judge)
 scripts/
   seed_wwi.py               seed a local Postgres from datasets/<db>/{ddl,data}
   seed_bird.py              download BIRD split(s) (mini-dev/dev/train) into datasets/bird/
   seed_fdabench.py          download FDABench-Lite tasks + SQLite DBs into datasets/fdabench/
+  build_gym_tasks.py        build Gym task JSONL for a (dataset, arm)
+  run_gym_arm.sh            run one benchmark arm end to end
+  compare_arms.py           join both arms, report the delta and per-question flips
 datasets/
   <database_name>/          evaluation.json, metadata.json, custom_analyses.json
     ddl/                    seed DDL (schemas, sequences, tables, indexes, fkeys, views)
@@ -327,6 +384,7 @@ datasets/
 input/                      judge input CSVs to score (contents gitignored)
 output/                     judge scored CSVs (<name>_scores.csv; contents gitignored)
 logs/<run-id>/              per-eval-run logs + timings (contents gitignored)
+runs/<arm>/                 Gym rollouts + aggregate metrics (gitignored)
 ```
 
 ## Development
