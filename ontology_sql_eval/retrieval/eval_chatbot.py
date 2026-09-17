@@ -58,13 +58,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
-from dotenv import load_dotenv
+from ontology_sql_eval.env import load_env
 
 # Must run before the GSF imports below: ``gsf.retrieval.text_to_sql.main``
 # builds its LLM client at import time and raises if the credentials are not
 # already in ``os.environ``. Loading .env afterwards is too late for a plain
 # ``python -m`` run (VS Code masked this by injecting ``envFile`` itself).
-load_dotenv()
+load_env()
 
 from gsf.retrieval.text_to_sql import main as gsf_agent_main  # noqa: E402
 from gsf.retrieval.text_to_sql.main import stream_agent_response  # noqa: E402
@@ -117,6 +117,16 @@ _INPUT_DIR = _REPO_ROOT / "input"
 _LOG_DIR = _REPO_ROOT / "logs"
 
 _DEFAULT_MODEL_NAME = os.environ.get("MODEL_NAME", "nemotron")
+
+# BEAVER "setting 0" runs must withhold the dataset's domain-knowledge
+# evidence; the official leaderboard's end-to-end column provides only the
+# question. Default keeps evidence (BIRD-style).
+_INCLUDE_EVIDENCE = os.environ.get("EVAL_INCLUDE_EVIDENCE", "1") not in (
+    "0",
+    "false",
+    "False",
+)
+
 
 # Whether this GSF build accepts BIRD-style evidence as its own payload field
 # (added in "Evidence as parameter", #226) rather than requiring it to be glued
@@ -699,7 +709,7 @@ def _evaluate_question(
 
     # Each question may carry its own db_id / evidence; both are optional so
     # single-dataset eval files without them still work.
-    evidence = item.get("evidence", "")
+    evidence = item.get("evidence", "") if _INCLUDE_EVIDENCE else ""
     db_id = item.get("db_id", "")
     # Newer GSF takes evidence as its own payload field and uses it to refine
     # entity extraction, leaving the question text clean. Older builds have no
@@ -732,16 +742,19 @@ def _evaluate_question(
                 difficulty=row["difficulty"],
             )
 
-        # Route to the connector matching this question's db_id; fall back to
-        # the first connector when the question is not db-scoped.
-        active_connector = connectors_by_name.get(db_id) if db_id else None
-        if active_connector is None:
-            active_connector = connectors[0]
-
         t0 = time.perf_counter()
         agent_seconds = scoring_seconds = 0.0
         node_timings: List[Dict[str, Any]] = []
         try:
+            # A scoped question must use its matching database. Falling back
+            # would execute and score the SQL against an unrelated connector.
+            if db_id:
+                active_connector = connectors_by_name.get(db_id)
+                if active_connector is None:
+                    raise ValueError(f"No connector configured for db_id={db_id!r}")
+            else:
+                active_connector = connectors[0]
+
             payload: TextToSQLPayload = {
                 "question": agent_question,
                 "data_retriever": retrievers["data"],
@@ -862,10 +875,19 @@ def _sort_csv_by_row_index(path: Path) -> None:
             return 0
 
     rows.sort(key=key)
-    with path.open("w", encoding="utf-8", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)
+    # Via a sibling temp file rather than reopening *path* with "w": truncating
+    # in place puts the only copy of an expensive run's results in memory, so an
+    # interrupt between the truncate and the writerows loses all of them.
+    tmp = path.with_name(path.name + ".sorted.tmp")
+    try:
+        with tmp.open("w", encoding="utf-8", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
+        os.replace(tmp, path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
 
 
 def _log_summary(summary: Dict[str, Any]) -> None:

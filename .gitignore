@@ -3,6 +3,7 @@
 # Backups made while swapping keys between runs hold live credentials
 # just as the real file does, and are easy to `git add -A` by accident.
 .env.*
+third_party/*
 
 # Python
 __pycache__/
@@ -31,9 +32,26 @@ venv/
 
 # Datasets kept local only (not tracked on remote) — keep the folders, ignore their contents
 /datasets/bird/*
+/datasets/bird_interact/*
+/datasets/bird_interact_full/*
 /datasets/fdabench/*
-/datasets/dor_prod
+/datasets/beaverbench/*
+/datasets/dor_prod/
 !/datasets/bird/.gitkeep
 !/datasets/bird/README.md
+!/datasets/bird_interact/.gitkeep
+!/datasets/bird_interact/gt/
+/datasets/bird_interact/gt/*
+!/datasets/bird_interact/gt/.gitkeep
 !/datasets/fdabench/.gitkeep
 !/datasets/fdabench/README.md
+!/datasets/beaverbench/.gitkeep
+!/datasets/beaverbench/README.md
+
+# Test-run outputs (transient, local only), including the flagged_questions
+# notes — not tracked on remote, kept local only.
+/results/*
+
+# Cursor / Claude Code local agent-plan and session state — machine-specific, never commit.
+.cursor/
+.claude/projects/
