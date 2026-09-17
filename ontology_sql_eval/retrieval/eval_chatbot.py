@@ -127,6 +127,14 @@ _SUPPORTS_EVIDENCE_PARAM = "evidence" in getattr(
     TextToSQLPayload, "__annotations__", {}
 )
 
+# Same probe for retrieved question/SQL exemplars. Unlike evidence there is no
+# fallback: gluing another database's SQL onto the question text would be worse
+# than sending nothing, so on an older GSF the examples are simply dropped.
+_SUPPORTS_SQL_EXAMPLES_PARAM = "sql_examples" in getattr(
+    TextToSQLPayload, "__annotations__", {}
+)
+
+
 # How per-node timings were measured, recorded into every run summary. "phase"
 # means GSF emitted explicit start/end events and each node was timed directly;
 # "gap" means the older single-event stream, where a node's cost is inferred
@@ -250,6 +258,108 @@ def _load_questions(path: Path) -> List[Dict[str, Any]]:
             f"Expected a JSON array of questions, got {type(data).__name__}"
         )
     return data
+
+
+def _load_sql_examples(
+    path: Path, k: int, min_score: float = 0.0
+) -> Dict[str, List[Dict[str, str]]]:
+    """Map question_id to its top-*k* retrieved question/SQL exemplars.
+
+    Reads the CSV written by ``scripts/find_structural_exemplars.py``, which
+    ranks train-set examples by question structure alone. Keys are stringified
+    because the CSV always yields text while the dataset yields ints.
+
+    Retrieval always returns something, but wording similarity is only weakly
+    related to whether the structure transfers (r=0.20 against gold skeleton
+    similarity on BIRD dev), so most questions get a pattern that is merely a
+    verbal coincidence. ``min_score`` withholds patterns from a question whose
+    best match scores below it, leaving that question to be answered under the
+    general shape rules instead. The gate is per question rather than per
+    exemplar so that a kept question still gets a full *k*.
+    """
+    if not path.exists():
+        raise SystemExit(
+            f"SQL examples file not found: {path}\n"
+            "Generate it with: python scripts/find_structural_exemplars.py"
+        )
+    ranked: Dict[str, List[Tuple[int, Dict[str, str]]]] = {}
+    best_score: Dict[str, float] = {}
+    with path.open("r", encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f)
+        # A truncated or hand-edited header still parses, and the rows then key
+        # on nonsense instead of question ids — silently sending no examples to
+        # every question. Check up front rather than debugging a null result.
+        required = {"question_id", "rank", "train_question", "train_sql"}
+        if min_score > 0:
+            required.add("score")
+        missing = required - set(reader.fieldnames or [])
+        if missing:
+            raise SystemExit(
+                f"{path} is missing expected column(s): {sorted(missing)}.\n"
+                f"Found: {reader.fieldnames}\n"
+                "Regenerate it with: python scripts/find_structural_exemplars.py"
+            )
+        for record in reader:
+            sql = (record.get("train_sql") or "").strip()
+            if not sql:
+                continue
+            try:
+                rank = int(record.get("rank") or 0)
+            except ValueError:
+                continue
+            qid = str(record.get("question_id", ""))
+            if min_score > 0:
+                try:
+                    score = float(record.get("score") or 0.0)
+                except ValueError:
+                    score = 0.0
+                # Every row is read, not just the top *k*, so the gate sees the
+                # question's true best score even if ranking ever changes.
+                best_score[qid] = max(best_score.get(qid, 0.0), score)
+            if rank > k:
+                continue
+            ranked.setdefault(qid, []).append(
+                (
+                    rank,
+                    {
+                        "db": (record.get("train_db") or "").strip(),
+                        "question": (record.get("train_question") or "").strip(),
+                        # The exemplar's own evidence shows how a stated formula
+                        # was turned into SQL (casting, operand order, whether
+                        # *100 was applied), which is the transferable part.
+                        "evidence": (record.get("train_evidence") or "").strip(),
+                        "sql": sql,
+                    },
+                )
+            )
+    # Rank order decides what the model reads first, and DictReader preserves
+    # only file order, which need not be sorted.
+    by_question = {
+        qid: [example for _, example in sorted(pairs, key=lambda pair: pair[0])]
+        for qid, pairs in ranked.items()
+    }
+    if min_score > 0:
+        retrieved = len(by_question)
+        by_question = {
+            qid: examples
+            for qid, examples in by_question.items()
+            if best_score.get(qid, 0.0) >= min_score
+        }
+        logger.info(
+            "SQL example gate at score >= %.2f: %d of %d questions keep their "
+            "examples (%.1f%%); the rest run under the general shape rules",
+            min_score,
+            len(by_question),
+            retrieved,
+            100.0 * len(by_question) / retrieved if retrieved else 0.0,
+        )
+    logger.info(
+        "Loaded top-%d SQL examples for %d questions from %s",
+        k,
+        len(by_question),
+        path,
+    )
+    return by_question
 
 
 CSV_FIELDS = [
@@ -513,6 +623,7 @@ def _evaluate_question(
     connectors: List[Any],
     connectors_by_name: Dict[str, Any],
     run_log: RunLogger | None,
+    sql_examples: Dict[str, List[Dict[str, str]]] | None = None,
 ) -> Dict[str, Any]:
     """Run and score one question. Never raises: failures land in ``error``."""
     row = _blank_row(idx, item)
@@ -534,6 +645,7 @@ def _evaluate_question(
         if _SUPPORTS_EVIDENCE_PARAM or not evidence
         else f"{question}\n\nEvidence: {evidence}"
     )
+    question_examples = (sql_examples or {}).get(str(qid)) or []
 
     worker = threading.current_thread().name
     row["worker"] = worker
@@ -542,6 +654,8 @@ def _evaluate_question(
         logger.info("[%d/%d] q%s: %s", idx + 1, total, qid, question)
         if db_id:
             logger.info("  db_id=%s  evidence=%s", db_id, str(evidence)[:120])
+        if question_examples:
+            logger.info("  sql_examples=%d", len(question_examples))
         if run_log is not None:
             run_log.event(
                 "question_start",
@@ -562,7 +676,6 @@ def _evaluate_question(
         try:
             payload: TextToSQLPayload = {
                 "question": agent_question,
-                **({"evidence": evidence} if _SUPPORTS_EVIDENCE_PARAM else {}),
                 "data_retriever": retrievers["data"],
                 "semantic_retriever": retrievers["semantic"],
                 "connectors": [active_connector],
@@ -570,6 +683,10 @@ def _evaluate_question(
                 "custom_prompts": "",
                 "acronyms": [],
             }
+            if _SUPPORTS_EVIDENCE_PARAM:
+                payload["evidence"] = evidence
+            if question_examples and _SUPPORTS_SQL_EXAMPLES_PARAM:
+                payload["sql_examples"] = question_examples
             logger.info("Running question %s", payload["question"])
 
             t_agent = time.perf_counter()
@@ -732,6 +849,9 @@ def run_evaluation(
     end_index: int | None = None,
     workers: int = 1,
     run_log: RunLogger | None = None,
+    sql_examples_path: Path | None = None,
+    sql_examples_k: int = 3,
+    sql_examples_min_score: float = 0.0,
 ) -> None:
     """Run every selected question and write one CSV row each.
 
@@ -745,6 +865,18 @@ def run_evaluation(
     if not questions:
         logger.warning("No questions selected from %s — nothing to do.", input_path)
         return
+
+    sql_examples: Dict[str, List[Dict[str, str]]] = {}
+    if sql_examples_path and sql_examples_k > 0:
+        if not _SUPPORTS_SQL_EXAMPLES_PARAM:
+            raise SystemExit(
+                "--sql-examples was given but this GSF build has no "
+                "'sql_examples' payload field; the examples would be silently "
+                "dropped. Upgrade GSF or drop the flag."
+            )
+        sql_examples = _load_sql_examples(
+            sql_examples_path, sql_examples_k, sql_examples_min_score
+        )
 
     workers = max(1, workers)
     logger.info(
@@ -809,6 +941,7 @@ def run_evaluation(
                 connectors=connectors,
                 connectors_by_name=connectors_by_name,
                 run_log=run_log,
+                sql_examples=sql_examples,
             )
             emit(row)
             return row
@@ -839,6 +972,10 @@ def run_evaluation(
         run_log.note(
             node_timing_mode=_node_timing_mode,
             evidence_as_parameter=_SUPPORTS_EVIDENCE_PARAM,
+            sql_examples_source=str(sql_examples_path) if sql_examples else "",
+            sql_examples_k=sql_examples_k if sql_examples else 0,
+            sql_examples_min_score=sql_examples_min_score,
+            sql_examples_indexed=len(sql_examples),
         )
 
     logger.info("Wrote scores to %s", output_path)
@@ -922,6 +1059,34 @@ def _parse_args() -> argparse.Namespace:
         "(shorthand for --end-index; ignored when --end-index is given).",
     )
     parser.add_argument(
+        "--sql-examples",
+        type=Path,
+        default=(
+            Path(os.environ["SQL_EXAMPLES_CSV"])
+            if os.environ.get("SQL_EXAMPLES_CSV")
+            else None
+        ),
+        help="CSV of retrieved question/SQL exemplars to inject into the SQL "
+        "generation prompt, as written by scripts/find_structural_exemplars.py. "
+        "Omitted means no exemplars (default). Env: SQL_EXAMPLES_CSV.",
+    )
+    parser.add_argument(
+        "--sql-examples-k",
+        type=int,
+        default=int(os.environ.get("SQL_EXAMPLES_K", "3")),
+        help="How many exemplars per question to inject, by rank "
+        "(default: 3). Env: SQL_EXAMPLES_K.",
+    )
+    parser.add_argument(
+        "--sql-examples-min-score",
+        type=float,
+        default=float(os.environ.get("SQL_EXAMPLES_MIN_SCORE", "0")),
+        help="Withhold exemplars from a question whose best retrieval score is "
+        "below this, so it is answered under the general shape rules instead. "
+        "0 (default) attaches exemplars to every question. Env: "
+        "SQL_EXAMPLES_MIN_SCORE.",
+    )
+    parser.add_argument(
         "--log-dir",
         type=Path,
         default=_LOG_DIR,
@@ -977,6 +1142,9 @@ def main() -> None:
             start_index=args.start_index,
             end_index=end_index,
             single=args.single,
+            sql_examples=str(args.sql_examples or ""),
+            sql_examples_k=args.sql_examples_k,
+            sql_examples_min_score=args.sql_examples_min_score,
         )
         logger.info("Logging this run to %s", run_log.dir)
 
@@ -990,6 +1158,9 @@ def main() -> None:
                 end_index=end_index,
                 workers=args.workers,
                 run_log=run_log,
+                sql_examples_path=args.sql_examples,
+                sql_examples_k=args.sql_examples_k,
+                sql_examples_min_score=args.sql_examples_min_score,
             )
             summary = run_log.write_summary(
                 workers=args.workers,
