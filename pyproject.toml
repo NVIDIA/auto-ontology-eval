@@ -17,7 +17,7 @@ dependencies = [
     "nemo-retriever[tabular]",
     "psycopg[binary]>=3.3.3",
     "psycopg-pool>=3.3.1",
-    "snowflake-connector-python>=4.6.0",
+    "snowflake-connector-python>=4.7.4",
     "databricks-sql-connector>=4.3.0",
     "mysql-connector-python>=26.7.0",
     "kumoai>=2.22.0",
@@ -70,6 +70,16 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["ontology_sql_eval"]
+
+[tool.uv]
+# Force patched versions of transitive dependencies with known CVEs
+# (nltk/ray via nemo-retriever, pillow via matplotlib/nemo-retriever).
+# Overrides (not constraints) because nemo-retriever pins pillow==12.2.0 exactly.
+override-dependencies = [
+    "nltk>=3.10.3",
+    "pillow>=12.3.0",
+    "ray>=2.58.0",
+]
 
 [tool.uv.sources]
 nemo-retriever = { git = "https://github.com/NVIDIA/NeMo-Retriever.git", subdirectory = "nemo_retriever" }
