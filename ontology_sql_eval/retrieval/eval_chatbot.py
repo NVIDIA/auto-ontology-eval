@@ -436,6 +436,42 @@ def _load_value_anchors(path: Path) -> Dict[str, List[Dict[str, str]]]:
     return by_question
 
 
+def _load_prompt_extras(
+    sql_examples_path: Path | None,
+    sql_examples_k: int,
+    sql_examples_min_score: float,
+    value_anchors_path: Path | None,
+) -> Tuple[Dict[str, List[Dict[str, str]]], Dict[str, List[Dict[str, str]]]]:
+    """Load whichever prompt inputs were asked for, keyed by question id.
+
+    Asking for either against a GSF with no matching payload field is fatal:
+    the flag would otherwise look honoured while nothing reached the prompt,
+    and the run would be scored as though it had been.
+    """
+    sql_examples: Dict[str, List[Dict[str, str]]] = {}
+    if sql_examples_path and sql_examples_k > 0:
+        if not _SUPPORTS_SQL_EXAMPLES_PARAM:
+            raise SystemExit(
+                "--sql-examples was given but this GSF build has no "
+                "'sql_examples' payload field; the examples would be silently "
+                "dropped. Upgrade GSF or drop the flag."
+            )
+        sql_examples = _load_sql_examples(
+            sql_examples_path, sql_examples_k, sql_examples_min_score
+        )
+
+    value_anchors: Dict[str, List[Dict[str, str]]] = {}
+    if value_anchors_path:
+        if not _SUPPORTS_VALUE_ANCHORS_PARAM:
+            raise SystemExit(
+                "--value-anchors was given but this GSF build has no "
+                "'value_anchors' payload field; the anchors would be silently "
+                "dropped. Upgrade GSF or drop the flag."
+            )
+        value_anchors = _load_value_anchors(value_anchors_path)
+    return sql_examples, value_anchors
+
+
 CSV_FIELDS = [
     "row_index",
     "question_id",
@@ -959,27 +995,9 @@ def run_evaluation(
         logger.warning("No questions selected from %s — nothing to do.", input_path)
         return
 
-    sql_examples: Dict[str, List[Dict[str, str]]] = {}
-    if sql_examples_path and sql_examples_k > 0:
-        if not _SUPPORTS_SQL_EXAMPLES_PARAM:
-            raise SystemExit(
-                "--sql-examples was given but this GSF build has no "
-                "'sql_examples' payload field; the examples would be silently "
-                "dropped. Upgrade GSF or drop the flag."
-            )
-        sql_examples = _load_sql_examples(
-            sql_examples_path, sql_examples_k, sql_examples_min_score
-        )
-
-    value_anchors: Dict[str, List[Dict[str, str]]] = {}
-    if value_anchors_path:
-        if not _SUPPORTS_VALUE_ANCHORS_PARAM:
-            raise SystemExit(
-                "--value-anchors was given but this GSF build has no "
-                "'value_anchors' payload field; the anchors would be silently "
-                "dropped. Upgrade GSF or drop the flag."
-            )
-        value_anchors = _load_value_anchors(value_anchors_path)
+    sql_examples, value_anchors = _load_prompt_extras(
+        sql_examples_path, sql_examples_k, sql_examples_min_score, value_anchors_path
+    )
 
     workers = max(1, workers)
     logger.info(
@@ -1087,17 +1105,38 @@ def run_evaluation(
     logger.info("Wrote scores to %s", output_path)
 
 
-def run_single_question(question: str, run_log: RunLogger | None = None) -> None:
-    """Run a single question through the agent and print the result."""
+def run_single_question(
+    question: str,
+    run_log: RunLogger | None = None,
+    evidence: str = "",
+    sql_examples: List[Dict[str, str]] | None = None,
+    value_anchors: List[Dict[str, str]] | None = None,
+    connectors: List[Any] | None = None,
+) -> None:
+    """Run a single question through the agent and print the result.
+
+    Everything past *question* is what the batch path sends, so a question
+    debugged here is asked the way the eval asks it.
+    """
     payload: TextToSQLPayload = {
-        "question": question,
+        "question": (
+            question
+            if _SUPPORTS_EVIDENCE_PARAM or not evidence
+            else f"{question}\n\nEvidence: {evidence}"
+        ),
         "data_retriever": get_data_objects_retriever(),
         "semantic_retriever": get_semantic_objects_retriever(),
-        "connectors": get_connectors(),
+        "connectors": connectors if connectors is not None else get_connectors(),
         "path_state": {},
         "custom_prompts": "",
         "acronyms": [],
     }
+    if _SUPPORTS_EVIDENCE_PARAM:
+        payload["evidence"] = evidence
+    if sql_examples and _SUPPORTS_SQL_EXAMPLES_PARAM:
+        payload["sql_examples"] = sql_examples
+    if value_anchors and _SUPPORTS_VALUE_ANCHORS_PARAM:
+        payload["value_anchors"] = value_anchors
     with question_context(qid="single", row_index=0):
         t0 = time.perf_counter()
         agent_result, node_timings = _run_agent_traced(payload, run_log)
@@ -1111,6 +1150,68 @@ def run_single_question(question: str, run_log: RunLogger | None = None) -> None
                 entry["http_calls"],
             )
         logger.info("Runtime: %.2fs", elapsed)
+
+
+def run_single_dataset_question(
+    input_path: Path,
+    question_id: str,
+    run_log: RunLogger | None = None,
+    sql_examples_path: Path | None = None,
+    sql_examples_k: int = 3,
+    sql_examples_min_score: float = 0.0,
+    value_anchors_path: Path | None = None,
+) -> None:
+    """Run one question from the evaluation file, asked as the batch run asks it.
+
+    Debugging a question in isolation is only informative if nothing about the
+    request changed, so its own evidence, exemplars and anchors are loaded here
+    too, and it goes to the connector for its ``db_id`` rather than to whichever
+    connector happens to come first.
+    """
+    item = next(
+        (
+            question
+            for question in _load_questions(input_path)
+            if str(question.get("question_id", "")) == str(question_id)
+        ),
+        None,
+    )
+    if item is None:
+        raise SystemExit(f"No question_id={question_id!r} in {input_path}")
+
+    sql_examples, value_anchors = _load_prompt_extras(
+        sql_examples_path, sql_examples_k, sql_examples_min_score, value_anchors_path
+    )
+    question = str(item.get("question", "")).strip()
+    evidence = item.get("evidence", "") if _INCLUDE_EVIDENCE else ""
+    db_id = item.get("db_id", "")
+
+    connectors = get_connectors()
+    if db_id:
+        by_name = {
+            getattr(connector, "database_name", None): connector
+            for connector in connectors
+        }
+        if db_id not in by_name:
+            raise SystemExit(f"No connector configured for db_id={db_id!r}")
+        connectors = [by_name[db_id]]
+
+    question_examples = sql_examples.get(str(question_id)) or []
+    question_anchors = value_anchors.get(str(question_id)) or []
+    logger.info("q%s (db_id=%s): %s", question_id, db_id or "-", question)
+    if question_examples:
+        logger.info("  sql_examples=%d", len(question_examples))
+    if question_anchors:
+        logger.info("  value_anchors=%d", len(question_anchors))
+
+    run_single_question(
+        question,
+        run_log,
+        evidence=evidence,
+        sql_examples=question_examples,
+        value_anchors=question_anchors,
+        connectors=connectors,
+    )
 
 
 SINGLE_QUERY = "calculate the customer count by state province name"
@@ -1226,9 +1327,14 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--single",
-        action="store_true",
-        default=False,
-        help="Run a single hardcoded query (edit SINGLE_QUERY in the script).",
+        nargs="?",
+        const="",
+        default=None,
+        metavar="QUESTION_ID",
+        help="Run one question instead of the whole file. With a question_id "
+        "from the evaluation file, that question is asked exactly as the batch "
+        "run asks it: its own evidence, exemplars and anchors, routed to its "
+        "db_id. Bare --single runs the hardcoded SINGLE_QUERY.",
     )
     return parser.parse_args()
 
@@ -1268,8 +1374,19 @@ def main() -> None:
         )
         logger.info("Logging this run to %s", run_log.dir)
 
-        if args.single:
-            run_single_question(SINGLE_QUERY, run_log)
+        if args.single is not None:
+            if args.single:
+                run_single_dataset_question(
+                    input_path,
+                    args.single,
+                    run_log,
+                    sql_examples_path=args.sql_examples,
+                    sql_examples_k=args.sql_examples_k,
+                    sql_examples_min_score=args.sql_examples_min_score,
+                    value_anchors_path=args.value_anchors,
+                )
+            else:
+                run_single_question(SINGLE_QUERY, run_log)
         else:
             run_evaluation(
                 input_path=input_path,
