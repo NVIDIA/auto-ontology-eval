@@ -15,7 +15,6 @@ dependencies = [
     # installed). These mirror ../GSF/pyproject.toml so its runtime deps are in
     # this repo's venv.
     "nemo-retriever[tabular]",
-    "neo4j>=6.1.0",
     "psycopg[binary]>=3.3.3",
     "psycopg-pool>=3.3.1",
     "snowflake-connector-python>=4.6.0",

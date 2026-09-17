@@ -77,7 +77,7 @@ DEFAULT_MODELS_MODEL=nvidia/nemotron-3-nano-30b-a3b
 
 ## Run the full pipeline
 
-Stores (Neo4j + pgvector) must be up — easiest via GSF:
+The Postgres store (catalog + pgvector) must be up — easiest via GSF:
 
 ```bash
 cd ../GSF && docker compose up -d

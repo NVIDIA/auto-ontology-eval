@@ -7,7 +7,7 @@ cd "$(dirname "$0")"
 mkdir -p logs
 LOG="logs/beaver_evalonly_$(date +%Y%m%d_%H%M%S).log"
 
-for c in neo4j postgres beaver-mysql; do
+for c in postgres beaver-mysql; do
   docker start "$c" >/dev/null 2>&1 || true
 done
 sleep 4
