@@ -134,6 +134,10 @@ _SUPPORTS_SQL_EXAMPLES_PARAM = "sql_examples" in getattr(
     TextToSQLPayload, "__annotations__", {}
 )
 
+# Same probe for looked-up database values.
+_SUPPORTS_VALUE_ANCHORS_PARAM = "value_anchors" in getattr(
+    TextToSQLPayload, "__annotations__", {}
+)
 
 # How per-node timings were measured, recorded into every run summary. "phase"
 # means GSF emitted explicit start/end events and each node was timed directly;
@@ -358,6 +362,66 @@ def _load_sql_examples(
         k,
         len(by_question),
         path,
+    )
+    return by_question
+
+
+def _load_value_anchors(path: Path) -> Dict[str, List[Dict[str, str]]]:
+    """Map question_id to the database values looked up for its question.
+
+    Reads the CSV written by ``scripts/value_index.py anchors``. Rows of kind
+    "absent" carry no column and record a phrase the database does not store;
+    they are kept because that negative is what stops an invented literal.
+    """
+    if not path.exists():
+        raise SystemExit(
+            f"Value anchors file not found: {path}\n"
+            "Generate it with: python scripts/value_index.py build && "
+            "python scripts/value_index.py anchors"
+        )
+    ranked: Dict[str, List[Tuple[int, Dict[str, str]]]] = {}
+    with path.open("r", encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f)
+        required = {"question_id", "rank", "kind", "phrase"}
+        missing = required - set(reader.fieldnames or [])
+        if missing:
+            raise SystemExit(
+                f"{path} is missing expected column(s): {sorted(missing)}.\n"
+                f"Found: {reader.fieldnames}"
+            )
+        for record in reader:
+            phrase = (record.get("phrase") or "").strip()
+            if not phrase:
+                continue
+            try:
+                rank = int(record.get("rank") or 0)
+            except ValueError:
+                continue
+            # Absent notes last: the found values are the actionable part, and
+            # rank restarts at 1 for the absent rows.
+            order = rank + (1000 if (record.get("kind") or "") == "absent" else 0)
+            ranked.setdefault(str(record.get("question_id", "")), []).append(
+                (
+                    order,
+                    {
+                        "kind": (record.get("kind") or "found").strip(),
+                        "phrase": phrase,
+                        "tbl": (record.get("tbl") or "").strip(),
+                        "col": (record.get("col") or "").strip(),
+                        "stored_value": (record.get("stored_value") or "").strip(),
+                        "n_rows": (record.get("n_rows") or "").strip(),
+                    },
+                )
+            )
+    by_question = {
+        qid: [anchor for _, anchor in sorted(pairs, key=lambda pair: pair[0])]
+        for qid, pairs in ranked.items()
+    }
+    logger.info(
+        "Loaded value anchors for %d questions from %s (%d total lines)",
+        len(by_question),
+        path,
+        sum(len(v) for v in by_question.values()),
     )
     return by_question
 
@@ -624,6 +688,7 @@ def _evaluate_question(
     connectors_by_name: Dict[str, Any],
     run_log: RunLogger | None,
     sql_examples: Dict[str, List[Dict[str, str]]] | None = None,
+    value_anchors: Dict[str, List[Dict[str, str]]] | None = None,
 ) -> Dict[str, Any]:
     """Run and score one question. Never raises: failures land in ``error``."""
     row = _blank_row(idx, item)
@@ -646,6 +711,7 @@ def _evaluate_question(
         else f"{question}\n\nEvidence: {evidence}"
     )
     question_examples = (sql_examples or {}).get(str(qid)) or []
+    question_anchors = (value_anchors or {}).get(str(qid)) or []
 
     worker = threading.current_thread().name
     row["worker"] = worker
@@ -656,6 +722,8 @@ def _evaluate_question(
             logger.info("  db_id=%s  evidence=%s", db_id, str(evidence)[:120])
         if question_examples:
             logger.info("  sql_examples=%d", len(question_examples))
+        if question_anchors:
+            logger.info("  value_anchors=%d", len(question_anchors))
         if run_log is not None:
             run_log.event(
                 "question_start",
@@ -687,6 +755,8 @@ def _evaluate_question(
                 payload["evidence"] = evidence
             if question_examples and _SUPPORTS_SQL_EXAMPLES_PARAM:
                 payload["sql_examples"] = question_examples
+            if question_anchors and _SUPPORTS_VALUE_ANCHORS_PARAM:
+                payload["value_anchors"] = question_anchors
             logger.info("Running question %s", payload["question"])
 
             t_agent = time.perf_counter()
@@ -852,6 +922,7 @@ def run_evaluation(
     sql_examples_path: Path | None = None,
     sql_examples_k: int = 3,
     sql_examples_min_score: float = 0.0,
+    value_anchors_path: Path | None = None,
 ) -> None:
     """Run every selected question and write one CSV row each.
 
@@ -877,6 +948,16 @@ def run_evaluation(
         sql_examples = _load_sql_examples(
             sql_examples_path, sql_examples_k, sql_examples_min_score
         )
+
+    value_anchors: Dict[str, List[Dict[str, str]]] = {}
+    if value_anchors_path:
+        if not _SUPPORTS_VALUE_ANCHORS_PARAM:
+            raise SystemExit(
+                "--value-anchors was given but this GSF build has no "
+                "'value_anchors' payload field; the anchors would be silently "
+                "dropped. Upgrade GSF or drop the flag."
+            )
+        value_anchors = _load_value_anchors(value_anchors_path)
 
     workers = max(1, workers)
     logger.info(
@@ -942,6 +1023,7 @@ def run_evaluation(
                 connectors_by_name=connectors_by_name,
                 run_log=run_log,
                 sql_examples=sql_examples,
+                value_anchors=value_anchors,
             )
             emit(row)
             return row
@@ -976,6 +1058,8 @@ def run_evaluation(
             sql_examples_k=sql_examples_k if sql_examples else 0,
             sql_examples_min_score=sql_examples_min_score,
             sql_examples_indexed=len(sql_examples),
+            value_anchors_source=str(value_anchors_path) if value_anchors else "",
+            value_anchors_indexed=len(value_anchors),
         )
 
     logger.info("Wrote scores to %s", output_path)
@@ -1087,6 +1171,19 @@ def _parse_args() -> argparse.Namespace:
         "SQL_EXAMPLES_MIN_SCORE.",
     )
     parser.add_argument(
+        "--value-anchors",
+        type=Path,
+        default=(
+            Path(os.environ["VALUE_ANCHORS_CSV"])
+            if os.environ.get("VALUE_ANCHORS_CSV")
+            else None
+        ),
+        help="CSV of question phrases looked up against the database, as "
+        "written by scripts/value_index.py anchors. Tells the model which "
+        "column stores a value and its exact spelling. Omitted means no "
+        "anchors (default). Env: VALUE_ANCHORS_CSV.",
+    )
+    parser.add_argument(
         "--log-dir",
         type=Path,
         default=_LOG_DIR,
@@ -1145,6 +1242,7 @@ def main() -> None:
             sql_examples=str(args.sql_examples or ""),
             sql_examples_k=args.sql_examples_k,
             sql_examples_min_score=args.sql_examples_min_score,
+            value_anchors=str(args.value_anchors or ""),
         )
         logger.info("Logging this run to %s", run_log.dir)
 
@@ -1161,6 +1259,7 @@ def main() -> None:
                 sql_examples_path=args.sql_examples,
                 sql_examples_k=args.sql_examples_k,
                 sql_examples_min_score=args.sql_examples_min_score,
+                value_anchors_path=args.value_anchors,
             )
             summary = run_log.write_summary(
                 workers=args.workers,
