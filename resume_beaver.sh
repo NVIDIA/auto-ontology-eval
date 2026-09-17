@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Resume the BEAVER benchmark after an interruption.
 #
-# The semantic compile is checkpointed in Neo4j: it only visits tables that have
-# no Term yet, so re-running picks up where the previous run stopped. Ingest is
-# skipped because the dw schema is already in the graph.
+# The semantic compile is checkpointed in the GSF catalog: it only visits tables
+# that have no Term yet, so re-running picks up where the previous run stopped.
+# Ingest is skipped because the dw schema is already in the catalog.
 set -euo pipefail
 
 cd "$(dirname "$0")"
@@ -18,7 +18,7 @@ until curl -sf -m 5 -o /dev/null https://inference-api.nvidia.com/v1/models \
 done
 echo "Network up."
 
-for c in neo4j postgres beaver-mysql; do
+for c in postgres beaver-mysql; do
   docker start "$c" >/dev/null 2>&1 || true
 done
 sleep 5

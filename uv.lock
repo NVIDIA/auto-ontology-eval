@@ -2179,7 +2179,7 @@ wheels = [
 
 [[package]]
 name = "nemo-retriever"
-version = "2026.9.11.dev20260911150532"
+version = "2026.9.17.dev20260917073247"
 source = { git = "https://github.com/NVIDIA/NeMo-Retriever.git?subdirectory=nemo_retriever#b0a4ce1f295d1457c89ae01bd806966ee05c8307" }
 dependencies = [
     { name = "backoff" },
@@ -2364,7 +2364,6 @@ dependencies = [
     { name = "matplotlib" },
     { name = "mysql-connector-python" },
     { name = "nemo-retriever", extra = ["tabular"] },
-    { name = "neo4j" },
     { name = "numpy" },
     { name = "pandas" },
     { name = "psutil" },
@@ -2411,7 +2410,6 @@ requires-dist = [
     { name = "matplotlib", specifier = ">=3.11.1" },
     { name = "mysql-connector-python", specifier = ">=26.7.0" },
     { name = "nemo-retriever", extras = ["tabular"], git = "https://github.com/NVIDIA/NeMo-Retriever.git?subdirectory=nemo_retriever" },
-    { name = "neo4j", specifier = ">=6.1.0" },
     { name = "numpy", specifier = ">=2.0" },
     { name = "pandas", specifier = ">=2.0,<3" },
     { name = "psutil", specifier = ">=7.2.2" },
