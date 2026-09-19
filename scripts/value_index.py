@@ -226,7 +226,46 @@ def ngrams(text: str, n_max: int = 5) -> list[str]:
     return out
 
 
-def lookup(con: sqlite3.Connection, db: str, phrases: list[str], limit: int = 8) -> list[tuple]:
+_ID_CUE = re.compile(r"\b(?:id|ids|no|num|number|code|#)\W{0,3}$", re.I)
+# A value mixing letters and digits is a code, and a code identifies one row by
+# design: 'TR181', 'A1-B2'. Plain words are excluded however unusual they look.
+_CODE = re.compile(r"(?=.*[a-z])(?=.*\d)[a-z0-9._/-]+", re.I)
+_BARE_NUMBER = re.compile(r"[\d.,:/-]+")
+
+
+def names_an_identifier(text: str, phrase: str, tbl: str, col: str) -> bool:
+    """Does the question present this phrase as the identifier of one row?
+
+    Matching a single row is what an identifier does, so the one-row rule below
+    cannot treat it as evidence of coincidence. But a bare number is the
+    ambiguous case -- '1997' is a year in "loans approved in 1997" and an
+    account id in "the account with the id 1997" -- and only the question says
+    which. A number therefore qualifies solely when it is introduced as an
+    identifier, either by an explicit cue ("with the id 532", "owner number
+    130") or by the entity being named right before it ("the TR181 molecule").
+    """
+    if _CODE.fullmatch(phrase):
+        return True
+    if not _BARE_NUMBER.fullmatch(phrase):
+        return False
+    low = text.lower()
+    stem = re.split(r"[_\s]", col.lower())[0]
+    for m in re.finditer(re.escape(phrase.lower()), low):
+        before = low[max(0, m.start() - 28) : m.start()].rstrip()
+        if _ID_CUE.search(before):
+            return True
+        if re.search(rf"\b({re.escape(tbl.lower())}|{re.escape(stem)})\w*\W{{0,3}}$", before):
+            return True
+    return False
+
+
+def lookup(
+    con: sqlite3.Connection,
+    db: str,
+    phrases: list[str],
+    limit: int = 8,
+    text: str = "",
+) -> list[tuple]:
     """Anchors for a question: (phrase, table, column, stored value, rows, kind).
 
     ``kind`` is "value" when the phrase names the stored value outright and
@@ -238,8 +277,13 @@ def lookup(con: sqlite3.Connection, db: str, phrases: list[str], limit: int = 8)
     Within a phrase, commoner values first: a value spanning many rows is a
     category, which is what questions filter on, while a single-row match is
     usually a coincidence in unrelated data (the surname 'Free' for the phrase
-    "free meals"). Single-row matches are dropped outright when the same phrase
-    has a substantial match elsewhere.
+    "free meals"). Single-row matches are dropped when the same phrase has a
+    substantial match elsewhere, unless the question names the value as an
+    identifier, for which one row is the expected count rather than a warning.
+
+    ``text`` is the question wording the phrases came from, needed to tell an
+    identifier from a number that merely looks like one. Without it only
+    code-shaped values survive that rule.
     """
     exact: list[tuple] = []
     partial: list[tuple] = []
@@ -251,13 +295,18 @@ def lookup(con: sqlite3.Connection, db: str, phrases: list[str], limit: int = 8)
             seen.add(key)
             bucket.append((phrase, tbl, col, raw, n, kind))
 
-    ordered = sorted(set(phrases), key=len, reverse=True)
+    # Longest first, then alphabetically: phrases of equal length are common,
+    # and leaving their order to a set's iteration made the anchors for 121
+    # questions depend on the interpreter's hash seed rather than on the data.
+    ordered = sorted(set(phrases), key=lambda p: (-len(p), p))
     for phrase in ordered:
         keys = {phrase, singular(phrase)}
         # The question's own wording gets normalised the same way stored values
         # were, so "0:01:40" reaches a stored "1:40" from either side.
         keys |= variants(phrase) | variants(singular(phrase))
-        for key in keys:
+        # Sorted for the same reason: the first variant to reach a column fixes
+        # which stored spelling is reported for it.
+        for key in sorted(keys):
             for tbl, col, raw, n in con.execute(
                 "SELECT tbl, col, value_raw, n_rows FROM value_column "
                 "WHERE db = ? AND value_norm = ? ORDER BY n_rows DESC LIMIT 6",
@@ -284,9 +333,19 @@ def lookup(con: sqlite3.Connection, db: str, phrases: list[str], limit: int = 8)
                 (db, singular(phrase)),
             ):
                 add(partial, phrase, tbl, col, raw, n, "contains")
-    # A one-row hit beside a substantial one for the same phrase is noise.
+    # A one-row hit beside a substantial one for the same phrase is usually
+    # noise -- but not where the question named an identifier, for which one
+    # row is the expected count. Dropping those too cost 106 anchors gold
+    # filters on, mostly id lookups; sparing them recovers 60 while the
+    # coincidences stay suppressed.
     strong = {h[0] for h in exact if h[4] >= 5}
-    exact = [h for h in exact if h[4] > 1 or h[0] not in strong]
+    exact = [
+        h
+        for h in exact
+        if h[4] > 1
+        or h[0] not in strong
+        or names_an_identifier(text, h[0], h[1], h[2])
+    ]
     return (exact + partial)[:limit]
 
 
@@ -317,7 +376,8 @@ def validate(targets_path: Path, limit: int) -> None:
             continue
         cov["gold column+value present in index"] += 1
 
-        anchors = lookup(con, db, ngrams(t["question"] + " " + t.get("evidence", "")), limit)
+        text = t["question"] + " " + t.get("evidence", "")
+        anchors = lookup(con, db, ngrams(text), limit, text=text)
         noise.append(len(anchors))
         # A word posting counts as a hit too: pointing at gold's column with a
         # value containing the phrase is what a LIKE filter needs.
@@ -383,6 +443,40 @@ def _schema_words(con: sqlite3.Connection, db: str) -> frozenset[str]:
     return frozenset(words)
 
 
+@lru_cache(maxsize=None)
+def _column_glosses(db: str) -> dict[tuple[str, str], str]:
+    """Documented names for a database's columns, from BIRD's own description
+    files, keyed by (table, column) lowercased.
+
+    Only a gloss that says something the column name does not is kept. MailCity
+    is documented as "mailing city", which is the whole difference between it
+    and City; County is documented as "County name", which is the column name
+    again and would only lengthen the line.
+    """
+    out: dict[tuple[str, str], str] = {}
+    folder = ROOT / "datasets/bird/dev" / db / "database_description"
+    if not folder.is_dir():
+        return out
+    for path in folder.glob("*.csv"):
+        tbl = path.stem.lower()
+        # These files are hand-written and not uniformly encoded.
+        with path.open(encoding="utf-8-sig", errors="replace", newline="") as f:
+            for r in csv.DictReader(f):
+                col = (r.get("original_column_name") or "").strip()
+                if not col:
+                    continue
+                for field in ("column_name", "column_description"):
+                    gloss = " ".join((r.get(field) or "").split()).strip(" .,;:")
+                    if not gloss or len(gloss) > 60:
+                        continue
+                    a, b = norm(gloss).replace(" ", ""), norm(col).replace(" ", "")
+                    if a == b or a in b or b in a:
+                        continue  # the column name restated
+                    out[(tbl, col.lower())] = gloss
+                    break
+    return out
+
+
 def anchors(out_path: Path, limit: int, max_contains: int, max_absent: int) -> None:
     """Write the anchors each dev question would receive, for prompt injection."""
     con = sqlite3.connect(f"file:{INDEX}?mode=ro", uri=True)
@@ -391,7 +485,7 @@ def anchors(out_path: Path, limit: int, max_contains: int, max_absent: int) -> N
     for q in questions:
         db = q["db_id"]
         text = q["question"] + " " + (q.get("evidence") or "")
-        hits = lookup(con, db, ngrams(text), limit)
+        hits = lookup(con, db, ngrams(text), limit, text=text)
         kept, n_contains = [], 0
         for hit in hits:
             if hit[5] == "contains":
@@ -400,12 +494,26 @@ def anchors(out_path: Path, limit: int, max_contains: int, max_absent: int) -> N
                     continue
             kept.append(hit)
         hits = kept
+        # A phrase landing on several columns of one table is the ambiguous
+        # case: schools.City and schools.MailCity both hold 'San Joaquin', and
+        # only the question's wording settles which is meant. There the
+        # documented column name is attached, so the distinction can be read
+        # off the line rather than inferred from the order or the row counts.
+        # Elsewhere it is left off; one matching column needs no disambiguating.
+        columns_per: dict[tuple[str, str], set[str]] = {}
+        for phrase, tbl, col, *_ in hits:
+            columns_per.setdefault((phrase, tbl.lower()), set()).add(col.lower())
+        glosses = _column_glosses(db)
         for rank, (phrase, tbl, col, raw, n, kind) in enumerate(hits, start=1):
+            contested = len(columns_per.get((phrase, tbl.lower()), ())) > 1
+            gloss = glosses.get((tbl.lower(), col.lower()), "") if contested else ""
+            if gloss:
+                stats["glossed anchors"] += 1
             rows.append(
                 {
                     "question_id": q["question_id"], "rank": rank, "kind": kind,
                     "phrase": phrase, "tbl": tbl, "col": col,
-                    "stored_value": raw, "n_rows": n,
+                    "stored_value": raw, "n_rows": n, "description": gloss,
                 }
             )
         stats["anchors"] += len(hits)
@@ -438,7 +546,8 @@ def anchors(out_path: Path, limit: int, max_contains: int, max_absent: int) -> N
             rows.append(
                 {
                     "question_id": q["question_id"], "rank": rank, "kind": "absent",
-                    "phrase": phrase, "tbl": "", "col": "", "stored_value": "", "n_rows": 0,
+                    "phrase": phrase, "tbl": "", "col": "", "stored_value": "",
+                    "n_rows": 0, "description": "",
                 }
             )
             stats["absent notes"] += 1
@@ -448,8 +557,10 @@ def anchors(out_path: Path, limit: int, max_contains: int, max_absent: int) -> N
         w.writerows(rows)
     print(
         f"{stats['anchors']:,} anchors and {stats['absent notes']:,} 'not stored' notes "
-        f"over {len(questions)} questions -> {out_path.relative_to(ROOT)}\n"
-        f"  mean {stats['anchors']/len(questions):.1f} anchors per question"
+        f"over {len(questions)} questions -> {out_path}\n"
+        f"  mean {stats['anchors']/len(questions):.1f} anchors per question\n"
+        f"  {stats['glossed anchors']:,} carry a documented column name, "
+        f"attached only where one phrase matched several columns of one table"
     )
 
 

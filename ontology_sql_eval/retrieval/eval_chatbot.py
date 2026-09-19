@@ -420,6 +420,9 @@ def _load_value_anchors(path: Path) -> Dict[str, List[Dict[str, str]]]:
                         "col": (record.get("col") or "").strip(),
                         "stored_value": (record.get("stored_value") or "").strip(),
                         "n_rows": (record.get("n_rows") or "").strip(),
+                        # Present only where one phrase matched several columns
+                        # of one table, which is where naming them apart helps.
+                        "description": (record.get("description") or "").strip(),
                     },
                 )
             )
