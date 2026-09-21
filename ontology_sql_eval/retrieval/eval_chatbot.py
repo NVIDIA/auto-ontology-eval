@@ -137,6 +137,18 @@ _SUPPORTS_EVIDENCE_PARAM = "evidence" in getattr(
     TextToSQLPayload, "__annotations__", {}
 )
 
+# Same probe for retrieved question/SQL exemplars. Unlike evidence there is no
+# fallback: gluing another database's SQL onto the question text would be worse
+# than sending nothing, so on an older GSF the examples are simply dropped.
+_SUPPORTS_SQL_EXAMPLES_PARAM = "sql_examples" in getattr(
+    TextToSQLPayload, "__annotations__", {}
+)
+
+# Same probe for looked-up database values.
+_SUPPORTS_VALUE_ANCHORS_PARAM = "value_anchors" in getattr(
+    TextToSQLPayload, "__annotations__", {}
+)
+
 # How per-node timings were measured, recorded into every run summary. "phase"
 # means GSF emitted explicit start/end events and each node was timed directly;
 # "gap" means the older single-event stream, where a node's cost is inferred
@@ -260,6 +272,207 @@ def _load_questions(path: Path) -> List[Dict[str, Any]]:
             f"Expected a JSON array of questions, got {type(data).__name__}"
         )
     return data
+
+
+def _load_sql_examples(
+    path: Path, k: int, min_score: float = 0.0
+) -> Dict[str, List[Dict[str, str]]]:
+    """Map question_id to its top-*k* retrieved question/SQL exemplars.
+
+    Reads the CSV written by ``scripts/find_structural_exemplars.py``, which
+    ranks train-set examples by question structure alone. Keys are stringified
+    because the CSV always yields text while the dataset yields ints.
+
+    Retrieval always returns something, but wording similarity is only weakly
+    related to whether the structure transfers (r=0.20 against gold skeleton
+    similarity on BIRD dev), so most questions get a pattern that is merely a
+    verbal coincidence. ``min_score`` withholds patterns from a question whose
+    best match scores below it, leaving that question to be answered under the
+    general shape rules instead. The gate is per question rather than per
+    exemplar so that a kept question still gets a full *k*.
+    """
+    if not path.exists():
+        raise SystemExit(
+            f"SQL examples file not found: {path}\n"
+            "Generate it with: python scripts/find_structural_exemplars.py"
+        )
+    ranked: Dict[str, List[Tuple[int, Dict[str, str]]]] = {}
+    best_score: Dict[str, float] = {}
+    with path.open("r", encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f)
+        # A truncated or hand-edited header still parses, and the rows then key
+        # on nonsense instead of question ids — silently sending no examples to
+        # every question. Check up front rather than debugging a null result.
+        required = {"question_id", "rank", "train_question", "train_sql"}
+        if min_score > 0:
+            required.add("score")
+        missing = required - set(reader.fieldnames or [])
+        if missing:
+            raise SystemExit(
+                f"{path} is missing expected column(s): {sorted(missing)}.\n"
+                f"Found: {reader.fieldnames}\n"
+                "Regenerate it with: python scripts/find_structural_exemplars.py"
+            )
+        for record in reader:
+            sql = (record.get("train_sql") or "").strip()
+            if not sql:
+                continue
+            try:
+                rank = int(record.get("rank") or 0)
+            except ValueError:
+                continue
+            qid = str(record.get("question_id", ""))
+            if min_score > 0:
+                try:
+                    score = float(record.get("score") or 0.0)
+                except ValueError:
+                    score = 0.0
+                # Every row is read, not just the top *k*, so the gate sees the
+                # question's true best score even if ranking ever changes.
+                best_score[qid] = max(best_score.get(qid, 0.0), score)
+            if rank > k:
+                continue
+            ranked.setdefault(qid, []).append(
+                (
+                    rank,
+                    {
+                        "db": (record.get("train_db") or "").strip(),
+                        "question": (record.get("train_question") or "").strip(),
+                        # The exemplar's own evidence shows how a stated formula
+                        # was turned into SQL (casting, operand order, whether
+                        # *100 was applied), which is the transferable part.
+                        "evidence": (record.get("train_evidence") or "").strip(),
+                        "sql": sql,
+                    },
+                )
+            )
+    # Rank order decides what the model reads first, and DictReader preserves
+    # only file order, which need not be sorted.
+    by_question = {
+        qid: [example for _, example in sorted(pairs, key=lambda pair: pair[0])]
+        for qid, pairs in ranked.items()
+    }
+    if min_score > 0:
+        retrieved = len(by_question)
+        by_question = {
+            qid: examples
+            for qid, examples in by_question.items()
+            if best_score.get(qid, 0.0) >= min_score
+        }
+        logger.info(
+            "SQL example gate at score >= %.2f: %d of %d questions keep their "
+            "examples (%.1f%%); the rest run under the general shape rules",
+            min_score,
+            len(by_question),
+            retrieved,
+            100.0 * len(by_question) / retrieved if retrieved else 0.0,
+        )
+    logger.info(
+        "Loaded top-%d SQL examples for %d questions from %s",
+        k,
+        len(by_question),
+        path,
+    )
+    return by_question
+
+
+def _load_value_anchors(path: Path) -> Dict[str, List[Dict[str, str]]]:
+    """Map question_id to the database values looked up for its question.
+
+    Reads the CSV written by ``scripts/value_index.py anchors``. Rows of kind
+    "absent" carry no column and record a phrase the database does not store;
+    they are kept because that negative is what stops an invented literal.
+    """
+    if not path.exists():
+        raise SystemExit(
+            f"Value anchors file not found: {path}\n"
+            "Generate it with: python scripts/value_index.py build && "
+            "python scripts/value_index.py anchors"
+        )
+    ranked: Dict[str, List[Tuple[int, Dict[str, str]]]] = {}
+    with path.open("r", encoding="utf-8", newline="") as f:
+        reader = csv.DictReader(f)
+        required = {"question_id", "rank", "kind", "phrase"}
+        missing = required - set(reader.fieldnames or [])
+        if missing:
+            raise SystemExit(
+                f"{path} is missing expected column(s): {sorted(missing)}.\n"
+                f"Found: {reader.fieldnames}"
+            )
+        for record in reader:
+            phrase = (record.get("phrase") or "").strip()
+            if not phrase:
+                continue
+            try:
+                rank = int(record.get("rank") or 0)
+            except ValueError:
+                continue
+            # Absent notes last: the found values are the actionable part, and
+            # rank restarts at 1 for the absent rows.
+            order = rank + (1000 if (record.get("kind") or "") == "absent" else 0)
+            ranked.setdefault(str(record.get("question_id", "")), []).append(
+                (
+                    order,
+                    {
+                        "kind": (record.get("kind") or "found").strip(),
+                        "phrase": phrase,
+                        "tbl": (record.get("tbl") or "").strip(),
+                        "col": (record.get("col") or "").strip(),
+                        "stored_value": (record.get("stored_value") or "").strip(),
+                        "n_rows": (record.get("n_rows") or "").strip(),
+                        # Present only where one phrase matched several columns
+                        # of one table, which is where naming them apart helps.
+                        "description": (record.get("description") or "").strip(),
+                    },
+                )
+            )
+    by_question = {
+        qid: [anchor for _, anchor in sorted(pairs, key=lambda pair: pair[0])]
+        for qid, pairs in ranked.items()
+    }
+    logger.info(
+        "Loaded value anchors for %d questions from %s (%d total lines)",
+        len(by_question),
+        path,
+        sum(len(v) for v in by_question.values()),
+    )
+    return by_question
+
+
+def _load_prompt_extras(
+    sql_examples_path: Path | None,
+    sql_examples_k: int,
+    sql_examples_min_score: float,
+    value_anchors_path: Path | None,
+) -> Tuple[Dict[str, List[Dict[str, str]]], Dict[str, List[Dict[str, str]]]]:
+    """Load whichever prompt inputs were asked for, keyed by question id.
+
+    Asking for either against a GSF with no matching payload field is fatal:
+    the flag would otherwise look honoured while nothing reached the prompt,
+    and the run would be scored as though it had been.
+    """
+    sql_examples: Dict[str, List[Dict[str, str]]] = {}
+    if sql_examples_path and sql_examples_k > 0:
+        if not _SUPPORTS_SQL_EXAMPLES_PARAM:
+            raise SystemExit(
+                "--sql-examples was given but this GSF build has no "
+                "'sql_examples' payload field; the examples would be silently "
+                "dropped. Upgrade GSF or drop the flag."
+            )
+        sql_examples = _load_sql_examples(
+            sql_examples_path, sql_examples_k, sql_examples_min_score
+        )
+
+    value_anchors: Dict[str, List[Dict[str, str]]] = {}
+    if value_anchors_path:
+        if not _SUPPORTS_VALUE_ANCHORS_PARAM:
+            raise SystemExit(
+                "--value-anchors was given but this GSF build has no "
+                "'value_anchors' payload field; the anchors would be silently "
+                "dropped. Upgrade GSF or drop the flag."
+            )
+        value_anchors = _load_value_anchors(value_anchors_path)
+    return sql_examples, value_anchors
 
 
 CSV_FIELDS = [
@@ -523,6 +736,8 @@ def _evaluate_question(
     connectors: List[Any],
     connectors_by_name: Dict[str, Any],
     run_log: RunLogger | None,
+    sql_examples: Dict[str, List[Dict[str, str]]] | None = None,
+    value_anchors: Dict[str, List[Dict[str, str]]] | None = None,
 ) -> Dict[str, Any]:
     """Run and score one question. Never raises: failures land in ``error``."""
     row = _blank_row(idx, item)
@@ -544,6 +759,8 @@ def _evaluate_question(
         if _SUPPORTS_EVIDENCE_PARAM or not evidence
         else f"{question}\n\nEvidence: {evidence}"
     )
+    question_examples = (sql_examples or {}).get(str(qid)) or []
+    question_anchors = (value_anchors or {}).get(str(qid)) or []
 
     worker = threading.current_thread().name
     row["worker"] = worker
@@ -552,6 +769,10 @@ def _evaluate_question(
         logger.info("[%d/%d] q%s: %s", idx + 1, total, qid, question)
         if db_id:
             logger.info("  db_id=%s  evidence=%s", db_id, str(evidence)[:120])
+        if question_examples:
+            logger.info("  sql_examples=%d", len(question_examples))
+        if question_anchors:
+            logger.info("  value_anchors=%d", len(question_anchors))
         if run_log is not None:
             run_log.event(
                 "question_start",
@@ -584,6 +805,10 @@ def _evaluate_question(
             }
             if _SUPPORTS_EVIDENCE_PARAM:
                 payload["evidence"] = evidence
+            if question_examples and _SUPPORTS_SQL_EXAMPLES_PARAM:
+                payload["sql_examples"] = question_examples
+            if question_anchors and _SUPPORTS_VALUE_ANCHORS_PARAM:
+                payload["value_anchors"] = question_anchors
             logger.info("Running question %s", payload["question"])
 
             t_agent = time.perf_counter()
@@ -755,6 +980,10 @@ def run_evaluation(
     end_index: int | None = None,
     workers: int = 1,
     run_log: RunLogger | None = None,
+    sql_examples_path: Path | None = None,
+    sql_examples_k: int = 3,
+    sql_examples_min_score: float = 0.0,
+    value_anchors_path: Path | None = None,
 ) -> None:
     """Run every selected question and write one CSV row each.
 
@@ -768,6 +997,10 @@ def run_evaluation(
     if not questions:
         logger.warning("No questions selected from %s — nothing to do.", input_path)
         return
+
+    sql_examples, value_anchors = _load_prompt_extras(
+        sql_examples_path, sql_examples_k, sql_examples_min_score, value_anchors_path
+    )
 
     workers = max(1, workers)
     logger.info(
@@ -832,6 +1065,8 @@ def run_evaluation(
                 connectors=connectors,
                 connectors_by_name=connectors_by_name,
                 run_log=run_log,
+                sql_examples=sql_examples,
+                value_anchors=value_anchors,
             )
             emit(row)
             return row
@@ -862,22 +1097,49 @@ def run_evaluation(
         run_log.note(
             node_timing_mode=_node_timing_mode,
             evidence_as_parameter=_SUPPORTS_EVIDENCE_PARAM,
+            sql_examples_source=str(sql_examples_path) if sql_examples else "",
+            sql_examples_k=sql_examples_k if sql_examples else 0,
+            sql_examples_min_score=sql_examples_min_score,
+            sql_examples_indexed=len(sql_examples),
+            value_anchors_source=str(value_anchors_path) if value_anchors else "",
+            value_anchors_indexed=len(value_anchors),
         )
 
     logger.info("Wrote scores to %s", output_path)
 
 
-def run_single_question(question: str, run_log: RunLogger | None = None) -> None:
-    """Run a single question through the agent and print the result."""
+def run_single_question(
+    question: str,
+    run_log: RunLogger | None = None,
+    evidence: str = "",
+    sql_examples: List[Dict[str, str]] | None = None,
+    value_anchors: List[Dict[str, str]] | None = None,
+    connectors: List[Any] | None = None,
+) -> None:
+    """Run a single question through the agent and print the result.
+
+    Everything past *question* is what the batch path sends, so a question
+    debugged here is asked the way the eval asks it.
+    """
     payload: TextToSQLPayload = {
-        "question": question,
+        "question": (
+            question
+            if _SUPPORTS_EVIDENCE_PARAM or not evidence
+            else f"{question}\n\nEvidence: {evidence}"
+        ),
         "data_retriever": get_data_objects_retriever(),
         "semantic_retriever": get_semantic_objects_retriever(),
-        "connectors": get_connectors(),
+        "connectors": connectors if connectors is not None else get_connectors(),
         "path_state": {},
         "custom_prompts": "",
         "acronyms": [],
     }
+    if _SUPPORTS_EVIDENCE_PARAM:
+        payload["evidence"] = evidence
+    if sql_examples and _SUPPORTS_SQL_EXAMPLES_PARAM:
+        payload["sql_examples"] = sql_examples
+    if value_anchors and _SUPPORTS_VALUE_ANCHORS_PARAM:
+        payload["value_anchors"] = value_anchors
     with question_context(qid="single", row_index=0):
         t0 = time.perf_counter()
         agent_result, node_timings = _run_agent_traced(payload, run_log)
@@ -891,6 +1153,68 @@ def run_single_question(question: str, run_log: RunLogger | None = None) -> None
                 entry["http_calls"],
             )
         logger.info("Runtime: %.2fs", elapsed)
+
+
+def run_single_dataset_question(
+    input_path: Path,
+    question_id: str,
+    run_log: RunLogger | None = None,
+    sql_examples_path: Path | None = None,
+    sql_examples_k: int = 3,
+    sql_examples_min_score: float = 0.0,
+    value_anchors_path: Path | None = None,
+) -> None:
+    """Run one question from the evaluation file, asked as the batch run asks it.
+
+    Debugging a question in isolation is only informative if nothing about the
+    request changed, so its own evidence, exemplars and anchors are loaded here
+    too, and it goes to the connector for its ``db_id`` rather than to whichever
+    connector happens to come first.
+    """
+    item = next(
+        (
+            question
+            for question in _load_questions(input_path)
+            if str(question.get("question_id", "")) == str(question_id)
+        ),
+        None,
+    )
+    if item is None:
+        raise SystemExit(f"No question_id={question_id!r} in {input_path}")
+
+    sql_examples, value_anchors = _load_prompt_extras(
+        sql_examples_path, sql_examples_k, sql_examples_min_score, value_anchors_path
+    )
+    question = str(item.get("question", "")).strip()
+    evidence = item.get("evidence", "") if _INCLUDE_EVIDENCE else ""
+    db_id = item.get("db_id", "")
+
+    connectors = get_connectors()
+    if db_id:
+        by_name = {
+            getattr(connector, "database_name", None): connector
+            for connector in connectors
+        }
+        if db_id not in by_name:
+            raise SystemExit(f"No connector configured for db_id={db_id!r}")
+        connectors = [by_name[db_id]]
+
+    question_examples = sql_examples.get(str(question_id)) or []
+    question_anchors = value_anchors.get(str(question_id)) or []
+    logger.info("q%s (db_id=%s): %s", question_id, db_id or "-", question)
+    if question_examples:
+        logger.info("  sql_examples=%d", len(question_examples))
+    if question_anchors:
+        logger.info("  value_anchors=%d", len(question_anchors))
+
+    run_single_question(
+        question,
+        run_log,
+        evidence=evidence,
+        sql_examples=question_examples,
+        value_anchors=question_anchors,
+        connectors=connectors,
+    )
 
 
 SINGLE_QUERY = "calculate the customer count by state province name"
@@ -945,6 +1269,47 @@ def _parse_args() -> argparse.Namespace:
         "(shorthand for --end-index; ignored when --end-index is given).",
     )
     parser.add_argument(
+        "--sql-examples",
+        type=Path,
+        default=(
+            Path(os.environ["SQL_EXAMPLES_CSV"])
+            if os.environ.get("SQL_EXAMPLES_CSV")
+            else None
+        ),
+        help="CSV of retrieved question/SQL exemplars to inject into the SQL "
+        "generation prompt, as written by scripts/find_structural_exemplars.py. "
+        "Omitted means no exemplars (default). Env: SQL_EXAMPLES_CSV.",
+    )
+    parser.add_argument(
+        "--sql-examples-k",
+        type=int,
+        default=int(os.environ.get("SQL_EXAMPLES_K", "3")),
+        help="How many exemplars per question to inject, by rank "
+        "(default: 3). Env: SQL_EXAMPLES_K.",
+    )
+    parser.add_argument(
+        "--sql-examples-min-score",
+        type=float,
+        default=float(os.environ.get("SQL_EXAMPLES_MIN_SCORE", "0")),
+        help="Withhold exemplars from a question whose best retrieval score is "
+        "below this, so it is answered under the general shape rules instead. "
+        "0 (default) attaches exemplars to every question. Env: "
+        "SQL_EXAMPLES_MIN_SCORE.",
+    )
+    parser.add_argument(
+        "--value-anchors",
+        type=Path,
+        default=(
+            Path(os.environ["VALUE_ANCHORS_CSV"])
+            if os.environ.get("VALUE_ANCHORS_CSV")
+            else None
+        ),
+        help="CSV of question phrases looked up against the database, as "
+        "written by scripts/value_index.py anchors. Tells the model which "
+        "column stores a value and its exact spelling. Omitted means no "
+        "anchors (default). Env: VALUE_ANCHORS_CSV.",
+    )
+    parser.add_argument(
         "--log-dir",
         type=Path,
         default=_LOG_DIR,
@@ -965,9 +1330,14 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--single",
-        action="store_true",
-        default=False,
-        help="Run a single hardcoded query (edit SINGLE_QUERY in the script).",
+        nargs="?",
+        const="",
+        default=None,
+        metavar="QUESTION_ID",
+        help="Run one question instead of the whole file. With a question_id "
+        "from the evaluation file, that question is asked exactly as the batch "
+        "run asks it: its own evidence, exemplars and anchors, routed to its "
+        "db_id. Bare --single runs the hardcoded SINGLE_QUERY.",
     )
     return parser.parse_args()
 
@@ -1000,11 +1370,26 @@ def main() -> None:
             start_index=args.start_index,
             end_index=end_index,
             single=args.single,
+            sql_examples=str(args.sql_examples or ""),
+            sql_examples_k=args.sql_examples_k,
+            sql_examples_min_score=args.sql_examples_min_score,
+            value_anchors=str(args.value_anchors or ""),
         )
         logger.info("Logging this run to %s", run_log.dir)
 
-        if args.single:
-            run_single_question(SINGLE_QUERY, run_log)
+        if args.single is not None:
+            if args.single:
+                run_single_dataset_question(
+                    input_path,
+                    args.single,
+                    run_log,
+                    sql_examples_path=args.sql_examples,
+                    sql_examples_k=args.sql_examples_k,
+                    sql_examples_min_score=args.sql_examples_min_score,
+                    value_anchors_path=args.value_anchors,
+                )
+            else:
+                run_single_question(SINGLE_QUERY, run_log)
         else:
             run_evaluation(
                 input_path=input_path,
@@ -1013,6 +1398,10 @@ def main() -> None:
                 end_index=end_index,
                 workers=args.workers,
                 run_log=run_log,
+                sql_examples_path=args.sql_examples,
+                sql_examples_k=args.sql_examples_k,
+                sql_examples_min_score=args.sql_examples_min_score,
+                value_anchors_path=args.value_anchors,
             )
             summary = run_log.write_summary(
                 workers=args.workers,
