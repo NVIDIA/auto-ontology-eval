@@ -802,6 +802,7 @@ def _evaluate_question(
                 "path_state": {},
                 "custom_prompts": "",
                 "acronyms": [],
+                "detailed_answers": False,
             }
             if _SUPPORTS_EVIDENCE_PARAM:
                 payload["evidence"] = evidence
@@ -1133,6 +1134,7 @@ def run_single_question(
         "path_state": {},
         "custom_prompts": "",
         "acronyms": [],
+        "detailed_answers": False,
     }
     if _SUPPORTS_EVIDENCE_PARAM:
         payload["evidence"] = evidence
