@@ -2,7 +2,7 @@
 """
 Run BIRD-Interact c-Interact evaluation using the GSF adapter.
 
-Starts the ontology-sql-eval adapter on :6000, then invokes the official
+Starts the auto-ontology-eval adapter on :6000, then invokes the official
 Bird c-Interact orchestrator against the merged GT jsonl, and writes a
 results CSV.
 
@@ -28,7 +28,7 @@ Prerequisites — start separately BEFORE running this script:
     cd third_party/BIRD-Interact/BIRD-Interact-ADK
     PATH="$PG_WRAPPERS:$PATH" python -m uvicorn db_environment.server:app --host 127.0.0.1 --port 6002
 
-  pg_wrappers setup (one-time, run from ontology-sql-eval/):
+  pg_wrappers setup (one-time, run from auto-ontology-eval/):
     python scripts/setup_pg_wrappers.py
 
   Bird PostgreSQL (task DBs, only needed for :6002 scoring):

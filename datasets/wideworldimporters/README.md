@@ -69,7 +69,7 @@ PYTHONPATH=../GSF uv run python -m ontology_sql_eval.retrieval.eval_chatbot \
     --database-name wideworldimporters
 
 # 3. Re-score every CSV in input/ with the LLM judge -> output/<name>_scores.csv
-uv run ontology-sql-eval
+uv run auto-ontology-eval
 ```
 
 See the per-workflow READMEs under [Workflows](../../README.md#workflows) for

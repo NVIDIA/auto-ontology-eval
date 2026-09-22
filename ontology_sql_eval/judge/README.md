@@ -18,7 +18,7 @@ optionally `returned_answer`, used as a result preview). Rows with an empty
 ## Run
 
 ```bash
-uv run ontology-sql-eval     # or: uv run python -m ontology_sql_eval.judge.main
+uv run auto-ontology-eval     # or: uv run python -m ontology_sql_eval.judge.main
 ```
 
 Options: `--input-dir` (default `input`), `--output-dir` (default `output`),

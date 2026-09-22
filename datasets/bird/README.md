@@ -111,7 +111,7 @@ PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.semantic --benchm
 PYTHONPATH=../GSF uv run python -m ontology_sql_eval.retrieval.eval_chatbot --database-name bird
 
 # 3. Re-score every CSV in input/ with the LLM judge -> output/<name>_scores.csv
-uv run ontology-sql-eval
+uv run auto-ontology-eval
 ```
 
 Both ingestion commands walk every entry in `CONNECTION_STRINGS`, so all 11

@@ -41,7 +41,7 @@ ported source code and a sample dataset. Both are documented in
 **NVIDIA internal dependencies** (not third-party):
 
 - `nemo-retriever` — sourced from [NVIDIA/NeMo-Retriever](https://github.com/NVIDIA/NeMo-Retriever)
-- `gsf` / `dev_tools` — sourced from [NVIDIA/GSF](https://github.com/NVIDIA/GSF) via `PYTHONPATH`
+- `gsf` / `dev_tools` — sourced from [NVIDIA/auto-ontology](https://github.com/NVIDIA/auto-ontology) via `PYTHONPATH`
 
 ---
 

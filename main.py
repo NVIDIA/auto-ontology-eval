@@ -182,7 +182,7 @@ def _eval_output_path(*, database_name: str) -> Path:
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        prog="ontology-sql-eval-pipeline",
+        prog="auto-ontology-eval-pipeline",
         description=(
             "Run the full evaluation pipeline: ingest -> semantic compile -> "
             "retrieval eval -> LLM judge."

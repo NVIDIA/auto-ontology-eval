@@ -2,7 +2,7 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Command-line entry point for ontology-sql-eval."""
+"""Command-line entry point for auto-ontology-eval."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ _DEFAULT_OUTPUT_DIR = Path("output")
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        prog="ontology-sql-eval",
+        prog="auto-ontology-eval",
         description=(
             "Re-score Text-to-SQL evaluation CSVs with LLM-based logic/semantic scoring. "
             "Every CSV in the input folder is scored into '<name>_scores.csv' in the output folder."

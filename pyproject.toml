@@ -1,5 +1,5 @@
 [project]
-name = "ontology-sql-eval"
+name = "auto-ontology-eval"
 version = "0.1.0"
 description = "LLM-powered re-scoring of Text-to-SQL evaluation CSVs, plus GSF-backed ingestion and retrieval evaluation."
 readme = "README.md"
@@ -56,7 +56,7 @@ dependencies = [
 ]
 
 [project.scripts]
-ontology-sql-eval = "ontology_sql_eval.judge.main:main"
+auto-ontology-eval = "ontology_sql_eval.judge.main:main"
 
 [dependency-groups]
 dev = [

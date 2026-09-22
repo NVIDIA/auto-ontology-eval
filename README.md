@@ -16,11 +16,11 @@ agent can retrieve its schema, run an evaluation to produce a results CSV, then
 optionally re-score that CSV with the LLM judge.
 
 > [!IMPORTANT]
-> **You need [GSF](https://github.com/NVIDIA/GSF).**
+> **You need [GSF](https://github.com/NVIDIA/auto-ontology).**
 >
 > The ingestion and
 > retrieval-eval workflows import the `gsf` package from a **sibling `../GSF`
-> checkout** ([NVIDIA/GSF](https://github.com/NVIDIA/GSF))
+> checkout** ([NVIDIA/auto-ontology](https://github.com/NVIDIA/auto-ontology))
 >
 > It must live right next to this
 > repo on the same machine (i.e. `../GSF` relative to this repo's root) and be on
@@ -36,7 +36,7 @@ optionally re-score that CSV with the LLM judge.
 | Requirement                                                                  | Ingestion  | Retrieval eval | Judge |
 | ---------------------------------------------------------------------------- | :--------: | :------------: | :---: |
 | [uv](https://docs.astral.sh/uv/) + Python 3.12 (3.12–3.13)                   |    yes     |      yes       |  yes  |
-| Sibling repo `../GSF` checkout ([NVIDIA/GSF](https://github.com/NVIDIA/GSF)) |    yes     |      yes       |  no   |
+| Sibling repo `../GSF` checkout ([NVIDIA/auto-ontology](https://github.com/NVIDIA/auto-ontology)) |    yes     |      yes       |  no   |
 | GitHub access to `NVIDIA/NeMo-Retriever`                                     |    yes     |      yes       |  no   |
 | Postgres (catalog + pgvector) service                                        |    yes     |      yes       |  no   |
 | Reachable source database                                                    |    yes     |      yes       |  no   |
@@ -44,9 +44,14 @@ optionally re-score that CSV with the LLM judge.
 
 The two external dependencies are provided differently:
 
-- `../GSF` (`https://github.com/NVIDIA/GSF`) — provides the `gsf` package. **Check it out next to this repo** so it
-  resolves as `../GSF`; it is imported via `PYTHONPATH` (not installed — see
+- `../GSF` (`https://github.com/NVIDIA/auto-ontology`) — provides the `gsf` package. **Check it out next to this repo** so it
+  resolves as `../GSF` (the repo is named `auto-ontology`, so clone it into a
+  folder called `GSF`); it is imported via `PYTHONPATH` (not installed — see
   below).
+
+  ```bash
+  git clone https://github.com/NVIDIA/auto-ontology.git ../GSF
+  ```
 - `nemo-retriever` (`https://github.com/NVIDIA/NeMo-Retriever.git`) — provides
   `nemo_retriever`, installed from GitHub by `uv sync` (see `[tool.uv.sources]`
   in [pyproject.toml](pyproject.toml)).
@@ -308,7 +313,7 @@ ontology_sql_eval/          single namespace package
     scorer.py               per-row LLM scoring call
     runner.py               batch/directory orchestration
     models.py               Pydantic score model + scoring prompt
-    main.py                 CLI entry point (ontology-sql-eval)
+    main.py                 CLI entry point (auto-ontology-eval)
     bird.py                 BIRD official EX + VES scoring (separate from the LLM judge)
   ingestion/                GSF-backed ingestion pipeline
     README.md               ingestion workflow guide

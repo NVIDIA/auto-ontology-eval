@@ -84,7 +84,7 @@ def database_names_from_env() -> list[str]:
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        prog="ontology-sql-eval-semantic",
+        prog="auto-ontology-eval-semantic",
         description="Compile the semantic layer for a database (Term/ColumnAttribute "
         "taxonomy, embeddings, semantic FK edges, SqlAttribute suggestions).",
     )

@@ -8,7 +8,7 @@ Loads this repo's own ``.env`` first, then GSF's ``.env`` (via
 ``gsf.env.load_env()``) as a fallback for anything not already set --
 ``dotenv.load_dotenv()`` called with no explicit path resolves relative to
 the *calling file's* location (frame-based search, not CWD), so a bare call
-from this module only ever finds ``ontology-sql-eval/.env``; it never finds
+from this module only ever finds ``auto-ontology-eval/.env``; it never finds
 GSF's sibling checkout on its own. Loading ours first preserves the existing
 priority (this repo's .env wins over GSF's for any var both define -- see
 ``ingestion/ingest.py`` and ``ingestion/semantic.py`` for why that matters).

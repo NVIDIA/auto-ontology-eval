@@ -2343,7 +2343,7 @@ wheels = [
 ]
 
 [[package]]
-name = "ontology-sql-eval"
+name = "auto-ontology-eval"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [

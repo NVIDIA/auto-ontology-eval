@@ -490,7 +490,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Download BEAVER (beaverbench) questions + MySQL dumps into "
-            "datasets/beaverbench/ for ontology-sql-eval."
+            "datasets/beaverbench/ for auto-ontology-eval."
         )
     )
     parser.add_argument(
