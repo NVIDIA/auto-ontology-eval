@@ -113,6 +113,24 @@ Gym builds each server its own venv from its `requirements.txt`. If that build f
 with `Package metadata version ... does not match ... from the wheel filename`, it is
 a race in nemo-retriever's timestamp-derived version, not a real conflict — retry.
 
+## Keeping the arms comparable
+
+Anything that changes what the model is told must land on **both** arms or
+neither. The current pairing:
+
+| Control (`schema_only_sql`) | GSF (`gsf_ontology_sql`) |
+|---|---|
+| `SYSTEM_PROMPT` in `ontology_sql_eval/gym/tasks.py` carries "Return exactly the requested output fields and NO others" | `shorten_answer=True` appends the same rule to GSF's projection rules |
+
+That instruction is not cosmetic: extra columns fail `set(gold) == set(pred)`
+outright, so giving it to one arm only would measure projection guidance rather
+than ontology grounding.
+
+The control's first sentence is upstream `bird_sql`'s prompt verbatim; the
+projection rule is our addition, so the baseline is no longer strictly identical
+to upstream's. That is the deliberate trade: internal comparability over
+comparability to published BIRD numbers.
+
 ## Known issue: the API key is passed in argv
 
 `scripts/run_gym_arm.sh` passes the model key via `--model-api-key`, which makes

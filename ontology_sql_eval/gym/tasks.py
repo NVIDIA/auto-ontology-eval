@@ -36,9 +36,17 @@ from ontology_sql_eval.gym.ddl import (
 
 Arm = Literal["schema_only", "gsf"]
 
+# The first sentence is upstream bird_sql's prompt verbatim. The projection rule
+# is added to match what GSF receives via shorten_answer=True, which appends
+# "Return exactly the requested output fields and NO others" to its own prompt.
+#
+# Both arms need it or neither does: extra columns break the
+# set(gold) == set(pred) comparison outright, so giving the instruction to only
+# one arm measures projection guidance rather than ontology grounding.
 SYSTEM_PROMPT = (
     "Please reason step by step, and put your final answer within the tags "
-    '"```sql" and "```".'
+    '"```sql" and "```".\n'
+    "Return exactly the requested output fields and NO others."
 )
 
 __all__ = ["DATASETS", "DatasetSpec", "build_records", "write_jsonl", "load_questions"]
