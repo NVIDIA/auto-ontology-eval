@@ -21,11 +21,13 @@ connector, so the schema-only arm carries no GSF dependency at all.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import re
 import sqlite3
 from enum import Enum
 from pathlib import Path
 from typing import Any, Optional, Protocol
+from urllib.parse import unquote, urlparse
 
 ResultSet = list[tuple[Any, ...]]
 
@@ -63,6 +65,7 @@ __all__ = [
     "FailureCode",
     "SqliteExecutor",
     "PostgresExecutor",
+    "MySqlExecutor",
     "extract_sql",
     "has_sql_codeblock",
     "result_sets_match",
@@ -193,6 +196,64 @@ def _run_postgres(dsn: str, sql: str) -> tuple[Optional[ResultSet], str]:
             return cur.fetchall(), ""
     except Exception:
         return None, "error"
+
+
+def _run_mysql(dsn: str, sql: str) -> tuple[Optional[ResultSet], str]:
+    try:
+        import mysql.connector
+
+        with contextlib.closing(mysql.connector.connect(**_mysql_params(dsn))) as conn:
+            with contextlib.closing(conn.cursor()) as cur:
+                cur.execute(sql)
+                return list(cur.fetchall()), ""
+    except Exception:
+        return None, "error"
+
+
+def _mysql_params(dsn: str) -> dict[str, Any]:
+    """Split a ``mysql://user:pass@host:port/db`` URI into connector kwargs."""
+    parsed = urlparse(dsn)
+    return {
+        "user": unquote(parsed.username or ""),
+        "password": unquote(parsed.password or ""),
+        "host": parsed.hostname or "127.0.0.1",
+        "port": parsed.port or 3306,
+        "database": (parsed.path or "/").lstrip("/"),
+    }
+
+
+class MySqlExecutor:
+    """Executes against a MySQL database (BEAVER).
+
+    BEAVER ships one physical database per ``db_id``, so the DSN is selected per
+    task rather than fixed at construction: ``dw_real`` questions deliberately
+    run against the ``dw`` database, which a single connection string could not
+    express.
+    """
+
+    def __init__(
+        self,
+        dsn_for_db: "dict[str, str]",
+        *,
+        max_concurrency: int = 8,
+        timeout_s: float = 30.0,
+    ) -> None:
+        self._dsn_for_db = dsn_for_db
+        self._timeout_s = timeout_s
+        self._semaphore = asyncio.Semaphore(max_concurrency)
+
+    async def execute(self, db_id: str, sql: str) -> tuple[Optional[ResultSet], str]:
+        dsn = self._dsn_for_db.get(db_id)
+        if dsn is None:
+            return None, "error"
+        async with self._semaphore:
+            try:
+                return await asyncio.wait_for(
+                    asyncio.to_thread(_run_mysql, dsn, sql),
+                    timeout=self._timeout_s,
+                )
+            except asyncio.TimeoutError:
+                return None, "timeout"
 
 
 class PostgresExecutor:

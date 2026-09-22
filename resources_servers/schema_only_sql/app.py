@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import logging
 import os
+from urllib.parse import urlparse
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -43,6 +44,7 @@ from nemo_gym.reward_profile import (
 from ontology_sql_eval.gym.exec_match import (
     drop_unusable_tasks,
     FailureCode,
+    MySqlExecutor,
     PostgresExecutor,
     SqliteExecutor,
     execute_and_compare,
@@ -52,6 +54,24 @@ from ontology_sql_eval.gym.exec_match import (
 from ontology_sql_eval.gym.tasks import DATASETS
 
 logger = logging.getLogger(__name__)
+
+
+def mysql_dsns_by_db(connection_strings: str) -> Dict[str, str]:
+    """Map ``db_id`` -> MySQL DSN from a CONNECTION_STRINGS value.
+
+    BEAVER runs one physical database per ``db_id``, so the DSNs are keyed by the
+    database name in each URI rather than collapsed to a single connection.
+    """
+    out: Dict[str, str] = {}
+    for raw in connection_strings.split(","):
+        dsn = raw.strip()
+        if not dsn.startswith("mysql://"):
+            continue
+        database = urlparse(dsn).path.lstrip("/")
+        if database:
+            out[database] = dsn
+    return out
+
 
 # Failures that mean the benchmark, not the model, is at fault.
 _UNUSABLE = {FailureCode.GOLD_EXECUTION_ERROR, FailureCode.GOLD_EXECUTION_TIMEOUT}
@@ -124,12 +144,22 @@ class SchemaOnlySqlResourcesServer(SimpleResourcesServer):
         if spec is None:
             raise KeyError(f"unknown dataset {dataset!r}")
 
-        if spec.dialect == "postgres":
+        if spec.dialect == "mysql":
+            dsns = mysql_dsns_by_db(os.environ.get("CONNECTION_STRINGS", ""))
+            if not dsns:
+                raise RuntimeError(
+                    f"no mysql:// entry in CONNECTION_STRINGS for dataset {dataset!r}; "
+                    "seed it with scripts/seed_beaverbench.py --import-mysql"
+                )
+            executor: Any = MySqlExecutor(
+                dsns, timeout_s=self.config.sql_execution_timeout_s
+            )
+        elif spec.dialect == "postgres":
             dsn = self.config.postgres_dsn or os.environ.get("CONNECTION_STRINGS", "")
             dsn = dsn.split(",")[0].strip()
             if not dsn:
                 raise RuntimeError(f"no Postgres DSN available for dataset {dataset!r}")
-            executor: Any = PostgresExecutor(
+            executor = PostgresExecutor(
                 dsn,
                 timeout_s=self.config.sql_execution_timeout_s,
             )

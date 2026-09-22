@@ -30,6 +30,7 @@ from typing import Any, Iterator, Literal
 
 from ontology_sql_eval.gym.ddl import (
     column_description_block,
+    mysql_schema_dump,
     postgres_schema_dump,
     sqlite_schema_dump,
 )
@@ -72,6 +73,9 @@ class DatasetSpec:
     def description_dir(self, db_id: str) -> Path:
         return Path("datasets") / self.db_root / db_id / "database_description"
 
+    def mysql_dump_path(self, db_id: str) -> Path:
+        return Path("datasets") / self.db_root / "dumps" / f"{db_id}.sql"
+
 
 DATASETS: dict[str, DatasetSpec] = {
     "bird": DatasetSpec("bird", "sqlite", "bird"),
@@ -80,6 +84,9 @@ DATASETS: dict[str, DatasetSpec] = {
     "wideworldimporters": DatasetSpec(
         "wideworldimporters", "postgres", "wideworldimporters"
     ),
+    # BEAVER. Gold SQL is MySQL dialect and each db_id is its own physical
+    # database. Seeded by scripts/seed_beaverbench.py; not committed.
+    "beaverbench": DatasetSpec("beaverbench", "mysql", "beaverbench"),
 }
 
 
@@ -97,6 +104,9 @@ def _schema_for(spec: DatasetSpec, root: Path, db_id: str, descriptions: bool) -
     """Build the schema text for one database, cached by the caller."""
     if spec.dialect == "postgres":
         return postgres_schema_dump(root / "datasets" / spec.db_root / "ddl")
+
+    if spec.dialect == "mysql":
+        return mysql_schema_dump(root / spec.mysql_dump_path(db_id))
 
     dump = sqlite_schema_dump(root / spec.sqlite_path(db_id))
     if not descriptions:

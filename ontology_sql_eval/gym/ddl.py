@@ -26,7 +26,12 @@ import csv
 import sqlite3
 from pathlib import Path
 
-__all__ = ["sqlite_schema_dump", "postgres_schema_dump", "column_description_block"]
+__all__ = [
+    "sqlite_schema_dump",
+    "postgres_schema_dump",
+    "mysql_schema_dump",
+    "column_description_block",
+]
 
 
 def sqlite_schema_dump(db_path: Path) -> str:
@@ -66,6 +71,37 @@ def postgres_schema_dump(ddl_dir: Path) -> str:
 
     parts = [f"-- {f.name}\n{f.read_text().strip()}" for f in files]
     return "\n\n".join(parts)
+
+
+def mysql_schema_dump(dump_path: Path) -> str:
+    """Extract the ``CREATE TABLE`` statements from a mysqldump file.
+
+    BEAVER ships one dump per ``db_id``. The dumps also carry INSERTs -- millions
+    of rows for the larger warehouses -- so this pulls out the DDL and discards
+    everything else rather than inlining a database into a prompt.
+    """
+    if not dump_path.exists():
+        raise FileNotFoundError(f"no MySQL dump at {dump_path}")
+
+    statements: list[str] = []
+    current: list[str] = []
+    # Streamed line by line: these dumps run to hundreds of MB.
+    with dump_path.open(encoding="utf-8", errors="ignore") as fh:
+        for line in fh:
+            if not current and line.lstrip().upper().startswith("CREATE TABLE"):
+                current = [line.rstrip("\n")]
+            elif current:
+                current.append(line.rstrip("\n"))
+            else:
+                continue
+            if current and current[-1].rstrip().endswith(";"):
+                statements.append("\n".join(current))
+                current = []
+
+    if not statements:
+        raise ValueError(f"no CREATE TABLE statements found in {dump_path}")
+    body = "\n\n".join(statements)
+    return f"BEGIN TRANSACTION;\n{body}\nCOMMIT;"
 
 
 def column_description_block(description_dir: Path) -> str:

@@ -113,6 +113,32 @@ Gym builds each server its own venv from its `requirements.txt`. If that build f
 with `Package metadata version ... does not match ... from the wheel filename`, it is
 a race in nemo-retriever's timestamp-derived version, not a real conflict — retry.
 
+## Dataset coverage
+
+| Dataset | Dialect | In the benchmark? |
+|---|---|---|
+| `bird` (500q) | SQLite | yes |
+| `bird60` (60q) | SQLite | yes — local subset, not committed |
+| `fdabench` (169q) | SQLite | yes |
+| `wideworldimporters` (41q) | Postgres | yes |
+| `beaverbench` | MySQL | yes — seed with `scripts/seed_beaverbench.py --import-mysql` |
+| `bird_interact` | Postgres | **no, by design** |
+
+`beaverbench` needs a `mysql://` entry in `CONNECTION_STRINGS` (the seeder writes
+one). Each `db_id` is its own physical database, so DSNs are keyed by database
+name rather than collapsed into one connection — `dw_real` questions deliberately
+execute against the `dw` database. Its schema comes from the shipped mysqldump
+with the INSERTs stripped; those dumps are hundreds of MB and inlining one into a
+prompt would be absurd.
+
+**`bird_interact` is deliberately absent.** It is a multi-turn benchmark: JSONL
+rather than a JSON array, `sol_sql` lists instead of a single `SQL`, `follow_up`
+turns, test cases, and a user-simulation loop driven by the c-Interact
+orchestrator. Both arms here are single-shot by construction — the control gets
+one prompt and the GSF arm runs one `stream_agent_response` to completion — so
+representing it would mean a new multi-turn environment, not a registry entry.
+Use `scripts/run_bird_interact_cinteract.py` for that benchmark.
+
 ## Keeping the arms comparable
 
 Anything that changes what the model is told must land on **both** arms or
