@@ -205,6 +205,16 @@ class GsfOntologySqlResourcesServer(SimpleResourcesServer):
             "path_state": {},
             "custom_prompts": "",
             "acronyms": [],
+            # Appends "Return exactly the requested output fields and NO others"
+            # to GSF's projection rules. Not cosmetic: extra columns break the
+            # set(gold) == set(pred) comparison outright, so omitting this scores
+            # GSF with a handicap the legacy harness no longer carries.
+            #
+            # Set unconditionally, as ontology_sql_eval.retrieval.eval_chatbot
+            # does. TextToSQLPayload is a TypedDict, so on a GSF checkout that
+            # predates the parameter this is an inert extra key rather than an
+            # error -- it simply has no effect.
+            "shorten_answer": True,
         }
         if _SUPPORTS_EVIDENCE:
             payload["evidence"] = evidence
