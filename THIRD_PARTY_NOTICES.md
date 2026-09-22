@@ -17,7 +17,6 @@ ported source code and a sample dataset. Both are documented in
 | pandas | ≥2.0, <3 | BSD-3-Clause |
 | pydantic | ≥2.0 | MIT |
 | python-dotenv | latest | BSD-3-Clause |
-| neo4j | ≥6.1.0 | Apache-2.0 AND Python-2.0 |
 | psycopg[binary] | ≥3.3.3 | LGPL-3.0-only |
 | psycopg-pool | ≥3.3.1 | LGPL-3.0-only |
 | snowflake-connector-python | ≥4.6.0 | Apache-2.0 |
@@ -172,8 +171,8 @@ Applies to: pandas, python-dotenv, httpx, uvicorn, numpy.
 
 Full text: https://www.apache.org/licenses/LICENSE-2.0
 
-Applies to: neo4j, snowflake-connector-python, databricks-sql-connector,
-pyheavydb, hvac, importlib-metadata.
+Applies to: snowflake-connector-python, databricks-sql-connector, pyheavydb,
+hvac, importlib-metadata.
 
 ---
 
@@ -196,11 +195,3 @@ Applies to: func-timeout.
 
 This package is used via dynamic linking (standard Python import). No LGPLv2
 source is copied or modified.
-
----
-
-### Python Software Foundation License 2.0
-
-Full text: https://docs.python.org/3/license.html
-
-Applies to: neo4j (combined with Apache-2.0 above).

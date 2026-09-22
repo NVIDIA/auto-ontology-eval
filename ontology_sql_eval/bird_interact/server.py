@@ -442,7 +442,7 @@ async def run_session(req: RunSessionRequest):
             )
             try:
                 result = await bird_http.submit_sql(req.task_id, action.sql)
-                reward = result.get("reward", 0)
+                reward = float(result.get("reward") or 0.0)
                 phase = result.get("phase_completed")
                 msg = result.get("message", "")
                 logger.info(
@@ -478,7 +478,7 @@ async def run_session(req: RunSessionRequest):
 
             t_submit = time.time()
             sess._last_submit_raw = result.get("message", "")
-            sess.total_reward += float(result.get("reward", 0.0))
+            sess.total_reward += reward
             sess.tool_trajectory.append(
                 {
                     "tool": "submit_sql",

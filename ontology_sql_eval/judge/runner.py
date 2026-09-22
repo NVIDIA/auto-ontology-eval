@@ -60,19 +60,30 @@ def run(
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     total = len(rows)
-    scored = 0
 
+    if workers > 1:
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            scores = list(pool.map(lambda row: _score_row(settings, row), rows))
+    else:
+        scores = [_score_row(settings, row) for row in rows]
+
+    # Repair pass: rows that failed (rate limits, timeouts) are retried
+    # sequentially so a full run never silently drops scores.
+    missing = [
+        i
+        for i, (row, score) in enumerate(zip(rows, scores))
+        if score is None and row.get("returned_sql", "").strip()
+    ]
+    if missing:
+        logger.info("Retrying %d unscored row(s) sequentially", len(missing))
+        for i in missing:
+            scores[i] = _score_row(settings, rows[i])
+
+    scored = 0
     with output_path.open("w", encoding="utf-8", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=out_fields, extrasaction="ignore")
         writer.writeheader()
-
-        if workers > 1:
-            with ThreadPoolExecutor(max_workers=workers) as pool:
-                results = pool.map(lambda row: _score_row(settings, row), rows)
-        else:
-            results = (_score_row(settings, row) for row in rows)
-
-        for i, (row, score) in enumerate(zip(rows, results)):
+        for i, (row, score) in enumerate(zip(rows, scores)):
             question = row.get("question", "")
             logger.info(
                 "[%d/%d] Scored q%s: %s",
@@ -93,7 +104,19 @@ def run(
             writer.writerow(out_row)
             f.flush()
 
-    logger.info("Scored %d/%d rows. Output: %s", scored, total, output_path)
+    unscorable = sum(1 for row in rows if not row.get("returned_sql", "").strip())
+    if scored + unscorable < total:
+        logger.warning(
+            "%d row(s) with SQL remain unscored after retries",
+            total - scored - unscorable,
+        )
+    logger.info(
+        "Scored %d/%d rows (%d had no SQL). Output: %s",
+        scored,
+        total,
+        unscorable,
+        output_path,
+    )
     try:
         import pandas as pd
 

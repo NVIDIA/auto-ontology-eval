@@ -1,0 +1,7 @@
+[
+  {
+    "name": "Rank Heroes With A RANK Window",
+    "description": "A question whose first word is 'Rank' asks for a ranking column, not merely a sorted list. Answer it with a RANK() OVER (ORDER BY <measure> DESC) window function and project three things in this order: the entity being ranked, the measure it is ranked by, then the rank itself. Ordering one publisher's heroes by how tall they are returns superhero_name, height_cm and the rank. Ordering eye colours by how many heroes share each one returns the colour, the COUNT of heroes and the rank, grouped by colour, since popularity is a count. Returning only the entity name, or sorting rows without emitting the rank, leaves the ranking unanswered. A publisher is matched as publisher.publisher_name = 'Marvel Comics'. A superlative asks for one winning row instead — the hero holding the most powers, or the publisher behind the slowest hero — so answer that with ORDER BY ... LIMIT 1, projecting only the column asked for, with no measure column and no rank. Related phrasings: rank heroes by, rank superheroes by, starting with the most common.",
+    "sql": "SELECT superhero_name, height_cm, RANK() OVER (ORDER BY height_cm DESC) AS HeightRank FROM superhero INNER JOIN publisher ON superhero.publisher_id = publisher.id WHERE publisher.publisher_name = 'Marvel Comics'"
+  }
+]

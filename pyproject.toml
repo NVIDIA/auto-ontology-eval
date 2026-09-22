@@ -23,7 +23,6 @@ dependencies = [
     # installed). These mirror ../GSF/pyproject.toml so its runtime deps are in
     # this repo's venv.
     "nemo-retriever[tabular]",
-    "neo4j>=6.1.0",
     "psycopg[binary]>=3.3.3",
     "psycopg-pool>=3.3.1",
     "snowflake-connector-python>=4.6.0",
@@ -58,6 +57,7 @@ dependencies = [
     # BIRD official EX/VES judge (ontology_sql_eval/judge/bird.py)
     "func-timeout>=4.3.5",
     "numpy>=2.0",
+    "datasets>=5.0.1",
     "matplotlib>=3.11.1",
     "huggingface-hub>=1.28.0",
     "psutil>=7.2.2",

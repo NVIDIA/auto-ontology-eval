@@ -117,8 +117,7 @@ command with `PYTHONPATH=../GSF` (the judge does not need it).
 | `REASONING_API_KEY`, `REASONING_ENDPOINT`, `REASONING_MODEL` | agent (eval) | LLM that the text-to-SQL agent generates with (falls back to `DEFAULT_MODELS_*`). |
 | `JUDGE_API_KEY`, `JUDGE_BASE_URL`, `JUDGE_MODEL_NAME` | judge         | LLM that the judge scores with (falls back to `DEFAULT_MODELS_*`, then legacy shared vars, then a built-in default for the key prefix). |
 | `EMBED_API_KEY`, `EMBED_ENDPOINT`, `EMBED_MODEL`      | ingest + eval | Embedding endpoint (must be identical for ingest and query).          |
-| `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`       | ingest + eval | Graph store connection.                                               |
-| `POSTGRES_*`                                          | ingest + eval | pgvector store connection.                                            |
+| `POSTGRES_*`                                          | ingest + eval | Store connection — GSF's catalog and the pgvector collections.        |
 | `CONNECTION_STRINGS`                                  | ingest + eval | Source DB to extract schema from / execute SQL against.               |
 
 ## Seed the local source DB (required)
@@ -131,10 +130,12 @@ Each bundled dataset's README documents how to stand up its source DB and set
 
 - **[WideWorldImporters](datasets/wideworldimporters/README.md)** — seed a
   local Postgres from pre-generated DDL + CSVs.
-- **[BIRD Mini-Dev](datasets/bird/README.md)** — download per-database SQLite
-  files.
+- **[BIRD](datasets/bird/README.md)** — download Dev or Mini-Dev SQLite files;
+  Dev also includes the Train question corpus.
 - **[FDABench-Lite](datasets/fdabench/README.md)** — download Lite tasks +
   SQLite databases (BIRD train / Spider1 / Spider2-lite local).
+- **[BEAVER](datasets/beaverbench/README.md)** — download BeaverBench questions +
+  MySQL dumps (`dw` / `nova` / `neutron`).
 
 ## Full pipeline (end-to-end example)
 
@@ -171,7 +172,8 @@ For concrete, copy-pasteable walkthroughs (including the manual per-stage
 commands), see the per-dataset READMEs:
 [WideWorldImporters](datasets/wideworldimporters/README.md),
 [BIRD Mini-Dev](datasets/bird/README.md),
-[FDABench-Lite](datasets/fdabench/README.md). See the per-workflow READMEs under
+[FDABench-Lite](datasets/fdabench/README.md),
+[BEAVER](datasets/beaverbench/README.md). See the per-workflow READMEs under
 [Workflows](#workflows) for the details of each stage.
 
 ## Datasets
@@ -190,14 +192,14 @@ The retrieval eval writes its results CSV to the repo-root `input/` folder
 (`input/<database_name>_<model>.csv`), not into the dataset folder, so the judge
 can score it directly.
 
-The repo ships with three public worked examples:
+The repo ships with four public worked examples:
 
 ### BIRD
 
 The [BIRD](https://bird-bench.github.io/) benchmark, plus the official
-EX/VES scoring script. Defaults to the **Mini-Dev** subset (11 SQLite
-databases, 500 questions); the full **Dev** (1,534 questions) and **Train**
-(~69 additional databases) splits are also available. See
+EX/VES scoring script. Defaults to full **Dev** (11 SQLite databases,
+1,534 questions) and stores the **Train** question corpus without its
+databases; the cheaper **Mini-Dev** subset (500 questions) is also available. See
 **[datasets/bird/README.md](datasets/bird/README.md)** for how to download
 the dataset(s) and run the full pipeline.
 
@@ -208,6 +210,13 @@ text-to-SQL: gold SQL from each task's subtasks, plus the SQLite databases
 those tasks need (169 questions, 15 databases). See
 **[datasets/fdabench/README.md](datasets/fdabench/README.md)** for how to
 download and run the full pipeline.
+
+### BEAVER (BeaverBench)
+
+The [BEAVER](https://beaverbench.github.io/) enterprise text-to-SQL benchmark
+(gated HuggingFace questions + MySQL dumps). Defaults to a 100-question `dw`
+sample. See **[datasets/beaverbench/README.md](datasets/beaverbench/README.md)**
+for how to download, import MySQL, and run the full pipeline.
 
 ### WideWorldImporters (WWI)
 
@@ -369,8 +378,9 @@ resources_servers/          NeMo Gym environments (Gym's expected layout)
 main.py                     end-to-end pipeline entry point (ingest -> judge)
 scripts/
   seed_wwi.py               seed a local Postgres from datasets/<db>/{ddl,data}
-  seed_bird.py              download BIRD split(s) (mini-dev/dev/train) into datasets/bird/
+  seed_bird.py              download BIRD eval data and the Dev Train corpus
   seed_fdabench.py          download FDABench-Lite tasks + SQLite DBs into datasets/fdabench/
+  seed_beaverbench.py       download BEAVER questions + MySQL dumps into datasets/beaverbench/
   build_gym_tasks.py        build Gym task JSONL for a (dataset, arm)
   run_gym_arm.sh            run one benchmark arm end to end
   compare_arms.py           join both arms, report the delta and per-question flips
@@ -380,6 +390,7 @@ datasets/
     data/                   seed CSV data (COPYed into the tables)
   bird/                     README.md, evaluation.json, <db_id>/<db_id>.sqlite (11 DBs)
   fdabench/                 README.md, evaluation.json, <db_id>/<db_id>.sqlite (15 DBs)
+  beaverbench/              README.md, evaluation.json, dumps/*.sql, <db_id>/metadata.json
   wideworldimporters/       README.md, evaluation.json, custom_analyses.json, ddl/, data/
 input/                      judge input CSVs to score (contents gitignored)
 output/                     judge scored CSVs (<name>_scores.csv; contents gitignored)
@@ -391,7 +402,7 @@ runs/<arm>/                 Gym rollouts + aggregate metrics (gitignored)
 
 VS Code launch configurations for all of the above (Run full pipeline, Judge,
 Ingest, Semantic compile, Eval, Eval single-query, Seed local WWI,
-Seed local BIRD, Seed local FDABench) are provided in [.vscode/launch.json](.vscode/launch.json); they set
+Seed local BIRD, Seed local FDABench, Seed local BEAVER) are provided in [.vscode/launch.json](.vscode/launch.json); they set
 `PYTHONPATH=../GSF` where needed and load `.env` automatically. The type-checker
 path for `../GSF` is configured in [pyrightconfig.json](pyrightconfig.json).
 

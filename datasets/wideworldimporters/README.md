@@ -60,7 +60,7 @@ Individual stages can be skipped with `--skip-ingest`, `--skip-semantic`,
 ### Manual (per-stage) equivalent
 
 ```bash
-# 1. Ingest the source DB schema into Neo4j + pgvector, then compile semantics.
+# 1. Ingest the source DB schema into the catalog + pgvector, then compile semantics.
 PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.ingest
 PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.semantic --database-name wideworldimporters
 
