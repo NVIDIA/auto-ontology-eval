@@ -2,6 +2,13 @@
 
 [← Back to main README](../../README.md)
 
+> **Disclaimer:** Running this code will automatically download data from
+> https://bird-bench.oss-cn-beijing.aliyuncs.com (`dev`/Train splits) and, for
+> the `mini-dev` split, from the BIRD authors' Google Drive
+> (https://drive.google.com/file/d/13VLWIwpw5E3d5DUkMvzw7hvHE67a4XkG/view).
+> Before you run the code, please confirm the content of the dataset and
+> licensing is appropriate for your intended use.
+
 [BIRD](https://bird-bench.github.io/) is a large-scale cross-domain Text-to-SQL
 benchmark. [scripts/seed_bird.py](../../scripts/seed_bird.py) installs the full
 official **Dev** split by default (1,534 questions over 11 SQLite databases) and
