@@ -1,13 +1,17 @@
 # Gym builds this server its own venv from this file.
 #
-# Deliberately does NOT install the parent ontology_sql_eval package: that would
-# pull in nemo-retriever, whose starlette<1.0.0 pin is incompatible with
-# nemo-gym's ray[serve] (starlette>=1.0.1). The shared modules under
-# ontology_sql_eval/gym/ are stdlib-only and are reached via PYTHONPATH instead.
+# Deliberately does NOT install the parent project: the control arm must not
+# depend on Auto Ontology at all, which is what keeps it an independent baseline.
+#
+# Why requirements.txt and not a pyproject.toml: Gym only honours a per-server
+# overrides.txt in the requirements branch (see the sibling overrides.txt).
+# One driver per dialect the verifier can be asked for: Postgres (WWI) and
+# MySQL (BEAVER). SQLite is stdlib. Without the MySQL driver a schema-only
+# BEAVER run fails at verify time rather than at startup.
 psycopg[binary]
+mysql-connector-python>=26.7.0
 
-# nemo-gym is listed explicitly: Gym decides whether to install it for us by
-# checking for a pyproject.toml two levels up, which finds *this repo's*
-# pyproject rather than a Gym checkout, so it wrongly assumes an editable Gym
-# install and skips it.
+# Listed explicitly: Gym decides whether to install nemo-gym by looking for a
+# pyproject.toml two levels up, finds this repo's, and wrongly concludes it is
+# an editable Gym checkout.
 nemo-gym==0.6.0

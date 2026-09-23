@@ -45,15 +45,36 @@ def load(path: Path) -> dict[str, dict[str, Any]]:
     return out
 
 
+# Mirrors ontology_sql_eval.gym.exec_match.UNUSABLE_FAILURES. A task whose gold
+# query never ran says nothing about either arm, so it must not sit in the
+# denominator -- the resources servers already exclude it from pass@k, and this
+# report has to agree with them or the two disagree on the same run.
+UNUSABLE_GOLD = ("gold_execution_error", "gold_execution_timeout")
+
+
+def usable(rec: dict[str, Any]) -> bool:
+    return rec.get("failure_reason") not in UNUSABLE_GOLD
+
+
 def correct(rec: dict[str, Any]) -> bool:
     return float(rec.get("reward", 0.0)) > 0
 
 
-def no_output_rate(rows: list[dict[str, Any]]) -> float:
+# Failures that mean the run is broken rather than the model being weak. An arm
+# that errors on every task would otherwise clear a gate that only watched
+# no_model_output, and get published as "0% accuracy".
+BROKEN_RUN_FAILURES = ("no_model_output", "unknown_error")
+
+
+def broken_rate(rows: list[dict[str, Any]]) -> tuple[float, dict[str, int]]:
+    """Fraction of rows whose reward reflects a broken run, with the breakdown."""
     if not rows:
-        return 0.0
-    n = sum(1 for r in rows if r.get("failure_reason") == "no_model_output")
-    return n / len(rows)
+        return 0.0, {}
+    counts = {
+        code: sum(1 for r in rows if r.get("failure_reason") == code)
+        for code in BROKEN_RUN_FAILURES
+    }
+    return sum(counts.values()) / len(rows), {k: v for k, v in counts.items() if v}
 
 
 def _rate(rows: list[dict[str, Any]]) -> str:
@@ -94,16 +115,18 @@ def main() -> int:
     # no number, because it looks publishable.
     unhealthy = False
     for name, data in ((args.control_name, control), (args.treatment_name, treatment)):
-        rate = no_output_rate([data[k] for k in common])
+        rate, breakdown = broken_rate([data[k] for k in common])
         flag = ""
         if rate > HEALTH_THRESHOLD:
             unhealthy = True
             flag = "  <-- ABOVE THRESHOLD"
-        print(f"  {name}: no_model_output {rate:.1%}{flag}")
+        detail = ", ".join(f"{k}={v}" for k, v in breakdown.items()) or "none"
+        print(f"  {name}: broken-run failures {rate:.1%} ({detail}){flag}")
     if unhealthy and not args.ignore_health:
         print(
-            f"\nRefusing to report: >{HEALTH_THRESHOLD:.0%} of tasks produced no SQL, "
-            "which usually means rate limiting rather than a low score.\n"
+            f"\nRefusing to report: >{HEALTH_THRESHOLD:.0%} of tasks failed in a way "
+            "that reflects a broken run (no output, or an unknown error) rather "
+            "than a low score.\n"
             "Re-run at lower concurrency, or pass --ignore-health to override.",
             file=sys.stderr,
         )
@@ -119,16 +142,22 @@ def main() -> int:
 
     print(f"\n{'':<14}{args.control_name:>20}{args.treatment_name:>20}{'delta':>10}")
     for label, keys in buckets.items():
-        c = [control[k] for k in keys]
-        t = [treatment[k] for k in keys]
+        # A task is scored only when BOTH arms had a runnable gold query, so the
+        # two columns always share a denominator.
+        scored = [k for k in keys if usable(control[k]) and usable(treatment[k])]
+        dropped = len(keys) - len(scored)
+        c = [control[k] for k in scored]
+        t = [treatment[k] for k in scored]
         if not c:
             continue
         ca = sum(1 for r in c if correct(r)) / len(c)
         ta = sum(1 for r in t if correct(r)) / len(t)
-        print(f"{label:<14}{_rate(c):>20}{_rate(t):>20}{ta - ca:>+9.1%}")
+        note = f"  ({dropped} unusable gold)" if dropped else ""
+        print(f"{label:<14}{_rate(c):>20}{_rate(t):>20}{ta - ca:>+9.1%}{note}")
 
-    gained = [k for k in common if not correct(control[k]) and correct(treatment[k])]
-    lost = [k for k in common if correct(control[k]) and not correct(treatment[k])]
+    scorable = [k for k in common if usable(control[k]) and usable(treatment[k])]
+    gained = [k for k in scorable if not correct(control[k]) and correct(treatment[k])]
+    lost = [k for k in scorable if correct(control[k]) and not correct(treatment[k])]
     print(f"\nfixed by ontology: {len(gained)}   broken by ontology: {len(lost)}")
     for label, keys in (("FIXED", gained), ("BROKE", lost)):
         for k in keys:

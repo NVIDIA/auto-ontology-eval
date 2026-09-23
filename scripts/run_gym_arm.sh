@@ -48,10 +48,6 @@ fi
 # Absolute, because Gym runs each server after `cd`-ing into its own directory.
 export PYTHONPATH="${AUTO_ONTOLOGY_PATH:-$ROOT/../auto-ontology-gym}:$ROOT"
 
-# Gym generates its own `uv pip install` per server; this is how the
-# prometheus-fastapi-instrumentator override reaches it.
-export UV_OVERRIDE="$ROOT/overrides.txt"
-
 # --agent takes the fully-qualified server-instance name: nemo-gym 0.6.0
 # rejects the bare inner key ("simple_agent") that 0.4.0 accepted.
 #

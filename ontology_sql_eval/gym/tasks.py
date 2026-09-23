@@ -78,8 +78,11 @@ class DatasetSpec:
 
 
 DATASETS: dict[str, DatasetSpec] = {
-    "bird": DatasetSpec("bird", "sqlite", "bird"),
-    "bird60": DatasetSpec("bird60", "sqlite", "bird"),
+    # db_root is "bird/dev", not "bird": seed_bird.py writes evaluation.json to
+    # datasets/bird/ but the databases to datasets/bird/dev/<db_id>/. This is
+    # exactly why name and db_root are separate fields.
+    "bird": DatasetSpec("bird", "sqlite", "bird/dev"),
+    "bird60": DatasetSpec("bird60", "sqlite", "bird/dev"),
     "fdabench": DatasetSpec("fdabench", "sqlite", "fdabench"),
     "wideworldimporters": DatasetSpec(
         "wideworldimporters", "postgres", "wideworldimporters"
