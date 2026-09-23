@@ -2,6 +2,17 @@
 
 [← Back to main README](../../README.md)
 
+> **Disclaimer:** Running this code will automatically download data from
+> https://huggingface.co/datasets/FDAbench2026/Fdabench-Lite,
+> https://bird-bench.oss-cn-beijing.aliyuncs.com,
+> https://huggingface.co/datasets/xlangai/spider2-localdb,
+> https://huggingface.co/datasets/HAL-9001/spider-databases, and the Spider
+> authors' Google Drive
+> (https://drive.google.com/file/d/1coEVsCZq-Xvj9p2TnhBFoFTsY-UoYGmG/view,
+> https://drive.google.com/file/d/1403EGqzIDoHMdQF4c9Bkyl7dZLZ5Wt6J/view).
+> Before you run the code, please confirm the content of the dataset and
+> licensing is appropriate for your intended use.
+
 [FDABench](https://github.com/fdabench/FDAbench) (KDD'26) evaluates data agents
 on analytical queries over heterogeneous data. This repo uses the
 **FDABench-Lite** subset as a text-to-SQL worked example: gold SQL is extracted
