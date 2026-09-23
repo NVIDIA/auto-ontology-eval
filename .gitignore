@@ -27,6 +27,10 @@ venv/
 /logs/*
 !/logs/.gitkeep
 
+# Eval prompt inputs are tracked; the LLM response caches written beside them
+# (including the timestamped copies a rebuild archives) are not.
+/prompt_inputs/**/*_cache*.jsonl
+
 # OS / editor
 .DS_Store
 
