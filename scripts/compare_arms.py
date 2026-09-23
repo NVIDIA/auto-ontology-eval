@@ -5,8 +5,8 @@
 """Compare two arms' Gym rollouts and report the ontology delta.
 
     python scripts/compare_arms.py \
-        --control  runs/schema_only/bird60_rollouts.jsonl \
-        --treatment runs/gsf/bird60_rollouts.jsonl
+        --control  runs/control/bird.jsonl \
+        --treatment runs/treatment/bird.jsonl
 
 Prints execution accuracy overall and by difficulty, the delta, and the
 question-level flips -- which questions the ontology fixed and, just as

@@ -54,7 +54,7 @@ def test_matches_official_beaver_evaluator(label, gold, pred):
 def test_beaverbench_routes_to_the_beaver_rule():
     assert matcher_for("beaverbench") is beaver_result_match
     # Everything else keeps BIRD's rule.
-    for dataset in ("bird", "bird60", "fdabench", "wideworldimporters", ""):
+    for dataset in ("bird", "fdabench", "wideworldimporters", ""):
         assert matcher_for(dataset) is result_sets_match
 
 

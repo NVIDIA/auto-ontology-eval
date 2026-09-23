@@ -107,7 +107,7 @@ _SUPPORTS_EVIDENCE = "evidence" in getattr(TextToSQLPayload, "__annotations__", 
 class AutoOntologySqlResourcesServerConfig(BaseResourcesServerConfig):
     name: str = "auto_ontology_sql"
     datasets_dir: str = "datasets"
-    # Sized against the *model endpoint's* rate limit, not CPU. A bird60 run at 8
+    # Sized against the *model endpoint's* rate limit, not CPU. A 60-question run at 8
     # concurrent questions against bedrock-claude-opus-4-8 came back 66% HTTP
     # 429; Auto Ontology's retry turned that into empty SQL and a plausible-looking 13.3%
     # score. Three is clean.

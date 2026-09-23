@@ -69,6 +69,3 @@ resources_servers/*/data/*
 !resources_servers/*/data/example_rollouts.jsonl
 # Rollouts, aggregate metrics and materialized inputs from `gym eval run`.
 runs/
-# bird60 is a locally-built BIRD subset; see scripts/build_gym_tasks.py --limit
-# and datasets/bird60/build_bird60.py on branch benchmark-results-run4-run5.
-datasets/bird60/

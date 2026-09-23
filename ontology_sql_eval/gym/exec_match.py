@@ -84,7 +84,7 @@ class FailureCode(str, Enum):
     producing no output and a run where the model wrote genuinely wrong SQL both
     score 0.0; collapsing them lets an infrastructure failure masquerade as a
     benchmark result. ``NO_MODEL_OUTPUT`` exists specifically because that
-    happened: a 66%-rate-limited bird60 run reported a plausible-looking 13.3%.
+    happened: a 66%-rate-limited 60-question run reported a plausible-looking 13.3%.
     """
 
     NONE = "none"

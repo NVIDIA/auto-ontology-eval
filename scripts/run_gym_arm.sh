@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run one arm of the ontology evaluation through NeMo Gym.
 #
-#   scripts/run_gym_arm.sh schema_only_sql runs/control/bird60.jsonl [args...]
+#   scripts/run_gym_arm.sh schema_only_sql runs/control/bird.jsonl [args...]
 #
 # Give each arm its own output DIRECTORY. Gym writes preprocessed_datasets/
 # next to the output file, and a second arm's collation aborts on the first

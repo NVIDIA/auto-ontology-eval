@@ -59,8 +59,9 @@ class DatasetSpec:
 
     name: str
     dialect: str
-    # bird60 reuses BIRD's databases, so the questions and the databases can
-    # live in different directories.
+    # A dataset's questions and its databases can live in different
+    # directories: seed_bird.py writes evaluation.json to datasets/bird/ but the
+    # databases to datasets/bird/dev/.
     db_root: str
 
     @property
@@ -82,7 +83,6 @@ DATASETS: dict[str, DatasetSpec] = {
     # datasets/bird/ but the databases to datasets/bird/dev/<db_id>/. This is
     # exactly why name and db_root are separate fields.
     "bird": DatasetSpec("bird", "sqlite", "bird/dev"),
-    "bird60": DatasetSpec("bird60", "sqlite", "bird/dev"),
     "fdabench": DatasetSpec("fdabench", "sqlite", "fdabench"),
     "wideworldimporters": DatasetSpec(
         "wideworldimporters", "postgres", "wideworldimporters"

@@ -48,13 +48,13 @@ resources_servers/
 ## Building task data
 
 ```bash
-python scripts/build_gym_tasks.py --dataset bird60 --arm schema_only
-python scripts/build_gym_tasks.py --dataset bird60 --arm auto_ontology
+python scripts/build_gym_tasks.py --dataset bird --arm schema_only
+python scripts/build_gym_tasks.py --dataset bird --arm auto_ontology
 ```
 
-Datasets: `bird` (500q), `bird60` (60q subset, reuses BIRD's databases),
-`fdabench` (169q), `wideworldimporters` (41q, Postgres). Output is deterministic,
-so regenerating is safe.
+Datasets: `bird` (500q), `fdabench` (169q), `wideworldimporters` (41q,
+Postgres), `beaverbench` (MySQL). Output is deterministic, so regenerating is
+safe; `--limit N` builds a prefix for smoke runs.
 
 The schema dump *is* the control arm's independent variable. Freeze it once a full
 run starts — changing it silently changes what "schema-only" means.
@@ -62,8 +62,8 @@ run starts — changing it silently changes what "schema-only" means.
 ## Running an arm
 
 ```bash
-scripts/run_gym_arm.sh schema_only_sql  runs/control/bird60.jsonl
-scripts/run_gym_arm.sh auto_ontology_sql runs/gsf/bird60.jsonl --max-output-tokens 16
+scripts/run_gym_arm.sh schema_only_sql  runs/control/bird.jsonl
+scripts/run_gym_arm.sh auto_ontology_sql runs/treatment/bird.jsonl --max-output-tokens 16
 ```
 
 Both arms run **in-process**: `auto_ontology_sql` imports Auto Ontology and drives its graph
@@ -129,12 +129,45 @@ Gym builds each server its own venv from its `requirements.txt`. If that build f
 with `Package metadata version ... does not match ... from the wheel filename`, it is
 a race in nemo-retriever's timestamp-derived version, not a real conflict — retry.
 
+## How this relates to the repo's other scorers
+
+Three scorers live in this repo. They are not redundant, and only one is used by
+the benchmark.
+
+| Scorer | What it measures | Used by |
+|---|---|---|
+| **Gym verifier** (`ontology_sql_eval/gym/exec_match.py`) | Execution match, binary reward | both benchmark arms |
+| **BIRD official** (`ontology_sql_eval/judge/bird.py`) | EX **and VES** | standalone CLI, over an eval CSV |
+| **LLM judge** (`ontology_sql_eval/judge/scorer.py`) | Logic / semantic rubric | `main.py`'s judge stage, over an eval CSV |
+
+**The Gym verifier's EX is BIRD's official EX.** Both are
+`set(gold_rows) == set(pred_rows)`: `judge/bird.py` ports it from DAMO-ConvAI,
+and this one came from NeMo Gym's `bird_sql`, which mirrors the same evaluator.
+They agree on row order, duplicate collapsing and extra columns. Running both
+over the same BIRD predictions should give the same accuracy -- if it does not,
+one of them has a bug.
+
+**VES has no equivalent here.** Valid Efficiency Score is a *runtime ratio* over
+EX-passing questions -- how fast the predicted query is versus gold -- which
+`judge/bird.py` computes by re-running each passing query (`--iterate-num`,
+default 100) with outlier removal. The benchmark measures correctness only. For
+VES, run `judge/bird.py` over an eval CSV; the benchmark writes Gym rollouts,
+not a CSV.
+
+`judge/bird.py` also reports an `extra_col_nearmiss` diagnostic -- predictions
+that would have matched but for extra selected columns. That is exactly the
+failure mode `shorten_answer` and the control arm's matching projection rule
+exist to prevent.
+
+**The LLM judge is used by neither arm.** Scoring here is deterministic by
+design, and NeMo Gym's own guidance is to prefer a deterministic verifier where
+one exists. The judge stays available as a separate re-scoring pass over CSVs.
+
 ## Dataset coverage
 
 | Dataset | Dialect | In the benchmark? |
 |---|---|---|
 | `bird` (500q) | SQLite | yes |
-| `bird60` (60q) | SQLite | yes — local subset, not committed |
 | `fdabench` (169q) | SQLite | yes |
 | `wideworldimporters` (41q) | Postgres | yes |
 | `beaverbench` | MySQL | yes — seed with `scripts/seed_beaverbench.py --import-mysql` |
@@ -195,7 +228,7 @@ questions the ontology fixed or broke.
 
 ## The rate-limit guard, and why it exists
 
-A bird60 run at 8 workers against `aws/anthropic/bedrock-claude-opus-4-8` came back
+A 60-question BIRD run at 8 workers against `aws/anthropic/bedrock-claude-opus-4-8` came back
 at 13.3% execution accuracy. That number was fiction: 747 of 1126 HTTP calls were
 429s. Auto Ontology retries three times, gives up, and routes to a *valid* terminal state
 (`unconstructable_sql_response`) — so 37 of 60 questions produced empty SQL, scored

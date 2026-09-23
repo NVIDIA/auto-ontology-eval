@@ -35,7 +35,7 @@ auto_ontology_sql_simple_agent:
       datasets:
         # `type` is the split gym selects with --split. Use `validation`: the
         # `benchmark` type demands a prepare_script/prompt_config we do not need.
-        - name: bird60
+        - name: bird
           type: validation
-          jsonl_fpath: resources_servers/auto_ontology_sql/data/bird60.jsonl
+          jsonl_fpath: resources_servers/auto_ontology_sql/data/bird.jsonl
           license: Creative Commons Attribution-ShareAlike 4.0 International

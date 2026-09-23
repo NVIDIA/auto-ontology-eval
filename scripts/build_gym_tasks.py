@@ -4,7 +4,7 @@
 
 """Build NeMo Gym task JSONL from the eval datasets.
 
-    python scripts/build_gym_tasks.py --dataset bird60 --arm schema_only
+    python scripts/build_gym_tasks.py --dataset bird --arm schema_only
 
 Writes to ``resources_servers/<arm-server>/data/<dataset>.jsonl``. Run it once
 per (dataset, arm); the output is deterministic, so regenerating is safe.
