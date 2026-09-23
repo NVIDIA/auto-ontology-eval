@@ -258,7 +258,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--limit",
         type=int,
         default=None,
-        help="Run at most this many questions from the dataset."
+        help="Run at most this many questions from the dataset.",
+    )
     return parser.parse_args(argv)
 
 
