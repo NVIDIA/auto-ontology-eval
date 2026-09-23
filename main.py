@@ -40,7 +40,6 @@ logger = logging.getLogger("pipeline")
 
 _REPO_ROOT = Path(__file__).resolve().parent
 OUTPUT_DIR = _REPO_ROOT / "output"
-LOG_DIR = _REPO_ROOT / "logs"
 
 
 def _banner(step: int, title: str) -> None:
@@ -256,36 +255,10 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
-        "--start-index",
-        type=int,
-        default=0,
-        help="First question index the eval runs (0-based, default: 0).",
-    )
-    parser.add_argument(
-        "--end-index",
-        type=int,
-        default=None,
-        help="Stop the eval before this question index (default: run to the end).",
-    )
-    parser.add_argument(
         "--limit",
         type=int,
         default=None,
-        help="Run at most this many questions from --start-index "
-        "(ignored when --end-index is given).",
-    )
-    parser.add_argument(
-        "--log-dir",
-        type=Path,
-        default=LOG_DIR,
-        help=f"Root directory for eval run logs (default: {LOG_DIR}).",
-    )
-    parser.add_argument(
-        "--run-id",
-        type=str,
-        default=None,
-        help="Name for the eval run's log directory (default: a timestamp).",
-    )
+        help="Run at most this many questions from the dataset."
     return parser.parse_args(argv)
 
 
@@ -306,10 +279,6 @@ def main(argv: list[str] | None = None) -> None:
 
     if not args.skip_semantic:
         stage_semantic(database_name)
-
-    end_index = args.end_index
-    if end_index is None and args.limit is not None:
-        end_index = args.start_index + args.limit
 
     ran_benchmark = not args.skip_eval
     if ran_benchmark:
