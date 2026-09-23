@@ -133,6 +133,19 @@ def stage_benchmark(
         ("schema_only", "schema_only_sql"),
         ("auto_ontology", "auto_ontology_sql"),
     ):
+        # Gym's collate step writes <dataset>_metrics.json and
+        # <dataset>_prepare.jsonl beside the task file and refuses to run when a
+        # stale one disagrees with freshly built tasks ("Found conflicting
+        # aggregate metrics"). Rebuilding the tasks without clearing these fails
+        # the *next* run, not this one, which is a confusing place to land.
+        data_dir = root / "resources_servers" / server / "data"
+        for stale in (
+            data_dir / f"{database_name}_metrics.json",
+            data_dir / f"{database_name}_prepare.jsonl",
+        ):
+            if stale.exists():
+                logger.info("Removing stale %s", stale.relative_to(root))
+                stale.unlink()
         cmd = [
             sys.executable,
             "scripts/build_gym_tasks.py",
