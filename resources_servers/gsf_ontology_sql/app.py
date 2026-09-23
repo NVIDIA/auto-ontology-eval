@@ -22,7 +22,7 @@ nemo-retriever's stale ``prometheus-fastapi-instrumentator<8`` cap (it pins
 
 Three couplings with GSF this module must respect:
 
-* ``gsf.retrieval.text_to_sql.main`` builds its LLM client and compiles the
+* ``auto_ontology.retrieval.text_to_sql.main`` builds its LLM client and compiles the
   graph *at import time*, so the environment is loaded before the gsf imports.
 * GSF is imported from a checkout on ``PYTHONPATH``; it is not installed here.
 * ``stream_agent_response`` is a blocking generator, so it runs on a worker
@@ -57,10 +57,10 @@ from nemo_gym.reward_profile import (  # noqa: E402
     highest_k_metrics,
 )
 
-from gsf.connectors import get_connectors  # noqa: E402
-from gsf.retrieval.text_to_sql.main import stream_agent_response  # noqa: E402
-from gsf.retrieval.text_to_sql.state import TextToSQLPayload  # noqa: E402
-from gsf.utils import (  # noqa: E402
+from auto_ontology.connectors import get_connectors  # noqa: E402
+from auto_ontology.retrieval.text_to_sql.main import stream_agent_response  # noqa: E402
+from auto_ontology.retrieval.text_to_sql.state import TextToSQLPayload  # noqa: E402
+from auto_ontology.utils import (  # noqa: E402
     get_data_objects_retriever,
     get_semantic_objects_retriever,
 )
