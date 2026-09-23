@@ -191,7 +191,7 @@ def apply_metadata(database_name: str, benchmark_name: str | None = None) -> Non
     Tables/columns that aren't present in the catalog are silently skipped.
     Properties for which the JSON has no value are left untouched.
     """
-    from gsf.dal.datasources import apply_metadata_batch
+    from auto_ontology.dal.datasources import apply_metadata_batch
 
     metadata_path = metadata_json_path(database_name, benchmark_name)
     if metadata_path is None:
@@ -217,8 +217,8 @@ def apply_metadata(database_name: str, benchmark_name: str | None = None) -> Non
             col_desc = col.get("description")
             value_examples = col.get("value_examples")
             # Column.sample_values is stored as a JSON string, matching
-            # gsf.dal.datasources.store_column_sample_values (profiling's own
-            # writer) and gsf.utils.sample_values.parse_sample_values (the
+            # auto_ontology.dal.datasources.store_column_sample_values (profiling's own
+            # writer) and auto_ontology.utils.sample_values.parse_sample_values (the
             # shared reader, which accepts either a JSON string or a list).
             sample_values: str | None = (
                 json.dumps([str(v) for v in value_examples])
@@ -265,7 +265,7 @@ def add_custom_analyses(
     :func:`custom_analyses_json_path`. For each
     ``{"name", "description", "sql"}`` entry it creates a ``CustomAnalysis``
     catalog row linked to its parsed ``Sql`` row via
-    :func:`~gsf.server.custom_analyses.service.create_custom_analysis` (the
+    :func:`~auto_ontology.server.custom_analyses.service.create_custom_analysis` (the
     same write path the server's create-analysis endpoint uses).
 
     When *embed_params* and *vdb* are provided, the function then embeds
@@ -281,8 +281,8 @@ def add_custom_analyses(
     re-runnable. Must be called *after* schema ingestion so the parser can
     resolve table/column references.
     """
-    from gsf.dal.custom_analyses import embed_custom_analyses
-    from gsf.server.custom_analyses.service import (
+    from auto_ontology.dal.custom_analyses import embed_custom_analyses
+    from auto_ontology.server.custom_analyses.service import (
         CustomAnalysisNameConflict,
         CustomAnalysisSqlConflict,
         CustomAnalysisSqlError,
@@ -488,18 +488,18 @@ def apply_saved_descriptions(
     columns carrying more than one attribute are counted and named in the log
     rather than guessed at. Returns the number of nodes written.
     """
-    from gsf.dal.attributes import (
+    from auto_ontology.dal.attributes import (
         fetch_attr_column_contexts,
         find_column_attribute_by_column_id,
         update_column_attribute,
     )
-    from gsf.dal.datasources import (
+    from auto_ontology.dal.datasources import (
         fetch_schema_ids_for_database,
         fetch_tables_and_columns_by_node_ids,
         fetch_tables_for_schema,
     )
-    from gsf.semantic.embed import build_semantic_embedder
-    from gsf.server.datasources.service import update_node_properties
+    from auto_ontology.semantic.embed import build_semantic_embedder
+    from auto_ontology.server.datasources.service import update_node_properties
 
     resolved = saved_descriptions_csv_path(database_name, benchmark_name, csv_path)
     if resolved is None:

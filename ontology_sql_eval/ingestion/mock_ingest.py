@@ -27,12 +27,12 @@ from typing import Optional
 import pandas as pd
 from nemo_retriever.common.params.models import EmbedParams
 from nemo_retriever.operators.vdb import IngestVdbOperator
-from gsf.catalog import ingest_catalog
-from gsf.connectors.base import SQLDatabase
-from gsf.utils.embedding import batch_embed
-from gsf.utils.embedding_rows import CatalogEmbeddingRowsOp
+from auto_ontology.catalog import ingest_catalog
+from auto_ontology.connectors.base import SQLDatabase
+from auto_ontology.utils.embedding import batch_embed
+from auto_ontology.utils.embedding_rows import CatalogEmbeddingRowsOp
 
-from gsf.vdb import get_data_vdb
+from auto_ontology.vdb import get_data_vdb
 
 from ontology_sql_eval.env import load_env
 

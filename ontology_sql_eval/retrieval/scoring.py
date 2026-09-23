@@ -19,7 +19,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 
-from gsf.connectors.base import SQLDatabase
+from auto_ontology.connectors.base import SQLDatabase
 
 _NUM_RE = re.compile(r"-?\d+(?:\.\d+)?")
 _SCORE_STR_LIMIT = 8000

@@ -5,7 +5,7 @@
 """Semantic-layer compilation: build the business taxonomy in Postgres.
 
 Thin in-process wrapper around GSF's ``run_semantic_compilation`` (the same
-routine as ``python -m gsf.semantic``) so it can be imported, called, and
+routine as ``python -m auto_ontology.semantic``) so it can be imported, called, and
 stepped through in a debugger without spawning a subprocess.
 
 Run after :mod:`ontology_sql_eval.ingestion.ingest` has populated the schema
@@ -33,7 +33,7 @@ from ontology_sql_eval.env import load_env
 # while retaining GSF's environment as a fallback.
 load_env()
 
-from gsf.semantic.compile import run_semantic_compilation  # noqa: E402
+from auto_ontology.semantic.compile import run_semantic_compilation  # noqa: E402
 
 from ontology_sql_eval.ingestion.enrich_graph import (  # noqa: E402
     apply_saved_descriptions,
@@ -48,7 +48,7 @@ def run_semantic(
 ) -> int:
     """Compile the semantic layer for ``database_name`` in-process.
 
-    Runs the same routine as ``python -m gsf.semantic`` (Term/ColumnAttribute
+    Runs the same routine as ``python -m auto_ontology.semantic`` (Term/ColumnAttribute
     taxonomy, embeddings, semantic FK edges, SqlAttribute suggestions) but
     without spawning a subprocess, so it can be stepped through in a debugger.
     Requires the schema catalog and embeddings to already exist (i.e. run

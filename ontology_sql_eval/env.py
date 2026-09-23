@@ -5,7 +5,7 @@
 """Environment bootstrap shared by this repo's entry points.
 
 Loads this repo's own ``.env`` first, then GSF's ``.env`` (via
-``gsf.env.load_env()``) as a fallback for anything not already set --
+``auto_ontology.env.load_env()``) as a fallback for anything not already set --
 ``dotenv.load_dotenv()`` called with no explicit path resolves relative to
 the *calling file's* location (frame-based search, not CWD), so a bare call
 from this module only ever finds ``ontology-sql-eval/.env``; it never finds
@@ -20,7 +20,7 @@ import os
 
 from dotenv import load_dotenv
 
-from gsf.env import load_env as _load_gsf_env
+from auto_ontology.env import load_env as _load_gsf_env
 
 # BIRD_INTERACT is a master flag: set BIRD_INTERACT=true (with no per-flag
 # overrides in .env) to turn on every flag this deployment has approved for
