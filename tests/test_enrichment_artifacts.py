@@ -93,9 +93,9 @@ class EnrichmentArtifactResolutionTest(unittest.TestCase):
             ]
         )
 
-        custom_analyses_module = types.ModuleType("gsf.dal.custom_analyses")
+        custom_analyses_module = types.ModuleType("auto_ontology.dal.custom_analyses")
         custom_analyses_module.embed_custom_analyses = embed
-        service_module = types.ModuleType("gsf.server.custom_analyses.service")
+        service_module = types.ModuleType("auto_ontology.server.custom_analyses.service")
 
         class AnalysisConflict(Exception):
             pass
@@ -117,13 +117,13 @@ class EnrichmentArtifactResolutionTest(unittest.TestCase):
             patch.dict(
                 sys.modules,
                 {
-                    "gsf.dal": types.ModuleType("gsf.dal"),
-                    "gsf.dal.custom_analyses": custom_analyses_module,
-                    "gsf.server": types.ModuleType("gsf.server"),
-                    "gsf.server.custom_analyses": types.ModuleType(
-                        "gsf.server.custom_analyses"
+                    "auto_ontology.dal": types.ModuleType("auto_ontology.dal"),
+                    "auto_ontology.dal.custom_analyses": custom_analyses_module,
+                    "auto_ontology.server": types.ModuleType("auto_ontology.server"),
+                    "auto_ontology.server.custom_analyses": types.ModuleType(
+                        "auto_ontology.server.custom_analyses"
                     ),
-                    "gsf.server.custom_analyses.service": service_module,
+                    "auto_ontology.server.custom_analyses.service": service_module,
                 },
             ),
         ):

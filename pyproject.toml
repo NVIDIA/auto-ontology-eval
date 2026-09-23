@@ -40,7 +40,7 @@ dependencies = [
     # transitively through nemo-retriever, but that is an unpinned git HEAD.
     "sqlglot>=30.12.0",
     "importlib-metadata>=9.0.0",
-    # gsf.connectors is imported eagerly by gsf.dal/gsf.semantic, and it
+    # auto_ontology.connectors is imported eagerly by auto_ontology.dal/gsf.semantic, and it
     # unconditionally imports every connector module (trino, mysql, kyuubi), so
     # these are required even if a given run never touches those specific
     # connectors.

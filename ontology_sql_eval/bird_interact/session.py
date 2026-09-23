@@ -25,7 +25,7 @@ class AdapterSession:
     # for a still-failing submission, the [exec_err_flg] marker in its message)
     # right when that response arrives — rather than re-deriving it later by
     # pattern-matching the orchestrator's own next message. See
-    # gsf.retrieval.interactive.coordinator.step()'s turn_type/debug_error params.
+    # auto_ontology.retrieval.interactive.coordinator.step()'s turn_type/debug_error params.
     _next_turn_type: str | None = None  # "debug" | "follow_up" | None (= initial)
     _next_debug_error: str | None = None  # set only for the exec-error DEBUG case
     # True once this session's first /run_session call has been handled. Used

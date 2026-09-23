@@ -17,12 +17,12 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 # Load GSF/.env into this process before importing any gsf.* module — several
-# (e.g. gsf.retrieval.interactive.entity_resolution) read feature-flag env
+# (e.g. auto_ontology.retrieval.interactive.entity_resolution) read feature-flag env
 # vars (INTERACTIVE, DB_PROBE_*, BIRD_INTERACT, ...) at import time via
 # module-level constants, so this must run first or those flags silently
 # fall back to defaults. Every other GSF entrypoint (gsf/server/__main__.py,
 # ingestion_service, semantic, alembic) already does this; this adapter is
-# the one process that runs gsf.retrieval code without it, so GSF/.env was
+# the one process that runs auto_ontology.retrieval code without it, so GSF/.env was
 # previously never read here.
 #
 # BIRD_INTERACT itself is this repo's own master flag (ontology_sql_eval.env),
@@ -31,7 +31,7 @@ from ontology_sql_eval.env import load_env
 
 load_env()
 
-from gsf.retrieval.interactive import (  # noqa: E402
+from auto_ontology.retrieval.interactive import (  # noqa: E402
     AskUserAction,
     SubmitSQLAction,
     TurnType,
@@ -56,13 +56,21 @@ logging.basicConfig(
 # Our adapter logs at INFO; silence uvicorn access noise
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-logging.getLogger("gsf.retrieval.interactive.clarify").setLevel(logging.DEBUG)
-logging.getLogger("gsf.retrieval.interactive.kb_coverage").setLevel(logging.DEBUG)
-logging.getLogger("gsf.retrieval.interactive.entity_resolution").setLevel(logging.DEBUG)
-logging.getLogger("gsf.retrieval.interactive.completeness").setLevel(logging.DEBUG)
-logging.getLogger("gsf.retrieval.interactive.coordinator").setLevel(logging.INFO)
-logging.getLogger("gsf.retrieval.data_access").setLevel(logging.INFO)
-logging.getLogger("gsf.retrieval.text_to_sql").setLevel(logging.INFO)
+logging.getLogger("auto_ontology.retrieval.interactive.clarify").setLevel(logging.DEBUG)
+logging.getLogger("auto_ontology.retrieval.interactive.kb_coverage").setLevel(
+    logging.DEBUG
+)
+logging.getLogger("auto_ontology.retrieval.interactive.entity_resolution").setLevel(
+    logging.DEBUG
+)
+logging.getLogger("auto_ontology.retrieval.interactive.completeness").setLevel(
+    logging.DEBUG
+)
+logging.getLogger("auto_ontology.retrieval.interactive.coordinator").setLevel(
+    logging.INFO
+)
+logging.getLogger("auto_ontology.retrieval.data_access").setLevel(logging.INFO)
+logging.getLogger("auto_ontology.retrieval.text_to_sql").setLevel(logging.INFO)
 logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
 logging.getLogger("uvicorn.error").setLevel(logging.WARNING)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -75,7 +83,10 @@ _CONNECTORS: dict[str, list] = {}
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _DATA_RETRIEVER, _SEMANTIC_RETRIEVER, _CONNECTORS
-    from gsf.utils import get_data_objects_retriever, get_semantic_objects_retriever
+    from auto_ontology.utils import (
+        get_data_objects_retriever,
+        get_semantic_objects_retriever,
+    )
     from ontology_sql_eval.ingestion.ingest import database_name_for, create_connector
 
     logger.info("[startup] loading retrievers...")

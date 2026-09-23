@@ -48,7 +48,7 @@ def main() -> None:
     parser.add_argument("--csv", type=Path, required=True)
     args = parser.parse_args()
 
-    from gsf.connectors.registry import get_connectors
+    from auto_ontology.connectors.registry import get_connectors
 
     connectors = {
         name: c

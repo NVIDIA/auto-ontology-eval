@@ -198,7 +198,7 @@ def build_prompt(batch: list[tuple[dict, list[dict]]], k: int, show_sql: bool) -
 
 def _schemas():
     """Built lazily: importing gsf triggers env-dependent client construction."""
-    from gsf.utils.llm_invoke import StrictLLMOutputModel
+    from auto_ontology.utils.llm_invoke import StrictLLMOutputModel
     from pydantic import Field
 
     class Pick(StrictLLMOutputModel):
@@ -229,7 +229,7 @@ def _schemas():
 
 
 def _prediction_schema():
-    from gsf.utils.llm_invoke import StrictLLMOutputModel
+    from auto_ontology.utils.llm_invoke import StrictLLMOutputModel
     from pydantic import Field
 
     class Prediction(StrictLLMOutputModel):
@@ -483,7 +483,10 @@ def dispatch(
     request must not cost the other hundreds, so failures are counted and
     skipped.
     """
-    from gsf.utils.llm_invoke import get_llm_client, invoke_with_structured_output
+    from auto_ontology.utils.llm_invoke import (
+        get_llm_client,
+        invoke_with_structured_output,
+    )
     from langchain_core.messages import HumanMessage, SystemMessage
 
     llm = get_llm_client(model=args.model or None, max_tokens=args.max_tokens)
