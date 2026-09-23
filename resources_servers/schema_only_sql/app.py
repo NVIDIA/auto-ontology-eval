@@ -6,7 +6,7 @@
 
 The model gets the question plus a raw schema dump and answers in one shot. No
 tools, no retrieval, no ontology -- whatever this arm scores is what a competent
-LLM achieves from the schema alone, and the GSF arm's lift is measured against
+LLM achieves from the schema alone, and the Auto Ontology arm's lift is measured against
 it.
 
 Deliberately close to NeMo Gym's own ``bird_sql`` server so the baseline stays

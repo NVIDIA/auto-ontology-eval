@@ -1,12 +1,12 @@
 # NeMo Gym environments
 
-Two resources servers that answer one question: **how much does GSF's ontology
+Two resources servers that answer one question: **how much does Auto Ontology's ontology
 grounding add over a competent LLM that sees only the schema?**
 
 | Server | Arm | What the model gets |
 |---|---|---|
 | `schema_only_sql` | control | The question plus a raw schema dump, one shot, no tools |
-| `gsf_ontology_sql` | treatment | Nothing directly — GSF's agent retrieves its own grounding |
+| `auto_ontology_sql` | treatment | Nothing directly — Auto Ontology's agent retrieves its own grounding |
 
 Both are graded by the same verifier (`ontology_sql_eval/gym/exec_match.py`) against
 the same databases, using the official BIRD rule (`set(gold) == set(pred)`, so row
@@ -26,14 +26,14 @@ ontology_sql_eval/gym/
   exec_match.py  executors + BIRD set-equality + failure codes
 resources_servers/
   schema_only_sql/{app.py,configs/,data/}
-  gsf_ontology_sql/{app.py,configs/,data/}
+  auto_ontology_sql/{app.py,configs/,data/}
 ```
 
 ## Building task data
 
 ```bash
 python scripts/build_gym_tasks.py --dataset bird60 --arm schema_only
-python scripts/build_gym_tasks.py --dataset bird60 --arm gsf
+python scripts/build_gym_tasks.py --dataset bird60 --arm auto_ontology
 ```
 
 Datasets: `bird` (500q), `bird60` (60q subset, reuses BIRD's databases),
@@ -47,25 +47,25 @@ run starts — changing it silently changes what "schema-only" means.
 
 ```bash
 scripts/run_gym_arm.sh schema_only_sql  runs/control/bird60.jsonl
-scripts/run_gym_arm.sh gsf_ontology_sql runs/gsf/bird60.jsonl --max-output-tokens 16
+scripts/run_gym_arm.sh auto_ontology_sql runs/gsf/bird60.jsonl --max-output-tokens 16
 ```
 
-Both arms run **in-process**: `gsf_ontology_sql` imports GSF and drives its graph
-directly, so no GSF server is required. `--max-output-tokens 16` on the GSF arm is
+Both arms run **in-process**: `auto_ontology_sql` imports Auto Ontology and drives its graph
+directly, so no Auto Ontology server is required. `--max-output-tokens 16` on the Auto Ontology arm is
 deliberate — that arm ignores the policy model's output, so the call is capped to
-stop it competing for rate limit with GSF's own ~19 calls per question.
+stop it competing for rate limit with Auto Ontology's own ~19 calls per question.
 
 Useful environment variables:
 
 | Variable | Default | Notes |
 |---|---|---|
 | `GYM_CONCURRENCY` | 3 | Size against the **model endpoint's rate limit**, not CPU |
-| `GYM_API_KEY` | `.env`'s `DEFAULT_MODELS_API_KEY` | Overrides the key for *both* the policy model and GSF's own calls |
-| `GSF_PATH` | `../GSF-gym` | Which GSF checkout to import |
+| `GYM_API_KEY` | `.env`'s `DEFAULT_MODELS_API_KEY` | Overrides the key for *both* the policy model and Auto Ontology's own calls |
+| `AUTO_ONTOLOGY_PATH` | `../auto-ontology-gym` | Which Auto Ontology checkout to import |
 | `GYM_MODEL` / `GYM_MODEL_URL` | bedrock-claude-opus-4-8 @ inference-api | |
 
 `GYM_API_KEY` has to override `DEFAULT_MODELS_API_KEY` rather than just
-`--model-api-key`: the GSF arm authenticates its in-process calls with the former,
+`--model-api-key`: the Auto Ontology arm authenticates its in-process calls with the former,
 so changing only the CLI flag would move the policy model to the new key and leave
 the actual workload on the old one.
 
@@ -75,7 +75,7 @@ leftover metrics ("Found conflicting aggregate metrics").
 
 ## Environment
 
-One venv holds both `nemo_gym` and GSF's dependencies. Getting there took two
+One venv holds both `nemo_gym` and Auto Ontology's dependencies. Getting there took two
 dependency decisions, recorded in `overrides.txt` and `pyproject.toml`:
 
 - **`prometheus-fastapi-instrumentator>=8` override.** nemo-retriever caps it at
@@ -90,8 +90,8 @@ dependency decisions, recorded in `overrides.txt` and `pyproject.toml`:
 nemo-gym 0.6.0 requires Python **>=3.13.14**, which is why `requires-python` was
 raised from 3.12.
 
-GSF is reached via `PYTHONPATH` (see `GSF_PATH`) because it is not yet an
-installable package. **When GSF becomes installable, it turns into an ordinary line
+Auto Ontology is reached via `PYTHONPATH` (see `AUTO_ONTOLOGY_PATH`) because it is not yet an
+installable package. **When Auto Ontology becomes installable, it turns into an ordinary line
 in each server's `requirements.txt` and the `PYTHONPATH` export disappears.**
 
 Four things about Gym's CLI that are easy to lose an hour to:
@@ -135,7 +135,7 @@ prompt would be absurd.
 rather than a JSON array, `sol_sql` lists instead of a single `SQL`, `follow_up`
 turns, test cases, and a user-simulation loop driven by the c-Interact
 orchestrator. Both arms here are single-shot by construction — the control gets
-one prompt and the GSF arm runs one `stream_agent_response` to completion — so
+one prompt and the Auto Ontology arm runs one `stream_agent_response` to completion — so
 representing it would mean a new multi-turn environment, not a registry entry.
 Use `scripts/run_bird_interact_cinteract.py` for that benchmark.
 
@@ -144,9 +144,9 @@ Use `scripts/run_bird_interact_cinteract.py` for that benchmark.
 Anything that changes what the model is told must land on **both** arms or
 neither. The current pairing:
 
-| Control (`schema_only_sql`) | GSF (`gsf_ontology_sql`) |
+| Control (`schema_only_sql`) | Auto Ontology (`auto_ontology_sql`) |
 |---|---|
-| `SYSTEM_PROMPT` in `ontology_sql_eval/gym/tasks.py` carries "Return exactly the requested output fields and NO others" | `shorten_answer=True` appends the same rule to GSF's projection rules |
+| `SYSTEM_PROMPT` in `ontology_sql_eval/gym/tasks.py` carries "Return exactly the requested output fields and NO others" | `shorten_answer=True` appends the same rule to Auto Ontology's projection rules |
 
 That instruction is not cosmetic: extra columns fail `set(gold) == set(pred)`
 outright, so giving it to one arm only would measure projection guidance rather
@@ -181,7 +181,7 @@ questions the ontology fixed or broke.
 
 A bird60 run at 8 workers against `aws/anthropic/bedrock-claude-opus-4-8` came back
 at 13.3% execution accuracy. That number was fiction: 747 of 1126 HTTP calls were
-429s. GSF retries three times, gives up, and routes to a *valid* terminal state
+429s. Auto Ontology retries three times, gives up, and routes to a *valid* terminal state
 (`unconstructable_sql_response`) — so 37 of 60 questions produced empty SQL, scored
 zero, and left the error column blank. The run looked like a weak model.
 
@@ -199,11 +199,11 @@ transfer.
 
 ## Arm B's couplings with GSF
 
-`gsf_ontology_sql` imports GSF in-process, which forces three things:
+`auto_ontology_sql` imports Auto Ontology in-process, which forces three things:
 
 - `load_dotenv()` runs **before** the `gsf` imports — `gsf.retrieval.text_to_sql.main`
   builds its LLM client and compiles the graph at import time.
-- `PYTHONPATH` must include the sibling GSF checkout; GSF is not installed here.
+- `PYTHONPATH` must include the sibling Auto Ontology checkout; Auto Ontology is not installed here.
 - `stream_agent_response` is a blocking generator, so it runs on a worker thread
   under a semaphore.
 
@@ -212,5 +212,5 @@ itself and ignores the rollout's model output (`policy_output_ignored: true`). T
 keeps the arm behaviourally identical to the existing harness, at the cost of it not
 being RL-trainable.
 
-Arm B also needs the pre-ingested GSF catalog (Postgres + pgvector) for every
+Arm B also needs the pre-ingested Auto Ontology catalog (Postgres + pgvector) for every
 database it touches; build it with `main.py --skip-eval --skip-judge`.

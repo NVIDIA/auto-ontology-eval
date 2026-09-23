@@ -16,7 +16,7 @@ contains:
 
 * ``schema_only`` -- the full schema dump is inlined, and the model answers in
   one shot. This is the control.
-* ``gsf`` -- only the question travels; grounding is retrieved by GSF behind a
+* ``auto_ontology`` -- only the question travels; grounding is retrieved by Auto Ontology behind a
   tool call, so inlining a schema would defeat the comparison.
 """
 
@@ -35,10 +35,10 @@ from ontology_sql_eval.gym.ddl import (
     sqlite_schema_dump,
 )
 
-Arm = Literal["schema_only", "gsf"]
+Arm = Literal["schema_only", "auto_ontology"]
 
 # The first sentence is upstream bird_sql's prompt verbatim. The projection rule
-# is added to match what GSF receives via shorten_answer=True, which appends
+# is added to match what Auto Ontology receives via shorten_answer=True, which appends
 # "Return exactly the requested output fields and NO others" to its own prompt.
 #
 # Both arms need it or neither does: extra columns break the
@@ -118,7 +118,7 @@ def _schema_for(spec: DatasetSpec, root: Path, db_id: str, descriptions: bool) -
 def _user_prompt(question: str, evidence: str, dialect: str, schema: str | None) -> str:
     """Assemble the user turn.
 
-    ``schema`` is ``None`` for the GSF arm, which retrieves its own grounding.
+    ``schema`` is ``None`` for the Auto Ontology arm, which retrieves its own grounding.
     The dialect is always stated: unlike upstream's BIRD-only environment our
     corpora span SQLite and Postgres, and the model cannot infer which from the
     question alone.

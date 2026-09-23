@@ -19,7 +19,7 @@ from ontology_sql_eval.gym.tasks import DATASETS, build_records, write_jsonl
 
 SERVER_FOR_ARM = {
     "schema_only": "schema_only_sql",
-    "gsf": "gsf_ontology_sql",
+    "auto_ontology": "auto_ontology_sql",
 }
 
 

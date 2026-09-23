@@ -8,7 +8,7 @@
 # arm's leftover metrics ("Found conflicting aggregate metrics").
 #
 # Concurrency defaults to 3: the sk- inference-api key rate-limits hard above
-# that, and GSF's retry turns a 429 into empty SQL rather than a visible error.
+# that, and Auto Ontology's retry turns a 429 into empty SQL rather than a visible error.
 set -euo pipefail
 
 SERVER="${1:?usage: run_gym_arm.sh <resources-server> <output.jsonl> [args...]}"
@@ -29,10 +29,10 @@ set -a
 set +a
 
 # GYM_API_KEY overrides the key for *both* consumers, and must be applied after
-# sourcing .env (which would otherwise clobber it). The GSF arm runs the agent
-# in-process, so GSF's own ~19 calls per question authenticate with
+# sourcing .env (which would otherwise clobber it). The Auto Ontology arm runs the agent
+# in-process, so Auto Ontology's own ~19 calls per question authenticate with
 # DEFAULT_MODELS_API_KEY -- overriding only --model-api-key would change the
-# policy model's key and leave GSF on the old one.
+# policy model's key and leave Auto Ontology on the old one.
 if [[ -n "${GYM_API_KEY:-}" ]]; then
   export DEFAULT_MODELS_API_KEY="$GYM_API_KEY"
 fi
@@ -46,7 +46,7 @@ if [[ -z "${DEFAULT_MODELS_API_KEY:-}" ]]; then
 fi
 
 # Absolute, because Gym runs each server after `cd`-ing into its own directory.
-export PYTHONPATH="${GSF_PATH:-$ROOT/../GSF-gym}:$ROOT"
+export PYTHONPATH="${AUTO_ONTOLOGY_PATH:-$ROOT/../auto-ontology-gym}:$ROOT"
 
 # Gym generates its own `uv pip install` per server; this is how the
 # prometheus-fastapi-instrumentator override reaches it.
@@ -56,7 +56,7 @@ export UV_OVERRIDE="$ROOT/overrides.txt"
 # rejects the bare inner key ("simple_agent") that 0.4.0 accepted.
 #
 # Gym builds each server its own venv from its requirements.txt, which is what we
-# want. GSF still arrives via PYTHONPATH because it is not yet an installable
+# want. Auto Ontology still arrives via PYTHONPATH because it is not yet an installable
 # package; once it is, it becomes an ordinary requirement and the PYTHONPATH
 # export below can go.
 exec .venv/bin/gym eval run \
