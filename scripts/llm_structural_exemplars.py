@@ -1,18 +1,21 @@
 """Find structurally equivalent train exemplars with an LLM, two ways, and
-score both against the lexical retriever in ``find_structural_exemplars.py``.
+score both against each other.
 
-Run this file and nothing else. It carries its own copies of the retrieval
-helpers, so producing the exemplar file is one command with no prior step::
+Run this file and nothing else. It carries the lexical retrieval helpers it
+once imported, so producing the exemplar file is one command with no prior
+step::
 
     python scripts/llm_structural_exemplars.py predict
 
 which writes ``output/predicted_structural_exemplars.csv``, the file the eval
-passes as ``--sql-examples``. The neighbouring ``find_structural_exemplars.py``
-and ``train_structural_twins.py`` produce their own, different artifacts and
-are not prerequisites for this one.
+passes as ``--sql-examples``. The retriever that used to live in
+``find_structural_exemplars.py``, and the skeleton study in
+``train_structural_twins.py``, were removed once this file stopped importing
+them; both are in git history, and the lexical CSV one of them wrote can still
+be fed to ``compare`` through ``--method`` if you kept a copy.
 
-``rerank`` -- judge the lexical retriever's shortlist
-----------------------------------------------------
+``rerank`` -- judge the lexical shortlist
+-----------------------------------------
 Nothing here asks the LLM to read all of train. The train set is 0.82M tokens
 of prompt text, so it does not fit in one context, and scoring dev against it
 pairwise is 1,534 x 9,428 = 14.5M calls. So the LLM reranks the top
@@ -74,7 +77,7 @@ Usage:
 
     python scripts/llm_structural_exemplars.py rerank --k 5 --candidates 30
     python scripts/llm_structural_exemplars.py predict --k 5
-    python scripts/llm_structural_exemplars.py compare   # all three methods
+    python scripts/llm_structural_exemplars.py compare   # rerank vs predict
 """
 
 from __future__ import annotations
@@ -1538,8 +1541,11 @@ def main() -> None:
 
     args = parser.parse_args()
     if args.command == "compare" and not args.method:
+        # The lexical arm is no longer a default: its producer was removed, so
+        # the CSV cannot be regenerated and defaulting to a path most checkouts
+        # do not have would fail the command for everyone. Pass it by hand --
+        # --method lexical=<path> first -- to keep it as the baseline.
         args.method = [
-            f"lexical={ROOT / 'output/structural_exemplars.csv'}",
             f"llm_rerank={ROOT / 'output/llm_structural_exemplars.csv'}",
             f"llm_predict={ROOT / 'output/predicted_structural_exemplars.csv'}",
         ]
