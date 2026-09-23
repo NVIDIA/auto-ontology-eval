@@ -19,27 +19,27 @@ from fastapi.testclient import TestClient
 
 
 # ---------------------------------------------------------------------------
-# Inject mock modules for gsf.retrieval.interactive BEFORE any import of
+# Inject mock modules for auto_ontology.retrieval.interactive BEFORE any import of
 # server.py (which has top-level imports from that package).
 # ---------------------------------------------------------------------------
 
 
 class AskUserAction:
-    """Minimal stand-in for gsf.retrieval.interactive.AskUserAction."""
+    """Minimal stand-in for auto_ontology.retrieval.interactive.AskUserAction."""
 
     def __init__(self, question: str) -> None:
         self.question = question
 
 
 class SubmitSQLAction:
-    """Minimal stand-in for gsf.retrieval.interactive.SubmitSQLAction."""
+    """Minimal stand-in for auto_ontology.retrieval.interactive.SubmitSQLAction."""
 
     def __init__(self, sql: str) -> None:
         self.sql = sql
 
 
 class TurnType:
-    """Minimal stand-in for gsf.retrieval.interactive.TurnType."""
+    """Minimal stand-in for auto_ontology.retrieval.interactive.TurnType."""
 
     INITIAL = "initial"
     DEBUG = "debug"
@@ -48,12 +48,12 @@ class TurnType:
 
 def _ensure_gsf_mocks() -> None:
     """Populate sys.modules with lightweight stubs if gsf is absent."""
-    if "gsf" in sys.modules:
+    if "auto_ontology" in sys.modules:
         return  # already present (real package or previously injected)
 
-    gsf_mod = types.ModuleType("gsf")
-    gsf_retrieval = types.ModuleType("gsf.retrieval")
-    gsf_interactive = types.ModuleType("gsf.retrieval.interactive")
+    gsf_mod = types.ModuleType("auto_ontology")
+    gsf_retrieval = types.ModuleType("auto_ontology.retrieval")
+    gsf_interactive = types.ModuleType("auto_ontology.retrieval.interactive")
 
     # Action types used by server.py
     gsf_interactive.AskUserAction = AskUserAction  # type: ignore[attr-defined]
@@ -66,18 +66,18 @@ def _ensure_gsf_mocks() -> None:
     gsf_interactive.apply_user_answer = MagicMock()  # type: ignore[attr-defined]
     gsf_interactive.apply_submit_result = MagicMock()  # type: ignore[attr-defined]
 
-    # Sub-module alias so `from gsf.retrieval.interactive.types import ...` works
-    gsf_interactive_types = types.ModuleType("gsf.retrieval.interactive.types")
+    # Sub-module alias so `from auto_ontology.retrieval.interactive.types import ...` works
+    gsf_interactive_types = types.ModuleType("auto_ontology.retrieval.interactive.types")
     gsf_interactive_types.AskUserAction = AskUserAction  # type: ignore[attr-defined]
     gsf_interactive_types.SubmitSQLAction = SubmitSQLAction  # type: ignore[attr-defined]
 
-    gsf_utils = types.ModuleType("gsf.utils")
+    gsf_utils = types.ModuleType("auto_ontology.utils")
     gsf_utils.get_data_objects_retriever = MagicMock()  # type: ignore[attr-defined]
     gsf_utils.get_semantic_objects_retriever = MagicMock()  # type: ignore[attr-defined]
 
     # Reached via server.py -> ontology_sql_eval.env, which falls back to
     # GSF's .env for anything this repo's own .env does not define.
-    gsf_env = types.ModuleType("gsf.env")
+    gsf_env = types.ModuleType("auto_ontology.env")
     gsf_env.load_env = MagicMock()  # type: ignore[attr-defined]
 
     gsf_mod.retrieval = gsf_retrieval  # type: ignore[attr-defined]
@@ -85,12 +85,12 @@ def _ensure_gsf_mocks() -> None:
     gsf_mod.utils = gsf_utils  # type: ignore[attr-defined]
     gsf_mod.env = gsf_env  # type: ignore[attr-defined]
 
-    sys.modules["gsf"] = gsf_mod
-    sys.modules["gsf.retrieval"] = gsf_retrieval
-    sys.modules["gsf.retrieval.interactive"] = gsf_interactive
-    sys.modules["gsf.retrieval.interactive.types"] = gsf_interactive_types
-    sys.modules["gsf.utils"] = gsf_utils
-    sys.modules["gsf.env"] = gsf_env
+    sys.modules["auto_ontology"] = gsf_mod
+    sys.modules["auto_ontology.retrieval"] = gsf_retrieval
+    sys.modules["auto_ontology.retrieval.interactive"] = gsf_interactive
+    sys.modules["auto_ontology.retrieval.interactive.types"] = gsf_interactive_types
+    sys.modules["auto_ontology.utils"] = gsf_utils
+    sys.modules["auto_ontology.env"] = gsf_env
 
 
 _ensure_gsf_mocks()

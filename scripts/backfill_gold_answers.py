@@ -72,7 +72,7 @@ def repair_csv(csv_path: Path, answers_by_qid: dict[str, str]) -> None:
 
 def materialize_dataset(dataset_path: Path) -> dict[str, str]:
     """Execute each gold query once so ``answer_raw`` is correct at the source."""
-    from gsf.connectors.registry import get_connectors
+    from auto_ontology.connectors.registry import get_connectors
 
     questions = json.loads(dataset_path.read_text())
     connectors = {

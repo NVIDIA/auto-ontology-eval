@@ -192,7 +192,7 @@ def _resolved_model_config() -> dict[str, Any]:
     later from which vectors look wrong.
     """
     try:
-        from gsf.utils.model_config import resolve
+        from auto_ontology.utils.model_config import resolve
     except Exception:  # pragma: no cover - provenance is best-effort
         return {}
 

@@ -30,13 +30,13 @@ from ontology_sql_eval.env import load_env
 # while retaining GSF's environment as a fallback.
 load_env()
 
-from gsf.catalog import ingest_catalog
-from gsf.connectors.registry import create_connector
-from gsf.dal.datasources import fetch_tables_and_columns_by_node_ids
-from gsf.utils import get_embed_params  # noqa: E402
-from gsf.utils.embedding import batch_embed_chunks
-from gsf.utils.embedding_rows import CatalogEmbeddingRowsOp
-from gsf.vdb import get_data_vdb, get_semantic_vdb  # noqa: E402
+from auto_ontology.catalog import ingest_catalog
+from auto_ontology.connectors.registry import create_connector
+from auto_ontology.dal.datasources import fetch_tables_and_columns_by_node_ids
+from auto_ontology.utils import get_embed_params  # noqa: E402
+from auto_ontology.utils.embedding import batch_embed_chunks
+from auto_ontology.utils.embedding_rows import CatalogEmbeddingRowsOp
+from auto_ontology.vdb import get_data_vdb, get_semantic_vdb  # noqa: E402
 from nemo_retriever.common.vdb.records import to_client_vdb_records
 from ontology_sql_eval.ingestion.enrich_graph import (  # noqa: E402
     add_custom_analyses,

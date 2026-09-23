@@ -60,17 +60,17 @@ from typing import Any, Dict, List, Tuple
 
 from ontology_sql_eval.env import load_env
 
-# Must run before the GSF imports below: ``gsf.retrieval.text_to_sql.main``
+# Must run before the GSF imports below: ``auto_ontology.retrieval.text_to_sql.main``
 # builds its LLM client at import time and raises if the credentials are not
 # already in ``os.environ``. Loading .env afterwards is too late for a plain
 # ``python -m`` run (VS Code masked this by injecting ``envFile`` itself).
 load_env()
 
-from gsf.retrieval.text_to_sql import main as gsf_agent_main  # noqa: E402
-from gsf.retrieval.text_to_sql.main import stream_agent_response  # noqa: E402
-from gsf.retrieval.text_to_sql.state import TextToSQLPayload  # noqa: E402
-from gsf.connectors import get_connectors  # noqa: E402
-from gsf.utils import (  # noqa: E402
+from auto_ontology.retrieval.text_to_sql import main as gsf_agent_main  # noqa: E402
+from auto_ontology.retrieval.text_to_sql.main import stream_agent_response  # noqa: E402
+from auto_ontology.retrieval.text_to_sql.state import TextToSQLPayload  # noqa: E402
+from auto_ontology.connectors import get_connectors  # noqa: E402
+from auto_ontology.utils import (  # noqa: E402
     get_data_objects_retriever,
     get_semantic_objects_retriever,
 )
@@ -666,7 +666,7 @@ def _run_agent_traced(
 def _attach_llm_recorder(run_log: RunLogger) -> None:
     """Register the per-call recorder on the agent's shared LLM client.
 
-    ``gsf.retrieval.text_to_sql.main`` builds one client at import time and
+    ``auto_ontology.retrieval.text_to_sql.main`` builds one client at import time and
     every node calls through it, so a single attachment covers the whole graph.
     Appending rather than replacing leaves any callbacks GSF configured itself
     in place.

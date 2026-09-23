@@ -67,7 +67,7 @@ def _conninfo(database_name: str = "postgres") -> str:
 
 def _ensure_database(database_name: str, *, drop: bool = False) -> None:
     """Create the target database (optionally dropping it first)."""
-    admin_database_name = os.environ.get("POSTGRES_DATABASE", "gsf")
+    admin_database_name = os.environ.get("POSTGRES_DATABASE", "auto_ontology")
     with psycopg.connect(_conninfo(admin_database_name)) as conn:
         conn.autocommit = True
         with conn.cursor() as cur:
