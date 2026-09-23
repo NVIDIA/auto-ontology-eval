@@ -1,22 +1,26 @@
 # Ontology SQL Eeval
 
 A Text-to-SQL evaluation toolkit for benchmarking a text-to-SQL agent against a
-dataset and scoring the results. It bundles four workflows in one project:
+dataset and scoring the results. It bundles three workflows in one project:
 
-1. **ingestion** — extract a source database's schema into GSF's Postgres +
-   pgvector stores, compile the semantic layer, and enrich the graph with metadata and
-   custom analyses.
-2. **retrieval eval** — run the text-to-SQL agent against an evaluation set and
-   score its generated SQL and answers deterministically.
-3. **sql judge** — a standalone, LLM-powered re-scorer for Text-to-SQL
-   evaluation CSVs (works on its own, no database or GSF/NeMo install required).
-4. **NeMo Gym benchmark** — run the same questions as a controlled A/B: a
-   schema-only LLM baseline against the ontology-grounded agent, graded by one
+1. **ingestion** — extract a source database's schema into Auto Ontology's
+   Postgres + pgvector stores, compile the semantic layer, and enrich the graph
+   with metadata and custom analyses.
+2. **NeMo Gym benchmark** — run an evaluation set through two arms, a
+   schema-only LLM control and the ontology-grounded agent, scored by one
    deterministic verifier and reported as a single delta.
+3. **sql judge** — a standalone, LLM-powered re-scorer for Text-to-SQL
+   evaluation CSVs (works on its own, no database or Auto Ontology install
+   required).
 
-The typical lifecycle is **ingest → eval → judge**: you ingest a database so the
-agent can retrieve its schema, run an evaluation to produce a results CSV, then
-optionally re-score that CSV with the LLM judge.
+The typical lifecycle is **ingest → semantic compile → benchmark**: you ingest a
+database so the agent can retrieve its schema, then run the benchmark to see how
+much that grounding is worth against a schema-only control.
+
+The judge is a separate tool, not a stage of that flow. It scores eval CSVs
+produced by the sharded runners (`scripts/run_eval_shard.py`), which is how the
+BEAVER pipeline uses it. The benchmark itself uses no LLM judge — scoring is
+deterministic execution match.
 
 > [!IMPORTANT]
 > **You need [Auto Ontology](https://github.com/NVIDIA/auto-ontology).**
@@ -132,37 +136,51 @@ Each bundled dataset's README documents how to stand up its source DB and set
 
 ## Full pipeline (end-to-end example)
 
-`main.py` runs the entire lifecycle for a dataset in one shot — ingest →
-semantic compile → eval → judge — writing
-`output/<database_name>_<model>_scores.csv` (assumes the stores are up and
-`.env` is filled in):
+`main.py` runs the lifecycle for a dataset in one shot — ingest → semantic
+compile → **NeMo Gym benchmark** — writing rollouts to `runs/control/` and
+`runs/treatment/` and printing the delta between them (assumes the stores are up
+and `.env` is filled in):
 
 ```bash
 PYTHONPATH=../GSF uv run python main.py --database-name <database_name>
 ```
 
-Individual stages can be skipped with `--skip-ingest`, `--skip-semantic`,
-`--skip-eval`, `--skip-judge` (e.g. to re-judge an existing eval CSV:
-`--skip-ingest --skip-semantic --skip-eval`).
+The benchmark stage builds both arms' task files, runs the schema-only control
+and the ontology-grounded arm, and compares them. It replaced the old
+single-arm retrieval eval: that measured how well the agent does, this measures
+how much the ontology is worth.
 
-The eval stage runs `--eval-workers` questions concurrently and can be limited
-to a slice of the eval set with `--start-index` / `--end-index` / `--limit`
-(`--workers` stays the judge's concurrency). A ten-question smoke run against
-an already-ingested dataset, two questions at a time:
+Stages can be skipped with `--skip-ingest`, `--skip-semantic`, `--skip-eval`
+(the benchmark) and `--skip-judge`. A ten-question smoke run against an
+already-ingested dataset, three questions at a time:
 
 ```bash
 PYTHONPATH=../GSF uv run python main.py --database-name bird \
-    --skip-ingest --skip-semantic --limit 10 --eval-workers 2
+    --skip-ingest --skip-semantic --limit 10 --eval-workers 3
 ```
 
-Each eval run writes a full instrumentation bundle to `logs/<run-id>/` —
-per-question log files, per-agent-node timings, a phase timeline, and an
-aggregated `summary.json`. See
-[Retrieval eval → Run logs](ontology_sql_eval/retrieval/README.md#run-logs)
-for what to read when hunting a bottleneck.
+`--eval-workers` is per-arm concurrency; size it against the model endpoint's
+**rate limit**, not CPU.
 
-For concrete, copy-pasteable walkthroughs (including the manual per-stage
-commands), see the per-dataset READMEs:
+> [!NOTE]
+> The **LLM judge** scores an eval CSV, and the benchmark writes Gym rollouts
+> rather than a CSV, so the judge is skipped whenever the benchmark runs. It
+> still runs over a CSV produced elsewhere — which is how
+> `run_beaver_shards.sh` and `resume_beaver_ranges.sh` use this entry point:
+> `--skip-eval` to reach the judge. The standalone `ontology-sql-eval` console
+> script does the same job directly.
+
+Each arm writes Gym's own artifacts next to its rollouts —
+`*_aggregate_metrics.json` (pass@1 overall and per difficulty, plus `health/*`
+counters) and `*_failures.jsonl`. Read the health counters before quoting any
+accuracy: a rate-limited or broken run scores near zero and is indistinguishable
+from a weak model.
+
+To drive the stages by hand — build task files, run one arm, compare — see
+[NeMo Gym benchmark](#nemo-gym-benchmark) below and the full guide in
+[resources_servers/README.md](resources_servers/README.md).
+
+For concrete, copy-pasteable walkthroughs, see the per-dataset READMEs:
 [WideWorldImporters](datasets/wideworldimporters/README.md),
 [BIRD Mini-Dev](datasets/bird/README.md),
 [FDABench-Lite](datasets/fdabench/README.md),
@@ -298,17 +316,20 @@ Each workflow has its own README with purpose, run instructions, and outputs:
 
 - **[Ingestion](ontology_sql_eval/ingestion/README.md)** — extract + embed a
   source DB's schema into GSF's Postgres catalog + pgvector (requires GSF).
-- **[Retrieval eval](ontology_sql_eval/retrieval/README.md)** — run the
-  text-to-SQL agent against an eval set and score deterministically (requires
-  GSF).
+- **[NeMo Gym benchmark](resources_servers/README.md)** — schema-only control
+  vs the ontology-grounded agent, one deterministic verifier, one delta
+  (requires Auto Ontology for the ontology arm). This is `main.py`'s evaluation
+  stage.
+- **[Retrieval eval](ontology_sql_eval/retrieval/README.md)** — the single-arm
+  agent runner behind `scripts/run_eval_shard.py`. No longer a `main.py` stage;
+  it produces the CSVs the judge scores (requires Auto Ontology).
 - **[SQL judge](ontology_sql_eval/judge/README.md)** — standalone LLM re-scorer
   for eval CSVs (no GSF required).
 
 ### NeMo Gym benchmark
 
-The first three workflows measure how well the agent does; this one measures how
-much the ontology is worth, by running a no-ontology control over the same
-questions and databases. Full guide:
+`main.py` runs this end to end (see [Full pipeline](#full-pipeline-end-to-end-example));
+the commands below drive the stages individually. Full guide:
 [resources_servers/README.md](resources_servers/README.md).
 
 ```bash
