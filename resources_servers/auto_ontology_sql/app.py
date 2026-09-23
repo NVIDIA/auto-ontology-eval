@@ -335,7 +335,7 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
 
         try:
             match, err = await execute_and_compare(
-                self._executor(body.dataset), body.db_id, body.gt_sql, sql
+                self._executor(body.dataset), body.db_id, body.gt_sql, sql, body.dataset
             )
         except Exception as exc:
             logger.exception("verify failed task_id=%s: %s", body.task_id, exc)

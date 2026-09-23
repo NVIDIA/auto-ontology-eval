@@ -69,6 +69,8 @@ __all__ = [
     "extract_sql",
     "has_sql_codeblock",
     "result_sets_match",
+    "beaver_result_match",
+    "matcher_for",
     "execute_and_compare",
 ]
 
@@ -135,6 +137,46 @@ def result_sets_match(gold: ResultSet, pred: ResultSet) -> bool:
             return sorted(map(repr, gold)) == sorted(map(repr, pred))
         except Exception:
             return False
+
+
+def beaver_result_match(gold: ResultSet, pred: ResultSet) -> bool:
+    """BEAVER's official ex_acc comparison, expressed on raw rows.
+
+    Deliberately *not* BIRD's rule, and the two disagree often enough to matter:
+    BEAVER stringifies and strips every value before comparing, so ``1`` equals
+    ``"1"`` and ``" a"`` equals ``"a"``, but ``Decimal("150.250")`` does **not**
+    equal ``Decimal("150.25")``. On a MySQL corpus, where every numeric comes
+    back as ``Decimal``, that last case is common rather than exotic.
+
+    Kept in step with ``ontology_sql_eval.judge.beaver.compare_results`` by
+    ``tests/test_gym_beaver_match.py`` rather than by importing it -- that module
+    pulls in pandas, which the control arm's venv deliberately does not have.
+    """
+    gold_empty, pred_empty = not gold, not pred
+    if gold_empty and pred_empty:
+        # Both sides produced nothing. BEAVER scores this a match; its own
+        # evaluator compensates by reporting accuracy with and without
+        # empty-gold questions.
+        return True
+    if gold_empty or pred_empty:
+        return False
+
+    def norm(rows: ResultSet) -> "set[tuple[str, ...]]":
+        return {tuple(str(v).strip() for v in row) for row in rows}
+
+    if len(gold[0]) != len(pred[0]):
+        return False
+    return norm(gold) == norm(pred)
+
+
+# Comparison rule per dataset. Everything defaults to BIRD's; BEAVER gets its
+# own so its numbers stay comparable to the published leaderboard.
+MATCHERS = {"beaverbench": beaver_result_match}
+
+
+def matcher_for(dataset: str):
+    """Return the result-comparison function a dataset should be scored with."""
+    return MATCHERS.get(dataset, result_sets_match)
 
 
 class Executor(Protocol):
@@ -291,6 +333,7 @@ async def execute_and_compare(
     db_id: str,
     gold_sql: str,
     pred_sql: str,
+    dataset: str = "",
 ) -> tuple[bool, Optional[str]]:
     """Run both queries and compare. Returns ``(match, error_tag)``.
 
@@ -306,4 +349,4 @@ async def execute_and_compare(
     if pred_rows is None:
         return False, f"pred_sql_{pred_status or 'error'}"
 
-    return result_sets_match(gold_rows, pred_rows), None
+    return matcher_for(dataset)(gold_rows, pred_rows), None

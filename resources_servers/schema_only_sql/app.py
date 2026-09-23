@@ -228,7 +228,11 @@ class SchemaOnlySqlResourcesServer(SimpleResourcesServer):
 
         try:
             match, err = await execute_and_compare(
-                self._executor(body.dataset), body.db_id, body.gt_sql, extracted
+                self._executor(body.dataset),
+                body.db_id,
+                body.gt_sql,
+                extracted,
+                body.dataset,
             )
         except Exception as exc:
             logger.exception(

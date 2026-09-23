@@ -9,9 +9,25 @@ grounding add over a competent LLM that sees only the schema?**
 | `auto_ontology_sql` | treatment | Nothing directly — Auto Ontology's agent retrieves its own grounding |
 
 Both are graded by the same verifier (`ontology_sql_eval/gym/exec_match.py`) against
-the same databases, using the official BIRD rule (`set(gold) == set(pred)`, so row
-order and duplicate rows are ignored). Any difference in the reported number comes
-from the SQL, never from the grader.
+the same databases, so any difference in the reported number comes from the SQL,
+never from the grader.
+
+The comparison rule is per dataset, because benchmarks define execution accuracy
+differently and we want numbers that are comparable to each one's own leaderboard:
+
+| Dataset | Rule |
+|---|---|
+| everything else | BIRD: `set(gold) == set(pred)` on raw rows |
+| `beaverbench` | BEAVER `ex_acc`: values stringified and stripped first |
+
+They genuinely disagree. BEAVER treats `1` and `"1"` as equal and strips
+whitespace, but **not** `Decimal("150.250")` and `Decimal("150.25")` -- which on a
+MySQL corpus is a common case, not an exotic one. `tests/test_gym_beaver_match.py`
+holds our implementation against the official evaluator in
+`ontology_sql_eval/judge/beaver.py`.
+
+Neither rule involves an LLM. The LLM judge (`judge/scorer.py`) is a separate
+tool and is not used by either arm.
 
 ## Layout
 
