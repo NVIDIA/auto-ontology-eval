@@ -3,7 +3,7 @@
 A Text-to-SQL evaluation toolkit for benchmarking a text-to-SQL agent against a
 dataset and scoring the results. It bundles four workflows in one project:
 
-1. **ingestion** — extract a source database's schema into Auto Ontology's Postgres +
+1. **ingestion** — extract a source database's schema into GSF's Postgres +
    pgvector stores, compile the semantic layer, and enrich the graph with metadata and
    custom analyses.
 2. **retrieval eval** — run the text-to-SQL agent against an evaluation set and
@@ -11,17 +11,12 @@ dataset and scoring the results. It bundles four workflows in one project:
 3. **sql judge** — a standalone, LLM-powered re-scorer for Text-to-SQL
    evaluation CSVs (works on its own, no database or GSF/NeMo install required).
 4. **NeMo Gym benchmark** — run the same questions as a controlled A/B: a
-   schema-only LLM baseline against Auto Ontology's ontology-grounded agent, graded by one
-   deterministic verifier, reported as a single delta.
+   schema-only LLM baseline against the ontology-grounded agent, graded by one
+   deterministic verifier and reported as a single delta.
 
 The typical lifecycle is **ingest → eval → judge**: you ingest a database so the
 agent can retrieve its schema, run an evaluation to produce a results CSV, then
 optionally re-score that CSV with the LLM judge.
-
-The Gym benchmark answers a different question. The first three workflows measure
-*how well Auto Ontology does*; the benchmark measures *how much the ontology is worth* by
-running a no-ontology control over the same questions and databases. See
-**[NeMo Gym environments](resources_servers/README.md)**.
 
 > [!IMPORTANT]
 > **You need [GSF](https://github.com/NVIDIA/GSF).**
@@ -41,19 +36,14 @@ running a no-ontology control over the same questions and databases. See
 
 ## Prerequisites
 
-| Requirement                                                                  | Ingestion  | Retrieval eval | Judge | Gym benchmark |
-| ---------------------------------------------------------------------------- | :--------: | :------------: | :---: | :-----------: |
-| [uv](https://docs.astral.sh/uv/) + Python **3.13.14+**                       |    yes     |      yes       |  yes  |      yes      |
-| Sibling repo `../GSF` checkout ([NVIDIA/GSF](https://github.com/NVIDIA/GSF)) |    yes     |      yes       |  no   |  Auto Ontology arm only |
-| GitHub access to `NVIDIA/NeMo-Retriever`                                     |    yes     |      yes       |  no   |      yes      |
-| Postgres (catalog + pgvector) service                                        |    yes     |      yes       |  no   |  Auto Ontology arm only |
-| Reachable source database                                                    |    yes     |      yes       |  no   |      yes      |
-| LLM API key                                                                  | embed only |      yes       |  yes  |      yes      |
-
-> [!NOTE]
-> The Python floor is **3.13.14**, raised from 3.12 when the Gym benchmark was
-> added: `nemo-gym` 0.6.0 requires it. It applies to the whole project because
-> all four workflows share one venv.
+| Requirement                                                                  | Ingestion  | Retrieval eval | Judge |
+| ---------------------------------------------------------------------------- | :--------: | :------------: | :---: |
+| [uv](https://docs.astral.sh/uv/) + Python 3.12 (3.12–3.13)                   |    yes     |      yes       |  yes  |
+| Sibling repo `../GSF` checkout ([NVIDIA/GSF](https://github.com/NVIDIA/GSF)) |    yes     |      yes       |  no   |
+| GitHub access to `NVIDIA/NeMo-Retriever`                                     |    yes     |      yes       |  no   |
+| Postgres (catalog + pgvector) service                                        |    yes     |      yes       |  no   |
+| Reachable source database                                                    |    yes     |      yes       |  no   |
+| LLM API key                                                                  | embed only |      yes       |  yes  |
 
 The two external dependencies are provided differently:
 
@@ -65,27 +55,27 @@ The two external dependencies are provided differently:
   in [pyproject.toml](pyproject.toml)).
 
 For ingestion and retrieval eval you also need a live **Postgres** service
-(it holds both Auto Ontology's catalog and the pgvector collections), plus a reachable
-source DB. Auto Ontology's catalog schema must be migrated first:
+(it holds both GSF's catalog and the pgvector collections), plus a reachable
+source DB. GSF's catalog schema must be migrated first:
 
 ```bash
-cd ../Auto Ontology && uv run alembic upgrade head
+cd ../GSF && uv run alembic upgrade head
 ```
  The easiest way to start the
-stores is Auto Ontology's `docker-compose.yml`:
+stores is GSF's `docker-compose.yml`:
 
 ```bash
-cd ../Auto Ontology && docker compose up -d
+cd ../GSF && docker compose up -d
 ```
 
 ## Setup
 
 ```bash
-uv sync                # creates the unified .venv (Python 3.13.14+), pulling nemo_retriever from GitHub
+uv sync                # creates the unified .venv (Python 3.12), pulling nemo_retriever from GitHub
 cp .env.example .env   # then fill in your values
 ```
 
-Auto Ontology is `package = false`, so `gsf` is not installed into the venv — it imports
+GSF is `package = false`, so `gsf` is not installed into the venv — it imports
 only when `../GSF` is on `PYTHONPATH`. The VS Code launch configs set this
 automatically. For command-line runs of the ingestion / eval scripts, prefix the
 command with `PYTHONPATH=../GSF` (the judge does not need it).
@@ -117,7 +107,7 @@ command with `PYTHONPATH=../GSF` (the judge does not need it).
 | `REASONING_API_KEY`, `REASONING_ENDPOINT`, `REASONING_MODEL` | agent (eval) | LLM that the text-to-SQL agent generates with (falls back to `DEFAULT_MODELS_*`). |
 | `JUDGE_API_KEY`, `JUDGE_BASE_URL`, `JUDGE_MODEL_NAME` | judge         | LLM that the judge scores with (falls back to `DEFAULT_MODELS_*`, then legacy shared vars, then a built-in default for the key prefix). |
 | `EMBED_API_KEY`, `EMBED_ENDPOINT`, `EMBED_MODEL`      | ingest + eval | Embedding endpoint (must be identical for ingest and query).          |
-| `POSTGRES_*`                                          | ingest + eval | Store connection — Auto Ontology's catalog and the pgvector collections.        |
+| `POSTGRES_*`                                          | ingest + eval | Store connection — GSF's catalog and the pgvector collections.        |
 | `CONNECTION_STRINGS`                                  | ingest + eval | Source DB to extract schema from / execute SQL against.               |
 
 ## Seed the local source DB (required)
@@ -145,7 +135,7 @@ semantic compile → eval → judge — writing
 `.env` is filled in):
 
 ```bash
-PYTHONPATH=../Auto Ontology uv run python main.py --database-name <database_name>
+PYTHONPATH=../GSF uv run python main.py --database-name <database_name>
 ```
 
 Individual stages can be skipped with `--skip-ingest`, `--skip-semantic`,
@@ -158,7 +148,7 @@ to a slice of the eval set with `--start-index` / `--end-index` / `--limit`
 an already-ingested dataset, two questions at a time:
 
 ```bash
-PYTHONPATH=../Auto Ontology uv run python main.py --database-name bird \
+PYTHONPATH=../GSF uv run python main.py --database-name bird \
     --skip-ingest --skip-semantic --limit 10 --eval-workers 2
 ```
 
@@ -265,7 +255,7 @@ A JSON **array** of question objects. Fields consumed by the retrieval eval:
 ### `metadata.json`
 
 An object keyed by table name, used only during ingestion to stamp descriptions
-and sample values onto Auto Ontology's catalog. Optional — enrichment is skipped if the
+and sample values onto GSF's catalog. Optional — enrichment is skipped if the
 file is missing.
 
 ```json
@@ -304,51 +294,59 @@ embedded into the semantic vector store. Optional.
 Each workflow has its own README with purpose, run instructions, and outputs:
 
 - **[Ingestion](ontology_sql_eval/ingestion/README.md)** — extract + embed a
-  source DB's schema into Auto Ontology's Postgres catalog + pgvector (requires Auto Ontology).
+  source DB's schema into GSF's Postgres catalog + pgvector (requires GSF).
 - **[Retrieval eval](ontology_sql_eval/retrieval/README.md)** — run the
   text-to-SQL agent against an eval set and score deterministically (requires
   GSF).
 - **[SQL judge](ontology_sql_eval/judge/README.md)** — standalone LLM re-scorer
-  for eval CSVs (no Auto Ontology required).
-- **[NeMo Gym benchmark](resources_servers/README.md)** — schema-only control vs
-  Auto Ontology grounding, one deterministic verifier, one delta.
+  for eval CSVs (no GSF required).
 
-### Running the benchmark
+### NeMo Gym benchmark
 
-Build the task files once per dataset and arm, then run each arm into its **own
-output directory**:
-
-```bash
-python scripts/build_gym_tasks.py --dataset bird --arm schema_only
-python scripts/build_gym_tasks.py --dataset bird --arm auto_ontology
-
-scripts/run_gym_arm.sh schema_only_sql  runs/control/bird.jsonl
-scripts/run_gym_arm.sh auto_ontology_sql runs/gsf/bird.jsonl --max-output-tokens 16
-
-python scripts/compare_arms.py \
-  --control runs/control/bird.jsonl --treatment runs/gsf/bird.jsonl
-```
-
-Datasets: `bird` (500q), `fdabench` (169q), `wideworldimporters` (41q, Postgres).
-The Auto Ontology arm additionally needs the database ingested and its semantic layer
-compiled (workflow 1) — it drives Auto Ontology's agent in-process.
-
-Useful knobs: `GYM_CONCURRENCY` (default 3 — size it against the model
-endpoint's **rate limit**, not CPU), `GYM_API_KEY` (overrides the key for both
-the policy model and Auto Ontology's own calls), `AUTO_ONTOLOGY_PATH` (which Auto Ontology checkout to
-import). Details and the Gym CLI's sharp edges are in
+The first three workflows measure how well the agent does; this one measures how
+much the ontology is worth, by running a no-ontology control over the same
+questions and databases. Full guide:
 [resources_servers/README.md](resources_servers/README.md).
 
+```bash
+# 1. build task files, once per dataset and arm
+uv run python scripts/build_gym_tasks.py --dataset bird --arm schema_only
+uv run python scripts/build_gym_tasks.py --dataset bird --arm auto_ontology
+
+# 2. run each arm into its OWN output directory
+scripts/run_gym_arm.sh schema_only_sql   runs/control/bird.jsonl
+scripts/run_gym_arm.sh auto_ontology_sql runs/treatment/bird.jsonl --max-output-tokens 16
+
+# 3. compare
+uv run python scripts/compare_arms.py \
+  --control runs/control/bird.jsonl --treatment runs/treatment/bird.jsonl
+```
+
+Datasets: `bird`, `fdabench`, `wideworldimporters` (Postgres), `beaverbench`
+(MySQL). The ontology arm additionally needs the database ingested and its
+semantic layer compiled (workflow 1) — it drives the agent in-process, importing
+it from `AUTO_ONTOLOGY_PATH`.
+
+Knobs: `GYM_CONCURRENCY` (default 3 — size against the model endpoint's **rate
+limit**, not CPU), `GYM_API_KEY` (overrides the key for both the policy model and
+the agent's own calls), `AUTO_ONTOLOGY_PATH`.
+
 > [!WARNING]
-> Always read `health/no_model_output_rate` next to the accuracy. A
-> rate-limited run scores near zero and looks exactly like a weak model —
-> `compare_arms.py` refuses to print a headline number when that rate exceeds 5%.
+> Read the `health/*` counters next to the accuracy. A rate-limited or otherwise
+> broken run scores near zero and is indistinguishable from a weak model;
+> `compare_arms.py` refuses to print a headline number when more than 5% of tasks
+> failed that way.
+
+> [!NOTE]
+> BIRD databases live under `datasets/bird/dev/<db_id>/`. A seed made before that
+> layout change reports `gold_execution_error` on every task — re-seed with
+> `scripts/seed_bird.py`, or move the per-database directories under `dev/`.
 
 ## Layout
 
 ```
 ontology_sql_eval/          single namespace package
-  judge/                    standalone LLM scorer (no Auto Ontology dependency)
+  judge/                    standalone LLM scorer (no GSF dependency)
     README.md               judge workflow guide
     config.py               resolves JUDGE_* settings from .env
     scorer.py               per-row LLM scoring call
@@ -367,23 +365,12 @@ ontology_sql_eval/          single namespace package
     eval_chatbot.py         retrieval eval driver (--workers runs N in parallel)
     run_logging.py          per-run log bundle, phase timeline, timing summary
     scoring.py              SQL/answer scoring helpers
-  gym/                      NeMo Gym benchmark support (pure, no server code)
-    ddl.py                  schema dumping: SQLite introspection, Postgres DDL files
-    tasks.py                evaluation.json -> Gym task JSONL, per dataset and arm
-    exec_match.py           executors, BIRD set-equality, failure codes
-resources_servers/          NeMo Gym environments (Gym's expected layout)
-  README.md                 benchmark guide, Gym CLI gotchas, known issues
-  schema_only_sql/          control arm: question + raw schema dump, no tools
-  auto_ontology_sql/         treatment arm: Auto Ontology's agent, driven in-process
 main.py                     end-to-end pipeline entry point (ingest -> judge)
 scripts/
   seed_wwi.py               seed a local Postgres from datasets/<db>/{ddl,data}
   seed_bird.py              download BIRD eval data and the Dev Train corpus
   seed_fdabench.py          download FDABench-Lite tasks + SQLite DBs into datasets/fdabench/
   seed_beaverbench.py       download BEAVER questions + MySQL dumps into datasets/beaverbench/
-  build_gym_tasks.py        build Gym task JSONL for a (dataset, arm)
-  run_gym_arm.sh            run one benchmark arm end to end
-  compare_arms.py           join both arms, report the delta and per-question flips
 datasets/
   <database_name>/          evaluation.json, metadata.json, custom_analyses.json
     ddl/                    seed DDL (schemas, sequences, tables, indexes, fkeys, views)
@@ -395,7 +382,6 @@ datasets/
 input/                      judge input CSVs to score (contents gitignored)
 output/                     judge scored CSVs (<name>_scores.csv; contents gitignored)
 logs/<run-id>/              per-eval-run logs + timings (contents gitignored)
-runs/<arm>/                 Gym rollouts + aggregate metrics (gitignored)
 ```
 
 ## Development

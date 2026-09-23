@@ -188,9 +188,11 @@ zero, and left the error column blank. The run looked like a weak model.
 Hence two deliberate features:
 
 - `FailureCode.NO_MODEL_OUTPUT` is distinct from "wrong SQL", and both servers
-  report `health/no_model_output_rate` alongside accuracy.
+  report `health/*` counters alongside accuracy.
 - `compare_arms.py` **refuses** to print a headline number when either arm is above
-  5% no-output, unless `--ignore-health` is passed.
+  5% broken-run failures (`no_model_output` or `unknown_error`), unless
+  `--ignore-health` is passed. Tasks whose *gold* query never ran are excluded
+  from the denominator entirely rather than counted as misses.
 
 Size `max_concurrency` against the model endpoint's rate limit, not against CPU.
 Three workers is clean on the `sk-` inference-api key; eight is not. Numbers in
