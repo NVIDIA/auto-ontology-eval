@@ -2,6 +2,12 @@
 
 [← Back to main README](../../README.md)
 
+> **Disclaimer:** Running this code will automatically download data from
+> https://huggingface.co/datasets/beaverbench/beaver-query and
+> https://huggingface.co/datasets/beaverbench/beaver-table. Before you run the
+> code, please confirm the content of the dataset and licensing is appropriate
+> for your intended use.
+
 [BEAVER](https://beaverbench.github.io/) is an enterprise text-to-SQL benchmark
 sourced from private data warehouses. This repo maps it onto the same
 ingest → semantic compile → retrieval eval → LLM judge pipeline used for BIRD

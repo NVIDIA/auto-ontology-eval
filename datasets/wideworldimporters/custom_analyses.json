@@ -57,7 +57,7 @@
   {
     "name": "Order Details With Special Deals",
     "description": "This SQL query retrieves order details, including the order ID, order date, special deal descriptions, and discount amounts. It joins the orders with their respective order lines and any special deals associated with the items in those order lines. This information is crucial for analyzing the impact of special deals on sales and customer orders.",
-    "sql": "select o.orderid, o.orderdate, sd.dealdescription, sd.discountamount from sales.orders o left join sales.orderlines ol on o.orderid = ol.orderid left join sales.specialdeals sd on ol.stockitemid = sd.stockitemid"
+    "sql": "select o.orderid, o.orderdate, sd.dealdescription, sd.discountpercentage from sales.orders o join sales.orderlines ol on o.orderid = ol.orderid join warehouse.stockitemstockgroups sisg on sisg.stockitemid = ol.stockitemid join sales.customers c on c.customerid = o.customerid join sales.specialdeals sd on sd.buyinggroupid = c.buyinggroupid and sd.stockgroupid = sisg.stockgroupid and o.orderdate between sd.startdate and sd.enddate"
   },
   {
     "name": "Order Details with Stock Item Names",
@@ -72,7 +72,7 @@
   {
     "name": "Total Discount By Deal Description",
     "description": "This sql query is designed to calculate the total discount amount provided for each special deal across all sales orders. it does this by joining the order line items with the special deals based on the stock item id, then multiplying the quantity of each item sold by its unit price and the discount amount associated with the special deal. the results are grouped by the deal description, providing a clear summary of the financial impact of discounts offered through special deals.",
-    "sql": "select sd.dealdescription, sum(ol.quantity * ol.unitprice * sd.discountamount) as total_discount from sales.orderlines ol join sales.specialdeals sd on ol.stockitemid = sd.stockitemid group by sd.dealdescription"
+    "sql": "select sd.dealdescription, sum(ol.quantity * ol.unitprice * sd.discountpercentage / 100) as total_discount from sales.orders o join sales.orderlines ol on o.orderid = ol.orderid join warehouse.stockitemstockgroups sisg on sisg.stockitemid = ol.stockitemid join sales.customers c on c.customerid = o.customerid join sales.specialdeals sd on sd.buyinggroupid = c.buyinggroupid and sd.stockgroupid = sisg.stockgroupid and o.orderdate between sd.startdate and sd.enddate group by sd.dealdescription"
   },
   {
     "name": "Invoice Total Line Price",
