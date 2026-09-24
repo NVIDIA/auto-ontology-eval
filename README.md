@@ -350,7 +350,8 @@ path for `../GSF` is configured in [pyrightconfig.json](pyrightconfig.json).
 
 ## Contributing
 
-This project is currently not accepting contributions.
+This project is currently not accepting contributions. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ## License and security
 
