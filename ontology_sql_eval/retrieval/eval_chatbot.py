@@ -796,6 +796,7 @@ def _evaluate_question(
 
             payload: TextToSQLPayload = {
                 "question": agent_question,
+                "calculation_only": True,
                 "data_retriever": retrievers["data"],
                 "semantic_retriever": retrievers["semantic"],
                 "connectors": [active_connector],
@@ -1128,6 +1129,7 @@ def run_single_question(
             if _SUPPORTS_EVIDENCE_PARAM or not evidence
             else f"{question}\n\nEvidence: {evidence}"
         ),
+        "calculation_only": True,
         "data_retriever": get_data_objects_retriever(),
         "semantic_retriever": get_semantic_objects_retriever(),
         "connectors": connectors if connectors is not None else get_connectors(),
