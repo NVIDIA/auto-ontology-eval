@@ -59,3 +59,5 @@ venv/
 # Cursor / Claude Code local agent-plan and session state — machine-specific, never commit.
 .cursor/
 .claude/projects/
+.osv-result.json
+.osv-plan.json
