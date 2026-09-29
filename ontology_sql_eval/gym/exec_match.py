@@ -72,6 +72,7 @@ __all__ = [
     "beaver_result_match",
     "matcher_for",
     "execute_and_compare",
+    "gold_is_runnable",
 ]
 
 _NO_ANSWER_FILLER = "SELECT 1"
@@ -328,6 +329,20 @@ class PostgresExecutor:
                 return None, "timeout"
 
 
+async def gold_is_runnable(
+    executor: Executor, db_id: str, gold_sql: str
+) -> Optional[str]:
+    """Return a ``gold_sql_*`` tag when the benchmark's own query does not run.
+
+    Needed on the paths that short-circuit before ``execute_and_compare`` -- an
+    empty model answer or an agent failure. Without this, a task whose gold is
+    broken is recorded as an ordinary miss and stays in the denominator, which
+    biases every arm downward on the datasets that have broken gold.
+    """
+    rows, status = await executor.execute(db_id, gold_sql)
+    return None if rows is not None else f"gold_sql_{status or 'error'}"
+
+
 async def execute_and_compare(
     executor: Executor,
     db_id: str,
@@ -347,6 +362,13 @@ async def execute_and_compare(
 
     pred_rows, pred_status = await executor.execute(db_id, pred_sql)
     if pred_rows is None:
+        # BEAVER's official evaluator counts a failed or timed-out query as an
+        # *empty result*, so a broken prediction against empty gold scores 1.0.
+        # Returning an error here instead would under-score us against the
+        # published leaderboard, which is the comparability the BEAVER matcher
+        # exists to preserve. Every other dataset keeps BIRD's stricter rule.
+        if dataset in MATCHERS:
+            return matcher_for(dataset)(gold_rows, []), None
         return False, f"pred_sql_{pred_status or 'error'}"
 
     return matcher_for(dataset)(gold_rows, pred_rows), None

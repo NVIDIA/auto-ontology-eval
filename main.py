@@ -30,6 +30,7 @@ and an aggregated summary) to ``logs/<run-id>/``::
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import os
 import subprocess
@@ -114,6 +115,8 @@ def stage_benchmark(
     database_name: str,
     concurrency: int = 3,
     limit: int | None = None,
+    start_index: int = 0,
+    end_index: int | None = None,
 ) -> None:
     """Run the NeMo Gym benchmark: both arms over the dataset, then compare.
 
@@ -155,8 +158,24 @@ def stage_benchmark(
         ]
         if limit is not None:
             cmd += ["--limit", str(limit)]
+        if start_index:
+            cmd += ["--start-index", str(start_index)]
+        if end_index is not None:
+            cmd += ["--end-index", str(end_index)]
         logger.info("Building %s tasks: %s", arm, " ".join(cmd))
         subprocess.run(cmd, cwd=root, check=True)
+
+        # Guard against evaluating the wrong corpus. The server config points at
+        # a fixed tasks.jsonl, so a stale build would run silently under the
+        # requested dataset's name and produce plausible, wrong numbers.
+        built = data_dir / "tasks.jsonl"
+        with built.open() as fh:
+            first = json.loads(fh.readline())
+        if first.get("dataset") != database_name:
+            raise SystemExit(
+                f"{built} holds dataset {first.get('dataset')!r}, expected "
+                f"{database_name!r}. Rebuild with scripts/build_gym_tasks.py."
+            )
 
     outputs = {}
     for server, label in (
@@ -255,6 +274,18 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--start-index",
+        type=int,
+        default=0,
+        help="First question index the benchmark runs (0-based, default: 0).",
+    )
+    parser.add_argument(
+        "--end-index",
+        type=int,
+        default=None,
+        help="Stop before this question index (default: run to the end).",
+    )
+    parser.add_argument(
         "--limit",
         type=int,
         default=None,
@@ -281,12 +312,14 @@ def main(argv: list[str] | None = None) -> None:
     if not args.skip_semantic:
         stage_semantic(database_name)
 
-    ran_benchmark = not args.skip_eval
-    if ran_benchmark:
+    run_benchmark = not args.skip_eval
+    if run_benchmark:
         stage_benchmark(
             database_name=database_name,
             concurrency=args.eval_workers,
             limit=args.limit,
+            start_index=args.start_index,
+            end_index=args.end_index,
         )
 
     # The judge scores an eval CSV. The benchmark does not produce one -- it
@@ -295,7 +328,7 @@ def main(argv: list[str] | None = None) -> None:
     # how the BEAVER shard drivers use this entry point.
     if not args.skip_judge:
         eval_csv = _eval_output_path(database_name=database_name)
-        if ran_benchmark:
+        if run_benchmark:
             logger.info(
                 "Skipping judge: the benchmark writes Gym rollouts, not %s. "
                 "Judge an existing CSV with --skip-eval, or use the "

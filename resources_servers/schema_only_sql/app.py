@@ -48,12 +48,18 @@ from ontology_sql_eval.gym.exec_match import (
     PostgresExecutor,
     SqliteExecutor,
     execute_and_compare,
+    gold_is_runnable,
     extract_sql,
     has_sql_codeblock,
 )
 from ontology_sql_eval.gym.tasks import DATASETS
 
 logger = logging.getLogger(__name__)
+
+_GOLD_FAILURE = {
+    "gold_sql_timeout": FailureCode.GOLD_EXECUTION_TIMEOUT,
+    "gold_sql_error": FailureCode.GOLD_EXECUTION_ERROR,
+}
 
 
 def mysql_dsns_by_db(connection_strings: str) -> Dict[str, str]:
@@ -221,6 +227,14 @@ class SchemaOnlySqlResourcesServer(SimpleResourcesServer):
         # never succeeded (rate limiting, timeout). Kept as its own failure code
         # so an infrastructure outage cannot be read as a low benchmark score.
         if not generated.strip():
+            # Check the gold query even though there is nothing to compare: a
+            # task whose benchmark query is broken must leave the denominator
+            # rather than be recorded as a miss.
+            gold_bad = await gold_is_runnable(
+                self._executor(body.dataset), body.db_id, body.gt_sql
+            )
+            if gold_bad:
+                return _response(0.0, _GOLD_FAILURE[gold_bad], execution_match=False)
             return _response(0.0, FailureCode.NO_MODEL_OUTPUT, execution_match=False)
 
         extracted = extract_sql(generated)

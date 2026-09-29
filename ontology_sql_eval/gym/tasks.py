@@ -145,9 +145,17 @@ def build_records(
     *,
     descriptions: bool = True,
     limit: int | None = None,
+    start_index: int = 0,
+    end_index: int | None = None,
 ) -> Iterator[dict[str, Any]]:
-    """Yield one Gym task record per question."""
+    """Yield one Gym task record per question.
+
+    ``start_index``/``end_index`` slice the evaluation set so a long run can be
+    sharded or resumed; ``limit`` caps the slice, so the two compose.
+    """
     questions = load_questions(spec, root)
+    stop = end_index if end_index is not None else len(questions)
+    questions = questions[start_index:stop]
     if limit is not None:
         questions = questions[:limit]
 

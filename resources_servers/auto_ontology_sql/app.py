@@ -72,6 +72,7 @@ from ontology_sql_eval.gym.exec_match import (  # noqa: E402
     PostgresExecutor,
     SqliteExecutor,
     execute_and_compare,
+    gold_is_runnable,
 )
 from ontology_sql_eval.gym.tasks import DATASETS  # noqa: E402
 
@@ -97,6 +98,11 @@ def mysql_dsns_by_db(connection_strings: str) -> Dict[str, str]:
 
 # Failures that mean the benchmark, not the model, is at fault.
 _UNUSABLE = {FailureCode.GOLD_EXECUTION_ERROR, FailureCode.GOLD_EXECUTION_TIMEOUT}
+
+_GOLD_FAILURE = {
+    "gold_sql_timeout": FailureCode.GOLD_EXECUTION_TIMEOUT,
+    "gold_sql_error": FailureCode.GOLD_EXECUTION_ERROR,
+}
 
 # Older Auto Ontology builds fold the BIRD-style hint into the question text instead of
 # taking it as its own field. Probe rather than pin a version, so one checkout of
@@ -325,6 +331,13 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
         # nothing on the error channel. Counting it separately is what stops an
         # outage from reading as a low score.
         if not sql:
+            # As above: a broken gold query must leave the denominator rather
+            # than be recorded as the agent producing a wrong answer.
+            gold_bad = await gold_is_runnable(
+                self._executor(body.dataset), body.db_id, body.gt_sql
+            )
+            if gold_bad:
+                return _response(0.0, _GOLD_FAILURE[gold_bad], agent_nodes=nodes)
             return _response(
                 0.0,
                 FailureCode.NO_MODEL_OUTPUT,

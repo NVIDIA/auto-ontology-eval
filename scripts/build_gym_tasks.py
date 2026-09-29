@@ -33,6 +33,8 @@ def main() -> None:
         help="omit BIRD's per-column description block from the schema arm",
     )
     parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument("--start-index", type=int, default=0)
+    parser.add_argument("--end-index", type=int, default=None)
     parser.add_argument("--output", type=Path, default=None)
     args = parser.parse_args()
 
@@ -44,7 +46,10 @@ def main() -> None:
         / "resources_servers"
         / SERVER_FOR_ARM[args.arm]
         / "data"
-        / f"{args.dataset}.jsonl"
+        # Fixed name, not <dataset>.jsonl: Gym loads whatever the server config
+        # points at, and a per-dataset filename meant the config had to name one
+        # dataset up front -- so every other dataset silently ran that one.
+        / "tasks.jsonl"
     )
 
     count = write_jsonl(
@@ -54,6 +59,8 @@ def main() -> None:
             args.arm,  # type: ignore[arg-type]
             descriptions=not args.no_descriptions,
             limit=args.limit,
+            start_index=args.start_index,
+            end_index=args.end_index,
         ),
         out,
     )

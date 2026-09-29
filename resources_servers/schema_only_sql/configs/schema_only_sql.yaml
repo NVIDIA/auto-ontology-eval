@@ -34,7 +34,7 @@ schema_only_sql_simple_agent:
       datasets:
         # `type` is the split gym selects with --split. Use `validation`: the
         # `benchmark` type demands a prepare_script/prompt_config we do not need.
-        - name: bird
+        - name: tasks
           type: validation
-          jsonl_fpath: resources_servers/schema_only_sql/data/bird.jsonl
+          jsonl_fpath: resources_servers/schema_only_sql/data/tasks.jsonl
           license: Creative Commons Attribution-ShareAlike 4.0 International

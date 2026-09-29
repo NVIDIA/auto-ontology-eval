@@ -54,7 +54,14 @@ python scripts/build_gym_tasks.py --dataset bird --arm auto_ontology
 
 Datasets: `bird` (500q), `fdabench` (169q), `wideworldimporters` (41q,
 Postgres), `beaverbench` (MySQL). Output is deterministic, so regenerating is
-safe; `--limit N` builds a prefix for smoke runs.
+safe. `--limit N` takes a prefix; `--start-index` / `--end-index` slice, so a
+long run can be sharded or resumed.
+
+Each build overwrites `data/tasks.jsonl`, which is the file the server config
+points at. That is deliberate: a per-dataset filename meant the config had to
+name one dataset up front, so every *other* dataset silently ran that one and
+wrote the results under its own name. `main.py` additionally asserts the built
+file's `dataset` matches what was requested.
 
 The schema dump *is* the control arm's independent variable. Freeze it once a full
 run starts — changing it silently changes what "schema-only" means.
