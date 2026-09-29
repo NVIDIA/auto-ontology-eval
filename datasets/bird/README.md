@@ -36,7 +36,7 @@ uv run python scripts/seed_bird.py --splits mini-dev    # 500-Q subset of the sa
 | ---------- | --------: | ------------------- | ------------------------------------------------------------------------------------------ |
 | `dev`      |     1,534 | 11                  | Default evaluation split; also downloads the Train question corpus.                        |
 | `mini-dev` |       500 | 11 (the same DBs)   | Cheap/fast subset for day-to-day development; also becomes `evaluation.json`.              |
-| Train      |     9,428 | none                | Stored as `train/train.json` when Dev is selected; reserved for future few-shot retrieval.  |
+| Train      |     9,428 | none                | Stored as `train/train.json` when Dev is selected; the pool the few-shot exemplars are drawn from. |
 
 Train contributes no connection strings and installs no databases. Its database
 set is disjoint from Dev, so the seeder retains only complete question,
