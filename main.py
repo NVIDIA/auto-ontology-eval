@@ -141,9 +141,12 @@ def stage_benchmark(
         # aggregate metrics"). Rebuilding the tasks without clearing these fails
         # the *next* run, not this one, which is a confusing place to land.
         data_dir = root / "resources_servers" / server / "data"
+        # Named after the task file (tasks.jsonl), not the dataset -- Gym derives
+        # these from the jsonl it collates.
         for stale in (
-            data_dir / f"{database_name}_metrics.json",
-            data_dir / f"{database_name}_prepare.jsonl",
+            data_dir / "tasks_metrics.json",
+            data_dir / "tasks_prepare.jsonl",
+            data_dir / "tasks_metrics_conflict.json",
         ):
             if stale.exists():
                 logger.info("Removing stale %s", stale.relative_to(root))
