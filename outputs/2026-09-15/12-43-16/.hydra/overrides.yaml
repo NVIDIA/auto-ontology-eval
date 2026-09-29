@@ -1,0 +1,2 @@
+- +config_paths=[/Users/yshkolar/Dev/ontology-sql-eval/resources_servers/schema_only_sql/configs/schema_only_sql.yaml,/Users/yshkolar/Dev/ontology-sql-eval/.venv/lib/python3.13/site-packages/responses_api_models/inference_provider/configs/inference_provider.yaml]
+- +skip_venv_if_present=true

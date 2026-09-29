@@ -1,0 +1,10 @@
+config_paths:
+- /Users/yshkolar/Dev/ontology-sql-eval/resources_servers/schema_only_sql/configs/schema_only_sql.yaml
+- /Users/yshkolar/Dev/ontology-sql-eval/.venv/lib/python3.13/site-packages/responses_api_models/inference_provider/configs/inference_provider.yaml
+agent_name: schema_only_sql_simple_agent
+output_jsonl_fpath: runs/control/bird.jsonl
+num_samples_in_parallel: 10
+split: validation
+policy_model_name: aws/anthropic/bedrock-claude-opus-4-8
+policy_base_url: https://inference-api.nvidia.com/v1
+policy_api_key: sk-q6RvoT5wyTdjvql_bST4VQ

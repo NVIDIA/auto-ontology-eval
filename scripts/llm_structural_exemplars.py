@@ -1,8 +1,21 @@
 """Find structurally equivalent train exemplars with an LLM, two ways, and
-score both against the lexical retriever in ``find_structural_exemplars.py``.
+score both against each other.
 
-``rerank`` -- judge the lexical retriever's shortlist
-----------------------------------------------------
+Run this file and nothing else. It carries the lexical retrieval helpers it
+once imported, so producing the exemplar file is one command with no prior
+step::
+
+    python scripts/llm_structural_exemplars.py predict
+
+which writes ``output/predicted_structural_exemplars.csv``, the file the eval
+passes as ``--sql-examples``. The retriever that used to live in
+``find_structural_exemplars.py``, and the skeleton study in
+``train_structural_twins.py``, were removed once this file stopped importing
+them; both are in git history, and the lexical CSV one of them wrote can still
+be fed to ``compare`` through ``--method`` if you kept a copy.
+
+``rerank`` -- judge the lexical shortlist
+-----------------------------------------
 Nothing here asks the LLM to read all of train. The train set is 0.82M tokens
 of prompt text, so it does not fit in one context, and scoring dev against it
 pairwise is 1,534 x 9,428 = 14.5M calls. So the LLM reranks the top
@@ -64,7 +77,7 @@ Usage:
 
     python scripts/llm_structural_exemplars.py rerank --k 5 --candidates 30
     python scripts/llm_structural_exemplars.py predict --k 5
-    python scripts/llm_structural_exemplars.py compare   # all three methods
+    python scripts/llm_structural_exemplars.py compare   # rerank vs predict
 """
 
 from __future__ import annotations
@@ -75,7 +88,6 @@ import json
 import math
 import random
 import re
-import sys
 import threading
 import time
 from collections import Counter, defaultdict
@@ -88,14 +100,306 @@ from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / ".env")
-sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from find_structural_exemplars import (  # noqa: E402
-    ExemplarIndex,
-    load_dev,
-    shape_tags,
+# --------------------------------------------------------------------------
+# Retrieval helpers, held here so this file is the only one to run.
+#
+# Two vocabularies meet below and must not be confused. The question side
+# (SHAPE_PATTERNS through ExemplarIndex) reads English; the SQL side
+# (SQL_* through skeleton) reads queries. Both originally defined constants
+# named BACKTICKED and WORD, with different patterns -- ``[A-Za-z_][A-Za-z_'-]*``
+# for a question word against ``[A-Za-z_]\w*`` for a SQL identifier -- so the
+# SQL ones carry an SQL_ prefix. Dropping it would not raise; it would quietly
+# change which exemplars are retrieved.
+# --------------------------------------------------------------------------
+
+# --- the question's demand, independent of its subject matter --------------
+
+SHAPE_PATTERNS: list[tuple[str, str]] = [
+    ("COUNT", r"\bhow many\b|\bnumber of\b|\bcount\b|\btotal number\b"),
+    ("PERCENT", r"\bpercent(age)?\b|\b%\b|\bproportion\b"),
+    ("RATIO", r"\bratio\b|\brate\b|\bper capita\b|\bdivided by\b"),
+    ("AVERAGE", r"\baverage\b|\bmean\b|\bavg\b|\bon average\b"),
+    ("SUM", r"\btotal\b(?!\s+number)|\bsum\b|\baltogether\b|\bcombined\b"),
+    ("DIFFERENCE", r"\bdifference\b|\bhow much (more|less|higher|lower)\b|\bgap\b"),
+    (
+        "SUPERLATIVE",
+        r"\b(highest|lowest|most|least|largest|smallest|biggest|"
+        r"greatest|maximum|minimum|max|min|oldest|youngest|longest|"
+        r"shortest|best|worst|top|earliest|latest)\b",
+    ),
+    ("TOP_N", r"\btop \d+\b|\bfirst \d+\b|\b\d+ (most|highest|lowest|largest)\b"),
+    (
+        "COMPARISON",
+        r"\bmore than\b|\bless than\b|\bgreater than\b|\bfewer than\b|"
+        r"\bat least\b|\bat most\b|\bover \d|\bunder \d|\babove\b|"
+        r"\bbelow\b|\bexceed",
+    ),
+    ("BETWEEN", r"\bbetween\b.{0,40}\band\b"),
+    (
+        "LIST",
+        r"^\s*(list|name|give|show|state|please list|identify|find)\b|"
+        r"\bwhat are\b|\bwhich .*\bare\b",
+    ),
+    (
+        "MULTI_ATTR",
+        r"\band (also )?(its|their|his|her|the)\b|\balso (give|list|"
+        r"state|show|mention|provide)\b|\brespectively\b",
+    ),
+    ("DISTINCT", r"\bdifferent\b|\bdistinct\b|\bunique\b"),
+    ("PER_GROUP", r"\bfor each\b|\bper \w+\b|\bby each\b|\bin each\b|\bgroup"),
+    ("YEAR", r"\b(19|20)\d{2}\b"),
+    ("DATE_PART", r"\bmonth\b|\byear\b|\bday\b|\bdecade\b|\bquarter\b"),
+    ("NAME_OF", r"\bname of\b|\bnames of\b|\bcalled\b|\btitle of\b|\bfull name\b"),
+    ("ID_OF", r"\bid of\b|\bids of\b|\bidentifier\b|\bcode of\b|\bnumber of the\b"),
+    ("YES_NO_FLAG", r"\bwhether\b|\bdoes\b|\bis it\b|\bany\b"),
+    ("AMONG", r"\bamong\b|\bout of\b|\bof (all|these|those)\b"),
+]
+
+_COMPILED = [(tag, re.compile(rx, re.IGNORECASE)) for tag, rx in SHAPE_PATTERNS]
+
+# BIRD evidence often spells out the arithmetic ("rate = `Free Meal Count` /
+# `Enrollment`"). The operators are a strong signal for the SELECT list, but
+# the backticked column names are schema vocabulary, not intent -- a column
+# called "Free Meal Count" would otherwise register as a COUNT question. So
+# identifiers are stripped before word matching and the operators are read
+# separately.
+BACKTICKED = re.compile(r"`[^`]*`|\[[^\]]*\]")
+
+EVIDENCE_PATTERNS: list[tuple[str, str]] = [
+    ("EV_DIV", r"/"),
+    ("EV_PCT", r"\*\s*100|100\s*\*|\bpercent"),
+    ("EV_SUB", r"\s-\s|\bsubtract\b|\bminus\b"),
+    ("EV_COUNT", r"\bcount\s*\("),
+    ("EV_SUM", r"\bsum\s*\("),
+    ("EV_AVG", r"\bavg\s*\(|\baverage\s*\("),
+    ("EV_MAXMIN", r"\bmax\s*\(|\bmin\s*\("),
+    ("EV_CASE", r"\bcase\s+when\b|\biif\s*\("),
+    ("EV_LITERAL_MAP", r"\brefers? to\b|\bmeans\b|\bis denoted\b|\bstands for\b"),
+]
+
+_EV_COMPILED = [(tag, re.compile(rx, re.IGNORECASE)) for tag, rx in EVIDENCE_PATTERNS]
+
+# Tags that pin down SQL construction hardest, so a match on them is worth
+# more than a match on, say, DATE_PART.
+TAG_WEIGHT = defaultdict(
+    lambda: 1.0,
+    {
+        "COUNT": 2.5,
+        "SUPERLATIVE": 2.5,
+        "PERCENT": 2.5,
+        "MULTI_ATTR": 2.5,
+        "RATIO": 2.0,
+        "DIFFERENCE": 2.0,
+        "AVERAGE": 2.0,
+        "TOP_N": 2.0,
+        "DISTINCT": 2.0,
+        "PER_GROUP": 2.0,
+        "NAME_OF": 1.5,
+        "LIST": 1.5,
+        "COMPARISON": 1.5,
+        "SUM": 1.5,
+        # Arithmetic spelled out in the evidence dictates the SELECT list, so
+        # agreement on it matters more than agreement on phrasing.
+        "EV_PCT": 2.5,
+        "EV_CASE": 2.5,
+        "EV_DIV": 2.0,
+        "EV_SUB": 2.0,
+        "EV_LITERAL_MAP": 1.5,
+    },
 )
-from train_structural_twins import skeleton  # noqa: E402
+
+
+def shape_tags(question: str, evidence: str = "") -> frozenset[str]:
+    prose = f"{question} {BACKTICKED.sub(' ', evidence)}".strip()
+    tags = {tag for tag, rx in _COMPILED if rx.search(prose)}
+    if evidence:
+        tags |= {tag for tag, rx in _EV_COMPILED if rx.search(evidence)}
+    return frozenset(tags)
+
+
+# --- the question with its domain vocabulary erased ------------------------
+
+QUOTED = re.compile(r"[\"'“”‘’]([^\"'“”‘’]{2,60})[\"'“”‘’]")
+NUMBER = re.compile(r"\b\d[\d,.]*\b")
+WORD = re.compile(r"[A-Za-z_][A-Za-z_'-]*")
+# Words that carry question structure and must survive the proper-noun filter
+# even when a sentence starts with them.
+STRUCTURAL = {
+    "what", "which", "who", "whose", "when", "where", "how", "list", "name",
+    "give", "show", "state", "please", "find", "identify", "the", "of", "in",
+    "for", "and", "or", "is", "are", "was", "were", "has", "have", "had", "do",
+    "does", "did", "with", "without", "among", "between", "more", "less",
+    "than", "most", "least", "all", "each", "per", "total", "average",
+    "number", "many", "much", "percentage", "percent", "ratio", "rate",
+    "difference", "highest", "lowest", "top", "first", "last", "also", "its",
+    "their", "that", "this", "these", "those", "there", "any", "only", "both",
+}
+
+
+def template(question: str) -> list[str]:
+    """Question reduced to structural words, with domain terms as placeholders."""
+    text = QUOTED.sub(" <val> ", question)
+    text = NUMBER.sub(" <num> ", text)
+    out: list[str] = []
+    for token in re.findall(r"<val>|<num>|[A-Za-z_][A-Za-z_'-]*|\?", text):
+        if token in ("<val>", "<num>", "?"):
+            out.append(token)
+            continue
+        low = token.lower()
+        if low in STRUCTURAL:
+            out.append(low)
+        elif token[0].isupper():
+            # A capitalised word mid-sentence is a domain entity, not structure.
+            out.append("<ent>")
+        else:
+            out.append(low)
+    return out
+
+
+def ngrams(tokens: list[str], n: int = 2) -> list[str]:
+    grams = list(tokens)
+    for size in range(2, n + 1):
+        grams += [" ".join(tokens[i : i + size]) for i in range(len(tokens) - size + 1)]
+    return grams
+
+
+# --- lexical retrieval over train ------------------------------------------
+
+
+class ExemplarIndex:
+    """Inverted index over train question templates plus shape tags."""
+
+    def __init__(self, train: list[dict], ngram: int = 2) -> None:
+        self.train = train
+        self.ngram = ngram
+        self.tags: list[frozenset[str]] = []
+        self.postings: dict[str, list[tuple[int, float]]] = defaultdict(list)
+        self.norms: list[float] = []
+
+        docs: list[Counter] = []
+        df: Counter = Counter()
+        for ex in train:
+            grams = Counter(ngrams(template(ex["question"]), ngram))
+            docs.append(grams)
+            df.update(grams.keys())
+            self.tags.append(shape_tags(ex["question"], ex.get("evidence", "")))
+
+        n_docs = len(train)
+        self.idf = {g: math.log(1.0 + n_docs / (1 + c)) for g, c in df.items()}
+        for idx, grams in enumerate(docs):
+            weights = {g: (1 + math.log(c)) * self.idf[g] for g, c in grams.items()}
+            norm = math.sqrt(sum(w * w for w in weights.values())) or 1.0
+            self.norms.append(norm)
+            for g, w in weights.items():
+                self.postings[g].append((idx, w / norm))
+
+    def _tag_score(self, a: frozenset[str], b: frozenset[str]) -> float:
+        """Weighted Jaccard: reward shared demands, punish unshared ones."""
+        if not a and not b:
+            return 0.0
+        shared = sum(TAG_WEIGHT[t] for t in a & b)
+        union = sum(TAG_WEIGHT[t] for t in a | b)
+        return shared / union if union else 0.0
+
+    def query(
+        self, question: str, evidence: str, k: int, tag_weight: float = 2.0
+    ) -> list[tuple[float, float, float, frozenset[str], dict]]:
+        grams = Counter(ngrams(template(question), self.ngram))
+        weights = {
+            g: (1 + math.log(c)) * self.idf.get(g, 0.0)
+            for g, c in grams.items()
+            if g in self.idf
+        }
+        norm = math.sqrt(sum(w * w for w in weights.values())) or 1.0
+        scores: dict[int, float] = defaultdict(float)
+        for g, w in weights.items():
+            wq = w / norm
+            for idx, wd in self.postings[g]:
+                scores[idx] += wq * wd
+
+        q_tags = shape_tags(question, evidence)
+        ranked = []
+        for idx, lexical in scores.items():
+            tag = self._tag_score(q_tags, self.tags[idx])
+            ranked.append(
+                (
+                    lexical + tag_weight * tag,
+                    lexical,
+                    tag,
+                    self.tags[idx],
+                    self.train[idx],
+                )
+            )
+        # Shape-only matches are still useful when wording diverges entirely.
+        if not ranked:
+            for idx, tags in enumerate(self.tags):
+                tag = self._tag_score(q_tags, tags)
+                if tag:
+                    ranked.append((tag_weight * tag, 0.0, tag, tags, self.train[idx]))
+        ranked.sort(key=lambda t: -t[0])
+        return ranked[:k]
+
+
+def load_dev(path: Path) -> list[dict]:
+    """Dev questions with gold SQL stripped, so retrieval cannot see it."""
+    raw = json.loads(path.read_text())
+    return [
+        {
+            "question_id": int(r["question_id"]),
+            "db_id": r.get("db_id") or r.get("db"),
+            "question": r["question"],
+            "evidence": r.get("evidence") or "",
+            "difficulty": r.get("difficulty", ""),
+        }
+        for r in raw
+    ]
+
+
+# --- the SQL side: a query with every identifier and literal erased --------
+
+SQL_KEYWORDS = {
+    "select", "distinct", "from", "where", "group", "by", "order", "having",
+    "limit", "join", "inner", "left", "outer", "on", "and", "or", "not", "in",
+    "is", "null", "like", "between", "as", "asc", "desc", "case", "when",
+    "then", "else", "end", "cast", "real", "integer", "union", "all", "exists",
+    "count", "sum", "avg", "max", "min", "iif", "strftime", "substr", "round",
+    "julianday", "date", "datetime", "length", "abs", "coalesce", "div",
+}
+SQL_ALIAS_PREFIX = re.compile(r"\b[Tt]\d+\s*\.|\b[a-z]{1,3}\d?\s*\.", re.ASCII)
+SQL_AS_ALIAS = re.compile(r"\bas\s+[`\"\[]?\w+[`\"\]]?", re.IGNORECASE)
+SQL_STRINGS = re.compile(r"'[^']*'")
+SQL_BACKTICKED = re.compile(r"[`\"\[][^`\"\]]+[`\"\]]")
+SQL_NUMBERS = re.compile(r"\b\d+(\.\d+)?\b")
+SQL_WORD = re.compile(r"[A-Za-z_]\w*")
+
+
+def skeleton(sql: object) -> str:
+    s = " ".join(str(sql).split())
+    s = SQL_STRINGS.sub(" L ", s)
+    s = SQL_BACKTICKED.sub(" C ", s)
+    s = SQL_NUMBERS.sub(" N ", s)
+    # Aliases carry no structure; drop the declaration and the qualifier.
+    s = SQL_AS_ALIAS.sub(" ", s)
+    s = SQL_ALIAS_PREFIX.sub(" ", s)
+    out: list[str] = []
+    prev = ""
+    for tok in re.findall(r"[A-Za-z_]\w*|[(),*=<>!+/-]|N|L|C", s):
+        low = tok.lower()
+        if low in SQL_KEYWORDS:
+            out.append(low)
+        elif tok in {"N", "L", "C"}:
+            out.append(tok)
+        elif SQL_WORD.fullmatch(tok):
+            out.append("T" if prev in {"from", "join"} else "C")
+        else:
+            out.append(tok)
+        if SQL_WORD.fullmatch(tok):
+            prev = low
+        elif tok not in {"(", ")"}:
+            prev = ""
+    # "as" only ever introduced an alias or a cast type; keep casts readable.
+    return " ".join(t for t in out if t != "as")
 
 # --------------------------------------------------------------------------
 # Prompt
@@ -1240,8 +1544,11 @@ def main() -> None:
 
     args = parser.parse_args()
     if args.command == "compare" and not args.method:
+        # The lexical arm is no longer a default: its producer was removed, so
+        # the CSV cannot be regenerated and defaulting to a path most checkouts
+        # do not have would fail the command for everyone. Pass it by hand --
+        # --method lexical=<path> first -- to keep it as the baseline.
         args.method = [
-            f"lexical={ROOT / 'output/structural_exemplars.csv'}",
             f"llm_rerank={ROOT / 'output/llm_structural_exemplars.csv'}",
             f"llm_predict={ROOT / 'output/predicted_structural_exemplars.csv'}",
         ]

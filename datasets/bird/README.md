@@ -2,6 +2,13 @@
 
 [← Back to main README](../../README.md)
 
+> **Disclaimer:** Running this code will automatically download data from
+> https://bird-bench.oss-cn-beijing.aliyuncs.com (`dev`/Train splits) and, for
+> the `mini-dev` split, from the BIRD authors' Google Drive
+> (https://drive.google.com/file/d/13VLWIwpw5E3d5DUkMvzw7hvHE67a4XkG/view).
+> Before you run the code, please confirm the content of the dataset and
+> licensing is appropriate for your intended use.
+
 [BIRD](https://bird-bench.github.io/) is a large-scale cross-domain Text-to-SQL
 benchmark. [scripts/seed_bird.py](../../scripts/seed_bird.py) installs the full
 official **Dev** split by default (1,534 questions over 11 SQLite databases) and
@@ -29,7 +36,7 @@ uv run python scripts/seed_bird.py --splits mini-dev    # 500-Q subset of the sa
 | ---------- | --------: | ------------------- | ------------------------------------------------------------------------------------------ |
 | `dev`      |     1,534 | 11                  | Default evaluation split; also downloads the Train question corpus.                        |
 | `mini-dev` |       500 | 11 (the same DBs)   | Cheap/fast subset for day-to-day development; also becomes `evaluation.json`.              |
-| Train      |     9,428 | none                | Stored as `train/train.json` when Dev is selected; reserved for future few-shot retrieval.  |
+| Train      |     9,428 | none                | Stored as `train/train.json` when Dev is selected; the pool the few-shot exemplars are drawn from. |
 
 Train contributes no connection strings and installs no databases. Its database
 set is disjoint from Dev, so the seeder retains only complete question,

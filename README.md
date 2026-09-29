@@ -187,6 +187,65 @@ For concrete, copy-pasteable walkthroughs, see the per-dataset READMEs:
 [BEAVER](datasets/beaverbench/README.md). See the per-workflow READMEs under
 [Workflows](#workflows) for the details of each stage.
 
+## Prompt inputs: SQL examples and value anchors
+
+Two optional CSVs can be injected into the agent's SQL-generation prompt. Both
+are keyed by `question_id` and both are built from BIRD Dev:
+
+| File                                                 | Eval flag         | What it carries                                                                                                |
+| ---------------------------------------------------- | ----------------- | --------------------------------------------------------------------------------------------------------------- |
+| `prompt_inputs/bird/predicted_structural_exemplars.csv` | `--sql-examples`  | Train questions whose SQL has the same shape as the one this question needs, ranked — few-shot exemplars.      |
+| `prompt_inputs/bird/value_anchors.csv`                  | `--value-anchors` | Which column stores a phrase from the question, and its exact stored spelling — so filters match real values. |
+
+Generated copies of both are committed, so a run can reuse them without
+regenerating. To rebuild them, [`scripts/build_eval_inputs.py`](scripts/build_eval_inputs.py)
+runs every step in order and writes both files:
+
+```bash
+PYTHONPATH=../GSF uv run python scripts/build_eval_inputs.py
+```
+
+It needs the BIRD **Dev** split *and* its Train corpus on disk
+(`uv run python scripts/seed_bird.py --splits dev`, see
+[datasets/bird/README.md](datasets/bird/README.md)) plus the `REASONING_*`
+credentials from [Configuration](#configuration) — the exemplar step asks the
+model to predict a query for every Dev question, so it is the slow and the only
+paid half of the run.
+
+Anchors are the cheap half: no model is involved, only a value index built by
+walking the Dev SQLite databases. That index is rebuilt every time, because it
+is derived wholly from those databases and a stale one produces stale anchors
+without saying so.
+
+| Option              | Default                | Purpose                                                        |
+| -------------------- | ---------------------- | ---------------------------------------------------------------- |
+| `--only anchors`     | both                   | Rebuild just the anchors — skips the model entirely.            |
+| `--only exemplars`   | both                   | Rebuild just the exemplars.                                    |
+| `--k N`              | `5`                    | Exemplars kept per question.                                   |
+| `--workers N`        | `8`                    | Concurrent model requests in the exemplar step.                |
+| `--limit N`          | all                    | First N Dev questions, for a smoke test.                       |
+| `--dry-run`          | off                    | Print the commands that would run, and run none of them.       |
+| `--anchors-out`, `--exemplars-out` | `prompt_inputs/bird/` | Write somewhere else.                              |
+
+The exemplar step caches model responses next to its CSV. A rebuild archives
+any existing cache under a timestamped name first, so the answers are always
+resampled rather than replayed — caches are gitignored, the CSVs are not.
+
+Pass the results to the eval (the flags are independent; either can be omitted):
+
+```bash
+PYTHONPATH=../GSF uv run python -m ontology_sql_eval.retrieval.eval_chatbot \
+    --database-name bird \
+    --sql-examples prompt_inputs/bird/predicted_structural_exemplars.csv \
+    --sql-examples-k 5 \
+    --value-anchors prompt_inputs/bird/value_anchors.csv
+```
+
+`SQL_EXAMPLES_CSV`, `SQL_EXAMPLES_K`, `SQL_EXAMPLES_MIN_SCORE` and
+`VALUE_ANCHORS_CSV` in `.env` supply the defaults for those flags. They apply
+only to `eval_chatbot` run directly: the `main.py` pipeline never passes either
+file, so a full-pipeline run has no exemplars and no anchors.
+
 ## Datasets
 
 Each dataset lives in its own folder under `datasets/<database_name>/`. The
@@ -391,6 +450,9 @@ ontology_sql_eval/          single namespace package
     scoring.py              SQL/answer scoring helpers
 main.py                     end-to-end pipeline entry point (ingest -> judge)
 scripts/
+  build_eval_inputs.py      build both prompt-input CSVs (anchors + exemplars) in one run
+  value_index.py            value -> column index over the BIRD Dev DBs; writes value_anchors.csv
+  llm_structural_exemplars.py  LLM-predicted SQL matched against train; writes the exemplars CSV
   seed_wwi.py               seed a local Postgres from datasets/<db>/{ddl,data}
   seed_bird.py              download BIRD eval data and the Dev Train corpus
   seed_fdabench.py          download FDABench-Lite tasks + SQLite DBs into datasets/fdabench/
@@ -403,6 +465,7 @@ datasets/
   fdabench/                 README.md, evaluation.json, <db_id>/<db_id>.sqlite (15 DBs)
   beaverbench/              README.md, evaluation.json, dumps/*.sql, <db_id>/metadata.json
   wideworldimporters/       README.md, evaluation.json, custom_analyses.json, ddl/, data/
+prompt_inputs/<dataset>/    tracked eval prompt inputs (sql examples + value anchors)
 input/                      judge input CSVs to score (contents gitignored)
 output/                     judge scored CSVs (<name>_scores.csv; contents gitignored)
 logs/<run-id>/              per-eval-run logs + timings (contents gitignored)
