@@ -1,0 +1,19 @@
+# Dependency overrides for this project. Applied via `[tool.uv]
+# override-dependencies` for uv sync/add, and via UV_OVERRIDE for the `uv pip
+# install` that NeMo Gym generates when it builds a resources server's venv.
+#
+# nemo-retriever declares `prometheus-fastapi-instrumentator<8,>=7.0`, and every
+# release in that range pins `starlette<1.0.0`. nemo-gym needs ray[serve], which
+# needs `starlette>=1.0.1`, so the two cannot be installed together as declared.
+#
+# The cap is stale: nemo_retriever never imports prometheus_fastapi_instrumentator
+# anywhere. It imports prometheus_client, a different package, and only inside
+# nemo_retriever/service/ (its HTTP service, which we do not run). Importing
+# gsf.retrieval.text_to_sql.main pulls in 44 nemo_retriever modules and loads
+# neither the instrumentator nor starlette nor fastapi.
+#
+# Version 8.x resolves cleanly against starlette>=1.0.1, so lifting the cap lets
+# nemo-gym and GSF share one environment. Revisit if nemo_retriever ever starts
+# importing the instrumentator: a 7.x->8.x API break would then surface at
+# runtime rather than during resolution.
+prometheus-fastapi-instrumentator>=8
