@@ -279,22 +279,26 @@ def _load_sql_examples(
 ) -> Dict[str, List[Dict[str, str]]]:
     """Map question_id to its top-*k* retrieved question/SQL exemplars.
 
-    Reads the CSV written by ``scripts/find_structural_exemplars.py``, which
-    ranks train-set examples by question structure alone. Keys are stringified
-    because the CSV always yields text while the dataset yields ints.
+    Reads the CSV written by ``scripts/build_eval_inputs.py``, which ranks
+    train-set examples by how closely their SQL structure matches the question.
+    Keys are stringified because the CSV always yields text while the dataset
+    yields ints.
 
-    Retrieval always returns something, but wording similarity is only weakly
-    related to whether the structure transfers (r=0.20 against gold skeleton
-    similarity on BIRD dev), so most questions get a pattern that is merely a
-    verbal coincidence. ``min_score`` withholds patterns from a question whose
-    best match scores below it, leaving that question to be answered under the
+    Retrieval always returns something, and a retriever ranking on question
+    wording scored only weakly on whether the structure transfers (r=0.20
+    against gold skeleton similarity on BIRD dev), so most questions got a
+    pattern that was merely a verbal coincidence. ``min_score`` withholds
+    patterns from a question whose best match scores below it, leaving that
+    question to be answered under the
     general shape rules instead. The gate is per question rather than per
     exemplar so that a kept question still gets a full *k*.
     """
     if not path.exists():
         raise SystemExit(
             f"SQL examples file not found: {path}\n"
-            "Generate it with: python scripts/find_structural_exemplars.py"
+            "The repo ships one at prompt_inputs/bird/"
+            "predicted_structural_exemplars.csv; rebuild it with: "
+            "python scripts/build_eval_inputs.py --only exemplars"
         )
     ranked: Dict[str, List[Tuple[int, Dict[str, str]]]] = {}
     best_score: Dict[str, float] = {}
@@ -311,7 +315,8 @@ def _load_sql_examples(
             raise SystemExit(
                 f"{path} is missing expected column(s): {sorted(missing)}.\n"
                 f"Found: {reader.fieldnames}\n"
-                "Regenerate it with: python scripts/find_structural_exemplars.py"
+                "Regenerate it with: python scripts/build_eval_inputs.py "
+                "--only exemplars"
             )
         for record in reader:
             sql = (record.get("train_sql") or "").strip()
@@ -386,8 +391,9 @@ def _load_value_anchors(path: Path) -> Dict[str, List[Dict[str, str]]]:
     if not path.exists():
         raise SystemExit(
             f"Value anchors file not found: {path}\n"
-            "Generate it with: python scripts/value_index.py build && "
-            "python scripts/value_index.py anchors"
+            "The repo ships one at prompt_inputs/bird/value_anchors.csv; "
+            "rebuild it with: python scripts/build_eval_inputs.py "
+            "--only anchors"
         )
     ranked: Dict[str, List[Tuple[int, Dict[str, str]]]] = {}
     with path.open("r", encoding="utf-8", newline="") as f:
@@ -796,6 +802,7 @@ def _evaluate_question(
 
             payload: TextToSQLPayload = {
                 "question": agent_question,
+                "calculation_only": True,
                 "data_retriever": retrievers["data"],
                 "semantic_retriever": retrievers["semantic"],
                 "connectors": [active_connector],
@@ -1128,6 +1135,7 @@ def run_single_question(
             if _SUPPORTS_EVIDENCE_PARAM or not evidence
             else f"{question}\n\nEvidence: {evidence}"
         ),
+        "calculation_only": True,
         "data_retriever": get_data_objects_retriever(),
         "semantic_retriever": get_semantic_objects_retriever(),
         "connectors": connectors if connectors is not None else get_connectors(),
@@ -1279,7 +1287,7 @@ def _parse_args() -> argparse.Namespace:
             else None
         ),
         help="CSV of retrieved question/SQL exemplars to inject into the SQL "
-        "generation prompt, as written by scripts/find_structural_exemplars.py. "
+        "generation prompt, as written by scripts/build_eval_inputs.py. "
         "Omitted means no exemplars (default). Env: SQL_EXAMPLES_CSV.",
     )
     parser.add_argument(

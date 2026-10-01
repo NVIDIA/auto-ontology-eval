@@ -34,10 +34,19 @@ PYTHONPATH=../GSF uv run python -m ontology_sql_eval.retrieval.eval_chatbot \
 | `--start-index N`     | `0`         | First question index to run. Non-zero **appends** to an existing output CSV.            |
 | `--end-index N`       | end         | Stop before this question index.                                                       |
 | `--limit N`           | —           | Run at most N questions from `--start-index`. Ignored when `--end-index` is given.      |
+| `--sql-examples PATH` | none        | CSV of few-shot question/SQL exemplars to inject, keyed by `question_id`.               |
+| `--sql-examples-k N`  | `3`         | How many exemplars per question to inject, by rank.                                    |
+| `--sql-examples-min-score F` | `0`  | Withhold exemplars from a question whose best retrieval score is below this.            |
+| `--value-anchors PATH`| none        | CSV telling the model which column stores a question phrase, and its exact spelling.    |
 | `--log-dir PATH`      | `logs/`     | Root directory for run logs.                                                           |
 | `--run-id NAME`       | timestamp   | Name of this run's log directory.                                                      |
 | `--verbose`           | off         | Also print DEBUG to the console; the files always have it.                              |
 | `--single`            | off         | Run one example query (`SINGLE_QUERY` in the script) and print the result.              |
+
+Both prompt-input CSVs ship under `prompt_inputs/<dataset>/` and are rebuilt by
+`scripts/build_eval_inputs.py`; see
+[Prompt inputs](../../README.md#prompt-inputs-sql-examples-and-value-anchors)
+in the main README.
 
 ## Parallelism
 
