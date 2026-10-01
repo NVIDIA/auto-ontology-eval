@@ -488,6 +488,10 @@ CSV_FIELDS = [
     "question",
     "expected_sql",
     "returned_sql",
+    # JSON list of every candidate the generator produced, so oracle is
+    # computable from this file alone rather than from the generator's debug
+    # log, which is cleared between runs.
+    "candidate_sqls",
     "sql_text_similarity",
     "sql_exec_match",
     "expected_sql_error",
@@ -713,6 +717,7 @@ def _blank_row(idx: int, item: Dict[str, Any]) -> Dict[str, Any]:
         "question": item.get("question", ""),
         "expected_sql": item.get("SQL", ""),
         "returned_sql": "",
+        "candidate_sqls": "",
         "sql_text_similarity": 0.0,
         "sql_exec_match": 0,
         "expected_sql_error": "",
@@ -834,6 +839,8 @@ def _evaluate_question(
 
             row["returned_sql"] = returned_sql
             row["returned_answer"] = returned_db_str
+            candidates = (agent_result or {}).get("sql_candidates") or []
+            row["candidate_sqls"] = json.dumps(candidates) if candidates else ""
 
             t_score = time.perf_counter()
             row.update(
