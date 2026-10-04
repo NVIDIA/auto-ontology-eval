@@ -532,7 +532,7 @@ def _schemas():
     return BatchAnswer
 
 
-def _prediction_schema():
+def _prediction_schema(alternatives: int = 0):
     from auto_ontology.utils.llm_invoke import StrictLLMOutputModel
     from pydantic import Field
 
@@ -548,7 +548,31 @@ def _prediction_schema():
     class BatchPrediction(StrictLLMOutputModel):
         predictions: list[Prediction]
 
-    return BatchPrediction
+    if not alternatives:
+        return BatchPrediction
+
+    # Bound to another name because a class body cannot read an enclosing
+    # local it also assigns, and `alternatives` is a field below.
+    wanted = alternatives
+
+    # A second schema rather than an optional field on the first: the response
+    # cache is keyed on the prompt, not the schema, so reusing one class for
+    # both modes would let a no-alternatives hit answer an alternatives call.
+    class DiversePrediction(StrictLLMOutputModel):
+        question_id: int = Field(description="The question id being answered.")
+        sql: str = Field(description="The query you think the question wants.")
+        alternatives: list[str] = Field(
+            description=(
+                f"Up to {wanted} further queries for the SAME question, "
+                "each a structurally DIFFERENT reading -- a different join "
+                "count, aggregate, or nesting. Not rewordings of the first."
+            )
+        )
+
+    class BatchDiversePrediction(StrictLLMOutputModel):
+        predictions: list[DiversePrediction]
+
+    return BatchDiversePrediction
 
 
 # --------------------------------------------------------------------------
@@ -591,6 +615,121 @@ single maximum.
 Answer every question id you are given, and return nothing but the queries.\
 """
 
+# Measured on the 306 questions where a structurally equivalent train exemplar
+# exists but the blind prediction failed to retrieve it: join count is wrong on
+# 37.9% of them, far ahead of every other axis. Join count is the one thing the
+# question text cannot reveal -- it is a property of how the schema is
+# normalised -- so this variant hands the model the schema and spends the whole
+# prompt on the traversal rather than on inventing names.
+HYDE_SCHEMA_SYSTEM_PROMPT = """\
+You write the SQL a question needs, against the schema you are given.
+
+Only the SHAPE of your query is used: every table name, column name and \
+literal is erased before it is compared to anything. So do not agonise over \
+spelling a column exactly. What is measured is which aggregates, joins, \
+grouping, ordering and nesting the question requires.
+
+The schema is given to you for one reason: to get the JOIN PATH right. Work \
+out which tables actually hold the columns the question needs, then follow the \
+foreign keys between them and count the hops. Do not add a join for a table \
+you never select from or filter on, and do not collapse a two-hop path into \
+one join because the columns sound related. If a single table holds \
+everything, use no join at all.
+
+Match the conventions of the corpus you are matched against, as measured over \
+its 9,428 queries:
+  - write joins as `INNER JOIN <table> ON <col> = <col>`. A bare JOIN or a \
+comma join appears in 0.1% of the corpus, so never use one.
+  - wrap a division of integers in `CAST(... AS REAL)`; 71% of the corpus's \
+divisions do.
+  - write a percentage as `CAST(SUM(CASE WHEN <cond> THEN 1 ELSE 0 END) AS \
+REAL) * 100 / COUNT(<col>)`.
+  - write a ratio of two subsets as `CAST(SUM(CASE WHEN <a> THEN 1 ELSE 0 END) \
+AS REAL) / SUM(CASE WHEN <b> THEN 1 ELSE 0 END)`.
+  - answer a superlative with `ORDER BY <col> DESC LIMIT 1`, not a subquery \
+against `MAX(...)`.
+  - answer "the Nth highest" with `ORDER BY <col> DESC LIMIT <N-1>, 1`.
+  - filter on a year with `strftime('%Y', <col>) = '2020'`.
+  - project exactly the columns the question asks for, in the order asked, and \
+no others.
+  - use GROUP BY only when the question wants a value per group, not to find a \
+single maximum.
+  - use SELECT DISTINCT when the join path can repeat a row and the question \
+asks for a list of entities.
+
+Answer every question id you are given, and return nothing but the queries.\
+"""
+
+# All five exemplar slots are currently filled from one predicted skeleton --
+# 97.4% of questions get five exemplars sharing a single join count -- so a
+# wrong prediction loses every slot at once. Asking for structurally distinct
+# readings is what gives the slots something to hedge with.
+ALTERNATIVES_SUFFIX = """
+
+Besides your best query, return up to {n} ALTERNATIVES: other queries that \
+would answer the same question under a different reading. An alternative is \
+only useful if it is structurally different from your best one -- a different \
+number of joins, a different aggregate, grouping where there was none, a \
+subquery where there was none. Returning a reworded copy of your best query, \
+or the same shape with other columns, is worse than returning nothing. If you \
+are confident there is only one sensible shape, return no alternatives.\
+"""
+
+
+def hyde_system_prompt(schema_aware: bool, alternatives: int) -> str:
+    base = HYDE_SCHEMA_SYSTEM_PROMPT if schema_aware else HYDE_SYSTEM_PROMPT
+    return base + (ALTERNATIVES_SUFFIX.format(n=alternatives) if alternatives else "")
+
+
+# --------------------------------------------------------------------------
+# Schemas, as the prompt sees them
+# --------------------------------------------------------------------------
+
+
+def render_schema(db_path: Path) -> str:
+    """Tables, their columns and the foreign keys between them.
+
+    Deliberately not the raw DDL: types, NOT NULL and defaults say nothing
+    about query shape and cost roughly half the prompt. Foreign keys are the
+    part that matters, since they are the join path the prediction has to count.
+    """
+    import sqlite3
+
+    with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as connection:
+        tables = [
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' "
+                "AND name NOT LIKE 'sqlite_%' ORDER BY name"
+            )
+        ]
+        lines, keys = [], []
+        for table in tables:
+            columns = [
+                str(row[1]) for row in connection.execute(f'PRAGMA table_info("{table}")')
+            ]
+            lines.append(f"{table}({', '.join(columns)})")
+            for row in connection.execute(f'PRAGMA foreign_key_list("{table}")'):
+                keys.append(f"{table}.{row[3]} -> {row[2]}.{row[4]}")
+    if keys:
+        lines.append("")
+        lines.append("foreign keys:")
+        lines += [f"  {key}" for key in keys]
+    return "\n".join(lines)
+
+
+def load_schemas(dev: list[dict], root: Path) -> dict[str, str]:
+    """One rendered schema per database the dev set touches."""
+    schemas: dict[str, str] = {}
+    for db_id in sorted({question["db_id"] for question in dev}):
+        path = root / db_id / f"{db_id}.sqlite"
+        if not path.exists():
+            print(f"  warning: no sqlite for {db_id}, predicting it blind")
+            continue
+        schemas[db_id] = render_schema(path)
+    return schemas
+
+
 # One worked example per construction the corpus actually uses. Picking the
 # *most common* skeletons instead would spend every shot on the two-table
 # lookup that is 5% of train by itself, teaching nothing about the shapes the
@@ -631,7 +770,9 @@ def few_shot_examples(train: list[dict], limit: int) -> list[tuple[str, dict]]:
     return shots
 
 
-def build_hyde_prompt(batch: list[dict], shots: list[tuple[str, dict]]) -> str:
+def build_hyde_prompt(
+    batch: list[dict], shots: list[tuple[str, dict]], schema: str = ""
+) -> str:
     lines = ["Worked examples from the corpus:"]
     for label, example in shots:
         lines.append(f"\n# {label}")
@@ -639,6 +780,11 @@ def build_hyde_prompt(batch: list[dict], shots: list[tuple[str, dict]]) -> str:
         if example.get("evidence"):
             lines.append(f"evidence: {_truncate(example['evidence'], 160)}")
         lines.append(f"SQL: {_truncate(example['SQL'], 260)}")
+    if schema:
+        # After the shots, so the shots cannot be mistaken for this schema's
+        # tables, and before the questions, which are the thing to act on.
+        lines.append(f"\n\nSchema of the database these questions run against:")
+        lines.append(schema)
     ids = ", ".join(str(question["question_id"]) for question in batch)
     lines.append(f"\n\nNow write SQL for each of these {len(batch)} questions: {ids}")
     for question in batch:
@@ -647,6 +793,22 @@ def build_hyde_prompt(batch: list[dict], shots: list[tuple[str, dict]]) -> str:
         if question["evidence"]:
             lines.append(f"evidence: {_truncate(question['evidence'], 300)}")
     return "\n".join(lines)
+
+
+def batched_by_db(dev: list[dict], size: int) -> list[list[dict]]:
+    """Batches that never mix databases, so one schema covers the whole batch.
+
+    Without this a batch of four questions could carry four schemas, which is
+    both the bulk of the prompt and an invitation to answer one question
+    against another's tables.
+    """
+    by_db: dict[str, list[dict]] = defaultdict(list)
+    for question in dev:
+        by_db[question["db_id"]].append(question)
+    batches: list[list[dict]] = []
+    for questions in by_db.values():
+        batches += batched(questions, size)
+    return batches
 
 
 def _skeleton_grams(skel: str, n: int = 3) -> list[str]:
@@ -737,11 +899,18 @@ class SkeletonIndex:
 
 
 class ResponseCache:
-    """Append-only JSONL keyed by prompt hash, so re-runs are near-free."""
+    """Append-only JSONL keyed by prompt hash, so re-runs are near-free.
 
-    def __init__(self, path: Path, model: str) -> None:
+    ``salt`` separates draws that share a prompt. Sampling the same question
+    several times at temperature sends the identical prompt every time, so
+    without it every draw after the first would be served the first one's
+    cached answer and the samples would be identical by construction.
+    """
+
+    def __init__(self, path: Path, model: str, salt: str = "") -> None:
         self.path = path
         self.model = model
+        self.salt = salt
         self.lock = threading.Lock()
         self.entries: dict[str, dict] = {}
         if path.exists():
@@ -751,7 +920,14 @@ class ResponseCache:
                     self.entries[record["key"]] = record["response"]
 
     def key(self, prompt: str) -> str:
-        return hashlib.sha256(f"{self.model}\x00{prompt}".encode()).hexdigest()[:32]
+        # Unsalted keys keep their old hash, so caches built before sampling
+        # existed stay valid and the greedy draw re-costs nothing.
+        material = (
+            f"{self.model}\x00{prompt}"
+            if not self.salt
+            else f"{self.model}\x00{self.salt}\x00{prompt}"
+        )
+        return hashlib.sha256(material.encode()).hexdigest()[:32]
 
     def get(self, prompt: str) -> dict | None:
         return self.entries.get(self.key(prompt))
@@ -778,6 +954,8 @@ def dispatch(
     system_prompt: str,
     field: str,
     args: argparse.Namespace,
+    temperature: float = 0.0,
+    salt: str = "",
 ) -> tuple[dict[int, dict], Counter]:
     """Send every prompt concurrently and collect answers by question id.
 
@@ -786,6 +964,10 @@ def dispatch(
     answer is dropped rather than attributed to the wrong question. One failed
     request must not cost the other hundreds, so failures are counted and
     skipped.
+
+    ``temperature`` and ``salt`` move together: a draw that is not greedy must
+    not share a cache key with one that is, or with another draw at the same
+    temperature.
     """
     from auto_ontology.utils.llm_invoke import (
         get_llm_client,
@@ -793,10 +975,17 @@ def dispatch(
     )
     from langchain_core.messages import HumanMessage, SystemMessage
 
-    llm = get_llm_client(model=args.model or None, max_tokens=args.max_tokens)
+    llm = get_llm_client(
+        model=args.model or None,
+        max_tokens=args.max_tokens,
+        temperature=temperature,
+    )
     model_name = args.model or getattr(llm, "model_name", "") or str(llm)
-    cache = ResponseCache(args.cache, model_name)
-    print(f"model: {model_name}   cached responses: {len(cache.entries)}")
+    cache = ResponseCache(args.cache, model_name, salt)
+    print(
+        f"model: {model_name}   temperature: {temperature}   "
+        f"cached responses: {len(cache.entries)}"
+    )
 
     system = SystemMessage(content=system_prompt)
     counts: Counter = Counter()
@@ -982,6 +1171,73 @@ def run(args: argparse.Namespace) -> None:
 # --------------------------------------------------------------------------
 
 
+def candidate_predictions(answers: list[dict | None]) -> list[str]:
+    """One question's predicted queries, best first, structurally unique.
+
+    ``answers`` is one entry per draw, the greedy draw first. Within a draw the
+    model's best query precedes its alternatives, so interleaving by position
+    keeps every draw's best guess ahead of any draw's second thoughts.
+
+    Deduplicating on the skeleton rather than the SQL is the point of the whole
+    exercise: two draws that differ only in invented column names retrieve
+    byte-identical exemplars, so keeping both spends a slot saying the same
+    thing twice.
+    """
+    ordered: list[str] = []
+    for position in range(
+        max((1 + len(a.get("alternatives") or []) for a in answers if a), default=0)
+    ):
+        for answer in answers:
+            if not answer:
+                continue
+            options = [answer.get("sql")] + list(answer.get("alternatives") or [])
+            if position < len(options):
+                ordered.append(options[position])
+
+    out, seen = [], set()
+    for item in ordered:
+        sql = " ".join(str(item or "").split())
+        if not sql:
+            continue
+        skel = skeleton(sql)
+        if skel in seen:
+            continue
+        seen.add(skel)
+        out.append(sql)
+    return out
+
+
+def diversified(
+    index: SkeletonIndex, predictions: list[str], k: int
+) -> list[tuple[float, dict, int, str]]:
+    """Fill k slots round-robin across the predictions, best of each first.
+
+    Taking the top k of the best prediction is what the single-prediction
+    method already does, and it stakes all k slots on that prediction being
+    right. Round-robin keeps slot 1 for the model's own best guess and spends
+    the rest hedging, so a wrong prediction costs some slots instead of all.
+    Returns (ratio, example, which prediction, that prediction's skeleton).
+    """
+    ranked = [
+        (skeleton(sql), index.query(skeleton(sql), k)) for sql in predictions
+    ]
+    chosen: list[tuple[float, dict, int, str]] = []
+    seen: set[str] = set()
+    for depth in range(k):
+        for source, (pred_skeleton, hits) in enumerate(ranked):
+            if len(chosen) >= k:
+                return chosen
+            if depth >= len(hits):
+                continue
+            ratio, example = hits[depth]
+            skel = skeleton(example["SQL"])
+            if skel in seen:
+                continue
+            seen.add(skel)
+            chosen.append((ratio, example, source, pred_skeleton))
+    return chosen
+
+
 def predict(args: argparse.Namespace) -> None:
     dev = load_dev(args.input)
     if args.limit:
@@ -993,45 +1249,82 @@ def predict(args: argparse.Namespace) -> None:
         f"shots: {len(shots)}"
     )
 
-    batches = batched(dev, args.questions_per_request)
+    schemas: dict[str, str] = {}
+    if args.schema:
+        schemas = load_schemas(dev, args.dev_dir)
+        sizes = sorted(len(s) for s in schemas.values())
+        print(
+            f"schemas: {len(schemas)} databases, "
+            f"{sizes[len(sizes) // 2]}–{sizes[-1]} chars"
+        )
+
+    batches = (
+        batched_by_db(dev, args.questions_per_request)
+        if args.schema
+        else batched(dev, args.questions_per_request)
+    )
     requests = [
         (
-            build_hyde_prompt(batch, shots),
+            build_hyde_prompt(batch, shots, schemas.get(batch[0]["db_id"], "")),
             {question["question_id"] for question in batch},
         )
         for batch in batches
     ]
+    system_prompt = hyde_system_prompt(args.schema, args.alternatives)
     print(
-        f"{len(requests)} requests "
+        f"{len(requests) * args.samples} requests "
         f"({args.questions_per_request} questions each), {args.workers} workers"
+        f"{f', {args.samples} draws at T={args.temperature}' if args.samples > 1 else ''}"
+        f"{f', {args.alternatives} alternatives each' if args.alternatives else ''}"
     )
 
     if args.dry_run:
         print("\n=== system prompt ===")
-        print(HYDE_SYSTEM_PROMPT)
+        print(system_prompt)
         print("\n=== first user prompt ===")
         print(requests[0][0])
         print(f"\n(dry run: {len(requests)} prompts built, no requests sent)")
         return
 
-    answers, counts = dispatch(
-        requests, _prediction_schema(), HYDE_SYSTEM_PROMPT, "predictions", args
-    )
+    # Draw 0 is greedy and unsalted, so it is bit-for-bit the single prediction
+    # the method made before sampling existed and re-costs nothing against an
+    # existing cache. Every later draw samples, and carries its index in the
+    # salt so the draws cannot collapse onto one cached answer.
+    response_schema = _prediction_schema(args.alternatives)
+    draws: list[dict[int, dict]] = []
+    counts: Counter = Counter()
+    for draw in range(args.samples):
+        if args.samples > 1:
+            print(f"\n--- draw {draw + 1}/{args.samples} ---")
+        answers, drawn = dispatch(
+            requests,
+            response_schema,
+            system_prompt,
+            "predictions",
+            args,
+            temperature=0.0 if draw == 0 else args.temperature,
+            salt="" if draw == 0 else f"T{args.temperature}#{draw}",
+        )
+        draws.append(answers)
+        counts.update(drawn)
 
     # Built after the requests, so a failed run costs nothing but the wait.
     index = SkeletonIndex(train, shortlist=args.shortlist)
     print(f"skeleton index: {len(index.skeletons):,} distinct train skeletons")
 
     rows = []
+    alternatives_used = Counter()
+    answered = {qid for draw in draws for qid in draw}
     for question in dev:
-        answer = answers.get(question["question_id"])
-        predicted_sql = " ".join(str((answer or {}).get("sql") or "").split())
-        if not predicted_sql:
+        predictions = candidate_predictions(
+            [draw.get(question["question_id"]) for draw in draws]
+        )
+        if not predictions:
             continue
-        predicted = skeleton(predicted_sql)
+        alternatives_used[len(predictions) - 1] += 1
         tags = shape_tags(question["question"], question["evidence"])
-        for rank, (ratio, example) in enumerate(
-            index.query(predicted, args.k), start=1
+        for rank, (ratio, example, source, pred_skeleton) in enumerate(
+            diversified(index, predictions, args.k), start=1
         ):
             rows.append(
                 {
@@ -1051,8 +1344,13 @@ def predict(args: argparse.Namespace) -> None:
                     # every exemplar source, while `skeleton_match` says what
                     # the number actually measures for this one.
                     "score": round(ratio, 4),
-                    "predicted_sql": predicted_sql,
-                    "predicted_skeleton": predicted,
+                    # 0 is the model's best guess, 1+ an alternative reading.
+                    # Rank 1 is always source 0, so anything reading
+                    # `predicted_skeleton` off the rank-1 row still sees the
+                    # primary prediction.
+                    "prediction_source": source,
+                    "predicted_sql": predictions[source],
+                    "predicted_skeleton": pred_skeleton,
                     "train_db": example["db_id"],
                     "train_question": example["question"].strip(),
                     "train_evidence": (example.get("evidence") or "").strip(),
@@ -1064,7 +1362,7 @@ def predict(args: argparse.Namespace) -> None:
     args.out.parent.mkdir(parents=True, exist_ok=True)
     frame.to_csv(args.out, index=False)
     report_dispatch(counts, args.out, len(frame))
-    print(f"  questions with no prediction : {len(dev) - len(answers)}")
+    print(f"  questions with no prediction : {len(dev) - len(answered)}")
     if not frame.empty:
         top = frame[frame["rank"] == 1]
         print(f"  mean skeleton match at rank 1: {top.skeleton_match.mean():.3f}")
@@ -1072,6 +1370,19 @@ def predict(args: argparse.Namespace) -> None:
             f"  predictions matching a train skeleton exactly: "
             f"{(top.skeleton_match == 1.0).sum()}/{len(top)}"
         )
+        if args.samples > 1 or args.alternatives:
+            spread = frame.groupby("question_id").prediction_source.nunique()
+            print(
+                f"  distinct predictions feeding the {args.k} slots: "
+                f"mean {spread.mean():.2f}, "
+                f"single-prediction on {int((spread == 1).sum())} questions"
+            )
+            print(
+                "  structurally distinct predictions per question: "
+                + ", ".join(
+                    f"{n + 1}->{c}" for n, c in sorted(alternatives_used.items())
+                )
+            )
 
 
 # --------------------------------------------------------------------------
@@ -1524,6 +1835,38 @@ def main() -> None:
         default=len(SHOT_PATTERNS),
         help="Worked examples in the prompt, one construction each.",
     )
+    predict_parser.add_argument(
+        "--schema",
+        action="store_true",
+        help="Show the question's own schema, so the join count can be right.",
+    )
+    predict_parser.add_argument(
+        "--dev-dir",
+        type=Path,
+        default=ROOT / "datasets/bird/dev",
+        help="Where <db_id>/<db_id>.sqlite live, for --schema.",
+    )
+    predict_parser.add_argument(
+        "--alternatives",
+        type=int,
+        default=0,
+        help="Extra structurally different readings per question, to spread "
+        "the k slots across instead of staking them all on one prediction.",
+    )
+    predict_parser.add_argument(
+        "--samples",
+        type=int,
+        default=1,
+        help="Independent draws of the hypothetical SQL per question. The "
+        "first is greedy; the rest sample at --temperature. Composable with "
+        "--alternatives, which diversifies within a draw rather than across.",
+    )
+    predict_parser.add_argument(
+        "--temperature",
+        type=float,
+        default=0.8,
+        help="Temperature for draws after the first. Ignored when --samples 1.",
+    )
 
     compare_parser = subparsers.add_parser("compare", help="Score every mapping.")
     shared(compare_parser)
@@ -1543,6 +1886,25 @@ def main() -> None:
     )
 
     args = parser.parse_args()
+    # A variant must not overwrite the baseline CSV that running evals point
+    # at, so the default output and cache carry the variant in their name.
+    # An explicit --out or --cache still wins.
+    if args.command == "predict" and (
+        args.schema or args.alternatives or args.samples > 1
+    ):
+        suffix = (
+            ("_schema" if args.schema else "")
+            + (f"_alt{args.alternatives}" if args.alternatives else "")
+            + (f"_s{args.samples}t{args.temperature:g}" if args.samples > 1 else "")
+        )
+        defaults = {
+            "out": ROOT / "output/predicted_structural_exemplars.csv",
+            "cache": ROOT / "output/predicted_structural_exemplars_cache.jsonl",
+        }
+        for name, default in defaults.items():
+            given = getattr(args, name)
+            if given == default:
+                setattr(args, name, given.with_name(given.stem + suffix + given.suffix))
     if args.command == "compare" and not args.method:
         # The lexical arm is no longer a default: its producer was removed, so
         # the CSV cannot be regenerated and defaulting to a path most checkouts
