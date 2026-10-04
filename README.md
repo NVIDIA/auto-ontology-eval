@@ -222,6 +222,8 @@ without saying so.
 | `--only anchors`     | both                   | Rebuild just the anchors — skips the model entirely.            |
 | `--only exemplars`   | both                   | Rebuild just the exemplars.                                    |
 | `--k N`              | `5`                    | Exemplars kept per question.                                   |
+| `--alternatives N`   | `3`                    | Structurally different readings predicted per question; the `--k` slots are spread across them rather than all taken from one. `0` restores one prediction per question. |
+| `--no-schema`        | off                    | Predict without showing the question's own schema, which is what the join count is counted from. |
 | `--workers N`        | `8`                    | Concurrent model requests in the exemplar step.                |
 | `--limit N`          | all                    | First N Dev questions, for a smoke test.                       |
 | `--dry-run`          | off                    | Print the commands that would run, and run none of them.       |
