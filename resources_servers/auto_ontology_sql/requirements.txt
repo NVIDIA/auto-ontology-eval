@@ -4,9 +4,10 @@
 # dependency set (Auto Ontology's runtime deps are mirrored there); `-e ../..`
 # installs it editable.
 #
-# Auto Ontology itself is not listed: it is not yet an installable package, so it
-# arrives via AUTO_ONTOLOGY_PATH (see scripts/run_gym_arm.sh). When it becomes
-# installable it turns into an ordinary line here and that export goes away.
+# Auto Ontology itself arrives from the public source checkout via
+# AUTO_ONTOLOGY_PATH (see scripts/run_gym_arm.sh). Keeping it on PYTHONPATH lets
+# this Gym venv reuse the parent project's dependency resolution and checked-out
+# Auto Ontology revision.
 #
 # Why requirements.txt and not a pyproject.toml: Gym only honours a per-server
 # overrides.txt in the requirements branch, and this server needs one (see the
