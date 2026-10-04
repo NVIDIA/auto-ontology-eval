@@ -2,17 +2,17 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Local ingest: source DB schema -> GSF Postgres catalog + pgvector embeddings.
+"""Local ingest: source DB schema -> Auto Ontology catalog + pgvector embeddings.
 
-Vendored from ``../GSF/dev_tools/local_ingest.py`` and retargeted so the
+Vendored from Auto Ontology's ``dev_tools/local_ingest.py`` and retargeted so the
 enrichment step reads this repo's ``datasets/`` and ``annotations/`` files
-instead of GSF's copy.
+instead of Auto Ontology's copy.
 
-Run after the Postgres catalog + pgvector services are up (see GSF's
+Run after the Postgres catalog + pgvector services are up (see Auto Ontology's
 ``docker-compose.yml``) and ``CONNECTION_STRINGS`` points at the source DB::
 
-    PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.ingest
-    PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.ingest \\
+    PYTHONPATH=../auto-ontology uv run python -m ontology_sql_eval.ingestion.ingest
+    PYTHONPATH=../auto-ontology uv run python -m ontology_sql_eval.ingestion.ingest \\
       --benchmark-name bird
 """
 
@@ -25,9 +25,9 @@ from contextlib import nullcontext
 
 from ontology_sql_eval.env import load_env
 
-# ruff: noqa: E402 - GSF imports must follow environment bootstrap.
-# Load this repository's environment before importing GSF modules that read it,
-# while retaining GSF's environment as a fallback.
+# ruff: noqa: E402 - Auto Ontology imports must follow environment bootstrap.
+# Load this repository's environment before importing Auto Ontology modules that
+# read it, while retaining Auto Ontology's environment as a fallback.
 load_env()
 
 from auto_ontology.catalog import ingest_catalog
@@ -101,7 +101,7 @@ def _ingest_catalog_with_metadata(
 
 
 def run_ingest(connection_string: str, benchmark_name: str | None = None) -> None:
-    """Extract the source schema into GSF's store and write embeddings."""
+    """Extract the source schema into Auto Ontology's store and write embeddings."""
     connector = create_connector(connection_string)
     try:
         database_name = connector.database_name
@@ -127,7 +127,10 @@ def run_ingest(connection_string: str, benchmark_name: str | None = None) -> Non
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Ingest source DB schema(s) into the GSF Postgres catalog + pgvector."
+        description=(
+            "Ingest source DB schema(s) into the Auto Ontology Postgres "
+            "catalog + pgvector."
+        )
     )
     parser.add_argument(
         "--benchmark-name",

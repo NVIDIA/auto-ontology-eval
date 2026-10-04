@@ -501,7 +501,7 @@ def build_prompt(batch: list[tuple[dict, list[dict]]], k: int, show_sql: bool) -
 
 
 def _schemas():
-    """Built lazily: importing gsf triggers env-dependent client construction."""
+    """Built lazily: importing Auto Ontology constructs environment-bound clients."""
     from auto_ontology.utils.llm_invoke import StrictLLMOutputModel
     from pydantic import Field
 

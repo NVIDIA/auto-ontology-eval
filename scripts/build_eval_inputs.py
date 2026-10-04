@@ -41,7 +41,7 @@ OUT_DIR = ROOT / "prompt_inputs/bird"
 def child_env() -> dict[str, str]:
     """The parent environment, with PYTHONPATH from .env if it is not set.
 
-    The exemplar step imports ``gsf``, which lives outside this repo and is
+    The exemplar step imports ``auto_ontology``, which lives outside this repo and is
     reached through PYTHONPATH. The launch configs supply it via ``envFile``,
     but a plain shell does not, and the child calling ``load_dotenv`` itself is
     too late: the interpreter reads PYTHONPATH before any of that code runs.

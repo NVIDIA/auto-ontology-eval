@@ -7,7 +7,8 @@
 Replaces the original ``auto_ontology.server.env`` dependency with a standalone
 ``python-dotenv`` loader so the tool can run on its own.
 
-Resolution mirrors GSF's ``auto_ontology.utils.model_config``: each ``JUDGE_*`` field
+Resolution mirrors Auto Ontology's ``auto_ontology.utils.model_config``: each
+``JUDGE_*`` field
 falls back to ``DEFAULT_MODELS_*``, then the legacy shared names
 (``NVIDIA_API_KEY`` / ``BASE_URL`` / ``MODEL_NAME``), then a built-in default
 chosen by whether the effective API key is an ``sk-`` or ``nvapi-`` key.

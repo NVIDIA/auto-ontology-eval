@@ -10,7 +10,7 @@ full c-Interact pipeline: init → phase1 [→ phase1 debug] → phase2 [→ pha
 
 Mirrors eval_bird_interact.py's per-task flow exactly, but:
   - Loops over multiple tasks automatically
-  - Starts the GSF adapter ONCE and reuses it across all tasks
+  - Starts the Auto Ontology adapter ONCE and reuses it across all tasks
   - Writes rich per-task JSONL (run-time data only; join dataset fields by instance_id)
   - Writes a lightweight CSV incrementally (safe on crash)
   - Catches timeouts and errors per task and continues to the next
@@ -46,7 +46,7 @@ from typing import Any
 import httpx
 
 ONTOLOGY_DIR = Path(__file__).resolve().parents[1]
-GSF_DIR      = ONTOLOGY_DIR.parent / "GSF"
+AUTO_ONTOLOGY_DIR      = ONTOLOGY_DIR.parent / "auto-ontology"
 DEFAULT_DATA = ONTOLOGY_DIR / "datasets" / "bird_interact" / "bird_interact_data_with_gt.jsonl"
 RESULTS_DIR  = ONTOLOGY_DIR / "results"
 
@@ -101,10 +101,10 @@ def post(url: str, payload: dict, timeout: float = 120.0) -> dict:
     return r.json()
 
 
-def start_gsf_adapter(port: int, gsf_dir: Path, log_path: Path | None = None) -> subprocess.Popen:
+def start_auto_ontology_adapter(port: int, auto_ontology_dir: Path, log_path: Path | None = None) -> subprocess.Popen:
     dotenv_vars = load_env(ONTOLOGY_DIR / ".env")
     existing_pp = os.environ.get("PYTHONPATH", "")
-    pp_parts = [str(ONTOLOGY_DIR), str(gsf_dir)]
+    pp_parts = [str(ONTOLOGY_DIR), str(auto_ontology_dir)]
     if existing_pp:
         pp_parts.append(existing_pp)
     env = {**os.environ, **dotenv_vars, "PYTHONPATH": ":".join(pp_parts)}
@@ -272,7 +272,7 @@ def run_task(
     db_schema   = post(f"{DB_ENV_URL}/schema",    {"task_id": task_id}).get("schema", "")
     external_kb = post(f"{DB_ENV_URL}/knowledge", {"task_id": task_id}).get("knowledge", "[]")
 
-    # ── init_session on GSF adapter ──────────────────────────────────────────
+    # ── init_session on Auto Ontology adapter ────────────────────────────────
     post(f"{agent_url}/init_session", {
         "task_id": task_id,
         "mode": "c-interact",
@@ -410,10 +410,11 @@ def main() -> None:
     parser.add_argument("--shuffle", action="store_true",
                         help="Randomize task order")
     parser.add_argument("--agent-port", type=int, default=6003,
-                        help="Port to start the GSF adapter on (default: 6003)")
-    parser.add_argument("--gsf-dir", type=Path, default=GSF_DIR,
-                        help="Path to the GSF checkout to put on PYTHONPATH "
-                             f"(default: {GSF_DIR})")
+                        help="Port to start the Auto Ontology adapter on (default: 6003)")
+    parser.add_argument("--auto-ontology-dir", dest="auto_ontology_dir",
+                        type=Path, default=AUTO_ONTOLOGY_DIR,
+                        help="Path to the Auto Ontology checkout to put on PYTHONPATH "
+                             f"(default: {AUTO_ONTOLOGY_DIR})")
     parser.add_argument("--phase-timeout", type=float, default=600.0,
                         help="Seconds per run_session HTTP call (default: 600 = 10 min, "
                              "matching the official cinteract orchestrator's hard-coded timeout)")
@@ -477,19 +478,19 @@ def main() -> None:
     if not ok:
         sys.exit(1)
 
-    # ── Start GSF adapter (once for all tasks) ────────────────────────────────
+    # ── Start Auto Ontology adapter (once for all tasks) ─────────────────────
     # Always log the first 5 tasks for diagnostics; silent after that.
     adapter_log = run_dir / f"{args.output}_adapter.log"
-    print(f"\nStarting GSF adapter on :{args.agent_port} ...")
+    print(f"\nStarting Auto Ontology adapter on :{args.agent_port} ...")
     print(f"  (adapter logs → {adapter_log})")
-    adapter_proc = start_gsf_adapter(args.agent_port, args.gsf_dir, log_path=adapter_log)
+    adapter_proc = start_auto_ontology_adapter(args.agent_port, args.auto_ontology_dir, log_path=adapter_log)
 
     t_run_start = time.time()
     n_pass = n_fail = n_error = 0
     sum_reward = 0.0
 
     try:
-        if not check_health(agent_url, f"GSF adapter :{args.agent_port}", timeout=60):
+        if not check_health(agent_url, f"Auto Ontology adapter :{args.agent_port}", timeout=60):
             sys.exit(1)
         print(f"\nRunning {len(tasks)} tasks  (phase-timeout={args.phase_timeout}s)\n")
 
@@ -629,7 +630,7 @@ def main() -> None:
             print()
 
     finally:
-        print("\nStopping GSF adapter...")
+        print("\nStopping Auto Ontology adapter...")
         adapter_proc.terminate()
         try:
             adapter_proc.wait(timeout=5)

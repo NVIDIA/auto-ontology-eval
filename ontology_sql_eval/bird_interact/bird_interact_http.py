@@ -16,12 +16,13 @@ logger = logging.getLogger(__name__)
 
 
 def _strip_catalog_qualifier(sql: str) -> str:
-    """Drop the leading ``<database>.`` catalog qualifier GSF bakes into every
+    """Drop the leading ``<database>.`` catalog qualifier Auto Ontology bakes into every
     table reference (e.g. ``solar_panel.public.plants`` -> ``public.plants``).
 
-    GSF always qualifies tables with the source database name — see
-    ``gsf/retrieval/text_to_sql/formatters_util.py``'s ``qualify_table()`` —
-    which is correct (and required for dedup) when GSF validates the SQL
+    Auto Ontology always qualifies tables with the source database name — see
+    ``auto_ontology/retrieval/text_to_sql/formatters_util.py``'s
+    ``qualify_table()`` —
+    which is correct (and required for dedup) when Auto Ontology validates the SQL
     against its own connector, since that connector is always the
     same-named base database. But ADK's grading harness executes submitted
     SQL against a differently-named per-task database
@@ -34,8 +35,8 @@ def _strip_catalog_qualifier(sql: str) -> str:
     Uses sqlglot (parses real table-reference tokens, so it can't be
     tricked by a database name that happens to appear inside a string
     literal the way a blind string/regex replace could be) rather than
-    stripping unconditionally in GSF core, since the qualifier is still
-    needed there for multi-database table dedup and for GSF's own
+    stripping unconditionally in Auto Ontology core, since the qualifier is still
+    needed there for multi-database table dedup and for Auto Ontology's own
     same-database execution/validation.
 
     Falls back to the original SQL, unchanged, if parsing fails — this is a

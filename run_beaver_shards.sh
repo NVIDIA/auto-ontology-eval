@@ -54,7 +54,7 @@ for ((i = 0; i < SHARDS; i++)); do
   # Call the interpreter directly: concurrent `uv run` invocations each
   # reinstall the local project into the shared venv, which races and breaks
   # imports mid-run.
-  PYTHONPATH=../GSF "$VENV_PY" scripts/run_eval_shard.py \
+  PYTHONPATH=../auto-ontology "$VENV_PY" scripts/run_eval_shard.py \
     --database-name beaverbench \
     --start-index "$s" \
     --end-index "$e" \
@@ -90,14 +90,14 @@ echo
 echo "Verifying ground truth on merged rows…"
 # evaluation.json already carries materialized answers, so shards write
 # expected_answer_raw natively; this only repairs rows that predate that.
-PYTHONPATH=../GSF "$VENV_PY" scripts/backfill_gold_answers.py \
+PYTHONPATH=../auto-ontology "$VENV_PY" scripts/backfill_gold_answers.py \
   --csv "$MERGED" \
   --dataset datasets/beaverbench/evaluation.json \
   --skip-dataset
 
 echo
 echo "Running LLM judge…"
-PYTHONPATH=../GSF "$VENV_PY" main.py \
+PYTHONPATH=../auto-ontology "$VENV_PY" main.py \
   --database-name beaverbench \
   --skip-ingest --skip-semantic --skip-eval \
   --workers 4 2>&1 | tee "logs/beaver_judge_${STAMP}.log"

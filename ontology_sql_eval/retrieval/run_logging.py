@@ -66,7 +66,7 @@ _UNSET = "-"
 
 # Per-question context. A ContextVar is per-thread here (each pool worker starts
 # from an empty context), which is exactly the scoping we want: records emitted
-# anywhere down the call stack -- including inside GSF and its dependencies --
+# anywhere down the call stack -- including inside Auto Ontology and its dependencies --
 # carry the question that triggered them.
 _question_ctx: ContextVar[dict[str, Any] | None] = ContextVar(
     "eval_question_ctx", default=None
@@ -182,7 +182,7 @@ class _HttpCallCounter(logging.Handler):
 
 
 def _resolved_model_config() -> dict[str, Any]:
-    """The endpoint/model/key-gateway GSF actually resolved for each triplet.
+    """The endpoint/model/key-gateway Auto Ontology actually resolved for each triplet.
 
     Resolution is ``<PREFIX>_<FIELD>`` -> ``DEFAULT_MODELS_<FIELD>`` -> a
     built-in keyed off the triplet's API-key prefix, so the effective model is
@@ -740,7 +740,7 @@ class RunLogger:
         # not end up with a silent root logger.
         self._displaced: list[logging.Handler] = []
         # Teardown for anything a caller wired onto shared, process-lifetime
-        # state on this run's behalf -- the LLM recorder hangs off GSF's
+        # state on this run's behalf -- the LLM recorder hangs off Auto Ontology's
         # import-time client, which outlives every RunLogger built against it.
         self._on_close: list[Callable[[], None]] = []
         self._prior_level: int | None = None
@@ -898,7 +898,7 @@ class RunLogger:
             "platform": platform.platform(),
             "cpu_count": os.cpu_count(),
             "env": {k: os.environ.get(k, "") for k in env_keys},
-            # What GSF *resolved*, not what .env says. Those differ whenever a
+            # What Auto Ontology *resolved*, not what .env says. Those differ whenever a
             # var is unset and a built-in default applies -- and, more
             # dangerously, whenever a pinned var silently overrides a default
             # that changed upstream. A run whose provenance is only its raw env

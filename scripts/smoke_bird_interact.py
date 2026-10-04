@@ -5,7 +5,7 @@
 
 """Minimal live smoke test for the BIRD-Interact three-port setup.
 
-Starts the GSF adapter on :6003 (avoiding any service already on :6000),
+Starts the Auto Ontology adapter on :6003 (avoiding any service already on :6000),
 drives a single task through the full pipeline (init → phase1 → phase2), then
 shuts the adapter down.
 
@@ -43,7 +43,7 @@ from pathlib import Path
 import httpx
 
 ONTOLOGY_DIR = Path(__file__).resolve().parents[1]
-GSF_DIR = ONTOLOGY_DIR.parent / "GSF"
+AUTO_ONTOLOGY_DIR = ONTOLOGY_DIR.parent / "auto-ontology"
 DEFAULT_DATA = ONTOLOGY_DIR / "datasets" / "bird_interact" / "bird_interact_data_with_gt.jsonl"
 USER_SIM_URL = "http://127.0.0.1:6001"
 DB_ENV_URL = "http://127.0.0.1:6002"
@@ -154,10 +154,10 @@ def load_task(data_path: Path, index: int, db_filter: str | None, random_pick: b
     return pool[index]
 
 
-def start_gsf_adapter(port: int) -> subprocess.Popen:
+def start_auto_ontology_adapter(port: int) -> subprocess.Popen:
     dotenv_vars = load_env(ONTOLOGY_DIR / ".env")
     existing_pp = os.environ.get("PYTHONPATH", "")
-    pp_parts = [str(ONTOLOGY_DIR), str(GSF_DIR)]
+    pp_parts = [str(ONTOLOGY_DIR), str(AUTO_ONTOLOGY_DIR)]
     if existing_pp:
         pp_parts.append(existing_pp)
     env = {**os.environ, **dotenv_vars, "PYTHONPATH": ":".join(pp_parts)}
@@ -174,7 +174,9 @@ def start_gsf_adapter(port: int) -> subprocess.Popen:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Live smoke test for BIRD-Interact + GSF adapter")
+    parser = argparse.ArgumentParser(
+        description="Live smoke test for BIRD-Interact + Auto Ontology adapter"
+    )
     parser.add_argument("--data", default=str(DEFAULT_DATA))
     parser.add_argument("--task-index", type=int, default=0,
                         help="0-based index into the filtered selection pool")
@@ -185,7 +187,12 @@ def main() -> None:
                         help="Restrict selection to 'query' or 'management' tasks (case-insensitive)")
     parser.add_argument("--difficulty", default=None, choices=["simple", "moderate", "challenging"], type=str.lower,
                         help="Restrict selection by difficulty_tier: 'simple', 'moderate', or 'challenging' (case-insensitive)")
-    parser.add_argument("--agent-port", type=int, default=6003, help="Port to start the GSF adapter on")
+    parser.add_argument(
+        "--agent-port",
+        type=int,
+        default=6003,
+        help="Port to start the Auto Ontology adapter on",
+    )
     parser.add_argument("--timeout", type=int, default=10, help="Health-check timeout per service (s)")
     args = parser.parse_args()
 
@@ -200,11 +207,13 @@ def main() -> None:
     if not ok:
         sys.exit(1)
 
-    # ── 2. Start GSF adapter ──────────────────────────────────────────────────
-    print(f"\nStarting GSF adapter on :{args.agent_port} ...")
-    adapter_proc = start_gsf_adapter(args.agent_port)
+    # ── 2. Start Auto Ontology adapter ────────────────────────────────────────
+    print(f"\nStarting Auto Ontology adapter on :{args.agent_port} ...")
+    adapter_proc = start_auto_ontology_adapter(args.agent_port)
     try:
-        if not check_health(agent_url, f"GSF adapter :{args.agent_port}", timeout=60):
+        if not check_health(
+            agent_url, f"Auto Ontology adapter :{args.agent_port}", timeout=60
+        ):
             adapter_proc.terminate()
             sys.exit(1)
 
@@ -237,7 +246,7 @@ def main() -> None:
         n_knowledge = len(task.get("knowledge_ambiguity", []))
         max_turn    = n_critical + n_knowledge + PATIENCE
 
-        # ── 7. init_session on GSF adapter ────────────────────────────────────
+        # ── 7. init_session on Auto Ontology adapter ──────────────────────────
         print(f"-- init_session on :{args.agent_port} --")
         init_resp = post(f"{agent_url}/init_session", {
             "task_id": task_id,
@@ -315,7 +324,7 @@ def main() -> None:
             pass
 
     finally:
-        print("\nStopping GSF adapter...")
+        print("\nStopping Auto Ontology adapter...")
         adapter_proc.terminate()
         try:
             adapter_proc.wait(timeout=5)

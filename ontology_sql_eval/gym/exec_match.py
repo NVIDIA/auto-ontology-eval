@@ -14,8 +14,8 @@ The two disagree (a query returning ten identical rows where gold returns one
 passes BIRD and fails the DataFrame rule), and matching BIRD keeps our headline
 number quotable against published results.
 
-Queries run against the database file or DSN directly, not through a GSF
-connector, so the schema-only arm carries no GSF dependency at all.
+Queries run against the database file or DSN directly, not through an Auto Ontology
+connector, so the schema-only arm carries no Auto Ontology dependency at all.
 """
 
 from __future__ import annotations

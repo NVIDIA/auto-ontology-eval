@@ -87,9 +87,11 @@ def _rate(rows: list[dict[str, Any]]) -> str:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--control", required=True, type=Path, help="schema-only rollouts")
-    ap.add_argument("--treatment", required=True, type=Path, help="GSF rollouts")
+    ap.add_argument(
+        "--treatment", required=True, type=Path, help="Auto Ontology rollouts"
+    )
     ap.add_argument("--control-name", default="schema-only")
-    ap.add_argument("--treatment-name", default="gsf-ontology")
+    ap.add_argument("--treatment-name", default="auto-ontology")
     ap.add_argument(
         "--ignore-health",
         action="store_true",

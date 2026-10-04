@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Resume the BEAVER benchmark after an interruption.
 #
-# The semantic compile is checkpointed in the GSF catalog: it only visits tables
+# The semantic compile is checkpointed in the Auto Ontology catalog: it only visits tables
 # that have no Term yet, so re-running picks up where the previous run stopped.
 # Ingest is skipped because the dw schema is already in the catalog.
 set -euo pipefail
@@ -27,7 +27,7 @@ sleep 5
 caffeinate -imsw $$ &
 
 echo "Resuming — remaining tables only, then eval + judge. Log: $LOG"
-PYTHONPATH=../GSF uv run python main.py \
+PYTHONPATH=../auto-ontology uv run python main.py \
   --database-name beaverbench \
   --skip-ingest \
   2>&1 | tee "$LOG"

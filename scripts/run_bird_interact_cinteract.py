@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Run BIRD-Interact c-Interact evaluation using the GSF adapter.
+Run BIRD-Interact c-Interact evaluation using the Auto Ontology adapter.
 
 Starts the ontology-sql-eval adapter on :6000, then invokes the official
 Bird c-Interact orchestrator against the merged GT jsonl, and writes a
@@ -97,7 +97,9 @@ def wait_for_health(url: str, timeout: int = 30, label: str = "") -> bool:
 
 def main() -> None:
     _warn_if_adk_unpatched()
-    parser = argparse.ArgumentParser(description="Run Bird c-Interact with GSF adapter")
+    parser = argparse.ArgumentParser(
+        description="Run Bird c-Interact with the Auto Ontology adapter"
+    )
     parser.add_argument(
         "--data",
         default=str(DEFAULT_DATA),
@@ -214,11 +216,12 @@ def main() -> None:
             sys.exit(1)
     print("Bird services OK (:6001, :6002)")
 
-    # Start GSF adapter on :6000
-    print("Starting GSF adapter on :6000...")
-    GSF_DIR = ONTOLOGY_DIR.parent / "GSF"
+    # Start the Auto Ontology adapter on :6000.
+    print("Starting Auto Ontology adapter on :6000...")
+    AUTO_ONTOLOGY_DIR = ONTOLOGY_DIR.parent / "auto-ontology"
 
-    # Load .env so GSF env vars (EMBED_API_KEY, NVIDIA_API_KEY, etc.) are available
+    # Load .env so Auto Ontology variables (EMBED_API_KEY, NVIDIA_API_KEY, etc.)
+    # are available.
     dotenv_path = ONTOLOGY_DIR / ".env"
     dotenv_vars: dict[str, str] = {}
     if dotenv_path.exists():
@@ -230,7 +233,7 @@ def main() -> None:
                     dotenv_vars[k.strip()] = v.strip()
 
     existing_pythonpath = os.environ.get("PYTHONPATH", "")
-    pythonpath_parts = [str(ONTOLOGY_DIR), str(GSF_DIR)]
+    pythonpath_parts = [str(ONTOLOGY_DIR), str(AUTO_ONTOLOGY_DIR)]
     if existing_pythonpath:
         pythonpath_parts.append(existing_pythonpath)
     env = {**os.environ, **dotenv_vars, "PYTHONPATH": ":".join(pythonpath_parts)}
@@ -248,15 +251,23 @@ def main() -> None:
     )
 
     if adapter_proc.poll() is not None:
-        print("ERROR: GSF adapter failed to start (port 6000 may already be in use — kill any stale process first)", file=sys.stderr)
+        print(
+            "ERROR: Auto Ontology adapter failed to start "
+            "(port 6000 may already be in use — kill any stale process first)",
+            file=sys.stderr,
+        )
         sys.exit(1)
-    if not wait_for_health("http://127.0.0.1:6000/health", timeout=60, label="GSF adapter :6000"):
+    if not wait_for_health(
+        "http://127.0.0.1:6000/health",
+        timeout=60,
+        label="Auto Ontology adapter :6000",
+    ):
         adapter_proc.terminate()
         sys.exit(1)
     if adapter_proc.poll() is not None:
-        print("ERROR: GSF adapter died during startup", file=sys.stderr)
+        print("ERROR: Auto Ontology adapter died during startup", file=sys.stderr)
         sys.exit(1)
-    print("GSF adapter :6000 ready")
+    print("Auto Ontology adapter :6000 ready")
 
     try:
         # Invoke the official Bird c-Interact orchestrator
@@ -314,7 +325,7 @@ def main() -> None:
         print(f"Raw JSON:      {raw_json}")
 
     finally:
-        print("Stopping GSF adapter...")
+        print("Stopping Auto Ontology adapter...")
         adapter_proc.terminate()
         try:
             adapter_proc.wait(timeout=5)

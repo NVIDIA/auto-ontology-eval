@@ -252,7 +252,7 @@ def apply_metadata(database_name: str, benchmark_name: str | None = None) -> Non
 
 def add_custom_analyses(
     database_name: str,
-    dialect: str,  # noqa: ARG001 — kept for call-site compatibility; GSF resolves
+    dialect: str,  # noqa: ARG001 — kept for call-site compatibility; Auto Ontology resolves
     # the dialect from the connector itself now.
     embed_params: "EmbedParams | None" = None,
     vdb: "VDB | None" = None,

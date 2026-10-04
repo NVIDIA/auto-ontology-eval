@@ -5,7 +5,7 @@
 
 """Single-task BIRD-Interact evaluator — mirrors the real c-Interact orchestrator flow.
 
-Starts the GSF adapter on :6003 (avoiding any service already on :6000),
+Starts the Auto Ontology adapter on :6003 (avoiding any service already on :6000),
 drives a single task through the full pipeline:
   init → phase1 [→ phase1 debug] → phase2 [→ phase2 debug]
 
@@ -48,7 +48,7 @@ from pathlib import Path
 import httpx
 
 ONTOLOGY_DIR   = Path(__file__).resolve().parents[1]
-GSF_DIR        = ONTOLOGY_DIR.parent / "GSF"
+AUTO_ONTOLOGY_DIR        = ONTOLOGY_DIR.parent / "auto-ontology"
 _default_adk   = ONTOLOGY_DIR / "third_party" / "BIRD-Interact" / "BIRD-Interact-ADK"
 _ADK_DIR       = Path(os.environ.get("BIRD_INTERACT_ADK_DIR", str(_default_adk)))
 
@@ -199,10 +199,10 @@ def _build_debug_message(last_submit_raw: str) -> str:
     return "Your SQL is not correct. You have one more chance. Please fix and call submit_sql."
 
 
-def start_gsf_adapter(port: int) -> subprocess.Popen:
+def start_auto_ontology_adapter(port: int) -> subprocess.Popen:
     dotenv_vars = load_env(ONTOLOGY_DIR / ".env")
     existing_pp = os.environ.get("PYTHONPATH", "")
-    pp_parts = [str(ONTOLOGY_DIR), str(GSF_DIR)]
+    pp_parts = [str(ONTOLOGY_DIR), str(AUTO_ONTOLOGY_DIR)]
     if existing_pp:
         pp_parts.append(existing_pp)
     env = {**os.environ, **dotenv_vars, "PYTHONPATH": ":".join(pp_parts)}
@@ -232,7 +232,12 @@ def main() -> None:
                         help="Restrict selection by difficulty_tier")
     parser.add_argument("--output-type", default=None, choices=["scalar", "table"], type=str.lower,
                         help="Restrict selection by output_type ('scalar' = single-value result, 'table' = multi-row result)")
-    parser.add_argument("--agent-port", type=int, default=6003, help="Port to start the GSF adapter on")
+    parser.add_argument(
+        "--agent-port",
+        type=int,
+        default=6003,
+        help="Port to start the Auto Ontology adapter on",
+    )
     parser.add_argument("--timeout", type=int, default=10, help="Health-check timeout per service (s)")
     parser.add_argument("--quit-after-phase", type=int, default=None, choices=[1, 2],
                         help="Stop cleanly after this phase (1 = skip phase 2 even if p1 passes)")
@@ -249,11 +254,13 @@ def main() -> None:
     if not ok:
         sys.exit(1)
 
-    # ── 2. Start GSF adapter ──────────────────────────────────────────────────
-    print(f"\nStarting GSF adapter on :{args.agent_port} ...")
-    adapter_proc = start_gsf_adapter(args.agent_port)
+    # ── 2. Start Auto Ontology adapter ────────────────────────────────────────
+    print(f"\nStarting Auto Ontology adapter on :{args.agent_port} ...")
+    adapter_proc = start_auto_ontology_adapter(args.agent_port)
     try:
-        if not check_health(agent_url, f"GSF adapter :{args.agent_port}", timeout=60):
+        if not check_health(
+            agent_url, f"Auto Ontology adapter :{args.agent_port}", timeout=60
+        ):
             adapter_proc.terminate()
             sys.exit(1)
 
@@ -294,7 +301,7 @@ def main() -> None:
         n_knowledge = len(task.get("knowledge_ambiguity", []))
         max_turn    = n_critical + n_knowledge + PATIENCE
 
-        # ── 7. init_session on GSF adapter ────────────────────────────────────
+        # ── 7. init_session on Auto Ontology adapter ──────────────────────────
         print(f"-- init_session on :{args.agent_port} --")
         init_resp = post(f"{agent_url}/init_session", {
             "task_id": task_id,
@@ -410,7 +417,7 @@ def main() -> None:
             pass
 
     finally:
-        print("\nStopping GSF adapter...")
+        print("\nStopping Auto Ontology adapter...")
         adapter_proc.terminate()
         try:
             adapter_proc.wait(timeout=5)
