@@ -112,9 +112,9 @@ hydra:
     hydra:
     - hydra.mode=RUN
     task:
-    - +config_paths=[/Users/yshkolar/Dev/ontology-sql-eval/resources_servers/gsf_ontology_sql/configs/gsf_ontology_sql.yaml,/Users/yshkolar/Dev/ontology-sql-eval/.venv-gym/lib/python3.12/site-packages/responses_api_models/inference_provider/configs/inference_provider.yaml]
+    - +config_paths=[/Users/yshkolar/Dev/ontology-sql-eval/resources_servers/auto_ontology_sql/configs/auto_ontology_sql.yaml,/Users/yshkolar/Dev/ontology-sql-eval/.venv-gym/lib/python3.12/site-packages/responses_api_models/inference_provider/configs/inference_provider.yaml]
     - +agent_name=simple_agent
-    - +output_jsonl_fpath=runs/gsf/bird60.jsonl
+    - +output_jsonl_fpath=runs/auto_ontology/bird60.jsonl
     - +num_samples_in_parallel=3
     - +split=validation
     - +policy_model_name=aws/anthropic/bedrock-claude-opus-4-8
@@ -124,7 +124,7 @@ hydra:
   job:
     name: global_config
     chdir: null
-    override_dirname: +agent_name=simple_agent,+config_paths=[/Users/yshkolar/Dev/ontology-sql-eval/resources_servers/gsf_ontology_sql/configs/gsf_ontology_sql.yaml,/Users/yshkolar/Dev/ontology-sql-eval/.venv-gym/lib/python3.12/site-packages/responses_api_models/inference_provider/configs/inference_provider.yaml],+num_samples_in_parallel=3,+output_jsonl_fpath=runs/gsf/bird60.jsonl,+policy_api_key=sk-ZvxOt3epgQsiE1SKZfm-jA,+policy_base_url=https://inference-api.nvidia.com/v1,+policy_model_name=aws/anthropic/bedrock-claude-opus-4-8,+responses_create_params.max_output_tokens=16,+split=validation
+    override_dirname: +agent_name=simple_agent,+config_paths=[/Users/yshkolar/Dev/ontology-sql-eval/resources_servers/auto_ontology_sql/configs/auto_ontology_sql.yaml,/Users/yshkolar/Dev/ontology-sql-eval/.venv-gym/lib/python3.12/site-packages/responses_api_models/inference_provider/configs/inference_provider.yaml],+num_samples_in_parallel=3,+output_jsonl_fpath=runs/auto_ontology/bird60.jsonl,+policy_api_key=sk-ZvxOt3epgQsiE1SKZfm-jA,+policy_base_url=https://inference-api.nvidia.com/v1,+policy_model_name=aws/anthropic/bedrock-claude-opus-4-8,+responses_create_params.max_output_tokens=16,+split=validation
     id: ???
     num: ???
     config_name: null

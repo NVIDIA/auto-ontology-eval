@@ -1,8 +1,8 @@
 config_paths:
-- /Users/yshkolar/Dev/ontology-sql-eval/resources_servers/gsf_ontology_sql/configs/gsf_ontology_sql.yaml
+- /Users/yshkolar/Dev/ontology-sql-eval/resources_servers/auto_ontology_sql/configs/auto_ontology_sql.yaml
 - /Users/yshkolar/Dev/ontology-sql-eval/.venv/lib/python3.13/site-packages/responses_api_models/inference_provider/configs/inference_provider.yaml
-agent_name: gsf_ontology_sql_simple_agent
-output_jsonl_fpath: runs/smoke/gsf.jsonl
+agent_name: auto_ontology_sql_simple_agent
+output_jsonl_fpath: runs/smoke/auto_ontology.jsonl
 limit: 2
 num_samples_in_parallel: 3
 split: validation
