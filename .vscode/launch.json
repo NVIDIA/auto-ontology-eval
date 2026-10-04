@@ -104,21 +104,6 @@
       "justMyCode": false
     },
     {
-      "name": "Apply dataset enrichment",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "ontology_sql_eval.ingestion.apply_enrichment",
-      "args": ["--database-name", "kdc_ca1"],
-      "console": "integratedTerminal",
-      "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/bin/python",
-      "envFile": "${workspaceFolder}/.env",
-      "env": {
-        "PYTHONPATH": "${workspaceFolder}/../auto-ontology"
-      },
-      "justMyCode": false
-    },
-    {
       "name": "Semantic compile",
       "type": "debugpy",
       "request": "launch",
@@ -137,12 +122,7 @@
       "type": "debugpy",
       "request": "launch",
       "module": "ontology_sql_eval.retrieval.eval_chatbot",
-      "args": ["--database-name", "bird",
-      "--workers", "10",
-"--sql-examples", "output/predicted_structural_exemplars.csv",
-"--sql-examples-k", "5",
-"--value-anchors", "output/value_anchors.csv",
-          ],
+      "args": ["--database-name", "bird"],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
