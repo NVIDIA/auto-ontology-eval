@@ -810,6 +810,7 @@ def _evaluate_question(
                 "custom_prompts": "",
                 "acronyms": [],
                 "shorten_answer": True,
+                "validate_sql_values": True,
             }
             if _SUPPORTS_EVIDENCE_PARAM:
                 payload["evidence"] = evidence
@@ -1143,6 +1144,7 @@ def run_single_question(
         "custom_prompts": "",
         "acronyms": [],
         "shorten_answer": True,
+        "validate_sql_values": True,
     }
     if _SUPPORTS_EVIDENCE_PARAM:
         payload["evidence"] = evidence
