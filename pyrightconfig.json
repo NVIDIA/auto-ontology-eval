@@ -1,5 +1,5 @@
 {
   "venvPath": ".",
   "venv": ".venv",
-  "extraPaths": ["../GSF"]
+  "extraPaths": ["../auto-ontology"]
 }
