@@ -84,7 +84,7 @@ Useful environment variables:
 |---|---|---|
 | `GYM_CONCURRENCY` | 3 | Size against the **model endpoint's rate limit**, not CPU |
 | `GYM_API_KEY` | `.env`'s `DEFAULT_MODELS_API_KEY` | Overrides the key for *both* the policy model and Auto Ontology's own calls |
-| `AUTO_ONTOLOGY_PATH` | `../auto-ontology-gym` | Which Auto Ontology checkout to import |
+| `AUTO_ONTOLOGY_PATH` | `../auto-ontology` | Which Auto Ontology checkout to import |
 | `GYM_MODEL` / `GYM_MODEL_URL` | bedrock-claude-opus-4-8 @ inference-api | |
 
 `GYM_API_KEY` has to override `DEFAULT_MODELS_API_KEY` rather than just
@@ -106,16 +106,17 @@ dependency decisions, recorded in `overrides.txt` and `pyproject.toml`:
   nemo-gym's `ray[serve]` (`starlette>=1.0.1`). The cap is stale — nemo_retriever
   never imports the instrumentator (it imports `prometheus_client`, a different
   package, and only inside its own HTTP service).
-- **`langchain-openai<1.3.5`.** nemo-gym 0.6.0 pins `openai==2.44.0`; 1.3.5+ wants
-  `openai>=2.45.0`. Unlike the override this is a real squeeze — both packages
-  genuinely use the SDK — so it is expressed as a version bound.
+- **`openai>=2.45,<3` override.** Auto Ontology requires
+  `langchain-openai>=1.6.0`, which needs `openai>=2.45.0`, while nemo-gym 0.6.0
+  pins `openai==2.44.0`. Both use the compatible OpenAI 2.x API, so the stale
+  patch-level Gym pin is lifted without crossing a major-version boundary.
 
 nemo-gym 0.6.0 requires Python **>=3.13.14**, which is why `requires-python` was
 raised from 3.12.
 
-Auto Ontology is reached via `PYTHONPATH` (see `AUTO_ONTOLOGY_PATH`) because it is not yet an
-installable package. **When Auto Ontology becomes installable, it turns into an ordinary line
-in each server's `requirements.txt` and the `PYTHONPATH` export disappears.**
+Auto Ontology is reached from its public source checkout via `PYTHONPATH` (see
+`AUTO_ONTOLOGY_PATH`). This keeps the benchmark on an explicit checkout while
+its NeMo Gym environment resolves dependencies separately.
 
 Four things about Gym's CLI that are easy to lose an hour to:
 
@@ -227,7 +228,7 @@ passed via `--config`, so the value only ever lives in the environment.
 ## Comparing arms
 
 ```bash
-python scripts/compare_arms.py --control <control_rollouts> --treatment <gsf_rollouts>
+python scripts/compare_arms.py --control <control_rollouts> --treatment <auto_ontology_rollouts>
 ```
 
 Reports accuracy overall and by difficulty, the delta, and which individual
@@ -255,13 +256,15 @@ Three workers is clean on the `sk-` inference-api key; eight is not. Numbers in
 `results/CONCURRENCY-STUDY.md` were measured on a different model and do not
 transfer.
 
-## Arm B's couplings with GSF
+## Arm B's couplings with Auto Ontology
 
 `auto_ontology_sql` imports Auto Ontology in-process, which forces three things:
 
-- `load_dotenv()` runs **before** the `gsf` imports — `gsf.retrieval.text_to_sql.main`
+- `load_dotenv()` runs **before** the Auto Ontology imports —
+  `auto_ontology.retrieval.text_to_sql.main`
   builds its LLM client and compiles the graph at import time.
-- `PYTHONPATH` must include the sibling Auto Ontology checkout; Auto Ontology is not installed here.
+- `PYTHONPATH` must include the sibling Auto Ontology checkout (publicly
+  available at <https://github.com/NVIDIA/auto-ontology>).
 - `stream_agent_response` is a blocking generator, so it runs on a worker thread
   under a semaphore.
 
