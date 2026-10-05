@@ -3,8 +3,10 @@
 [← Back to main README](../../README.md)
 
 > **Disclaimer:** Running this code will automatically download data from
-> https://bird-bench.oss-cn-beijing.aliyuncs.com (`dev`/Train splits) and, for
-> the `mini-dev` split, from the BIRD authors' Google Drive
+> https://bird-bench.oss-cn-beijing.aliyuncs.com (the `dev` split), the BIRD
+> maintainers' direct
+> [`train.json`](https://github.com/user-attachments/files/15820826/train.json)
+> attachment, and, for the `mini-dev` split, from the BIRD authors' Google Drive
 > (https://drive.google.com/file/d/13VLWIwpw5E3d5DUkMvzw7hvHE67a4XkG/view).
 > Before you run the code, please confirm the content of the dataset and
 > licensing is appropriate for your intended use.
@@ -39,14 +41,16 @@ uv run python scripts/seed_bird.py --splits mini-dev    # 500-Q subset of the sa
 | Train      |     9,428 | none                | Stored as `train/train.json` when Dev is selected; the pool the few-shot exemplars are drawn from. |
 
 Train contributes no connection strings and installs no databases. Its database
-set is disjoint from Dev, so the seeder retains only complete question,
-evidence, and SQL rows.
+set is disjoint from Dev, so the seeder downloads the official 4.3 MB question
+JSON directly and retains only complete question, evidence, and SQL rows. It
+does not download the nearly 1 GB Train database archive.
 
 Only the SQLite dialect is kept (the MySQL/PostgreSQL question JSONs and the
 `*_gold.sql` / `*_tables.json` files are ignored). Options: `--splits` (one or
 more of `mini-dev`/`dev`, default `dev`), `--force` (re-download and
-overwrite), `--keep-archive` (keep the cached zip), `--url` (use a
-different/local zip — only valid with a single `--splits` value), `--dest`
+overwrite), `--keep-archive` (keep downloaded split archives and the Train JSON
+cache), `--url` (use a different/local evaluation-split zip — only valid with a
+single `--splits` value), `--dest`
 (default `datasets/bird/`), `--no-write-env` (see [Configure](#configure)),
 `--log-level`.
 
@@ -69,16 +73,20 @@ datasets/bird/
 annotations/bird/                          # tracked, outside the download
   custom_analyses/<db_id>.json             # our analyses, one file per db_id
   semantic_descriptions.csv                # our column descriptions, all 11 databases
+
+prompt_inputs/bird/                         # precomputed inputs supplied during eval
+  predicted_structural_exemplars.csv        # question-keyed Train SQL examples
+  value_anchors.csv                         # question-keyed verified value anchors
 ```
 
 `metadata.json` is generated per database from BIRD's `database_description`
-CSVs, in the shape [`enrich_graph.apply_metadata`](../../ontology_sql_eval/ingestion/enrich_graph.py)
-consumes, so column meanings and value descriptions reach the Postgres catalog
-and from there the text-to-SQL prompt. A `value_description` cell that reads
-exactly `not useful` is dropped (it's an annotator note about an opaque column)
-but the column entry is kept, since some of those columns are join keys many
-gold queries need. The semantic compile can describe columns BIRD leaves
-undocumented after profiling their values.
+CSVs. Each column's `column_description` is stored as `description`, while
+BIRD's `value_description` is preserved as a separate `value_description` key;
+the two are not concatenated. `value_examples` remains `null` because BIRD
+provides prose rather than a discrete value list. The current metadata ingest
+stamps `description` and `value_examples` onto the catalog but does not yet add
+`value_description` to the text-to-SQL prompt. The semantic compile
+can describe columns BIRD leaves undocumented after profiling their values.
 
 ## Configure
 
@@ -114,8 +122,14 @@ under `annotations/bird/` when it is present.
 PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.ingest --benchmark-name bird
 PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.semantic --benchmark-name bird
 
-# 2. Run the agent against the eval set -> input/bird_<model>.csv
-PYTHONPATH=../GSF uv run python -m ontology_sql_eval.retrieval.eval_chatbot --database-name bird
+# 2. Run the agent against the eval set -> input/bird_<model>.csv.
+# This matches the "Eval" configuration in .vscode/launch.json.
+PYTHONPATH=../auto-ontology uv run python -m ontology_sql_eval.retrieval.eval_chatbot \
+  --database-name bird \
+  --workers 10 \
+  --sql-examples prompt_inputs/bird/predicted_structural_exemplars.csv \
+  --sql-examples-k 5 \
+  --value-anchors prompt_inputs/bird/value_anchors.csv
 
 # 3. Re-score every CSV in input/ with the LLM judge -> output/<name>_scores.csv
 uv run ontology-sql-eval
@@ -123,6 +137,17 @@ uv run ontology-sql-eval
 
 Both ingestion commands walk every entry in `CONNECTION_STRINGS`, so all 11
 databases are handled in one invocation each.
+
+The eval inputs shown above are optional:
+
+- `--sql-examples` loads question-keyed structural examples generated from the
+  BIRD Train corpus; `--sql-examples-k 5` supplies at most five to the agent.
+- `--value-anchors` loads question-keyed, precomputed database-value matches.
+- `--workers 10` evaluates up to ten questions concurrently.
+
+These files provide prompt context only. They do not replace
+`datasets/bird/evaluation.json`, and the eval questions' gold SQL is not used to
+select examples or anchors.
 
 ### Evaluating a slice
 
