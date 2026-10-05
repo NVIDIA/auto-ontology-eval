@@ -18,6 +18,7 @@ JSON shape (per table)::
                 {
                     "name": "...",
                     "description": "...",
+                    "value_description": "..." | null,
                     "value_examples": ["...", ...] | null,
                     ...
                 },
@@ -176,6 +177,14 @@ def custom_analyses_json_path(
     ) or _dataset_file_path("custom_analyses.json", database_name, benchmark_name)
 
 
+def _text_or_none(value: object) -> str | None:
+    """Return stripped text, or ``None`` when the JSON value is blank."""
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    return text or None
+
+
 def apply_metadata(database_name: str, benchmark_name: str | None = None) -> None:
     """Stamp table/column metadata onto the Postgres catalog.
 
@@ -185,9 +194,11 @@ def apply_metadata(database_name: str, benchmark_name: str | None = None) -> Non
 
     * ``Table.description``
     * ``Column.description``
+    * ``Column.value_description``
     * ``Column.sample_values`` (from the JSON's ``value_examples`` field, when
       present and non-empty)
 
+    A column is included when any of those three column fields is present.
     Tables/columns that aren't present in the catalog are silently skipped.
     Properties for which the JSON has no value are left untouched.
     """
@@ -214,7 +225,8 @@ def apply_metadata(database_name: str, benchmark_name: str | None = None) -> Non
             table_rows.append({"table_name": table_name, "description": table_desc})
 
         for col in table_meta.get("columns", []) or []:
-            col_desc = col.get("description")
+            col_desc = _text_or_none(col.get("description"))
+            value_description = _text_or_none(col.get("value_description"))
             value_examples = col.get("value_examples")
             # Column.sample_values is stored as a JSON string, matching
             # auto_ontology.dal.datasources.store_column_sample_values (profiling's own
@@ -225,7 +237,7 @@ def apply_metadata(database_name: str, benchmark_name: str | None = None) -> Non
                 if isinstance(value_examples, list) and value_examples
                 else None
             )
-            if not col_desc and sample_values is None:
+            if not col_desc and value_description is None and sample_values is None:
                 continue
             if sample_values is not None:
                 samples_count += 1
@@ -233,7 +245,8 @@ def apply_metadata(database_name: str, benchmark_name: str | None = None) -> Non
                 {
                     "table_name": table_name,
                     "column_name": col["name"],
-                    "description": col_desc or None,
+                    "description": col_desc,
+                    "value_description": value_description,
                     "sample_values": sample_values,
                 }
             )
@@ -242,9 +255,10 @@ def apply_metadata(database_name: str, benchmark_name: str | None = None) -> Non
 
     logger.info(
         "Applied metadata: %d table description(s), %d column description(s), "
-        "%d column sample_values from %s",
+        "%d column value_description(s), %d column sample_values from %s",
         len(table_rows),
         sum(1 for r in column_rows if r.get("description")),
+        sum(1 for r in column_rows if r.get("value_description")),
         samples_count,
         metadata_path,
     )

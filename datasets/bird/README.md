@@ -83,10 +83,11 @@ prompt_inputs/bird/                         # precomputed inputs supplied during
 CSVs. Each column's `column_description` is stored as `description`, while
 BIRD's `value_description` is preserved as a separate `value_description` key;
 the two are not concatenated. `value_examples` remains `null` because BIRD
-provides prose rather than a discrete value list. The current metadata ingest
-stamps `description` and `value_examples` onto the catalog but does not yet add
-`value_description` to the text-to-SQL prompt. The semantic compile
-can describe columns BIRD leaves undocumented after profiling their values.
+provides prose rather than a discrete value list. Ingest stamps `description`,
+`value_description`, and `value_examples` onto the catalog. The semantic compile
+reads `value_description` when it builds column attributes, and text-to-SQL
+includes it in the column table. The semantic compile can still describe columns
+BIRD leaves undocumented after profiling their values.
 
 ## Configure
 

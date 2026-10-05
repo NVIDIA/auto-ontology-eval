@@ -97,8 +97,8 @@ rather than adding to a store that already has them.
 1. Create a connector from `CONNECTION_STRINGS` (the first entry) and derive the
    database name from it.
 2. Extract the tabular schema (tables/columns) into the Postgres catalog.
-3. `apply_metadata()` — stamp `metadata.json` descriptions and sample values
-   onto the catalog rows (skipped if the file is missing).
+3. `apply_metadata()` — stamp `metadata.json` descriptions, value descriptions,
+   and sample values onto the catalog rows (skipped if the file is missing).
 4. Embed the schema rows via the embedding endpoint and write them to the
    pgvector **data** store.
 5. `add_custom_analyses()` — parse the database's analyses (see the table above

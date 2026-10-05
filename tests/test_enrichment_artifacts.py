@@ -95,7 +95,9 @@ class EnrichmentArtifactResolutionTest(unittest.TestCase):
 
         custom_analyses_module = types.ModuleType("auto_ontology.dal.custom_analyses")
         custom_analyses_module.embed_custom_analyses = embed
-        service_module = types.ModuleType("auto_ontology.server.custom_analyses.service")
+        service_module = types.ModuleType(
+            "auto_ontology.server.custom_analyses.service"
+        )
 
         class AnalysisConflict(Exception):
             pass
@@ -167,6 +169,78 @@ class EnrichmentArtifactResolutionTest(unittest.TestCase):
         )
         self.assertEqual(
             enrich_graph.saved_descriptions_csv_path("card_games"), expected
+        )
+
+    def test_apply_metadata_passes_value_description(self) -> None:
+        self._write(
+            self.datasets / "bird" / "dev" / "schools" / "metadata.json",
+            json.dumps(
+                {
+                    "schools": {
+                        "description": "Schools",
+                        "columns": [
+                            {
+                                "name": "StreetAbr",
+                                "description": "Abbreviated street.",
+                                "value_description": " Some closed schools have no value. ",
+                                "value_examples": ["Main St"],
+                            },
+                            {
+                                "name": "Status",
+                                "description": None,
+                                "value_description": "A = active",
+                                "value_examples": None,
+                            },
+                            {
+                                "name": "Empty",
+                                "description": " ",
+                                "value_description": "",
+                                "value_examples": [],
+                            },
+                        ],
+                    }
+                }
+            ),
+        )
+        captured: dict[str, object] = {}
+
+        def fake_batch(
+            database_name: str,
+            table_rows: list[dict],
+            column_rows: list[dict],
+        ) -> None:
+            captured["database_name"] = database_name
+            captured["table_rows"] = table_rows
+            captured["column_rows"] = column_rows
+
+        datasources = types.ModuleType("auto_ontology.dal.datasources")
+        datasources.apply_metadata_batch = fake_batch
+        with patch.dict(sys.modules, {"auto_ontology.dal.datasources": datasources}):
+            enrich_graph.apply_metadata("schools", "bird")
+
+        self.assertEqual(captured["database_name"], "schools")
+        self.assertEqual(
+            captured["table_rows"],
+            [{"table_name": "schools", "description": "Schools"}],
+        )
+        self.assertEqual(
+            captured["column_rows"],
+            [
+                {
+                    "table_name": "schools",
+                    "column_name": "StreetAbr",
+                    "description": "Abbreviated street.",
+                    "value_description": "Some closed schools have no value.",
+                    "sample_values": '["Main St"]',
+                },
+                {
+                    "table_name": "schools",
+                    "column_name": "Status",
+                    "description": None,
+                    "value_description": "A = active",
+                    "sample_values": None,
+                },
+            ],
         )
 
     def test_missing_artifacts_return_none(self) -> None:
