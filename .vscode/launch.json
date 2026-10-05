@@ -12,7 +12,7 @@
       "python": "${workspaceFolder}/.venv/bin/python",
       "envFile": "${workspaceFolder}/.env",
       "env": {
-        "PYTHONPATH": "${workspaceFolder}/../GSF"
+        "PYTHONPATH": "${workspaceFolder}/../auto-ontology"
       },
       "justMyCode": false
     },
@@ -99,7 +99,7 @@
       "python": "${workspaceFolder}/.venv/bin/python",
       "envFile": "${workspaceFolder}/.env",
       "env": {
-        "PYTHONPATH": "${workspaceFolder}/../GSF"
+        "PYTHONPATH": "${workspaceFolder}/../auto-ontology"
       },
       "justMyCode": false
     },
@@ -113,7 +113,7 @@
       "python": "${workspaceFolder}/.venv/bin/python",
       "envFile": "${workspaceFolder}/.env",
       "env": {
-        "PYTHONPATH": "${workspaceFolder}/../GSF"
+        "PYTHONPATH": "${workspaceFolder}/../auto-ontology"
       },
       "justMyCode": false
     },
@@ -128,7 +128,7 @@
       "python": "${workspaceFolder}/.venv/bin/python",
       "envFile": "${workspaceFolder}/.env",
       "env": {
-        "PYTHONPATH": "${workspaceFolder}/../GSF"
+        "PYTHONPATH": "${workspaceFolder}/../auto-ontology"
       },
       "justMyCode": false
     },
@@ -143,7 +143,7 @@
       "python": "${workspaceFolder}/.venv/bin/python",
       "envFile": "${workspaceFolder}/.env",
       "env": {
-        "PYTHONPATH": "${workspaceFolder}/../GSF"
+        "PYTHONPATH": "${workspaceFolder}/../auto-ontology"
       },
       "justMyCode": false
     }

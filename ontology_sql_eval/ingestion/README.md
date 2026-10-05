@@ -11,16 +11,36 @@ read from beside that database: `datasets/<benchmark>/dev/<database_name>/` when
 `--benchmark-name` names a multi-database benchmark such as BIRD, otherwise
 `datasets/<database_name>/`.
 
-> Requires the sibling `../GSF` checkout on `PYTHONPATH`. See
+> Requires the sibling backend checkout at `../auto-ontology` on `PYTHONPATH`. See
 > [Prerequisites](../../README.md#prerequisites) in the main README.
 
 ## Run
 
 ```bash
-PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.ingest
-PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.ingest --benchmark-name bird
-PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.semantic --database-name <database_name>
+PYTHONPATH=../auto-ontology uv run python -m ontology_sql_eval.ingestion.ingest
+PYTHONPATH=../auto-ontology uv run python -m ontology_sql_eval.ingestion.ingest --benchmark-name bird
+PYTHONPATH=../auto-ontology uv run python -m ontology_sql_eval.ingestion.apply_enrichment --database-name kdc_ca1
+PYTHONPATH=../auto-ontology uv run python -m ontology_sql_eval.ingestion.semantic --database-name <database_name>
 ```
+
+## Apply enrichment without re-ingesting
+
+Use the standalone enrichment command after the source schema already exists in
+the application PostgreSQL catalog. It reads `datasets/<database_name>/metadata.json`,
+`custom_analyses.json`, and `glossary_and_prompts.json`.
+
+```bash
+PYTHONPATH=../auto-ontology uv run python -m ontology_sql_eval.ingestion.apply_enrichment \
+  --database-name kdc_ca1
+```
+
+The command updates table and column descriptions/sample values in the catalog,
+upserts glossary entries into `frontend.acronyms`, inserts a custom prompt into
+`frontend.prompts` when that exact content is absent, and creates any missing
+custom analyses plus their semantic embeddings. It is safe to re-run: glossary
+entries upsert by name, prompts deduplicate by exact content, and existing
+analyses are skipped individually. Table and column names are lookup keys and
+are not renamed.
 
 ## Publishing our descriptions and analyses
 
@@ -39,8 +59,8 @@ The set this repo ships for BIRD covers all 11 Dev databases, so the two command
 below are all it takes:
 
 ```bash
-PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.ingest --benchmark-name bird
-PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.semantic --benchmark-name bird
+PYTHONPATH=../auto-ontology uv run python -m ontology_sql_eval.ingestion.ingest --benchmark-name bird
+PYTHONPATH=../auto-ontology uv run python -m ontology_sql_eval.ingestion.semantic --benchmark-name bird
 ```
 
 `--benchmark-name` is what names the `annotations/` subfolder. Omit it and every
@@ -98,5 +118,5 @@ For a quick, DB-free smoke test of the embed pipeline (uses an in-memory
 legacy `NVIDIA_API_KEY` is supported as a fallback):
 
 ```bash
-PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.mock_ingest
+PYTHONPATH=../auto-ontology uv run python -m ontology_sql_eval.ingestion.mock_ingest
 ```
