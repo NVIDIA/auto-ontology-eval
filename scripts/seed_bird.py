@@ -118,11 +118,12 @@ _SPLITS: dict[str, _SplitConfig] = {
     ),
 }
 
-_TRAIN_CONFIG = _SplitConfig(
-    url="https://bird-bench.oss-cn-beijing.aliyuncs.com/train.zip",
-    archive_name="train.zip",
-    json_names=("train.json",),
-)
+# Official BIRD-maintainer attachment containing only the 9,428 Train question
+# rows. The full train.zip is nearly a gigabyte before completion because it
+# puts train_databases.zip ahead of train.json; downloading it merely to extract
+# the small question file is wasteful and prone to leaving a truncated cache.
+TRAIN_QUESTIONS_URL = "https://github.com/user-attachments/files/15820826/train.json"
+TRAIN_QUESTIONS_CACHE_NAME = "train.json"
 
 
 def _repo_root() -> Path:
@@ -205,24 +206,25 @@ def _extract(archive_path: Path, extract_dir: Path) -> None:
     logger.info("Extraction complete.")
 
 
-def _extract_train_questions(archive_path: Path, extract_dir: Path) -> None:
-    """Extract only ``train.json`` and skip the Train database archives."""
-    logger.info("Extracting Train questions from %s ...", archive_path.name)
-    with zipfile.ZipFile(archive_path, "r") as zf:
-        members = [
-            name
-            for name in zf.namelist()
-            if Path(name).name == "train.json" and not _is_macos_junk(Path(name))
-        ]
-        if not members:
-            raise RuntimeError(
-                f"No train.json found in {archive_path}. "
-                "The archive layout may have changed."
-            )
-        for name in members:
-            zf.extract(name, extract_dir)
-            logger.info("  extracted %s", name)
-    logger.info("Train question extraction complete.")
+def _load_train_questions(path: Path) -> list[dict[str, Any]]:
+    """Load and validate the direct BIRD Train question JSON download."""
+    try:
+        with path.open(encoding="utf-8") as f:
+            rows = json.load(f)
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        # Do not leave a bad response cached indefinitely. A subsequent run can
+        # download it again without requiring the user to discover --force.
+        path.unlink(missing_ok=True)
+        raise RuntimeError(
+            f"Downloaded BIRD Train questions are not valid JSON: {path}"
+        ) from exc
+
+    if not isinstance(rows, list) or not all(isinstance(row, dict) for row in rows):
+        path.unlink(missing_ok=True)
+        raise RuntimeError(
+            f"Downloaded BIRD Train questions have an unexpected shape: {path}"
+        )
+    return rows
 
 
 def _extract_nested_zips(root: Path) -> None:
@@ -280,13 +282,11 @@ def _read_description_csv(csv_path: Path) -> list[dict[str, Any]]:
     of these CSVs are Windows-1252 rather than UTF-8 encoded, so decoding falls
     back to cp1252.
 
-    Each returned entry matches the ``columns`` shape ``apply_metadata`` reads:
     ``name`` is the real DB column (so it matches the catalog's ``Column`` rows),
-    ``description`` is ``column_description`` and ``value_description`` joined by
-    a comma, and ``value_examples`` is left ``None`` (BIRD gives prose, not
-    discrete values). A ``value_description`` that is exactly ``not useful``
-    (case-insensitive) is dropped from the description — it's an annotator note
-    with no signal — but the column entry is still kept.
+    ``description`` contains only ``column_description``, and
+    ``value_description`` preserves BIRD's separate value-level annotation.
+    ``value_examples`` is left ``None`` because BIRD gives prose rather than
+    discrete values.
     """
     try:
         raw = csv_path.read_text(encoding="utf-8-sig")
@@ -305,15 +305,14 @@ def _read_description_csv(csv_path: Path) -> list[dict[str, Any]]:
 
         col_desc = _clean_cell(norm.get("column_description"))
         val_desc = _clean_cell(norm.get("value_description"))
-        # Drop annotator "not useful" notes: they carry no signal (they flag
-        # opaque ID/redundant columns), but the column itself must stay — some
-        # (e.g. card_games.cards.uuid) are join keys used by many gold queries.
-        if val_desc.lower() == "not useful":
-            val_desc = ""
-        description = ", ".join(p for p in (col_desc, val_desc) if p) or None
 
         columns.append(
-            {"name": name, "description": description, "value_examples": None}
+            {
+                "name": name,
+                "description": col_desc or None,
+                "value_description": val_desc or None,
+                "value_examples": None,
+            }
         )
     return columns
 
@@ -669,23 +668,20 @@ def download_bird(
             logger.info("Kept cached archive at %s", archive_path)
 
     if "dev" in split_names:
-        train_archive = _archive_cache_path(target, _TRAIN_CONFIG.archive_name)
+        train_source = _archive_cache_path(target, TRAIN_QUESTIONS_CACHE_NAME)
         logger.info("--- Training corpus (included with Dev) ---")
-        _download(_TRAIN_CONFIG.url, train_archive, force=force)
-        with tempfile.TemporaryDirectory(prefix="bird_train_") as tmp:
-            extract_dir = Path(tmp)
-            _extract_train_questions(train_archive, extract_dir)
-            train_rows = _load_eval_rows(extract_dir, _TRAIN_CONFIG.json_names)
-            if train_rows:
-                _write_train_file(_train_root(target), train_rows)
-            else:
-                logger.warning("No Train rows collected; train/train.json not written.")
+        _download(TRAIN_QUESTIONS_URL, train_source, force=force)
+        train_rows = _load_train_questions(train_source)
+        if train_rows:
+            _write_train_file(_train_root(target), train_rows)
+        else:
+            logger.warning("No Train rows collected; train/train.json not written.")
 
-        if not keep_archive and train_archive.exists():
-            train_archive.unlink()
-            logger.info("Removed cached archive %s", train_archive)
+        if not keep_archive and train_source.exists():
+            train_source.unlink()
+            logger.info("Removed cached Train source %s", train_source)
         elif keep_archive:
-            logger.info("Kept cached archive at %s", train_archive)
+            logger.info("Kept cached Train source at %s", train_source)
 
     if evaluation_rows:
         _write_evaluation_file(target, evaluation_rows)
@@ -712,7 +708,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             f"mini-dev source (corrected 2025-07-04 set): {GOOGLE_DRIVE_URL}\n"
             f"mini-dev legacy Aliyun OSS mirror (stale 2024 data): {LEGACY_OSS_URL}\n"
             f"dev source: {_SPLITS['dev'].url}\n"
-            f"train source (included with dev): {_TRAIN_CONFIG.url}\n"
+            f"train source (included with dev): {TRAIN_QUESTIONS_URL}\n"
             "Pass --url to override the URL for a single --splits value "
             "(e.g. to host a local copy of the zip)."
         ),

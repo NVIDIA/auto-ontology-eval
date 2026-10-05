@@ -20,11 +20,13 @@ class SeedBirdTrainCorpusTest(unittest.TestCase):
             patch.object(seed_bird, "_cleanup_legacy_flat_layout"),
             patch.object(seed_bird, "_download") as download,
             patch.object(seed_bird, "_extract"),
-            patch.object(seed_bird, "_extract_train_questions") as extract_train,
-            patch.object(seed_bird, "_organize_extracted", return_value=["cards"]),
             patch.object(
-                seed_bird, "_load_eval_rows", side_effect=[dev_rows, train_rows]
-            ),
+                seed_bird,
+                "_load_train_questions",
+                return_value=train_rows,
+            ) as load_train,
+            patch.object(seed_bird, "_organize_extracted", return_value=["cards"]),
+            patch.object(seed_bird, "_load_eval_rows", return_value=dev_rows),
             patch.object(seed_bird, "_write_evaluation_file"),
             patch.object(seed_bird, "_write_train_file") as write_train,
             patch.object(seed_bird, "_print_summary"),
@@ -35,11 +37,11 @@ class SeedBirdTrainCorpusTest(unittest.TestCase):
                 ["cards"],
             )
 
-        train_archive = target / f".{seed_bird._TRAIN_CONFIG.archive_name}"
+        train_source = target / f".{seed_bird.TRAIN_QUESTIONS_CACHE_NAME}"
         download.assert_any_call(
-            seed_bird._TRAIN_CONFIG.url, train_archive, force=False
+            seed_bird.TRAIN_QUESTIONS_URL, train_source, force=False
         )
-        extract_train.assert_called_once()
+        load_train.assert_called_once_with(train_source)
         write_train.assert_called_once_with(target / "train", train_rows)
 
     def test_mini_dev_does_not_install_train_questions(self) -> None:
@@ -51,7 +53,7 @@ class SeedBirdTrainCorpusTest(unittest.TestCase):
             patch.object(seed_bird, "_cleanup_legacy_flat_layout"),
             patch.object(seed_bird, "_download") as download,
             patch.object(seed_bird, "_extract"),
-            patch.object(seed_bird, "_extract_train_questions") as extract_train,
+            patch.object(seed_bird, "_load_train_questions") as load_train,
             patch.object(seed_bird, "_organize_extracted", return_value=["cards"]),
             patch.object(seed_bird, "_load_eval_rows", return_value=mini_rows),
             patch.object(seed_bird, "_write_evaluation_file"),
@@ -62,8 +64,42 @@ class SeedBirdTrainCorpusTest(unittest.TestCase):
             seed_bird.download_bird(splits=["mini-dev"], dest=target, write_env=False)
 
         self.assertEqual(download.call_count, 1)
-        extract_train.assert_not_called()
+        load_train.assert_not_called()
         write_train.assert_not_called()
+
+
+class SeedBirdDescriptionTest(unittest.TestCase):
+    def test_value_description_is_stored_separately(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            csv_path = Path(tmp) / "schools.csv"
+            csv_path.write_text(
+                "original_column_name,column_name,column_description,"
+                "value_description,data_format\n"
+                "Status,Status,School status,"
+                "A = active; C = closed,text\n"
+                "OpaqueId,OpaqueId,Opaque identifier,not useful,integer\n",
+                encoding="utf-8",
+            )
+
+            columns = seed_bird._read_description_csv(csv_path)
+
+        self.assertEqual(
+            columns,
+            [
+                {
+                    "name": "Status",
+                    "description": "School status",
+                    "value_description": "A = active; C = closed",
+                    "value_examples": None,
+                },
+                {
+                    "name": "OpaqueId",
+                    "description": "Opaque identifier",
+                    "value_description": "not useful",
+                    "value_examples": None,
+                },
+            ],
+        )
 
 
 class SeedBirdLegacyMigrationTest(unittest.TestCase):
