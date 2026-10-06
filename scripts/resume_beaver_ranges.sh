@@ -20,7 +20,7 @@ run_range() {
   local out="input/shards/resume_${s}_${e}.csv"
   local log="logs/beaver_resume_${s}_${e}_${STAMP}.log"
   echo "  range ${s}..$((e - 1)) -> $out"
-  PYTHONPATH=../GSF "$VENV_PY" scripts/run_eval_shard.py \
+  "$VENV_PY" scripts/run_eval_shard.py \
     --database-name beaverbench \
     --start-index "$s" \
     --end-index "$e" \
@@ -53,13 +53,13 @@ echo "Merging preserved partials + resumed ranges…"
   input/shards/resume_*.csv
 
 echo "Verifying ground truth on merged rows…"
-PYTHONPATH=../GSF "$VENV_PY" scripts/backfill_gold_answers.py \
+"$VENV_PY" scripts/backfill_gold_answers.py \
   --csv "$MERGED" \
   --dataset datasets/beaverbench/evaluation.json \
   --skip-dataset
 
 echo "Running LLM judge…"
-PYTHONPATH=../GSF "$VENV_PY" main.py \
+"$VENV_PY" main.py \
   --database-name beaverbench \
   --skip-ingest --skip-semantic --skip-eval \
   --workers 4 2>&1 | tee "logs/beaver_judge_${STAMP}.log"

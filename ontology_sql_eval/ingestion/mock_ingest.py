@@ -4,7 +4,7 @@
 
 """Tiny in-memory mock ingest for fast semantic-layer iteration.
 
-Vendored from ``../GSF/dev_tools/mock_ingest.py``. Builds a 4-table shop schema
+Vendored from Auto Ontology's ``dev_tools/mock_ingest.py``. Builds a 4-table shop schema
 (customer / order / orderline / products) entirely in-memory and pushes it
 through the same tabular ingest pipeline that ``ontology_sql_eval.ingestion.ingest`` uses.
 No remote DB, no docker dependency, no metadata JSON files. Embeddings still go

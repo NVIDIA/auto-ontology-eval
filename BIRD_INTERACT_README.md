@@ -120,10 +120,10 @@ Three run scripts, same underlying pipeline (`init → phase1 [→ debug] → ph
 | `scripts/smoke_bird_interact.py` | One task, minimal — sanity-check the three-port setup end to end, then shuts the adapter down. |
 | `scripts/eval_bird_interact.py` | One task, full parity with the real orchestrator flow (pick by `--instance-id`, `--db`, or `--random`). |
 | `scripts/run_all_bird_interact.py` | Batch/overnight — all (or filtered) query tasks, adapter started once and reused, results written incrementally so a crash doesn't lose progress. |
-| `scripts/run_bird_interact_cinteract.py` | Runs the **official** Bird c-Interact orchestrator (not our own re-implementation) against the GSF adapter. ⚠️ Its manual uvicorn bootstrap does **not** go through `start_bird_services.sh`, so it does **not** apply the ADK patches — prefer one of the scripts above unless you specifically need the official orchestrator, and if you do use it, apply `patches/adk_p1snap_name_collision.patch` to the ADK checkout manually first (the script prints a loud warning if it detects the checkout is unpatched). |
+| `scripts/run_bird_interact_cinteract.py` | Runs the **official** Bird c-Interact orchestrator (not our own re-implementation) against the Auto Ontology adapter. ⚠️ Its manual uvicorn bootstrap does **not** go through `start_bird_services.sh`, so it does **not** apply the ADK patches — prefer one of the scripts above unless you specifically need the official orchestrator, and if you do use it, apply `patches/adk_p1snap_name_collision.patch` to the ADK checkout manually first (the script prints a loud warning if it detects the checkout is unpatched). |
 
 All three (except `run_bird_interact_cinteract.py`) require `:6001` and
-`:6002` already up (step 3) and start the GSF adapter themselves (default port
+`:6002` already up (step 3) and start the Auto Ontology adapter themselves (default port
 `:6003`).
 
 `run_all_bird_interact.py` is the one you'll use for scored runs. Key flags:
@@ -137,7 +137,7 @@ All three (except `run_bird_interact_cinteract.py`) require `:6001` and
 | `--shuffle` | Randomize task order. **Not seeded** — there is no `random.seed()` call anywhere in the pipeline, so a shuffled run's task order is not reproducible between runs. If you need a reproducible subset, use `--include`/`--force-include` with explicit instance IDs instead. |
 | `--include IDS...` / `--exclude IDS...` | Run only / skip specific instance_ids. |
 | `--force-include IDS...` | Guarantee these instance_ids are in the run, fill the rest of `--limit` from the remaining pool. |
-| `--agent-port` (default 6003), `--gsf-dir` (default `../GSF`) | Adapter wiring. |
+| `--agent-port` (default 6003) | Auto Ontology adapter port. |
 | `--phase-timeout` (default 600s) | Per `run_session` HTTP call — matches the official orchestrator's timeout. |
 | `--health-timeout` (default 10s) | Per-service health-check timeout before giving up. |
 | `--overwrite` | Overwrite an existing output stem instead of failing. |
@@ -160,7 +160,7 @@ Each run writes to `results/<stem>/`:
   `instance_id, dataset, database, max_turn, turns_used, phase1_passed,
   phase1_debug_ran, phase2_passed, phase2_debug_ran, total_reward,
   exec_error_p1, exec_error_p2, error`.
-- **`<stem>_adapter.log`** — GSF adapter stdout/stderr for the run.
+- **`<stem>_adapter.log`** — Auto Ontology adapter stdout/stderr for the run.
 
 Then run analysis on the JSONL:
 
@@ -193,9 +193,8 @@ error), each as `n/total (pct%)`:
 | `BIRD_INTERACT_ADK_DIR` | `start_bird_services.sh`, `eval_bird_interact.py`, `run_bird_interact_cinteract.py` | Overrides the ADK checkout path (default `third_party/BIRD-Interact/BIRD-Interact-ADK`). Not in `.env.example`. |
 | `START_BIRD_SERVICES_DRY_RUN` | `start_bird_services.sh` | Set to print the command instead of running it. |
 
-General prerequisites (Postgres, `../GSF` sibling checkout, `.env`, `uv sync`)
-are covered in the top-level [README.md](README.md#prerequisites) — they
-apply here too.
+General prerequisites (Postgres, `.env`, `uv sync`) are covered in the
+top-level [README.md](README.md#prerequisites) — they apply here too.
 
 ## Known issues
 

@@ -14,16 +14,16 @@ class AnnotationPipelineTest(unittest.TestCase):
     @staticmethod
     def _semantic_module():
         compile_semantic = MagicMock(return_value=7)
-        gsf_semantic = types.ModuleType("auto_ontology.semantic")
-        gsf_compile = types.ModuleType("auto_ontology.semantic.compile")
-        gsf_compile.run_semantic_compilation = compile_semantic
+        auto_ontology_semantic = types.ModuleType("auto_ontology.semantic")
+        auto_ontology_compile = types.ModuleType("auto_ontology.semantic.compile")
+        auto_ontology_compile.run_semantic_compilation = compile_semantic
         module_name = "ontology_sql_eval.ingestion.semantic"
         sys.modules.pop(module_name, None)
         with patch.dict(
             sys.modules,
             {
-                "auto_ontology.semantic": gsf_semantic,
-                "auto_ontology.semantic.compile": gsf_compile,
+                "auto_ontology.semantic": auto_ontology_semantic,
+                "auto_ontology.semantic.compile": auto_ontology_compile,
             },
         ):
             semantic = importlib.import_module(module_name)

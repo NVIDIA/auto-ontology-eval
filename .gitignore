@@ -73,3 +73,6 @@ resources_servers/*/data/*
 !resources_servers/*/data/example_rollouts.jsonl
 # Rollouts, aggregate metrics and materialized inputs from `gym eval run`.
 runs/
+# Hydra's default per-run dir. Holds only the resolved config snapshot, which
+# records every override verbatim -- including policy_api_key.
+outputs/

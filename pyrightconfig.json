@@ -1,5 +1,4 @@
 {
   "venvPath": ".",
-  "venv": ".venv",
-  "extraPaths": ["../auto-ontology"]
+  "venv": ".venv"
 }

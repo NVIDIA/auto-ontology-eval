@@ -31,7 +31,7 @@ Usage::
 
 After seeding::
 
-    PYTHONPATH=../GSF uv run python main.py --database-name fdabench
+    uv run python main.py --database-name fdabench
 """
 
 from __future__ import annotations

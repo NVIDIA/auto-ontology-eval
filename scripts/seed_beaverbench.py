@@ -28,7 +28,7 @@ Usage::
 
 After seeding::
 
-    PYTHONPATH=../GSF uv run python main.py --database-name beaverbench
+    uv run python main.py --database-name beaverbench
 """
 
 from __future__ import annotations
@@ -475,13 +475,10 @@ def seed_beaverbench(
     if not import_mysql:
         logger.info(
             "Next: re-run with --import-mysql (requires Docker), then:\n"
-            "  PYTHONPATH=../GSF uv run python main.py --database-name beaverbench"
+            "  uv run python main.py --database-name beaverbench"
         )
     else:
-        logger.info(
-            "Next:\n"
-            "  PYTHONPATH=../GSF uv run python main.py --database-name beaverbench"
-        )
+        logger.info("Next:\n  uv run python main.py --database-name beaverbench")
     logger.info("=" * 60)
     return rows, db_ids
 

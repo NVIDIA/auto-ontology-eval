@@ -23,69 +23,38 @@ BEAVER pipeline uses it. The benchmark itself uses no LLM judge — scoring is
 deterministic execution match.
 
 > [!IMPORTANT]
-> **You need [Auto Ontology](https://github.com/NVIDIA/auto-ontology).**
+> **Auto Ontology is installed automatically.**
 >
-> The ingestion and
-> retrieval-eval workflows import the `auto_ontology` package from a **sibling
-> `../GSF` checkout** ([NVIDIA/auto-ontology](https://github.com/NVIDIA/auto-ontology)).
-> The repo was renamed; the directory is still `../GSF` because
-> `.vscode/launch.json`, `pyrightconfig.json` and several scripts hardcode that
-> path, so clone it as `GSF` (or symlink it)
->
-> It must live right next to this
-> repo on the same machine (i.e. `../GSF` relative to this repo's root) and be on
-> `PYTHONPATH`.
->
-> It is **not** installed into the venv. Only the **judge** works
-> without it.
->
-> See [Prerequisites](#prerequisites) below.
+> `uv sync` installs the pinned
+> [NVIDIA/auto-ontology](https://github.com/NVIDIA/auto-ontology) Git revision.
+> No sibling checkout or `PYTHONPATH` configuration is required.
 
 ## Prerequisites
 
 | Requirement                                                                  | Ingestion  | Retrieval eval | Judge |
 | ---------------------------------------------------------------------------- | :--------: | :------------: | :---: |
-| [uv](https://docs.astral.sh/uv/) + Python 3.12 (3.12–3.13)                   |    yes     |      yes       |  yes  |
-| Sibling repo `../GSF` checkout ([NVIDIA/auto-ontology](https://github.com/NVIDIA/auto-ontology)) |    yes     |      yes       |  no   |
-| GitHub access to `NVIDIA/NeMo-Retriever`                                     |    yes     |      yes       |  no   |
+| [uv](https://docs.astral.sh/uv/) + Python 3.13.14                           |    yes     |      yes       |  yes  |
+| Network access to `NVIDIA/NeMo-Retriever`                                    |    yes     |      yes       |  no   |
 | Postgres (catalog + pgvector) service                                        |    yes     |      yes       |  no   |
 | Reachable source database                                                    |    yes     |      yes       |  no   |
 | LLM API key                                                                  | embed only |      yes       |  yes  |
 
-The two external dependencies are provided differently:
-
-- `../GSF` (`https://github.com/NVIDIA/auto-ontology`) — provides the `auto_ontology` package. **Check it out next to this repo** so it
-  resolves as `../GSF`; it is imported via `PYTHONPATH` (not installed — see
-  below).
-- `nemo-retriever` (`https://github.com/NVIDIA/NeMo-Retriever.git`) — provides
-  `nemo_retriever`, installed from GitHub by `uv sync` (see `[tool.uv.sources]`
-  in [pyproject.toml](pyproject.toml)).
+Auto Ontology and NeMo Retriever are installed from GitHub by `uv sync`; their
+sources are pinned in [pyproject.toml](pyproject.toml) and
+[uv.lock](uv.lock).
 
 For ingestion and retrieval eval you also need a live **Postgres** service
-(it holds both GSF's catalog and the pgvector collections), plus a reachable
-source DB. GSF's catalog schema must be migrated first:
-
-```bash
-cd ../GSF && uv run alembic upgrade head
-```
- The easiest way to start the
-stores is GSF's `docker-compose.yml`:
-
-```bash
-cd ../GSF && docker compose up -d
-```
+(it holds both Auto Ontology's catalog and the pgvector collections), plus a
+reachable source DB. Auto Ontology's catalog schema must be migrated first:
+follow the deployment and migration instructions in the
+[Auto Ontology repository](https://github.com/NVIDIA/auto-ontology).
 
 ## Setup
 
 ```bash
-uv sync                # creates the unified .venv (Python 3.12), pulling nemo_retriever from GitHub
+uv sync                # creates .venv and installs pinned Git dependencies
 cp .env.example .env   # then fill in your values
 ```
-
-Auto Ontology is `package = false`, so `auto_ontology` is not installed into the venv — it imports
-only when `../GSF` is on `PYTHONPATH`. The VS Code launch configs set this
-automatically. For command-line runs of the ingestion / eval scripts, prefix the
-command with `PYTHONPATH=../GSF` (the judge does not need it).
 
 ## Configuration
 
@@ -114,7 +83,7 @@ command with `PYTHONPATH=../GSF` (the judge does not need it).
 | `REASONING_API_KEY`, `REASONING_ENDPOINT`, `REASONING_MODEL` | agent (eval) | LLM that the text-to-SQL agent generates with (falls back to `DEFAULT_MODELS_*`). |
 | `JUDGE_API_KEY`, `JUDGE_BASE_URL`, `JUDGE_MODEL_NAME` | judge         | LLM that the judge scores with (falls back to `DEFAULT_MODELS_*`, then legacy shared vars, then a built-in default for the key prefix). |
 | `EMBED_API_KEY`, `EMBED_ENDPOINT`, `EMBED_MODEL`      | ingest + eval | Embedding endpoint (must be identical for ingest and query).          |
-| `POSTGRES_*`                                          | ingest + eval | Store connection — GSF's catalog and the pgvector collections.        |
+| `POSTGRES_*`                                          | ingest + eval | Store connection — Auto Ontology's catalog and pgvector collections.  |
 | `CONNECTION_STRINGS`                                  | ingest + eval | Source DB to extract schema from / execute SQL against.               |
 
 ## Seed the local source DB (required)
@@ -142,7 +111,7 @@ compile → **NeMo Gym benchmark** — writing rollouts to `runs/control/` and
 and `.env` is filled in):
 
 ```bash
-PYTHONPATH=../GSF uv run python main.py --database-name <database_name>
+uv run python main.py --database-name <database_name>
 ```
 
 The benchmark stage builds both arms' task files, runs the schema-only control
@@ -155,7 +124,7 @@ Stages can be skipped with `--skip-ingest`, `--skip-semantic`, `--skip-eval`
 already-ingested dataset, three questions at a time:
 
 ```bash
-PYTHONPATH=../GSF uv run python main.py --database-name bird \
+uv run python main.py --database-name bird \
     --skip-ingest --skip-semantic --limit 10 --eval-workers 3
 ```
 
@@ -202,7 +171,7 @@ regenerating. To rebuild them, [`scripts/build_eval_inputs.py`](scripts/build_ev
 runs every step in order and writes both files:
 
 ```bash
-PYTHONPATH=../GSF uv run python scripts/build_eval_inputs.py
+uv run python scripts/build_eval_inputs.py
 ```
 
 It needs the BIRD **Dev** split *and* its Train corpus on disk
@@ -236,7 +205,7 @@ resampled rather than replayed — caches are gitignored, the CSVs are not.
 Pass the results to the eval (the flags are independent; either can be omitted):
 
 ```bash
-PYTHONPATH=../GSF uv run python -m ontology_sql_eval.retrieval.eval_chatbot \
+uv run python -m ontology_sql_eval.retrieval.eval_chatbot \
     --database-name bird \
     --sql-examples prompt_inputs/bird/predicted_structural_exemplars.csv \
     --sql-examples-k 5 \
@@ -337,8 +306,8 @@ A JSON **array** of question objects. Fields consumed by the retrieval eval:
 ### `metadata.json`
 
 An object keyed by table name, used only during ingestion to stamp descriptions
-and sample values onto GSF's catalog. Optional — enrichment is skipped if the
-file is missing.
+and sample values onto Auto Ontology's catalog. Optional — enrichment is
+skipped if the file is missing.
 
 ```json
 {
@@ -376,7 +345,7 @@ embedded into the semantic vector store. Optional.
 Each workflow has its own README with purpose, run instructions, and outputs:
 
 - **[Ingestion](ontology_sql_eval/ingestion/README.md)** — extract + embed a
-  source DB's schema into GSF's Postgres catalog + pgvector (requires GSF).
+  source DB's schema into Auto Ontology's Postgres catalog + pgvector.
 - **[NeMo Gym benchmark](resources_servers/README.md)** — schema-only control
   vs the ontology-grounded agent, one deterministic verifier, one delta
   (requires Auto Ontology for the ontology arm). This is `main.py`'s evaluation
@@ -385,7 +354,7 @@ Each workflow has its own README with purpose, run instructions, and outputs:
   agent runner behind `scripts/run_eval_shard.py`. No longer a `main.py` stage;
   it produces the CSVs the judge scores (requires Auto Ontology).
 - **[SQL judge](ontology_sql_eval/judge/README.md)** — standalone LLM re-scorer
-  for eval CSVs (no GSF required).
+  for eval CSVs (no Auto Ontology checkout required).
 
 ### NeMo Gym benchmark
 
@@ -410,11 +379,11 @@ uv run python scripts/compare_arms.py \
 Datasets: `bird`, `fdabench`, `wideworldimporters` (Postgres), `beaverbench`
 (MySQL). The ontology arm additionally needs the database ingested and its
 semantic layer compiled (workflow 1) — it drives the agent in-process, importing
-it from `AUTO_ONTOLOGY_PATH`.
+the installed `auto_ontology` package.
 
 Knobs: `GYM_CONCURRENCY` (default 3 — size against the model endpoint's **rate
 limit**, not CPU), `GYM_API_KEY` (overrides the key for both the policy model and
-the agent's own calls), `AUTO_ONTOLOGY_PATH`.
+the agent's own calls), `GYM_MODEL`, and `GYM_MODEL_URL`.
 
 > [!WARNING]
 > Read the `health/*` counters next to the accuracy. A rate-limited or otherwise
@@ -431,7 +400,7 @@ the agent's own calls), `AUTO_ONTOLOGY_PATH`.
 
 ```
 ontology_sql_eval/          single namespace package
-  judge/                    standalone LLM scorer (no GSF dependency)
+  judge/                    standalone LLM scorer (no Auto Ontology dependency)
     README.md               judge workflow guide
     config.py               resolves JUDGE_* settings from .env
     scorer.py               per-row LLM scoring call
@@ -439,13 +408,13 @@ ontology_sql_eval/          single namespace package
     models.py               Pydantic score model + scoring prompt
     main.py                 CLI entry point (ontology-sql-eval)
     bird.py                 BIRD official EX + VES scoring (separate from the LLM judge)
-  ingestion/                GSF-backed ingestion pipeline
+  ingestion/                Auto Ontology-backed ingestion pipeline
     README.md               ingestion workflow guide
     ingest.py               source DB -> pgvector ingest (calls enrich_graph)
     semantic.py             compile the semantic layer over the ingested graph
     enrich_graph.py         graph metadata + custom-analysis enrichment
     mock_ingest.py          in-memory 4-table demo ingest (mock_shop)
-  retrieval/                GSF-backed retrieval eval
+  retrieval/                Auto Ontology-backed retrieval eval
     README.md               retrieval-eval workflow guide
     eval_chatbot.py         retrieval eval driver (--workers runs N in parallel)
     run_logging.py          per-run log bundle, phase timeline, timing summary
@@ -478,8 +447,8 @@ logs/<run-id>/              per-eval-run logs + timings (contents gitignored)
 VS Code launch configurations for all of the above (Run full pipeline, Judge,
 Ingest, Semantic compile, Eval, Eval single-query, Seed local WWI,
 Seed local BIRD, Seed local FDABench, Seed local BEAVER) are provided in [.vscode/launch.json](.vscode/launch.json); they set
-`PYTHONPATH=../GSF` where needed and load `.env` automatically. The type-checker
-path for `../GSF` is configured in [pyrightconfig.json](pyrightconfig.json).
+load `.env` automatically. The type checker uses the project's `.venv`, as
+configured in [pyrightconfig.json](pyrightconfig.json).
 
 ## Contributing
 

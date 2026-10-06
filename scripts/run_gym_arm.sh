@@ -45,16 +45,11 @@ if [[ -z "${DEFAULT_MODELS_API_KEY:-}" ]]; then
   exit 1
 fi
 
-# Absolute, because Gym runs each server after `cd`-ing into its own directory.
-export PYTHONPATH="${AUTO_ONTOLOGY_PATH:-$ROOT/../auto-ontology-gym}:$ROOT"
-
 # --agent takes the fully-qualified server-instance name: nemo-gym 0.6.0
 # rejects the bare inner key ("simple_agent") that 0.4.0 accepted.
 #
-# Gym builds each server its own venv from its requirements.txt, which is what we
-# want. Auto Ontology still arrives via PYTHONPATH because it is not yet an installable
-# package; once it is, it becomes an ordinary requirement and the PYTHONPATH
-# export below can go.
+# Gym builds each server its own venv from its requirements.txt. Auto Ontology
+# is installed transitively from the parent project's pinned Git dependency.
 exec .venv/bin/gym eval run \
   --search-dir . \
   --resources-server "$SERVER" \

@@ -4,7 +4,7 @@
 
 """Semantic-layer compilation: build the business taxonomy in Postgres.
 
-Thin in-process wrapper around GSF's ``run_semantic_compilation`` (the same
+Thin in-process wrapper around Auto Ontology's ``run_semantic_compilation`` (the same
 routine as ``python -m auto_ontology.semantic``) so it can be imported, called, and
 stepped through in a debugger without spawning a subprocess.
 
@@ -28,9 +28,9 @@ import os
 
 from ontology_sql_eval.env import load_env
 
-# ruff: noqa: E402 - GSF imports must follow environment bootstrap.
-# Load this repository's environment before importing GSF modules that read it,
-# while retaining GSF's environment as a fallback.
+# ruff: noqa: E402 - Auto Ontology imports must follow environment bootstrap.
+# Load this repository's environment before importing Auto Ontology modules that read it,
+# while retaining Auto Ontology's environment as a fallback.
 load_env()
 
 from auto_ontology.semantic.compile import run_semantic_compilation  # noqa: E402

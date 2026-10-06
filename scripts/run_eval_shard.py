@@ -15,7 +15,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-# GSF resolves its model endpoint/key into module-level constants at import
+# Auto Ontology resolves its model endpoint/key into module-level constants at import
 # time, so the environment has to be populated before that import happens.
 load_dotenv()
 

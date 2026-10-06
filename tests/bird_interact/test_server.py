@@ -4,7 +4,7 @@
 
 """Mocked tests for the BIRD-Interact adapter server.
 
-All GSF and Bird HTTP calls are mocked — no external services needed.
+All Auto Ontology and Bird HTTP calls are mocked — no external services needed.
 """
 
 from __future__ import annotations
@@ -46,54 +46,54 @@ class TurnType:
     FOLLOW_UP = "follow_up"
 
 
-def _ensure_gsf_mocks() -> None:
-    """Populate sys.modules with lightweight stubs if gsf is absent."""
+def _ensure_auto_ontology_mocks() -> None:
+    """Populate sys.modules with lightweight stubs if Auto Ontology is absent."""
     if "auto_ontology" in sys.modules:
         return  # already present (real package or previously injected)
 
-    gsf_mod = types.ModuleType("auto_ontology")
-    gsf_retrieval = types.ModuleType("auto_ontology.retrieval")
-    gsf_interactive = types.ModuleType("auto_ontology.retrieval.interactive")
+    auto_ontology_mod = types.ModuleType("auto_ontology")
+    auto_ontology_retrieval = types.ModuleType("auto_ontology.retrieval")
+    auto_ontology_interactive = types.ModuleType("auto_ontology.retrieval.interactive")
 
     # Action types used by server.py
-    gsf_interactive.AskUserAction = AskUserAction  # type: ignore[attr-defined]
-    gsf_interactive.SubmitSQLAction = SubmitSQLAction  # type: ignore[attr-defined]
-    gsf_interactive.TurnType = TurnType  # type: ignore[attr-defined]
+    auto_ontology_interactive.AskUserAction = AskUserAction  # type: ignore[attr-defined]
+    auto_ontology_interactive.SubmitSQLAction = SubmitSQLAction  # type: ignore[attr-defined]
+    auto_ontology_interactive.TurnType = TurnType  # type: ignore[attr-defined]
 
     # Callable stubs (tests override these per-test via patch)
-    gsf_interactive.create_session = MagicMock()  # type: ignore[attr-defined]
-    gsf_interactive.step = MagicMock()  # type: ignore[attr-defined]
-    gsf_interactive.apply_user_answer = MagicMock()  # type: ignore[attr-defined]
-    gsf_interactive.apply_submit_result = MagicMock()  # type: ignore[attr-defined]
+    auto_ontology_interactive.create_session = MagicMock()  # type: ignore[attr-defined]
+    auto_ontology_interactive.step = MagicMock()  # type: ignore[attr-defined]
+    auto_ontology_interactive.apply_user_answer = MagicMock()  # type: ignore[attr-defined]
+    auto_ontology_interactive.apply_submit_result = MagicMock()  # type: ignore[attr-defined]
 
     # Sub-module alias so `from auto_ontology.retrieval.interactive.types import ...` works
-    gsf_interactive_types = types.ModuleType("auto_ontology.retrieval.interactive.types")
-    gsf_interactive_types.AskUserAction = AskUserAction  # type: ignore[attr-defined]
-    gsf_interactive_types.SubmitSQLAction = SubmitSQLAction  # type: ignore[attr-defined]
+    auto_ontology_interactive_types = types.ModuleType("auto_ontology.retrieval.interactive.types")
+    auto_ontology_interactive_types.AskUserAction = AskUserAction  # type: ignore[attr-defined]
+    auto_ontology_interactive_types.SubmitSQLAction = SubmitSQLAction  # type: ignore[attr-defined]
 
-    gsf_utils = types.ModuleType("auto_ontology.utils")
-    gsf_utils.get_data_objects_retriever = MagicMock()  # type: ignore[attr-defined]
-    gsf_utils.get_semantic_objects_retriever = MagicMock()  # type: ignore[attr-defined]
+    auto_ontology_utils = types.ModuleType("auto_ontology.utils")
+    auto_ontology_utils.get_data_objects_retriever = MagicMock()  # type: ignore[attr-defined]
+    auto_ontology_utils.get_semantic_objects_retriever = MagicMock()  # type: ignore[attr-defined]
 
     # Reached via server.py -> ontology_sql_eval.env, which falls back to
-    # GSF's .env for anything this repo's own .env does not define.
-    gsf_env = types.ModuleType("auto_ontology.env")
-    gsf_env.load_env = MagicMock()  # type: ignore[attr-defined]
+    # Auto Ontology's .env for anything this repo's own .env does not define.
+    auto_ontology_env = types.ModuleType("auto_ontology.env")
+    auto_ontology_env.load_env = MagicMock()  # type: ignore[attr-defined]
 
-    gsf_mod.retrieval = gsf_retrieval  # type: ignore[attr-defined]
-    gsf_retrieval.interactive = gsf_interactive  # type: ignore[attr-defined]
-    gsf_mod.utils = gsf_utils  # type: ignore[attr-defined]
-    gsf_mod.env = gsf_env  # type: ignore[attr-defined]
+    auto_ontology_mod.retrieval = auto_ontology_retrieval  # type: ignore[attr-defined]
+    auto_ontology_retrieval.interactive = auto_ontology_interactive  # type: ignore[attr-defined]
+    auto_ontology_mod.utils = auto_ontology_utils  # type: ignore[attr-defined]
+    auto_ontology_mod.env = auto_ontology_env  # type: ignore[attr-defined]
 
-    sys.modules["auto_ontology"] = gsf_mod
-    sys.modules["auto_ontology.retrieval"] = gsf_retrieval
-    sys.modules["auto_ontology.retrieval.interactive"] = gsf_interactive
-    sys.modules["auto_ontology.retrieval.interactive.types"] = gsf_interactive_types
-    sys.modules["auto_ontology.utils"] = gsf_utils
-    sys.modules["auto_ontology.env"] = gsf_env
+    sys.modules["auto_ontology"] = auto_ontology_mod
+    sys.modules["auto_ontology.retrieval"] = auto_ontology_retrieval
+    sys.modules["auto_ontology.retrieval.interactive"] = auto_ontology_interactive
+    sys.modules["auto_ontology.retrieval.interactive.types"] = auto_ontology_interactive_types
+    sys.modules["auto_ontology.utils"] = auto_ontology_utils
+    sys.modules["auto_ontology.env"] = auto_ontology_env
 
 
-_ensure_gsf_mocks()
+_ensure_auto_ontology_mocks()
 
 # ---------------------------------------------------------------------------
 # Now it is safe to import the server module.
@@ -111,7 +111,7 @@ from ontology_sql_eval.bird_interact import session as session_mod  # noqa: E402
 
 @asynccontextmanager
 async def _noop_lifespan(app):  # type: ignore[no-untyped-def]
-    """Replace the real lifespan so no GSF initialisation occurs."""
+    """Replace the real lifespan so no Auto Ontology initialisation occurs."""
     yield
 
 
@@ -133,10 +133,10 @@ def _make_client(
         patch.object(server_mod, "_DATA_RETRIEVER", MagicMock()),
         patch.object(server_mod, "_SEMANTIC_RETRIEVER", MagicMock()),
         patch.object(server_mod, "_CONNECTORS", {"alien": [MagicMock()]}),
-        patch.object(server_mod, "gsf_create_session", return_value=mock_sess),
-        patch.object(server_mod, "gsf_step", mock_step),
-        patch.object(server_mod, "gsf_apply_user_answer", MagicMock()),
-        patch.object(server_mod, "gsf_apply_submit_result", MagicMock()),
+        patch.object(server_mod, "auto_ontology_create_session", return_value=mock_sess),
+        patch.object(server_mod, "auto_ontology_step", mock_step),
+        patch.object(server_mod, "auto_ontology_apply_user_answer", MagicMock()),
+        patch.object(server_mod, "auto_ontology_apply_submit_result", MagicMock()),
         patch("ontology_sql_eval.bird_interact.bird_interact_http.ask_user", mock_ask),
         patch(
             "ontology_sql_eval.bird_interact.bird_interact_http.submit_sql", mock_submit
@@ -187,7 +187,7 @@ def test_init_session():
         patch.object(server_mod, "_DATA_RETRIEVER", MagicMock()),
         patch.object(server_mod, "_SEMANTIC_RETRIEVER", MagicMock()),
         patch.object(server_mod, "_CONNECTORS", {"alien": [MagicMock()]}),
-        patch.object(server_mod, "gsf_create_session", return_value=mock_sess),
+        patch.object(server_mod, "auto_ontology_create_session", return_value=mock_sess),
         patch.object(app.router, "lifespan_context", _noop_lifespan),
     ):
         with TestClient(app) as client:
@@ -216,12 +216,12 @@ def test_run_session_submit_only():
         patch.object(server_mod, "_DATA_RETRIEVER", MagicMock()),
         patch.object(server_mod, "_SEMANTIC_RETRIEVER", MagicMock()),
         patch.object(server_mod, "_CONNECTORS", {"alien": [MagicMock()]}),
-        patch.object(server_mod, "gsf_create_session", return_value=mock_sess),
+        patch.object(server_mod, "auto_ontology_create_session", return_value=mock_sess),
         patch.object(
-            server_mod, "gsf_step", MagicMock(return_value=SubmitSQLAction("SELECT 1"))
+            server_mod, "auto_ontology_step", MagicMock(return_value=SubmitSQLAction("SELECT 1"))
         ),
-        patch.object(server_mod, "gsf_apply_user_answer", MagicMock()),
-        patch.object(server_mod, "gsf_apply_submit_result", MagicMock()),
+        patch.object(server_mod, "auto_ontology_apply_user_answer", MagicMock()),
+        patch.object(server_mod, "auto_ontology_apply_submit_result", MagicMock()),
         patch(
             "ontology_sql_eval.bird_interact.bird_interact_http.submit_sql",
             AsyncMock(return_value=submit_result),
@@ -253,11 +253,11 @@ def test_run_session_treats_null_reward_as_zero():
         patch.object(server_mod, "_DATA_RETRIEVER", MagicMock()),
         patch.object(server_mod, "_SEMANTIC_RETRIEVER", MagicMock()),
         patch.object(server_mod, "_CONNECTORS", {"alien": [MagicMock()]}),
-        patch.object(server_mod, "gsf_create_session", return_value=mock_sess),
+        patch.object(server_mod, "auto_ontology_create_session", return_value=mock_sess),
         patch.object(
-            server_mod, "gsf_step", MagicMock(return_value=SubmitSQLAction("SELECT 1"))
+            server_mod, "auto_ontology_step", MagicMock(return_value=SubmitSQLAction("SELECT 1"))
         ),
-        patch.object(server_mod, "gsf_apply_submit_result", MagicMock()),
+        patch.object(server_mod, "auto_ontology_apply_submit_result", MagicMock()),
         patch(
             "ontology_sql_eval.bird_interact.bird_interact_http.submit_sql",
             AsyncMock(return_value=submit_result),
@@ -304,12 +304,12 @@ def test_run_session_fails_loud_on_known_p1snap_collision():
         patch.object(server_mod, "_DATA_RETRIEVER", MagicMock()),
         patch.object(server_mod, "_SEMANTIC_RETRIEVER", MagicMock()),
         patch.object(server_mod, "_CONNECTORS", {"alien": [MagicMock()]}),
-        patch.object(server_mod, "gsf_create_session", return_value=mock_sess),
+        patch.object(server_mod, "auto_ontology_create_session", return_value=mock_sess),
         patch.object(
-            server_mod, "gsf_step", MagicMock(return_value=SubmitSQLAction("SELECT 1"))
+            server_mod, "auto_ontology_step", MagicMock(return_value=SubmitSQLAction("SELECT 1"))
         ),
-        patch.object(server_mod, "gsf_apply_user_answer", MagicMock()),
-        patch.object(server_mod, "gsf_apply_submit_result", MagicMock()),
+        patch.object(server_mod, "auto_ontology_apply_user_answer", MagicMock()),
+        patch.object(server_mod, "auto_ontology_apply_submit_result", MagicMock()),
         patch(
             "ontology_sql_eval.bird_interact.bird_interact_http.submit_sql",
             AsyncMock(return_value=submit_result),
@@ -348,10 +348,10 @@ def test_run_session_ask_then_submit():
         patch.object(server_mod, "_DATA_RETRIEVER", MagicMock()),
         patch.object(server_mod, "_SEMANTIC_RETRIEVER", MagicMock()),
         patch.object(server_mod, "_CONNECTORS", {"alien": [MagicMock()]}),
-        patch.object(server_mod, "gsf_create_session", return_value=mock_sess),
-        patch.object(server_mod, "gsf_step", step_mock),
-        patch.object(server_mod, "gsf_apply_user_answer", MagicMock()),
-        patch.object(server_mod, "gsf_apply_submit_result", MagicMock()),
+        patch.object(server_mod, "auto_ontology_create_session", return_value=mock_sess),
+        patch.object(server_mod, "auto_ontology_step", step_mock),
+        patch.object(server_mod, "auto_ontology_apply_user_answer", MagicMock()),
+        patch.object(server_mod, "auto_ontology_apply_submit_result", MagicMock()),
         patch(
             "ontology_sql_eval.bird_interact.bird_interact_http.ask_user",
             AsyncMock(return_value="2023"),
@@ -395,10 +395,10 @@ def test_one_submit_per_turn():
         patch.object(server_mod, "_DATA_RETRIEVER", MagicMock()),
         patch.object(server_mod, "_SEMANTIC_RETRIEVER", MagicMock()),
         patch.object(server_mod, "_CONNECTORS", {"alien": [MagicMock()]}),
-        patch.object(server_mod, "gsf_create_session", return_value=mock_sess),
-        patch.object(server_mod, "gsf_step", step_mock),
-        patch.object(server_mod, "gsf_apply_user_answer", MagicMock()),
-        patch.object(server_mod, "gsf_apply_submit_result", MagicMock()),
+        patch.object(server_mod, "auto_ontology_create_session", return_value=mock_sess),
+        patch.object(server_mod, "auto_ontology_step", step_mock),
+        patch.object(server_mod, "auto_ontology_apply_user_answer", MagicMock()),
+        patch.object(server_mod, "auto_ontology_apply_submit_result", MagicMock()),
         patch(
             "ontology_sql_eval.bird_interact.bird_interact_http.ask_user",
             AsyncMock(return_value="2023"),
@@ -434,14 +434,14 @@ def test_exec_err_flg_preserved():
         patch.object(server_mod, "_DATA_RETRIEVER", MagicMock()),
         patch.object(server_mod, "_SEMANTIC_RETRIEVER", MagicMock()),
         patch.object(server_mod, "_CONNECTORS", {"alien": [MagicMock()]}),
-        patch.object(server_mod, "gsf_create_session", return_value=mock_sess),
+        patch.object(server_mod, "auto_ontology_create_session", return_value=mock_sess),
         patch.object(
             server_mod,
-            "gsf_step",
+            "auto_ontology_step",
             MagicMock(return_value=SubmitSQLAction("SELECT bad")),
         ),
-        patch.object(server_mod, "gsf_apply_user_answer", MagicMock()),
-        patch.object(server_mod, "gsf_apply_submit_result", MagicMock()),
+        patch.object(server_mod, "auto_ontology_apply_user_answer", MagicMock()),
+        patch.object(server_mod, "auto_ontology_apply_submit_result", MagicMock()),
         patch(
             "ontology_sql_eval.bird_interact.bird_interact_http.submit_sql",
             AsyncMock(return_value=submit_result),
@@ -465,8 +465,8 @@ def test_exec_err_flg_preserved():
 
 def test_next_turn_type_threaded_as_debug_with_error():
     """A failing exec-error submit on turn N must make turn N+1's run_session
-    call gsf_step with turn_type=DEBUG and the pre-extracted error text,
-    instead of leaving gsf to re-derive it by pattern-matching the next
+    call auto_ontology_step with turn_type=DEBUG and the pre-extracted error text,
+    instead of leaving Auto Ontology to re-derive it by pattern-matching the next
     orchestrator message."""
     mock_sess = MagicMock()
     first_result = {
@@ -480,10 +480,10 @@ def test_next_turn_type_threaded_as_debug_with_error():
         patch.object(server_mod, "_DATA_RETRIEVER", MagicMock()),
         patch.object(server_mod, "_SEMANTIC_RETRIEVER", MagicMock()),
         patch.object(server_mod, "_CONNECTORS", {"alien": [MagicMock()]}),
-        patch.object(server_mod, "gsf_create_session", return_value=mock_sess),
-        patch.object(server_mod, "gsf_step", step_mock),
-        patch.object(server_mod, "gsf_apply_user_answer", MagicMock()),
-        patch.object(server_mod, "gsf_apply_submit_result", MagicMock()),
+        patch.object(server_mod, "auto_ontology_create_session", return_value=mock_sess),
+        patch.object(server_mod, "auto_ontology_step", step_mock),
+        patch.object(server_mod, "auto_ontology_apply_user_answer", MagicMock()),
+        patch.object(server_mod, "auto_ontology_apply_submit_result", MagicMock()),
         patch(
             "ontology_sql_eval.bird_interact.bird_interact_http.submit_sql",
             AsyncMock(return_value=first_result),
@@ -527,7 +527,7 @@ def test_next_turn_type_threaded_as_debug_with_error():
 
 def test_next_turn_type_threaded_as_follow_up():
     """A phase-1-completing submit must make the next run_session call
-    gsf_step with turn_type=FOLLOW_UP."""
+    auto_ontology_step with turn_type=FOLLOW_UP."""
     mock_sess = MagicMock()
     first_result = {"message": "correct", "reward": 1.0, "phase_completed": 1}
     step_mock = MagicMock(return_value=SubmitSQLAction("SELECT 1"))
@@ -536,10 +536,10 @@ def test_next_turn_type_threaded_as_follow_up():
         patch.object(server_mod, "_DATA_RETRIEVER", MagicMock()),
         patch.object(server_mod, "_SEMANTIC_RETRIEVER", MagicMock()),
         patch.object(server_mod, "_CONNECTORS", {"alien": [MagicMock()]}),
-        patch.object(server_mod, "gsf_create_session", return_value=mock_sess),
-        patch.object(server_mod, "gsf_step", step_mock),
-        patch.object(server_mod, "gsf_apply_user_answer", MagicMock()),
-        patch.object(server_mod, "gsf_apply_submit_result", MagicMock()),
+        patch.object(server_mod, "auto_ontology_create_session", return_value=mock_sess),
+        patch.object(server_mod, "auto_ontology_step", step_mock),
+        patch.object(server_mod, "auto_ontology_apply_user_answer", MagicMock()),
+        patch.object(server_mod, "auto_ontology_apply_submit_result", MagicMock()),
         patch(
             "ontology_sql_eval.bird_interact.bird_interact_http.submit_sql",
             AsyncMock(return_value=first_result),
@@ -588,10 +588,10 @@ def test_first_turn_stays_retryable_after_transient_failure():
         patch.object(server_mod, "_DATA_RETRIEVER", MagicMock()),
         patch.object(server_mod, "_SEMANTIC_RETRIEVER", MagicMock()),
         patch.object(server_mod, "_CONNECTORS", {"alien": [MagicMock()]}),
-        patch.object(server_mod, "gsf_create_session", return_value=mock_sess),
-        patch.object(server_mod, "gsf_step", step_mock),
-        patch.object(server_mod, "gsf_apply_user_answer", MagicMock()),
-        patch.object(server_mod, "gsf_apply_submit_result", MagicMock()),
+        patch.object(server_mod, "auto_ontology_create_session", return_value=mock_sess),
+        patch.object(server_mod, "auto_ontology_step", step_mock),
+        patch.object(server_mod, "auto_ontology_apply_user_answer", MagicMock()),
+        patch.object(server_mod, "auto_ontology_apply_submit_result", MagicMock()),
         patch(
             "ontology_sql_eval.bird_interact.bird_interact_http.submit_sql",
             submit_mock,
@@ -630,10 +630,10 @@ def test_run_session_caps_a_never_ending_clarification_loop():
         patch.object(server_mod, "_DATA_RETRIEVER", MagicMock()),
         patch.object(server_mod, "_SEMANTIC_RETRIEVER", MagicMock()),
         patch.object(server_mod, "_CONNECTORS", {"alien": [MagicMock()]}),
-        patch.object(server_mod, "gsf_create_session", return_value=mock_sess),
-        patch.object(server_mod, "gsf_step", step_mock),
-        patch.object(server_mod, "gsf_apply_user_answer", MagicMock()),
-        patch.object(server_mod, "gsf_apply_submit_result", MagicMock()),
+        patch.object(server_mod, "auto_ontology_create_session", return_value=mock_sess),
+        patch.object(server_mod, "auto_ontology_step", step_mock),
+        patch.object(server_mod, "auto_ontology_apply_user_answer", MagicMock()),
+        patch.object(server_mod, "auto_ontology_apply_submit_result", MagicMock()),
         patch("ontology_sql_eval.bird_interact.bird_interact_http.ask_user", ask_mock),
         patch(
             "ontology_sql_eval.bird_interact.bird_interact_http.submit_sql", submit_mock

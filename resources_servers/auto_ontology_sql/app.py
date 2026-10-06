@@ -18,13 +18,14 @@ Sharing one interpreter with ``nemo_gym`` took two dependency decisions, both
 recorded in ``overrides.txt`` and ``pyproject.toml``: an override lifting
 nemo-retriever's stale ``prometheus-fastapi-instrumentator<8`` cap (it pins
 ``starlette<1.0.0``, which collides with nemo-gym's ray[serve]), and a
-``langchain-openai<1.3.5`` bound (nemo-gym pins ``openai==2.44.0``).
+the OpenAI 2.x override that reconciles Auto Ontology with NeMo Gym's stale
+``openai==2.44.0`` pin.
 
 Three couplings with Auto Ontology this module must respect:
 
 * ``auto_ontology.retrieval.text_to_sql.main`` builds its LLM client and compiles the
-  graph *at import time*, so the environment is loaded before the gsf imports.
-* Auto Ontology is imported from a checkout on ``PYTHONPATH``; it is not installed here.
+  graph *at import time*, so the environment is loaded before Auto Ontology imports.
+* Auto Ontology is installed from the parent project's pinned Git dependency.
 * ``stream_agent_response`` is a blocking generator, so it runs on a worker
   thread under a semaphore rather than on the event loop.
 """
@@ -41,7 +42,7 @@ from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
 from pydantic import ConfigDict, Field
 
-# Must precede the gsf imports: Auto Ontology resolves endpoints and constructs an LLM
+# Must precede Auto Ontology imports: it resolves endpoints and constructs an LLM
 # client while its modules are being imported.
 load_dotenv()
 
@@ -105,7 +106,7 @@ _GOLD_FAILURE = {
 }
 
 # Older Auto Ontology builds fold the BIRD-style hint into the question text instead of
-# taking it as its own field. Probe rather than pin a version, so one checkout of
+# taking it as its own field. Probe rather than pin a version, so one revision of
 # this harness runs against both.
 _SUPPORTS_EVIDENCE = "evidence" in getattr(TextToSQLPayload, "__annotations__", {})
 
@@ -247,7 +248,7 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
             # Auto Ontology with a handicap the legacy harness no longer carries.
             #
             # Set unconditionally, as ontology_sql_eval.retrieval.eval_chatbot
-            # does. TextToSQLPayload is a TypedDict, so on a Auto Ontology checkout that
+            # does. TextToSQLPayload is a TypedDict, so on an Auto Ontology revision that
             # predates the parameter this is an inert extra key rather than an
             # error -- it simply has no effect.
             "shorten_answer": True,

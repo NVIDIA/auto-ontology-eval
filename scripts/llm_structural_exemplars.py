@@ -226,14 +226,75 @@ WORD = re.compile(r"[A-Za-z_][A-Za-z_'-]*")
 # Words that carry question structure and must survive the proper-noun filter
 # even when a sentence starts with them.
 STRUCTURAL = {
-    "what", "which", "who", "whose", "when", "where", "how", "list", "name",
-    "give", "show", "state", "please", "find", "identify", "the", "of", "in",
-    "for", "and", "or", "is", "are", "was", "were", "has", "have", "had", "do",
-    "does", "did", "with", "without", "among", "between", "more", "less",
-    "than", "most", "least", "all", "each", "per", "total", "average",
-    "number", "many", "much", "percentage", "percent", "ratio", "rate",
-    "difference", "highest", "lowest", "top", "first", "last", "also", "its",
-    "their", "that", "this", "these", "those", "there", "any", "only", "both",
+    "what",
+    "which",
+    "who",
+    "whose",
+    "when",
+    "where",
+    "how",
+    "list",
+    "name",
+    "give",
+    "show",
+    "state",
+    "please",
+    "find",
+    "identify",
+    "the",
+    "of",
+    "in",
+    "for",
+    "and",
+    "or",
+    "is",
+    "are",
+    "was",
+    "were",
+    "has",
+    "have",
+    "had",
+    "do",
+    "does",
+    "did",
+    "with",
+    "without",
+    "among",
+    "between",
+    "more",
+    "less",
+    "than",
+    "most",
+    "least",
+    "all",
+    "each",
+    "per",
+    "total",
+    "average",
+    "number",
+    "many",
+    "much",
+    "percentage",
+    "percent",
+    "ratio",
+    "rate",
+    "difference",
+    "highest",
+    "lowest",
+    "top",
+    "first",
+    "last",
+    "also",
+    "its",
+    "their",
+    "that",
+    "this",
+    "these",
+    "those",
+    "there",
+    "any",
+    "only",
+    "both",
 }
 
 
@@ -359,12 +420,58 @@ def load_dev(path: Path) -> list[dict]:
 # --- the SQL side: a query with every identifier and literal erased --------
 
 SQL_KEYWORDS = {
-    "select", "distinct", "from", "where", "group", "by", "order", "having",
-    "limit", "join", "inner", "left", "outer", "on", "and", "or", "not", "in",
-    "is", "null", "like", "between", "as", "asc", "desc", "case", "when",
-    "then", "else", "end", "cast", "real", "integer", "union", "all", "exists",
-    "count", "sum", "avg", "max", "min", "iif", "strftime", "substr", "round",
-    "julianday", "date", "datetime", "length", "abs", "coalesce", "div",
+    "select",
+    "distinct",
+    "from",
+    "where",
+    "group",
+    "by",
+    "order",
+    "having",
+    "limit",
+    "join",
+    "inner",
+    "left",
+    "outer",
+    "on",
+    "and",
+    "or",
+    "not",
+    "in",
+    "is",
+    "null",
+    "like",
+    "between",
+    "as",
+    "asc",
+    "desc",
+    "case",
+    "when",
+    "then",
+    "else",
+    "end",
+    "cast",
+    "real",
+    "integer",
+    "union",
+    "all",
+    "exists",
+    "count",
+    "sum",
+    "avg",
+    "max",
+    "min",
+    "iif",
+    "strftime",
+    "substr",
+    "round",
+    "julianday",
+    "date",
+    "datetime",
+    "length",
+    "abs",
+    "coalesce",
+    "div",
 }
 SQL_ALIAS_PREFIX = re.compile(r"\b[Tt]\d+\s*\.|\b[a-z]{1,3}\d?\s*\.", re.ASCII)
 SQL_AS_ALIAS = re.compile(r"\bas\s+[`\"\[]?\w+[`\"\]]?", re.IGNORECASE)
@@ -400,6 +507,7 @@ def skeleton(sql: object) -> str:
             prev = ""
     # "as" only ever introduced an alias or a cast type; keep casts readable.
     return " ".join(t for t in out if t != "as")
+
 
 # --------------------------------------------------------------------------
 # Prompt
@@ -501,7 +609,7 @@ def build_prompt(batch: list[tuple[dict, list[dict]]], k: int, show_sql: bool) -
 
 
 def _schemas():
-    """Built lazily: importing gsf triggers env-dependent client construction."""
+    """Built lazily: importing Auto Ontology constructs environment-bound clients."""
     from auto_ontology.utils.llm_invoke import StrictLLMOutputModel
     from pydantic import Field
 
@@ -706,7 +814,8 @@ def render_schema(db_path: Path) -> str:
         lines, keys = [], []
         for table in tables:
             columns = [
-                str(row[1]) for row in connection.execute(f'PRAGMA table_info("{table}")')
+                str(row[1])
+                for row in connection.execute(f'PRAGMA table_info("{table}")')
             ]
             lines.append(f"{table}({', '.join(columns)})")
             for row in connection.execute(f'PRAGMA foreign_key_list("{table}")'):
@@ -783,7 +892,7 @@ def build_hyde_prompt(
     if schema:
         # After the shots, so the shots cannot be mistaken for this schema's
         # tables, and before the questions, which are the thing to act on.
-        lines.append(f"\n\nSchema of the database these questions run against:")
+        lines.append("\n\nSchema of the database these questions run against:")
         lines.append(schema)
     ids = ", ".join(str(question["question_id"]) for question in batch)
     lines.append(f"\n\nNow write SQL for each of these {len(batch)} questions: {ids}")
@@ -1218,9 +1327,7 @@ def diversified(
     the rest hedging, so a wrong prediction costs some slots instead of all.
     Returns (ratio, example, which prediction, that prediction's skeleton).
     """
-    ranked = [
-        (skeleton(sql), index.query(skeleton(sql), k)) for sql in predictions
-    ]
+    ranked = [(skeleton(sql), index.query(skeleton(sql), k)) for sql in predictions]
     chosen: list[tuple[float, dict, int, str]] = []
     seen: set[str] = set()
     for depth in range(k):

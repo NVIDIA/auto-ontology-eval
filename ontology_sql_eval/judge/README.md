@@ -4,7 +4,7 @@
 
 Re-scores evaluation CSVs with an LLM that rates each row's SQL on logic,
 semantics, and similarity to the ground truth. This workflow is fully
-self-contained — no GSF/NeMo install, database, or vector stores required, only
+self-contained — no Auto Ontology/NeMo install, database, or vector stores required, only
 a judge LLM API key.
 
 The judge scores every CSV in `input/`. The retrieval eval writes its results
@@ -39,7 +39,7 @@ The scoring model is configured via `JUDGE_MODEL_NAME` / `JUDGE_BASE_URL` /
 `DEFAULT_MODELS_ENDPOINT` / `DEFAULT_MODELS_API_KEY`, then the legacy shared
 `MODEL_NAME` / `BASE_URL` / `NVIDIA_API_KEY`. When those are also unset, a
 built-in endpoint/model is chosen from the API key prefix (`sk-` →
-inference-api.nvidia.com, `nvapi-` → integrate.api.nvidia.com), matching GSF's
+inference-api.nvidia.com, `nvapi-` → integrate.api.nvidia.com), matching Auto Ontology's
 `model_config` behavior.
 
 ## BIRD official scoring (EX + VES)

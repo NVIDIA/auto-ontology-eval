@@ -1,7 +1,7 @@
 [project]
 name = "ontology-sql-eval"
 version = "0.1.0"
-description = "LLM-powered re-scoring of Text-to-SQL evaluation CSVs, plus GSF-backed ingestion and retrieval evaluation."
+description = "LLM-powered re-scoring of Text-to-SQL evaluation CSVs, plus Auto Ontology-backed ingestion and retrieval evaluation."
 readme = "README.md"
 # nemo-gym 0.6.0 requires >=3.13.14. Raised from >=3.12 when the Gym
 # environments were added so the harness and the Gym resources servers can share
@@ -10,18 +10,13 @@ requires-python = ">=3.13.14,<3.14"
 license = { text = "Apache-2.0" }
 dependencies = [
     "langchain-nvidia-ai-endpoints",
-    # Capped below 1.3.5: nemo-gym 0.6.0 pins openai==2.44.0, and
-    # langchain-openai>=1.3.5 requires openai>=2.45.0. Unlike the
-    # prometheus-fastapi-instrumentator override this is a real squeeze -- both
-    # packages genuinely use the openai SDK -- so it is expressed as a version
-    # bound rather than an override.
-    "langchain-openai>=1.3.2,<1.3.5",
+    # Auto Ontology requires >=1.6.0. NeMo Gym 0.6.0's stale openai==2.44.0
+    # pin is overridden below to the compatible 2.x range required here.
+    "langchain-openai>=1.6.0",
     "pandas>=2.0,<3",
     "pydantic>=2.0",
     "python-dotenv",
-    # GSF is imported from the sibling ../GSF checkout via PYTHONPATH (not
-    # installed). These mirror ../GSF/pyproject.toml so its runtime deps are in
-    # this repo's venv.
+    "auto-ontology-server @ git+https://github.com/NVIDIA/auto-ontology.git@1b4b17092e735d4583e7a6d9b148643b6a3e73b9",
     "nemo-retriever[tabular]",
     "psycopg[binary]>=3.3.3",
     "psycopg-pool>=3.3.1",
@@ -40,10 +35,9 @@ dependencies = [
     # transitively through nemo-retriever, but that is an unpinned git HEAD.
     "sqlglot>=30.12.0",
     "importlib-metadata>=9.0.0",
-    # auto_ontology.connectors is imported eagerly by auto_ontology.dal/gsf.semantic, and it
-    # unconditionally imports every connector module (trino, mysql, kyuubi), so
-    # these are required even if a given run never touches those specific
-    # connectors.
+    # auto_ontology.connectors is imported eagerly by the semantic DAL, which
+    # unconditionally imports every connector module (trino, mysql, kyuubi).
+    # These are required even if a run never touches those connectors.
     "sqlalchemy>=2.0.52",
     "alembic>=1.19.1",
     "mysql-connector-python>=26.7.0",
@@ -80,6 +74,9 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["ontology_sql_eval"]
 
+[tool.hatch.metadata]
+allow-direct-references = true
+
 [tool.uv]
 # Force patched versions of transitive dependencies with known CVEs
 # (nltk/ray via nemo-retriever, pillow via matplotlib/nemo-retriever, urllib3
@@ -96,6 +93,9 @@ packages = ["ontology_sql_eval"]
 # See overrides.txt for the full rationale.
 override-dependencies = [
     "nltk>=3.10.3",
+    # nemo-gym 0.6.0 pins 2.44.0, while langchain-openai>=1.6.0 requires
+    # openai>=2.45.0. Keep the same major version and override the stale exact pin.
+    "openai>=2.45.0,<3",
     "pillow>=12.3.0",
     "ray>=2.58.0",
     "urllib3>=2.8.0,<3",  # BDSA-2026-35861, BDSA-2026-35864

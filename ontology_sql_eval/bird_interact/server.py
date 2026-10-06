@@ -16,17 +16,18 @@ from typing import Any, Dict
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-# Load GSF/.env into this process before importing any gsf.* module — several
+# Load Auto Ontology's .env before importing any auto_ontology.* module — several
 # (e.g. auto_ontology.retrieval.interactive.entity_resolution) read feature-flag env
 # vars (INTERACTIVE, DB_PROBE_*, BIRD_INTERACT, ...) at import time via
 # module-level constants, so this must run first or those flags silently
-# fall back to defaults. Every other GSF entrypoint (gsf/server/__main__.py,
+# fall back to defaults. Every other Auto Ontology entrypoint
+# (auto_ontology/server/__main__.py,
 # ingestion_service, semantic, alembic) already does this; this adapter is
-# the one process that runs auto_ontology.retrieval code without it, so GSF/.env was
+# the one process that runs auto_ontology.retrieval code without it, so Auto Ontology/.env was
 # previously never read here.
 #
 # BIRD_INTERACT itself is this repo's own master flag (ontology_sql_eval.env),
-# not GSF's — GSF just provides the flags it cascades onto.
+# not Auto Ontology's — Auto Ontology just provides the flags it cascades onto.
 from ontology_sql_eval.env import load_env
 
 load_env()
@@ -35,10 +36,10 @@ from auto_ontology.retrieval.interactive import (  # noqa: E402
     AskUserAction,
     SubmitSQLAction,
     TurnType,
-    create_session as gsf_create_session,
-    step as gsf_step,
-    apply_user_answer as gsf_apply_user_answer,
-    apply_submit_result as gsf_apply_submit_result,
+    create_session as auto_ontology_create_session,
+    step as auto_ontology_step,
+    apply_user_answer as auto_ontology_apply_user_answer,
+    apply_submit_result as auto_ontology_apply_submit_result,
 )
 from . import bird_interact_http as bird_http  # noqa: E402
 from .known_issues import is_p1snap_collision  # noqa: E402
@@ -109,7 +110,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="BIRD-Interact GSF Adapter", lifespan=lifespan)
+app = FastAPI(title="BIRD-Interact Auto Ontology Adapter", lifespan=lifespan)
 
 
 # ── c-interact message-text extraction ──────────────────────────────────────
@@ -118,7 +119,7 @@ app = FastAPI(title="BIRD-Interact GSF Adapter", lifespan=lifespan)
 # reference ADK: line 136 for the initial "User Query:" message, line ~157
 # for the Phase 2 follow-up message) — there is no structured field for
 # either at the point they're needed, so this is the earliest point in the
-# adapter (not gsf) they can be pulled out once and threaded through.
+# adapter (not Auto Ontology) they can be pulled out once and threaded through.
 
 
 def _extract_initial_question(message: str) -> str:
@@ -293,7 +294,7 @@ async def init_session(req: InitSessionRequest):
         logger.warning("[session] no connector for db=%r", db_name)
 
     max_turn = int(req.state.get("max_turn", 5))
-    gsf_sess = gsf_create_session(
+    auto_ontology_session = auto_ontology_create_session(
         session_id=session_id,
         task_id=req.task_id,
         db_name=db_name,
@@ -312,7 +313,7 @@ async def init_session(req: InitSessionRequest):
         mode=req.mode,
         session_id=session_id,
         bird_state=req.state,
-        gsf_session=gsf_sess,
+        auto_ontology_session=auto_ontology_session,
         max_turn=max_turn,
     )
     put_session(sess)
@@ -340,10 +341,10 @@ async def run_session(req: RunSessionRequest):
     import asyncio
 
     # Classify this request's message once, up front, and reuse the result for
-    # every gsf_step call in this request's loop (mirrors how req.message
+    # every auto_ontology_step call in this request's loop (mirrors how req.message
     # itself is reused unchanged across ask_user round-trips within the
     # loop). The classification itself comes from state the adapter already
-    # holds — never by asking gsf to pattern-match req.message:
+    # holds — never by asking Auto Ontology to pattern-match req.message:
     #   - first-ever call for this session → INITIAL, with the question text
     #     extracted from req.message here (the c-interact orchestrator has no
     #     structured field for it — see _extract_initial_question).
@@ -367,7 +368,7 @@ async def run_session(req: RunSessionRequest):
         # No pending turn to classify — either the task already finished
         # (phase_completed reached 2) or this session was never submitted
         # to. Either way this is an unexpected extra call; fail loudly
-        # instead of guessing a turn_type for gsf.
+        # instead of guessing a turn_type for Auto Ontology.
         raise HTTPException(
             status_code=400,
             detail=(
@@ -384,12 +385,15 @@ async def run_session(req: RunSessionRequest):
     t_loop_start = time.time()
     t_last_ask_user: float | None = None
     t_submit: float | None = None
-    unresolved_start = list(getattr(sess.gsf_session, "persistent_unresolved", []))
+    unresolved_start = list(
+        getattr(sess.auto_ontology_session, "persistent_unresolved", [])
+    )
 
-    # Backstop only: gsf stops asking once clarify_history reaches
+    # Backstop only: Auto Ontology stops asking once clarify_history reaches
     # max_clarify_turns, and that history spans the whole session rather than
-    # this one call, so a healthy run never comes near this. Without it, a gsf
-    # that keeps returning AskUserAction would issue unbounded LLM-backed
+    # this one call, so a healthy run never comes near this. Without it, an
+    # Auto Ontology build that keeps returning AskUserAction would issue unbounded
+    # LLM-backed
     # ask_user calls (120s timeout each) and hold this request open forever.
     turn_cap = sess.max_turn + _TURN_CAP_MARGIN
 
@@ -397,8 +401,8 @@ async def run_session(req: RunSessionRequest):
         turn += 1
         t0 = time.time()
         action = await asyncio.to_thread(
-            gsf_step,
-            sess.gsf_session,
+            auto_ontology_step,
+            sess.auto_ontology_session,
             turn_type=turn_type_hint,
             debug_error=debug_error_hint,
             initial_question=initial_question_hint,
@@ -435,13 +439,15 @@ async def run_session(req: RunSessionRequest):
                     "output": {"answer": answer},
                 }
             )
-            await asyncio.to_thread(gsf_apply_user_answer, sess.gsf_session, answer)
+            await asyncio.to_thread(
+                auto_ontology_apply_user_answer, sess.auto_ontology_session, answer
+            )
             continue
 
         if isinstance(action, SubmitSQLAction):
-            _gsf = sess.gsf_session
-            _hist_len = len(getattr(_gsf, "clarify_history", []))
-            _max_turns = getattr(_gsf, "max_clarify_turns", "?")
+            _auto_ontology = sess.auto_ontology_session
+            _hist_len = len(getattr(_auto_ontology, "clarify_history", []))
+            _max_turns = getattr(_auto_ontology, "max_clarify_turns", "?")
             logger.info(
                 "[turn %d | %.1fs] DECISION: SUBMIT SQL  (history len=%s/%s)\n"
                 "  ┌─ \033[1msql:\033[0m \033[1;35m%s\033[0m",
@@ -527,7 +533,7 @@ async def run_session(req: RunSessionRequest):
                 else:
                     sess._next_debug_error = None
 
-            gsf_apply_submit_result(sess.gsf_session, result)
+            auto_ontology_apply_submit_result(sess.auto_ontology_session, result)
             sess._submitted_this_phase = True
             break
 
@@ -538,7 +544,8 @@ async def run_session(req: RunSessionRequest):
 
     if turn >= turn_cap and not sess._submitted_this_phase:
         logger.error(
-            "[turn %d] hit the %d-turn cap without a SUBMIT — gsf kept asking "
+            "[turn %d] hit the %d-turn cap without a SUBMIT — "
+            "Auto Ontology kept asking "
             "past max_clarify_turns=%d; returning this turn unsubmitted",
             turn,
             turn_cap,
@@ -565,13 +572,17 @@ async def run_session(req: RunSessionRequest):
     timing_clarification_secs = t_clarify_end - t_loop_start
     timing_sql_gen_secs = (t_submit - t_clarify_end) if t_submit is not None else None
 
-    unresolved_end = list(getattr(sess.gsf_session, "persistent_unresolved", []))
-    resolved_entities = list(getattr(sess.gsf_session, "resolved_persistent", set()))
+    unresolved_end = list(
+        getattr(sess.auto_ontology_session, "persistent_unresolved", [])
+    )
+    resolved_entities = list(
+        getattr(sess.auto_ontology_session, "resolved_persistent", set())
+    )
     initial_extracted_entities = list(
-        getattr(sess.gsf_session, "initial_extracted_entities", [])
+        getattr(sess.auto_ontology_session, "initial_extracted_entities", [])
     )
     extracted_entities = list(
-        getattr(sess.gsf_session, "path_state", {}).get("entities") or []
+        getattr(sess.auto_ontology_session, "path_state", {}).get("entities") or []
     )
 
     out_state = {

@@ -5,7 +5,7 @@
 
 """Single-task BIRD-Interact evaluator — mirrors the real c-Interact orchestrator flow.
 
-Starts the GSF adapter on :6003 (avoiding any service already on :6000),
+Starts the Auto Ontology adapter on :6003 (avoiding any service already on :6000),
 drives a single task through the full pipeline:
   init → phase1 [→ phase1 debug] → phase2 [→ phase2 debug]
 
@@ -34,6 +34,7 @@ only — see run_all_bird_interact.py). load_task() always excludes them from
 the selection pool and warns; explicitly requesting --category management, or
 an --instance-id/--db that resolves to one, warns and exits instead of running.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -47,10 +48,9 @@ from pathlib import Path
 
 import httpx
 
-ONTOLOGY_DIR   = Path(__file__).resolve().parents[1]
-GSF_DIR        = ONTOLOGY_DIR.parent / "GSF"
-_default_adk   = ONTOLOGY_DIR / "third_party" / "BIRD-Interact" / "BIRD-Interact-ADK"
-_ADK_DIR       = Path(os.environ.get("BIRD_INTERACT_ADK_DIR", str(_default_adk)))
+ONTOLOGY_DIR = Path(__file__).resolve().parents[1]
+_default_adk = ONTOLOGY_DIR / "third_party" / "BIRD-Interact" / "BIRD-Interact-ADK"
+_ADK_DIR = Path(os.environ.get("BIRD_INTERACT_ADK_DIR", str(_default_adk)))
 
 
 def _read_adk_env() -> dict[str, str]:
@@ -66,11 +66,13 @@ def _read_adk_env() -> dict[str, str]:
     return env
 
 
-_DATASET     = _read_adk_env().get("DATASET", "lite")
-DEFAULT_DATA = _ADK_DIR.parent / f"bird-interact-{_DATASET}" / "bird_interact_data_with_gt.jsonl"
+_DATASET = _read_adk_env().get("DATASET", "lite")
+DEFAULT_DATA = (
+    _ADK_DIR.parent / f"bird-interact-{_DATASET}" / "bird_interact_data_with_gt.jsonl"
+)
 
 USER_SIM_URL = "http://127.0.0.1:6001"
-DB_ENV_URL   = "http://127.0.0.1:6002"
+DB_ENV_URL = "http://127.0.0.1:6002"
 
 PATIENCE = 3
 
@@ -102,7 +104,9 @@ def _print_trajectory(state: dict) -> None:
             sql = call.get("input", {}).get("sql", "(empty)")
             result = call.get("output", {})
             print(f"    {sql[:400]}")
-            print(f"    → reward={result.get('reward')}  phase_completed={result.get('phase_completed')}  msg={result.get('message','')[:100]}")
+            print(
+                f"    → reward={result.get('reward')}  phase_completed={result.get('phase_completed')}  msg={result.get('message', '')[:100]}"
+            )
     elif not dialogue:
         print("  (no dialogue or SQL in trajectory)")
 
@@ -143,33 +147,62 @@ def load_task(
         sys.exit(1)
     tasks = [json.loads(line) for line in data_path.open() if line.strip()]
     if instance_id:
-        matches = [(i, t) for i, t in enumerate(tasks) if t.get("instance_id") == instance_id]
+        matches = [
+            (i, t) for i, t in enumerate(tasks) if t.get("instance_id") == instance_id
+        ]
         if not matches:
             print(f"No task found with instance_id={instance_id!r}", file=sys.stderr)
             sys.exit(1)
         idx, task = matches[0]
         if (task.get("category") or "").lower() == "management":
-            print(f"WARNING: instance_id={instance_id!r} is a management-category task; "
-                  "management is not supported by this toolchain (query-category only). "
-                  "Skipping.", file=sys.stderr)
+            print(
+                f"WARNING: instance_id={instance_id!r} is a management-category task; "
+                "management is not supported by this toolchain (query-category only). "
+                "Skipping.",
+                file=sys.stderr,
+            )
             sys.exit(1)
         return idx, task
     if category_filter == "management":
-        print("WARNING: --category management is not supported by this toolchain "
-              "(query-category only). Skipping.", file=sys.stderr)
+        print(
+            "WARNING: --category management is not supported by this toolchain "
+            "(query-category only). Skipping.",
+            file=sys.stderr,
+        )
         sys.exit(1)
-    pool = [(i, t) for i, t in enumerate(tasks) if t.get("selected_database") == db_filter] if db_filter else list(enumerate(tasks))
+    pool = (
+        [(i, t) for i, t in enumerate(tasks) if t.get("selected_database") == db_filter]
+        if db_filter
+        else list(enumerate(tasks))
+    )
     n_before = len(pool)
-    pool = [(i, t) for i, t in pool if (t.get("category") or "").lower() != "management"]
+    pool = [
+        (i, t) for i, t in pool if (t.get("category") or "").lower() != "management"
+    ]
     if n_before != len(pool):
-        print(f"WARNING: excluded {n_before - len(pool)} management-category task(s) "
-              "from the selection pool (not supported by this toolchain).", file=sys.stderr)
+        print(
+            f"WARNING: excluded {n_before - len(pool)} management-category task(s) "
+            "from the selection pool (not supported by this toolchain).",
+            file=sys.stderr,
+        )
     if category_filter:
-        pool = [(i, t) for i, t in pool if (t.get("category") or "").lower() == category_filter.lower()]
+        pool = [
+            (i, t)
+            for i, t in pool
+            if (t.get("category") or "").lower() == category_filter.lower()
+        ]
     if difficulty_filter:
-        pool = [(i, t) for i, t in pool if (t.get("difficulty_tier") or "").lower() == difficulty_filter.lower()]
+        pool = [
+            (i, t)
+            for i, t in pool
+            if (t.get("difficulty_tier") or "").lower() == difficulty_filter.lower()
+        ]
     if output_type_filter:
-        pool = [(i, t) for i, t in pool if (t.get("output_type") or "").lower() == output_type_filter.lower()]
+        pool = [
+            (i, t)
+            for i, t in pool
+            if (t.get("output_type") or "").lower() == output_type_filter.lower()
+        ]
     if not pool:
         parts = []
         if db_filter:
@@ -186,7 +219,10 @@ def load_task(
         idx, task = random.choice(pool)
         return idx, task
     if index < 0 or index >= len(pool):
-        print(f"Task index {index} out of range (selection pool has {len(pool)} task(s))", file=sys.stderr)
+        print(
+            f"Task index {index} out of range (selection pool has {len(pool)} task(s))",
+            file=sys.stderr,
+        )
         sys.exit(1)
     return pool[index]
 
@@ -199,19 +235,22 @@ def _build_debug_message(last_submit_raw: str) -> str:
     return "Your SQL is not correct. You have one more chance. Please fix and call submit_sql."
 
 
-def start_gsf_adapter(port: int) -> subprocess.Popen:
+def start_auto_ontology_adapter(port: int) -> subprocess.Popen:
     dotenv_vars = load_env(ONTOLOGY_DIR / ".env")
-    existing_pp = os.environ.get("PYTHONPATH", "")
-    pp_parts = [str(ONTOLOGY_DIR), str(GSF_DIR)]
-    if existing_pp:
-        pp_parts.append(existing_pp)
-    env = {**os.environ, **dotenv_vars, "PYTHONPATH": ":".join(pp_parts)}
+    env = {**os.environ, **dotenv_vars}
     proc = subprocess.Popen(
-        [sys.executable, "-m", "uvicorn",
-         "ontology_sql_eval.bird_interact.server:app",
-         "--host", "127.0.0.1",
-         "--port", str(port),
-         "--log-level", "info"],
+        [
+            sys.executable,
+            "-m",
+            "uvicorn",
+            "ontology_sql_eval.bird_interact.server:app",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(port),
+            "--log-level",
+            "info",
+        ],
         cwd=str(ONTOLOGY_DIR),
         env=env,
     )
@@ -219,100 +258,157 @@ def start_gsf_adapter(port: int) -> subprocess.Popen:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Single-task BIRD-Interact evaluator (mirrors real orchestrator)")
+    parser = argparse.ArgumentParser(
+        description="Single-task BIRD-Interact evaluator (mirrors real orchestrator)"
+    )
     parser.add_argument("--data", default=str(DEFAULT_DATA))
-    parser.add_argument("--task-index", type=int, default=0,
-                        help="0-based index into the filtered selection pool")
-    parser.add_argument("--instance-id", default=None, help="Pick task by instance_id (e.g. alien_1)")
-    parser.add_argument("--db", default=None, help="Restrict selection to this database name")
+    parser.add_argument(
+        "--task-index",
+        type=int,
+        default=0,
+        help="0-based index into the filtered selection pool",
+    )
+    parser.add_argument(
+        "--instance-id", default=None, help="Pick task by instance_id (e.g. alien_1)"
+    )
+    parser.add_argument(
+        "--db", default=None, help="Restrict selection to this database name"
+    )
     parser.add_argument("--random", action="store_true", help="Pick a random task")
-    parser.add_argument("--category", default=None, choices=["query", "management"], type=str.lower,
-                        help="Restrict selection to 'query' or 'management' tasks")
-    parser.add_argument("--difficulty", default=None, choices=["simple", "moderate", "challenging"], type=str.lower,
-                        help="Restrict selection by difficulty_tier")
-    parser.add_argument("--output-type", default=None, choices=["scalar", "table"], type=str.lower,
-                        help="Restrict selection by output_type ('scalar' = single-value result, 'table' = multi-row result)")
-    parser.add_argument("--agent-port", type=int, default=6003, help="Port to start the GSF adapter on")
-    parser.add_argument("--timeout", type=int, default=10, help="Health-check timeout per service (s)")
-    parser.add_argument("--quit-after-phase", type=int, default=None, choices=[1, 2],
-                        help="Stop cleanly after this phase (1 = skip phase 2 even if p1 passes)")
+    parser.add_argument(
+        "--category",
+        default=None,
+        choices=["query", "management"],
+        type=str.lower,
+        help="Restrict selection to 'query' or 'management' tasks",
+    )
+    parser.add_argument(
+        "--difficulty",
+        default=None,
+        choices=["simple", "moderate", "challenging"],
+        type=str.lower,
+        help="Restrict selection by difficulty_tier",
+    )
+    parser.add_argument(
+        "--output-type",
+        default=None,
+        choices=["scalar", "table"],
+        type=str.lower,
+        help="Restrict selection by output_type ('scalar' = single-value result, 'table' = multi-row result)",
+    )
+    parser.add_argument(
+        "--agent-port",
+        type=int,
+        default=6003,
+        help="Port to start the Auto Ontology adapter on",
+    )
+    parser.add_argument(
+        "--timeout", type=int, default=10, help="Health-check timeout per service (s)"
+    )
+    parser.add_argument(
+        "--quit-after-phase",
+        type=int,
+        default=None,
+        choices=[1, 2],
+        help="Stop cleanly after this phase (1 = skip phase 2 even if p1 passes)",
+    )
     args = parser.parse_args()
 
     agent_url = f"http://127.0.0.1:{args.agent_port}"
 
     # ── 1. Check :6001 and :6002 ──────────────────────────────────────────────
     print("Checking Bird services...")
-    ok = all([
-        check_health(USER_SIM_URL, "user_sim :6001", args.timeout),
-        check_health(DB_ENV_URL,   "db_env   :6002", args.timeout),
-    ])
+    ok = all(
+        [
+            check_health(USER_SIM_URL, "user_sim :6001", args.timeout),
+            check_health(DB_ENV_URL, "db_env   :6002", args.timeout),
+        ]
+    )
     if not ok:
         sys.exit(1)
 
-    # ── 2. Start GSF adapter ──────────────────────────────────────────────────
-    print(f"\nStarting GSF adapter on :{args.agent_port} ...")
-    adapter_proc = start_gsf_adapter(args.agent_port)
+    # ── 2. Start Auto Ontology adapter ────────────────────────────────────────
+    print(f"\nStarting Auto Ontology adapter on :{args.agent_port} ...")
+    adapter_proc = start_auto_ontology_adapter(args.agent_port)
     try:
-        if not check_health(agent_url, f"GSF adapter :{args.agent_port}", timeout=60):
+        if not check_health(
+            agent_url, f"Auto Ontology adapter :{args.agent_port}", timeout=60
+        ):
             adapter_proc.terminate()
             sys.exit(1)
 
         # ── 3. Load task ──────────────────────────────────────────────────────
         idx, task = load_task(
-            Path(args.data), args.task_index, args.db,
+            Path(args.data),
+            args.task_index,
+            args.db,
             random_pick=args.random,
             instance_id=args.instance_id,
             category_filter=args.category,
             difficulty_filter=args.difficulty,
             output_type_filter=args.output_type,
         )
-        task_id   = task["instance_id"]
-        db_name   = task["selected_database"]
+        task_id = task["instance_id"]
+        db_name = task["selected_database"]
         amb_query = task.get("amb_user_query") or task.get("query", "")
 
         print(f"\nTask:       {task_id}  (index {idx})")
         print(f"Database:   {db_name}")
-        print(f"Category:   {task.get('category', '?')}  |  Difficulty: {task.get('difficulty_tier', '?')}  |  Output: {task.get('output_type', '?')}")
+        print(
+            f"Category:   {task.get('category', '?')}  |  Difficulty: {task.get('difficulty_tier', '?')}  |  Output: {task.get('output_type', '?')}"
+        )
         print(f"Query:      {amb_query}")
 
         # ── 4. init_task on :6001 and :6002 ──────────────────────────────────
         print("\n-- init_task on :6001 and :6002 --")
-        payload = {"task_id": task_id, "task_data": {**task, "_interact_mode": "c-interact"}}
-        post(f"{DB_ENV_URL}/init_task",   payload)
+        payload = {
+            "task_id": task_id,
+            "task_data": {**task, "_interact_mode": "c-interact"},
+        }
+        post(f"{DB_ENV_URL}/init_task", payload)
         post(f"{USER_SIM_URL}/init_task", payload)
         print("  done")
 
         # ── 5. Get schema and knowledge from :6002 ────────────────────────────
         print("-- fetching schema + knowledge from :6002 --")
-        db_schema   = post(f"{DB_ENV_URL}/schema",    {"task_id": task_id}).get("schema", "")
-        external_kb = post(f"{DB_ENV_URL}/knowledge", {"task_id": task_id}).get("knowledge", "[]")
+        db_schema = post(f"{DB_ENV_URL}/schema", {"task_id": task_id}).get("schema", "")
+        external_kb = post(f"{DB_ENV_URL}/knowledge", {"task_id": task_id}).get(
+            "knowledge", "[]"
+        )
         print(f"  schema: {db_schema[:60] if db_schema else '(empty)'}")
-        print(f"  knowledge items: {len(json.loads(external_kb)) if external_kb and external_kb != '[]' else 0}")
+        print(
+            f"  knowledge items: {len(json.loads(external_kb)) if external_kb and external_kb != '[]' else 0}"
+        )
 
         # ── 6. Compute clarification budget ───────────────────────────────────
-        n_critical  = len(task.get("user_query_ambiguity", {}).get("critical_ambiguity", []))
+        n_critical = len(
+            task.get("user_query_ambiguity", {}).get("critical_ambiguity", [])
+        )
         n_knowledge = len(task.get("knowledge_ambiguity", []))
-        max_turn    = n_critical + n_knowledge + PATIENCE
+        max_turn = n_critical + n_knowledge + PATIENCE
 
-        # ── 7. init_session on GSF adapter ────────────────────────────────────
+        # ── 7. init_session on Auto Ontology adapter ──────────────────────────
         print(f"-- init_session on :{args.agent_port} --")
-        init_resp = post(f"{agent_url}/init_session", {
-            "task_id": task_id,
-            "mode": "c-interact",
-            "state": {
+        init_resp = post(
+            f"{agent_url}/init_session",
+            {
                 "task_id": task_id,
                 "mode": "c-interact",
-                "db_name": db_name,
-                "db_schema": db_schema,
-                "external_kb": external_kb,
-                "max_turn": max_turn,
-                "phase_max_turns": max_turn * 3,
-                "model_turns": 0,
-                "tool_trajectory": [],
-                "dialogue_history": [],
+                "state": {
+                    "task_id": task_id,
+                    "mode": "c-interact",
+                    "db_name": db_name,
+                    "db_schema": db_schema,
+                    "external_kb": external_kb,
+                    "max_turn": max_turn,
+                    "phase_max_turns": max_turn * 3,
+                    "model_turns": 0,
+                    "tool_trajectory": [],
+                    "dialogue_history": [],
+                },
+                "reset": True,
             },
-            "reset": True,
-        })
+        )
         print(f"  session_id: {init_resp.get('session_id', '?')}")
 
         # ── 8. Phase 1 ────────────────────────────────────────────────────────
@@ -323,12 +419,14 @@ def main() -> None:
             f"then call submit_sql with your final PostgreSQL query."
         )
         print(f"\n-- Phase 1 (max {max_turn} clarification turns) --")
-        resp  = post(f"{agent_url}/run_session",
-                     {"task_id": task_id, "mode": "c-interact", "message": phase1_msg},
-                     timeout=600.0)
+        resp = post(
+            f"{agent_url}/run_session",
+            {"task_id": task_id, "mode": "c-interact", "message": phase1_msg},
+            timeout=600.0,
+        )
         state = resp.get("state", {})
         p1_pass = state.get("phase1_completed", False)
-        reward  = state.get("total_reward", 0.0)
+        reward = state.get("total_reward", 0.0)
         print(f"  phase1_completed: {p1_pass}  |  reward: {reward}")
         if state.get("_last_submit_raw"):
             print(f"  submit feedback: {state['_last_submit_raw'][:200]}")
@@ -340,12 +438,14 @@ def main() -> None:
             debug_msg = _build_debug_message(state.get("_last_submit_raw", ""))
             print("\n-- Phase 1 Debug --")
             print(f"  prompt: {debug_msg[:120]}")
-            resp  = post(f"{agent_url}/run_session",
-                         {"task_id": task_id, "mode": "c-interact", "message": debug_msg},
-                         timeout=600.0)
+            resp = post(
+                f"{agent_url}/run_session",
+                {"task_id": task_id, "mode": "c-interact", "message": debug_msg},
+                timeout=600.0,
+            )
             state = resp.get("state", {})
             p1_pass = state.get("phase1_completed", False)
-            reward  = state.get("total_reward", 0.0)
+            reward = state.get("total_reward", 0.0)
             p1_debug_ran = True
             print(f"  phase1_completed: {p1_pass}  |  reward: {reward}")
             if state.get("_last_submit_raw"):
@@ -353,7 +453,7 @@ def main() -> None:
             _print_trajectory(state)
 
         # ── 10. Phase 2 ───────────────────────────────────────────────────────
-        follow_up    = task.get("follow_up") or {}
+        follow_up = task.get("follow_up") or {}
         has_follow_up = bool(follow_up.get("sol_sql"))
         p2_pass = None
         p2_debug_ran = False
@@ -370,12 +470,14 @@ def main() -> None:
                 f"Generate the PostgreSQL query and call submit_sql."
             )
             print("-- Phase 2 --")
-            resp  = post(f"{agent_url}/run_session",
-                         {"task_id": task_id, "mode": "c-interact", "message": fu_msg},
-                         timeout=600.0)
+            resp = post(
+                f"{agent_url}/run_session",
+                {"task_id": task_id, "mode": "c-interact", "message": fu_msg},
+                timeout=600.0,
+            )
             state = resp.get("state", {})
             p2_pass = state.get("phase2_completed", False)
-            reward  = state.get("total_reward", 0.0)
+            reward = state.get("total_reward", 0.0)
             print(f"  phase2_completed: {p2_pass}  |  reward: {reward}")
             if state.get("_last_submit_raw"):
                 print(f"  submit feedback: {state['_last_submit_raw'][:200]}")
@@ -386,12 +488,14 @@ def main() -> None:
                 debug_msg = _build_debug_message(state.get("_last_submit_raw", ""))
                 print("\n-- Phase 2 Debug --")
                 print(f"  prompt: {debug_msg[:120]}")
-                resp  = post(f"{agent_url}/run_session",
-                             {"task_id": task_id, "mode": "c-interact", "message": debug_msg},
-                             timeout=600.0)
+                resp = post(
+                    f"{agent_url}/run_session",
+                    {"task_id": task_id, "mode": "c-interact", "message": debug_msg},
+                    timeout=600.0,
+                )
                 state = resp.get("state", {})
                 p2_pass = state.get("phase2_completed", False)
-                reward  = state.get("total_reward", 0.0)
+                reward = state.get("total_reward", 0.0)
                 p2_debug_ran = True
                 print(f"  phase2_completed: {p2_pass}  |  reward: {reward}")
                 if state.get("_last_submit_raw"):
@@ -410,7 +514,7 @@ def main() -> None:
             pass
 
     finally:
-        print("\nStopping GSF adapter...")
+        print("\nStopping Auto Ontology adapter...")
         adapter_proc.terminate()
         try:
             adapter_proc.wait(timeout=5)
@@ -418,13 +522,17 @@ def main() -> None:
             adapter_proc.kill()
 
     # ── 13. Summary ───────────────────────────────────────────────────────────
-    print(f"\n{'='*50}")
+    print(f"\n{'=' * 50}")
     print("Eval complete")
-    print(f"{'='*50}")
+    print(f"{'=' * 50}")
     print(f"Task:          {task_id}  (db: {db_name})")
-    print(f"Phase 1:       {'PASS' if p1_pass else 'FAIL'}{' (via debug)' if p1_debug_ran and p1_pass else ''}")
+    print(
+        f"Phase 1:       {'PASS' if p1_pass else 'FAIL'}{' (via debug)' if p1_debug_ran and p1_pass else ''}"
+    )
     if p2_pass is not None:
-        print(f"Phase 2:       {'PASS' if p2_pass else 'FAIL'}{' (via debug)' if p2_debug_ran and p2_pass else ''}")
+        print(
+            f"Phase 2:       {'PASS' if p2_pass else 'FAIL'}{' (via debug)' if p2_debug_ran and p2_pass else ''}"
+        )
     elif not has_follow_up:
         print("Phase 2:       N/A (no follow-up)")
     else:

@@ -9,11 +9,16 @@
 # The cap is stale: nemo_retriever never imports prometheus_fastapi_instrumentator
 # anywhere. It imports prometheus_client, a different package, and only inside
 # nemo_retriever/service/ (its HTTP service, which we do not run). Importing
-# gsf.retrieval.text_to_sql.main pulls in 44 nemo_retriever modules and loads
+# auto_ontology.retrieval.text_to_sql.main pulls in 44 nemo_retriever modules and loads
 # neither the instrumentator nor starlette nor fastapi.
 #
 # Version 8.x resolves cleanly against starlette>=1.0.1, so lifting the cap lets
-# nemo-gym and GSF share one environment. Revisit if nemo_retriever ever starts
+# nemo-gym and Auto Ontology share one environment. Revisit if nemo_retriever ever starts
 # importing the instrumentator: a 7.x->8.x API break would then surface at
 # runtime rather than during resolution.
 prometheus-fastapi-instrumentator>=8
+
+# nemo-gym 0.6.0 pins openai==2.44.0, but Auto Ontology's
+# langchain-openai>=1.6.0 requires openai>=2.45.0. Keep the compatible 2.x API
+# while allowing both packages to resolve in this server environment.
+openai>=2.45.0,<3

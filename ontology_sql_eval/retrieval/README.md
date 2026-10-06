@@ -7,19 +7,19 @@ and scores each question deterministically: the expected and returned SQL are
 both executed against the live source DB and their result sets compared, and the
 returned answer is compared against `answer_raw`.
 
-> Requires the sibling `../GSF` checkout on `PYTHONPATH`. See
+> Auto Ontology is installed by `uv sync`. See
 > [Prerequisites](../../README.md#prerequisites) in the main README.
 
 ## Run
 
 ```bash
-PYTHONPATH=../GSF uv run python -m ontology_sql_eval.retrieval.eval_chatbot --database-name <database_name>
+uv run python -m ontology_sql_eval.retrieval.eval_chatbot --database-name <database_name>
 ```
 
 Run ten questions, two at a time:
 
 ```bash
-PYTHONPATH=../GSF uv run python -m ontology_sql_eval.retrieval.eval_chatbot \
+uv run python -m ontology_sql_eval.retrieval.eval_chatbot \
     --database-name bird --limit 10 --workers 2
 ```
 

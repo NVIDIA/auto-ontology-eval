@@ -19,8 +19,8 @@ Public HuggingFace data (gated — accept the terms, then `hf auth login`):
 - Tables / MySQL dumps: [`beaverbench/beaver-table`](https://huggingface.co/datasets/beaverbench/beaver-table)
 
 Splits: `dw`, `nova`, `neutron`, `dw_real` (`dw_real` questions run against the
-`dw` database). Gold SQL is MySQL dialect; GSF's MySQL connector is on `main`
-(`gsf/connectors/mysql.py`, PR #195).
+`dw` database). Gold SQL is MySQL dialect; Auto Ontology's MySQL connector is on `main`
+(`auto_ontology/connectors/mysql.py`, PR #195).
 
 ## Download / seed
 
@@ -63,13 +63,13 @@ With `--import-mysql`, the seed script writes something like:
 CONNECTION_STRINGS=mysql://root:beaver-benchmark@localhost:3306/dw
 ```
 
-Also point pgvector at the GSF docker Postgres host port (typically `5434`):
+Also point pgvector at the Auto Ontology Docker Postgres host port (typically `5434`):
 
 ```bash
 POSTGRES_PORT=5434
-POSTGRES_USER=gsf          # match GSF/.env
-POSTGRES_PASSWORD=...      # match GSF/.env
-POSTGRES_DATABASE=gsf
+POSTGRES_USER=postgres     # match the deployed Auto Ontology service
+POSTGRES_PASSWORD=...      # match the deployed Auto Ontology service
+POSTGRES_DATABASE=auto_ontology
 ```
 
 Agent / judge / embed models should use NVIDIA inference (see
@@ -83,16 +83,13 @@ DEFAULT_MODELS_MODEL=nvidia/nemotron-3-nano-30b-a3b
 
 ## Run the full pipeline
 
-The Postgres store (catalog + pgvector) must be up — easiest via GSF:
-
-```bash
-cd ../GSF && docker compose up -d
-```
+The Postgres store (catalog + pgvector) must be up; follow the
+[Auto Ontology deployment guide](https://github.com/NVIDIA/auto-ontology).
 
 Then from this repo:
 
 ```bash
-PYTHONPATH=../GSF uv run python main.py --database-name beaverbench
+uv run python main.py --database-name beaverbench
 ```
 
 That ingests every database in `CONNECTION_STRINGS`, compiles the semantic

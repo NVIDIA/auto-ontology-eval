@@ -4,14 +4,13 @@
 
 """Environment bootstrap shared by this repo's entry points.
 
-Loads this repo's own ``.env`` first, then the backend's ``.env`` (via
+Loads this repo's own ``.env`` first, then Auto Ontology's ``.env`` (via
 ``auto_ontology.env.load_env()``) as a fallback for anything not already set --
 ``dotenv.load_dotenv()`` called with no explicit path resolves relative to
-the *calling file's* location (frame-based search, not CWD), so a bare call
-from this module only ever finds ``ontology-sql-eval/.env``; it never finds
-the sibling backend checkout on its own. Loading ours first preserves the existing
-priority (this repo's .env wins over the backend for any var both define -- see
-``ingestion/ingest.py`` and ``ingestion/semantic.py`` for why that matters).
+the *calling file's* location (frame-based search, not CWD). Loading ours first
+preserves the existing priority (this repo's .env wins for any variable already
+set; see ``ingestion/ingest.py`` and ``ingestion/semantic.py`` for why that
+matters).
 """
 
 from __future__ import annotations
@@ -20,7 +19,7 @@ import os
 
 from dotenv import load_dotenv
 
-from auto_ontology.env import load_env as _load_backend_env
+from auto_ontology.env import load_env as _load_auto_ontology_env
 
 # BIRD_INTERACT is a master flag: set BIRD_INTERACT=true (with no per-flag
 # overrides in .env) to turn on every flag this deployment has approved for
@@ -28,7 +27,7 @@ from auto_ontology.env import load_env as _load_backend_env
 #
 # ASK_OUTPUT_TYPE, INJECT_CONDITIONAL_OUTPUT_HINT, and CLARIFY_MAX_DISTANCE
 # are deliberately NOT listed here — they already default to INTERACTIVE's
-# value when unset (see the backend's entity_resolution.py, output_type.py,
+# value when unset (see Auto Ontology's entity_resolution.py, output_type.py,
 # conditional_output.py), so setting INTERACTIVE=true covers them.
 #
 # Each entry is applied with os.environ.setdefault(), so an explicit value
@@ -52,12 +51,12 @@ def load_env() -> None:
 
     If BIRD_INTERACT is truthy after loading, also applies the approved
     BIRD-Interact flag defaults (see _BIRD_INTERACT_DEFAULTS) to any of them
-    left unset by .env. The backend's retrieval/ingestion code reads these flags
+    left unset by .env. Auto Ontology's own retrieval/ingestion code reads these flags
     straight off ``os.environ``, so this must run before any ``auto_ontology.*`` import
     that depends on them.
     """
     load_dotenv()
-    _load_backend_env()
+    _load_auto_ontology_env()
     if os.environ.get("BIRD_INTERACT", "").strip().lower() in ("true", "1"):
         for key, value in _BIRD_INTERACT_DEFAULTS.items():
             os.environ.setdefault(key, value)

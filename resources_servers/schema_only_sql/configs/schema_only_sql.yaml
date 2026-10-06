@@ -18,7 +18,7 @@ schema_only_sql_resources_server:
         Schema-only text-to-SQL control arm. The model sees the question and a
         raw schema dump; binary reward from unordered result-set equality.
       value: >-
-        Establishes the no-ontology baseline that GSF's ontology grounding is
+        Establishes the no-ontology baseline that Auto Ontology's grounding is
         measured against.
 
 schema_only_sql_simple_agent:

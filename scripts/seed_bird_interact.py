@@ -8,7 +8,7 @@ Sparse-clones https://github.com/bird-bench/BIRD-Interact (ADK code + Docker
 env only — the upstream repo no longer ships task data as git paths) into
 third_party/BIRD-Interact/, downloads the requested variant's task data from
 its HuggingFace dataset repo (birdsql/bird-interact-<variant>), and prepares
-datasets/bird_interact[_full]/ for use with the GSF adapter and
+datasets/bird_interact[_full]/ for use with the Auto Ontology adapter and
 run_bird_interact_cinteract.py.
 
 Layout after running this script (example: --dataset lite)::

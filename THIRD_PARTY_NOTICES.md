@@ -12,7 +12,7 @@ ported source code and a sample dataset. Both are documented in
 | Package | Version (minimum) | License |
 |---|---|---|
 | langchain-nvidia-ai-endpoints | latest | MIT |
-| langchain-openai | ≥1.3.2 | MIT |
+| langchain-openai | ≥1.6.0 | MIT |
 | langchain-postgres | ≥0.0.17 | MIT |
 | pandas | ≥2.0, <3 | BSD-3-Clause |
 | pydantic | ≥2.0 | MIT |
@@ -38,10 +38,12 @@ ported source code and a sample dataset. Both are documented in
 |---|---|---|
 | ruff | 0.15.9 | MIT |
 
-**NVIDIA internal dependencies** (not third-party):
+**Source dependencies:**
 
 - `nemo-retriever` — sourced from [NVIDIA/NeMo-Retriever](https://github.com/NVIDIA/NeMo-Retriever)
-- `gsf` / `dev_tools` — sourced from [NVIDIA/GSF](https://github.com/NVIDIA/GSF) via `PYTHONPATH`
+- `auto_ontology` — sourced from
+  [NVIDIA/auto-ontology](https://github.com/NVIDIA/auto-ontology) as a pinned
+  Git dependency (Apache-2.0)
 
 ---
 

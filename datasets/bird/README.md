@@ -96,7 +96,7 @@ copy-paste.
 ## Run the full pipeline
 
 ```bash
-PYTHONPATH=../GSF uv run python main.py --database-name bird
+uv run python main.py --database-name bird
 ```
 
 This ingests every database in `CONNECTION_STRINGS`, compiles the semantic
@@ -111,11 +111,11 @@ under `annotations/bird/` when it is present.
 
 ```bash
 # 1. Ingest all 11 DBs, then compile semantics.
-PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.ingest --benchmark-name bird
-PYTHONPATH=../GSF uv run python -m ontology_sql_eval.ingestion.semantic --benchmark-name bird
+uv run python -m ontology_sql_eval.ingestion.ingest --benchmark-name bird
+uv run python -m ontology_sql_eval.ingestion.semantic --benchmark-name bird
 
 # 2. Run the agent against the eval set -> input/bird_<model>.csv
-PYTHONPATH=../GSF uv run python -m ontology_sql_eval.retrieval.eval_chatbot --database-name bird
+uv run python -m ontology_sql_eval.retrieval.eval_chatbot --database-name bird
 
 # 3. Re-score every CSV in input/ with the LLM judge -> output/<name>_scores.csv
 uv run ontology-sql-eval
@@ -132,7 +132,7 @@ reproduction. Keep those files in `subsets/` and name the output after the
 subset so a probe never overwrites a full run:
 
 ```bash
-PYTHONPATH=../GSF uv run python -m ontology_sql_eval.retrieval.eval_chatbot \
+uv run python -m ontology_sql_eval.retrieval.eval_chatbot \
     --input datasets/bird/subsets/formula_1.json \
     --output input/formula_1_<model>.csv
 ```

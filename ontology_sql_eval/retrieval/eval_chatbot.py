@@ -22,7 +22,7 @@ result)), this script:
 When a question carries a ``db_id``, it selects the matching connector from
 ``CONNECTION_STRINGS`` (``db_id`` equals the connector's ``database_name``) and
 scopes retrieval to that database via the connector passed in ``connectors``.
-Any ``evidence`` is passed to the agent as its own payload field on GSF builds
+Any ``evidence`` is passed to the agent as its own payload field on Auto Ontology builds
 that support it, and appended to the question text on those that do not.
 Questions without a ``db_id`` fall back to the first configured connector.
 
@@ -60,13 +60,14 @@ from typing import Any, Dict, List, Tuple
 
 from ontology_sql_eval.env import load_env
 
-# Must run before the GSF imports below: ``auto_ontology.retrieval.text_to_sql.main``
+# Must run before the Auto Ontology imports below:
+# ``auto_ontology.retrieval.text_to_sql.main``
 # builds its LLM client at import time and raises if the credentials are not
 # already in ``os.environ``. Loading .env afterwards is too late for a plain
 # ``python -m`` run (VS Code masked this by injecting ``envFile`` itself).
 load_env()
 
-from auto_ontology.retrieval.text_to_sql import main as gsf_agent_main  # noqa: E402
+from auto_ontology.retrieval.text_to_sql import main as auto_ontology_agent_main  # noqa: E402
 from auto_ontology.retrieval.text_to_sql.main import stream_agent_response  # noqa: E402
 from auto_ontology.retrieval.text_to_sql.state import TextToSQLPayload  # noqa: E402
 from auto_ontology.connectors import get_connectors  # noqa: E402
@@ -105,7 +106,7 @@ if not _DEFAULT_MODELS_API_KEY:
         "Get your key at https://build.nvidia.com"
     )
 
-# Match the chat server's wiring (gsf/server/chat/helpers.py): same retriever
+# Match the chat server's wiring (auto_ontology/server/chat/helpers.py): same retriever
 # and pgvector store. Anything else here and scoring stops being apples-to-apples
 # with production.
 
@@ -128,10 +129,10 @@ _INCLUDE_EVIDENCE = os.environ.get("EVAL_INCLUDE_EVIDENCE", "1") not in (
 )
 
 
-# Whether this GSF build accepts BIRD-style evidence as its own payload field
+# Whether this Auto Ontology build accepts BIRD-style evidence as its own payload field
 # (added in "Evidence as parameter", #226) rather than requiring it to be glued
 # onto the question text. Probed rather than assumed so one eval checkout works
-# against either build — and so a GSF upgrade cannot quietly change what the
+# against either build — and so a Auto Ontology upgrade cannot quietly change what the
 # agent is being asked without it showing up here.
 _SUPPORTS_EVIDENCE_PARAM = "evidence" in getattr(
     TextToSQLPayload, "__annotations__", {}
@@ -139,7 +140,7 @@ _SUPPORTS_EVIDENCE_PARAM = "evidence" in getattr(
 
 # Same probe for retrieved question/SQL exemplars. Unlike evidence there is no
 # fallback: gluing another database's SQL onto the question text would be worse
-# than sending nothing, so on an older GSF the examples are simply dropped.
+# than sending nothing, so on an older Auto Ontology the examples are simply dropped.
 _SUPPORTS_SQL_EXAMPLES_PARAM = "sql_examples" in getattr(
     TextToSQLPayload, "__annotations__", {}
 )
@@ -150,7 +151,7 @@ _SUPPORTS_VALUE_ANCHORS_PARAM = "value_anchors" in getattr(
 )
 
 # How per-node timings were measured, recorded into every run summary. "phase"
-# means GSF emitted explicit start/end events and each node was timed directly;
+# means Auto Ontology emitted explicit start/end events and each node was timed directly;
 # "gap" means the older single-event stream, where a node's cost is inferred
 # from the gap since the last event and consecutive repeats must be merged.
 # Downstream analysis has to know which it is read: merging phase-timed entries
@@ -453,7 +454,7 @@ def _load_prompt_extras(
 ) -> Tuple[Dict[str, List[Dict[str, str]]], Dict[str, List[Dict[str, str]]]]:
     """Load whichever prompt inputs were asked for, keyed by question id.
 
-    Asking for either against a GSF with no matching payload field is fatal:
+    Asking for either against a Auto Ontology with no matching payload field is fatal:
     the flag would otherwise look honoured while nothing reached the prompt,
     and the run would be scored as though it had been.
     """
@@ -461,9 +462,9 @@ def _load_prompt_extras(
     if sql_examples_path and sql_examples_k > 0:
         if not _SUPPORTS_SQL_EXAMPLES_PARAM:
             raise SystemExit(
-                "--sql-examples was given but this GSF build has no "
+                "--sql-examples was given but this Auto Ontology build has no "
                 "'sql_examples' payload field; the examples would be silently "
-                "dropped. Upgrade GSF or drop the flag."
+                "dropped. Upgrade Auto Ontology or drop the flag."
             )
         sql_examples = _load_sql_examples(
             sql_examples_path, sql_examples_k, sql_examples_min_score
@@ -473,9 +474,9 @@ def _load_prompt_extras(
     if value_anchors_path:
         if not _SUPPORTS_VALUE_ANCHORS_PARAM:
             raise SystemExit(
-                "--value-anchors was given but this GSF build has no "
+                "--value-anchors was given but this Auto Ontology build has no "
                 "'value_anchors' payload field; the anchors would be silently "
-                "dropped. Upgrade GSF or drop the flag."
+                "dropped. Upgrade Auto Ontology or drop the flag."
             )
         value_anchors = _load_value_anchors(value_anchors_path)
     return sql_examples, value_anchors
@@ -553,14 +554,14 @@ def _run_agent_traced(
     """Run the agent, timing every graph node.
 
     Uses ``stream_agent_response`` rather than ``get_agent_response`` purely for
-    the instrumentation. GSF emits ``{"type": "step", "phase": "start"|"end"}``
+    the instrumentation. Auto Ontology emits ``{"type": "step", "phase": "start"|"end"}``
     around each node, so a node's cost is measured from its own start to its own
     end rather than inferred from the gap between consecutive events. That
     distinction matters: the gap method charges a node for whatever ran before
     it, and double-counts every visit because start and end both look like
     completions.
 
-    ``phase`` is absent on older GSF builds, where every step event is a
+    ``phase`` is absent on older Auto Ontology builds, where every step event is a
     completion. That case falls back to gap timing with consecutive same-node
     events merged, which keeps totals right and visit counts honest.
     """
@@ -589,7 +590,7 @@ def _run_agent_traced(
 
             if phase == "start":
                 # Stamped on the thread's context so the LLM callback --
-                # which fires deeper in the stack, inside GSF -- can
+                # which fires deeper in the stack, inside Auto Ontology -- can
                 # attribute its call to the node that made it.
                 _ctx = current_question()
                 _ctx["node"] = event["node"]
@@ -651,7 +652,7 @@ def _run_agent_traced(
             answer = event["answer"]
 
         elif etype == "error":
-            # Newer GSF names the failing node and returns a partial answer;
+            # Newer Auto Ontology names the failing node and returns a partial answer;
             # keep both so a failure says where it happened, not just that it did.
             raise RuntimeError(
                 f"{event['message']} "
@@ -674,12 +675,12 @@ def _attach_llm_recorder(run_log: RunLogger) -> None:
 
     ``auto_ontology.retrieval.text_to_sql.main`` builds one client at import time and
     every node calls through it, so a single attachment covers the whole graph.
-    Appending rather than replacing leaves any callbacks GSF configured itself
+    Appending rather than replacing leaves any callbacks Auto Ontology configured itself
     in place.
     """
-    client = getattr(gsf_agent_main, "llm_client", None)
+    client = getattr(auto_ontology_agent_main, "llm_client", None)
     if client is None:
-        logger.warning("No GSF llm_client — per-call LLM timing disabled")
+        logger.warning("No Auto Ontology llm_client — per-call LLM timing disabled")
         return
     existing = list(getattr(client, "callbacks", None) or [])
     if any(cb is run_log.llm_calls for cb in existing):
@@ -689,7 +690,7 @@ def _attach_llm_recorder(run_log: RunLogger) -> None:
     def detach() -> None:
         """Take this run's recorder back off the shared client.
 
-        The client is built once at GSF import time and outlives every run
+        The client is built once at Auto Ontology import time and outlives every run
         attached to it, so a recorder left behind keeps being called by the
         next one -- with its file already closed and its records landing
         nowhere. The guard above compares identity, and a second run brings a
@@ -756,7 +757,7 @@ def _evaluate_question(
     # single-dataset eval files without them still work.
     evidence = item.get("evidence", "") if _INCLUDE_EVIDENCE else ""
     db_id = item.get("db_id", "")
-    # Newer GSF takes evidence as its own payload field and uses it to refine
+    # Newer Auto Ontology takes evidence as its own payload field and uses it to refine
     # entity extraction, leaving the question text clean. Older builds have no
     # such field, so evidence only reaches the agent if it is appended to the
     # question — sending it as a parameter there would silently drop it.
