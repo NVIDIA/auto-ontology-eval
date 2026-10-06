@@ -15,7 +15,7 @@ sleep 4
 caffeinate -imsw $$ &
 
 echo "Eval + judge starting. Log: $LOG"
-PYTHONPATH=../auto-ontology uv run python main.py \
+uv run python main.py \
   --database-name beaverbench \
   --skip-ingest \
   --skip-semantic \

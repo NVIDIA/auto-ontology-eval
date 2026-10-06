@@ -23,69 +23,38 @@ BEAVER pipeline uses it. The benchmark itself uses no LLM judge — scoring is
 deterministic execution match.
 
 > [!IMPORTANT]
-> **You need [Auto Ontology](https://github.com/NVIDIA/auto-ontology).**
+> **Auto Ontology is installed automatically.**
 >
-> The ingestion and
-> retrieval-eval workflows import the `auto_ontology` package from a public
-> sibling checkout. Clone it as `../auto-ontology`:
->
-> ```bash
-> git clone https://github.com/NVIDIA/auto-ontology.git ../auto-ontology
-> ```
->
-> The launch configurations and scripts add that path to `PYTHONPATH`
-> automatically where possible.
->
-> Auto Ontology is intentionally imported from source rather than installed
-> into this project's shared NeMo Gym environment. Only the **judge** works
-> without the checkout.
->
-> See [Prerequisites](#prerequisites) below.
+> `uv sync` installs the pinned
+> [NVIDIA/auto-ontology](https://github.com/NVIDIA/auto-ontology) Git revision.
+> No sibling checkout or `PYTHONPATH` configuration is required.
 
 ## Prerequisites
 
 | Requirement                                                                  | Ingestion  | Retrieval eval | Judge |
 | ---------------------------------------------------------------------------- | :--------: | :------------: | :---: |
 | [uv](https://docs.astral.sh/uv/) + Python 3.13.14                           |    yes     |      yes       |  yes  |
-| Public sibling `../auto-ontology` checkout ([NVIDIA/auto-ontology](https://github.com/NVIDIA/auto-ontology)) | yes | yes | no |
 | Network access to `NVIDIA/NeMo-Retriever`                                    |    yes     |      yes       |  no   |
 | Postgres (catalog + pgvector) service                                        |    yes     |      yes       |  no   |
 | Reachable source database                                                    |    yes     |      yes       |  no   |
 | LLM API key                                                                  | embed only |      yes       |  yes  |
 
-The two external dependencies are provided differently:
-
-- `../auto-ontology` (`https://github.com/NVIDIA/auto-ontology`) — provides the
-  `auto_ontology` package. Check it out next to this repo; it is imported via
-  `PYTHONPATH`.
-- `nemo-retriever` (`https://github.com/NVIDIA/NeMo-Retriever.git`) — provides
-  `nemo_retriever`, installed from GitHub by `uv sync` (see `[tool.uv.sources]`
-  in [pyproject.toml](pyproject.toml)).
+Auto Ontology and NeMo Retriever are installed from GitHub by `uv sync`; their
+sources are pinned in [pyproject.toml](pyproject.toml) and
+[uv.lock](uv.lock).
 
 For ingestion and retrieval eval you also need a live **Postgres** service
 (it holds both Auto Ontology's catalog and the pgvector collections), plus a
 reachable source DB. Auto Ontology's catalog schema must be migrated first:
-
-```bash
-cd ../auto-ontology && uv run alembic upgrade head
-```
-The easiest way to start the stores is Auto Ontology's `docker-compose.yml`:
-
-```bash
-cd ../auto-ontology && docker compose up -d
-```
+follow the deployment and migration instructions in the
+[Auto Ontology repository](https://github.com/NVIDIA/auto-ontology).
 
 ## Setup
 
 ```bash
-uv sync                # creates the unified .venv, pulling nemo_retriever from GitHub
+uv sync                # creates .venv and installs pinned Git dependencies
 cp .env.example .env   # then fill in your values
 ```
-
-The `auto_ontology` package is loaded directly from `../auto-ontology`. The VS
-Code launch configs set `PYTHONPATH` automatically. For command-line runs of the
-ingestion and eval scripts, prefix the command with
-`PYTHONPATH=../auto-ontology` (the judge does not need it).
 
 ## Configuration
 
@@ -142,7 +111,7 @@ compile → **NeMo Gym benchmark** — writing rollouts to `runs/control/` and
 and `.env` is filled in):
 
 ```bash
-PYTHONPATH=../auto-ontology uv run python main.py --database-name <database_name>
+uv run python main.py --database-name <database_name>
 ```
 
 The benchmark stage builds both arms' task files, runs the schema-only control
@@ -155,7 +124,7 @@ Stages can be skipped with `--skip-ingest`, `--skip-semantic`, `--skip-eval`
 already-ingested dataset, three questions at a time:
 
 ```bash
-PYTHONPATH=../auto-ontology uv run python main.py --database-name bird \
+uv run python main.py --database-name bird \
     --skip-ingest --skip-semantic --limit 10 --eval-workers 3
 ```
 
@@ -202,7 +171,7 @@ regenerating. To rebuild them, [`scripts/build_eval_inputs.py`](scripts/build_ev
 runs every step in order and writes both files:
 
 ```bash
-PYTHONPATH=../auto-ontology uv run python scripts/build_eval_inputs.py
+uv run python scripts/build_eval_inputs.py
 ```
 
 It needs the BIRD **Dev** split *and* its Train corpus on disk
@@ -234,7 +203,7 @@ resampled rather than replayed — caches are gitignored, the CSVs are not.
 Pass the results to the eval (the flags are independent; either can be omitted):
 
 ```bash
-PYTHONPATH=../auto-ontology uv run python -m ontology_sql_eval.retrieval.eval_chatbot \
+uv run python -m ontology_sql_eval.retrieval.eval_chatbot \
     --database-name bird \
     --sql-examples prompt_inputs/bird/predicted_structural_exemplars.csv \
     --sql-examples-k 5 \
@@ -408,11 +377,11 @@ uv run python scripts/compare_arms.py \
 Datasets: `bird`, `fdabench`, `wideworldimporters` (Postgres), `beaverbench`
 (MySQL). The ontology arm additionally needs the database ingested and its
 semantic layer compiled (workflow 1) — it drives the agent in-process, importing
-it from `AUTO_ONTOLOGY_PATH`.
+the installed `auto_ontology` package.
 
 Knobs: `GYM_CONCURRENCY` (default 3 — size against the model endpoint's **rate
 limit**, not CPU), `GYM_API_KEY` (overrides the key for both the policy model and
-the agent's own calls), `AUTO_ONTOLOGY_PATH`.
+the agent's own calls), `GYM_MODEL`, and `GYM_MODEL_URL`.
 
 > [!WARNING]
 > Read the `health/*` counters next to the accuracy. A rate-limited or otherwise
@@ -476,8 +445,8 @@ logs/<run-id>/              per-eval-run logs + timings (contents gitignored)
 VS Code launch configurations for all of the above (Run full pipeline, Judge,
 Ingest, Semantic compile, Eval, Eval single-query, Seed local WWI,
 Seed local BIRD, Seed local FDABench, Seed local BEAVER) are provided in [.vscode/launch.json](.vscode/launch.json); they set
-`PYTHONPATH=../auto-ontology` where needed and load `.env` automatically. The
-type-checker path is configured in [pyrightconfig.json](pyrightconfig.json).
+load `.env` automatically. The type checker uses the project's `.venv`, as
+configured in [pyrightconfig.json](pyrightconfig.json).
 
 ## Contributing
 

@@ -11,9 +11,9 @@ Runs the full evaluation pipeline for a dataset, in order:
 3. Eval        run the text-to-SQL agent -> ``datasets/<db>/<model>.csv``
 4. Judge       LLM re-score the eval CSV -> ``datasets/<db>/<model>_scores.csv``
 
-Stages 1-3 import Auto Ontology, so run with the sibling checkout on the path::
+Stages 1-3 import the Auto Ontology dependency installed by ``uv sync``::
 
-    PYTHONPATH=../auto-ontology uv run python main.py --database-name wideworldimporters
+    uv run python main.py --database-name wideworldimporters
 
 Any stage can be skipped with ``--skip-ingest`` / ``--skip-semantic`` /
 ``--skip-eval`` / ``--skip-judge`` (skipped stages don't import their deps).
@@ -23,7 +23,7 @@ restricted with ``--start-index`` / ``--end-index`` / ``--limit``. It writes a
 full instrumentation bundle (per-question logs, node timings, a phase timeline
 and an aggregated summary) to ``logs/<run-id>/``::
 
-    PYTHONPATH=../auto-ontology uv run python main.py --database-name bird \
+    uv run python main.py --database-name bird \
         --skip-ingest --skip-semantic --limit 10 --eval-workers 2
 """
 

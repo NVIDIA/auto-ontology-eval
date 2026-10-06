@@ -67,8 +67,8 @@ Also point pgvector at the Auto Ontology Docker Postgres host port (typically `5
 
 ```bash
 POSTGRES_PORT=5434
-POSTGRES_USER=postgres     # match auto-ontology/.env
-POSTGRES_PASSWORD=...      # match auto-ontology/.env
+POSTGRES_USER=postgres     # match the deployed Auto Ontology service
+POSTGRES_PASSWORD=...      # match the deployed Auto Ontology service
 POSTGRES_DATABASE=auto_ontology
 ```
 
@@ -83,16 +83,13 @@ DEFAULT_MODELS_MODEL=nvidia/nemotron-3-nano-30b-a3b
 
 ## Run the full pipeline
 
-The Postgres store (catalog + pgvector) must be up — easiest via Auto Ontology:
-
-```bash
-cd ../auto-ontology && docker compose up -d
-```
+The Postgres store (catalog + pgvector) must be up; follow the
+[Auto Ontology deployment guide](https://github.com/NVIDIA/auto-ontology).
 
 Then from this repo:
 
 ```bash
-PYTHONPATH=../auto-ontology uv run python main.py --database-name beaverbench
+uv run python main.py --database-name beaverbench
 ```
 
 That ingests every database in `CONNECTION_STRINGS`, compiles the semantic

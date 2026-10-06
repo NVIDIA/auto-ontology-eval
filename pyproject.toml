@@ -16,9 +16,7 @@ dependencies = [
     "pandas>=2.0,<3",
     "pydantic>=2.0",
     "python-dotenv",
-    # Auto Ontology is imported from the public sibling ../auto-ontology
-    # checkout via PYTHONPATH. These mirror its runtime dependencies so the
-    # evaluation and NeMo Gym code can share this repo's venv.
+    "auto-ontology-server @ git+https://github.com/NVIDIA/auto-ontology.git@9b463e14f64667d91897a968a0020d360e9a995e",
     "nemo-retriever[tabular]",
     "psycopg[binary]>=3.3.3",
     "psycopg-pool>=3.3.1",
@@ -75,6 +73,9 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["ontology_sql_eval"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.uv]
 # Force patched versions of transitive dependencies with known CVEs

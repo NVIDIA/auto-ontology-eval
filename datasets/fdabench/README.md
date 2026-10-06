@@ -90,7 +90,7 @@ instead.
 ## Run the full pipeline
 
 ```bash
-PYTHONPATH=../auto-ontology uv run python main.py --database-name fdabench
+uv run python main.py --database-name fdabench
 ```
 
 This ingests every database in `CONNECTION_STRINGS`, compiles the semantic

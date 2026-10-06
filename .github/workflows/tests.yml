@@ -36,6 +36,6 @@ jobs:
         run: uv sync --group dev --frozen
 
       # The suite stubs out auto_ontology entirely (see tests/bird_interact/test_server.py),
-      # so the sibling ../auto-ontology checkout the scripts rely on is not needed here.
+      # so the full Auto Ontology runtime does not need to be imported here.
       - name: Pytest
         run: uv run pytest

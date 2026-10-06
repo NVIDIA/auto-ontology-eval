@@ -50,7 +50,7 @@ CONNECTION_STRINGS=postgresql://postgres:<password>@localhost:5432/wideworldimpo
 ### Via script
 
 ```bash
-PYTHONPATH=../auto-ontology uv run python main.py --database-name wideworldimporters
+uv run python main.py --database-name wideworldimporters
 ```
 
 Individual stages can be skipped with `--skip-ingest`, `--skip-semantic`,
@@ -61,11 +61,11 @@ Individual stages can be skipped with `--skip-ingest`, `--skip-semantic`,
 
 ```bash
 # 1. Ingest the source DB schema into the catalog + pgvector, then compile semantics.
-PYTHONPATH=../auto-ontology uv run python -m ontology_sql_eval.ingestion.ingest
-PYTHONPATH=../auto-ontology uv run python -m ontology_sql_eval.ingestion.semantic --database-name wideworldimporters
+uv run python -m ontology_sql_eval.ingestion.ingest
+uv run python -m ontology_sql_eval.ingestion.semantic --database-name wideworldimporters
 
 # 2. Run the agent against the eval set -> input/wideworldimporters_<model>.csv
-PYTHONPATH=../auto-ontology uv run python -m ontology_sql_eval.retrieval.eval_chatbot \
+uv run python -m ontology_sql_eval.retrieval.eval_chatbot \
     --database-name wideworldimporters
 
 # 3. Re-score every CSV in input/ with the LLM judge -> output/<name>_scores.csv

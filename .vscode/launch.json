@@ -6,14 +6,14 @@
       "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/main.py",
-      "args": ["--database-name", "wideworldimporters"],
+      "args": [
+        "--database-name",
+        "wideworldimporters"
+      ],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
       "envFile": "${workspaceFolder}/.env",
-      "env": {
-        "PYTHONPATH": "${workspaceFolder}/../auto-ontology"
-      },
       "justMyCode": false
     },
     {
@@ -60,7 +60,9 @@
       "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/scripts/seed_beaverbench.py",
-      "args": ["--import-mysql"],
+      "args": [
+        "--import-mysql"
+      ],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
@@ -83,7 +85,11 @@
       "type": "debugpy",
       "request": "launch",
       "module": "ontology_sql_eval.judge.bird",
-      "args": ["--input", "input/bird_gpt-5.5.csv", "--skip-ves"],
+      "args": [
+        "--input",
+        "input/bird_gpt-5.5.csv",
+        "--skip-ves"
+      ],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
@@ -98,9 +104,6 @@
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
       "envFile": "${workspaceFolder}/.env",
-      "env": {
-        "PYTHONPATH": "${workspaceFolder}/../auto-ontology"
-      },
       "justMyCode": false
     },
     {
@@ -112,9 +115,6 @@
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
       "envFile": "${workspaceFolder}/.env",
-      "env": {
-        "PYTHONPATH": "${workspaceFolder}/../auto-ontology"
-      },
       "justMyCode": false
     },
     {
@@ -122,14 +122,14 @@
       "type": "debugpy",
       "request": "launch",
       "module": "ontology_sql_eval.retrieval.eval_chatbot",
-      "args": ["--database-name", "bird"],
+      "args": [
+        "--database-name",
+        "bird"
+      ],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
       "envFile": "${workspaceFolder}/.env",
-      "env": {
-        "PYTHONPATH": "${workspaceFolder}/../auto-ontology"
-      },
       "justMyCode": false
     },
     {
@@ -137,14 +137,15 @@
       "type": "debugpy",
       "request": "launch",
       "module": "ontology_sql_eval.retrieval.eval_chatbot",
-      "args": ["--single", "--database-name", "wideworldimporters"],
+      "args": [
+        "--single",
+        "--database-name",
+        "wideworldimporters"
+      ],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
       "envFile": "${workspaceFolder}/.env",
-      "env": {
-        "PYTHONPATH": "${workspaceFolder}/../auto-ontology"
-      },
       "justMyCode": false
     }
   ]

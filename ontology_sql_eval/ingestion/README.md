@@ -11,15 +11,15 @@ read from beside that database: `datasets/<benchmark>/dev/<database_name>/` when
 `--benchmark-name` names a multi-database benchmark such as BIRD, otherwise
 `datasets/<database_name>/`.
 
-> Requires the public sibling `../auto-ontology` checkout on `PYTHONPATH`. See
+> Auto Ontology is installed by `uv sync`. See
 > [Prerequisites](../../README.md#prerequisites) in the main README.
 
 ## Run
 
 ```bash
-PYTHONPATH=../auto-ontology uv run python -m ontology_sql_eval.ingestion.ingest
-PYTHONPATH=../auto-ontology uv run python -m ontology_sql_eval.ingestion.ingest --benchmark-name bird
-PYTHONPATH=../auto-ontology uv run python -m ontology_sql_eval.ingestion.semantic --database-name <database_name>
+uv run python -m ontology_sql_eval.ingestion.ingest
+uv run python -m ontology_sql_eval.ingestion.ingest --benchmark-name bird
+uv run python -m ontology_sql_eval.ingestion.semantic --database-name <database_name>
 ```
 
 ## Publishing our descriptions and analyses
@@ -39,8 +39,8 @@ The set this repo ships for BIRD covers all 11 Dev databases, so the two command
 below are all it takes:
 
 ```bash
-PYTHONPATH=../auto-ontology uv run python -m ontology_sql_eval.ingestion.ingest --benchmark-name bird
-PYTHONPATH=../auto-ontology uv run python -m ontology_sql_eval.ingestion.semantic --benchmark-name bird
+uv run python -m ontology_sql_eval.ingestion.ingest --benchmark-name bird
+uv run python -m ontology_sql_eval.ingestion.semantic --benchmark-name bird
 ```
 
 `--benchmark-name` is what names the `annotations/` subfolder. Omit it and every
@@ -98,5 +98,5 @@ For a quick, DB-free smoke test of the embed pipeline (uses an in-memory
 legacy `NVIDIA_API_KEY` is supported as a fallback):
 
 ```bash
-PYTHONPATH=../auto-ontology uv run python -m ontology_sql_eval.ingestion.mock_ingest
+uv run python -m ontology_sql_eval.ingestion.mock_ingest
 ```

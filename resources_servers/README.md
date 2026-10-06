@@ -84,7 +84,6 @@ Useful environment variables:
 |---|---|---|
 | `GYM_CONCURRENCY` | 3 | Size against the **model endpoint's rate limit**, not CPU |
 | `GYM_API_KEY` | `.env`'s `DEFAULT_MODELS_API_KEY` | Overrides the key for *both* the policy model and Auto Ontology's own calls |
-| `AUTO_ONTOLOGY_PATH` | `../auto-ontology` | Which Auto Ontology checkout to import |
 | `GYM_MODEL` / `GYM_MODEL_URL` | bedrock-claude-opus-4-8 @ inference-api | |
 
 `GYM_API_KEY` has to override `DEFAULT_MODELS_API_KEY` rather than just
@@ -114,9 +113,9 @@ dependency decisions, recorded in `overrides.txt` and `pyproject.toml`:
 nemo-gym 0.6.0 requires Python **>=3.13.14**, which is why `requires-python` was
 raised from 3.12.
 
-Auto Ontology is reached from its public source checkout via `PYTHONPATH` (see
-`AUTO_ONTOLOGY_PATH`). This keeps the benchmark on an explicit checkout while
-its NeMo Gym environment resolves dependencies separately.
+Auto Ontology is installed from the parent project's pinned Git dependency.
+The resource-server environment receives the same revision through its editable
+installation of this project.
 
 Four things about Gym's CLI that are easy to lose an hour to:
 
@@ -263,8 +262,8 @@ transfer.
 - `load_dotenv()` runs **before** the Auto Ontology imports —
   `auto_ontology.retrieval.text_to_sql.main`
   builds its LLM client and compiles the graph at import time.
-- `PYTHONPATH` must include the sibling Auto Ontology checkout (publicly
-  available at <https://github.com/NVIDIA/auto-ontology>).
+- The parent project and resource-server environment must be installed before
+  starting the arm.
 - `stream_agent_response` is a blocking generator, so it runs on a worker thread
   under a semaphore.
 

@@ -11,8 +11,8 @@ instead of Auto Ontology's copy.
 Run after the Postgres catalog + pgvector services are up (see Auto Ontology's
 ``docker-compose.yml``) and ``CONNECTION_STRINGS`` points at the source DB::
 
-    PYTHONPATH=../auto-ontology uv run python -m ontology_sql_eval.ingestion.ingest
-    PYTHONPATH=../auto-ontology uv run python -m ontology_sql_eval.ingestion.ingest \\
+    uv run python -m ontology_sql_eval.ingestion.ingest
+    uv run python -m ontology_sql_eval.ingestion.ingest \\
       --benchmark-name bird
 """
 

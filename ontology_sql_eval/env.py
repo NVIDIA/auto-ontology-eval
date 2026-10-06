@@ -7,11 +7,10 @@
 Loads this repo's own ``.env`` first, then Auto Ontology's ``.env`` (via
 ``auto_ontology.env.load_env()``) as a fallback for anything not already set --
 ``dotenv.load_dotenv()`` called with no explicit path resolves relative to
-the *calling file's* location (frame-based search, not CWD), so a bare call
-from this module only ever finds ``ontology-sql-eval/.env``; it never finds
-Auto Ontology's sibling checkout on its own. Loading ours first preserves the existing
-priority (this repo's .env wins over Auto Ontology's for any var both define -- see
-``ingestion/ingest.py`` and ``ingestion/semantic.py`` for why that matters).
+the *calling file's* location (frame-based search, not CWD). Loading ours first
+preserves the existing priority (this repo's .env wins for any variable already
+set; see ``ingestion/ingest.py`` and ``ingestion/semantic.py`` for why that
+matters).
 """
 
 from __future__ import annotations

@@ -42,8 +42,8 @@ ported source code and a sample dataset. Both are documented in
 
 - `nemo-retriever` — sourced from [NVIDIA/NeMo-Retriever](https://github.com/NVIDIA/NeMo-Retriever)
 - `auto_ontology` — sourced from
-  [NVIDIA/auto-ontology](https://github.com/NVIDIA/auto-ontology) via
-  `PYTHONPATH` (Apache-2.0)
+  [NVIDIA/auto-ontology](https://github.com/NVIDIA/auto-ontology) as a pinned
+  Git dependency (Apache-2.0)
 
 ---
 

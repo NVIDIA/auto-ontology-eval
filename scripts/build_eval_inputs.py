@@ -21,14 +21,11 @@ and the answers are always resampled.
 from __future__ import annotations
 
 import argparse
-import os
 import subprocess
 import sys
 import time
 from datetime import datetime
 from pathlib import Path
-
-from dotenv import dotenv_values
 
 ROOT = Path(__file__).resolve().parent.parent
 VALUE_INDEX = ROOT / "scripts/value_index.py"
@@ -38,29 +35,13 @@ EXEMPLARS = ROOT / "scripts/llm_structural_exemplars.py"
 OUT_DIR = ROOT / "prompt_inputs/bird"
 
 
-def child_env() -> dict[str, str]:
-    """The parent environment, with PYTHONPATH from .env if it is not set.
-
-    The exemplar step imports ``auto_ontology``, which lives outside this repo and is
-    reached through PYTHONPATH. The launch configs supply it via ``envFile``,
-    but a plain shell does not, and the child calling ``load_dotenv`` itself is
-    too late: the interpreter reads PYTHONPATH before any of that code runs.
-    """
-    env = dict(os.environ)
-    if not env.get("PYTHONPATH"):
-        from_file = dotenv_values(ROOT / ".env").get("PYTHONPATH")
-        if from_file:
-            env["PYTHONPATH"] = from_file
-    return env
-
-
 def run(step: str, argv: list[str], dry_run: bool = False) -> float:
     printable = " ".join(str(a) for a in argv[1:])
     print(f"\n=== {step} ===\n$ {Path(argv[0]).name} {printable}", flush=True)
     if dry_run:
         return 0.0
     start = time.time()
-    result = subprocess.run([sys.executable, *argv], cwd=ROOT, env=child_env())
+    result = subprocess.run([sys.executable, *argv], cwd=ROOT)
     if result.returncode != 0:
         raise SystemExit(f"{step} failed with exit code {result.returncode}")
     elapsed = time.time() - start
@@ -84,9 +65,7 @@ def main() -> None:
         choices=("anchors", "exemplars"),
         help="Write just one of the two. Default: both.",
     )
-    ap.add_argument(
-        "--anchors-out", type=Path, default=OUT_DIR / "value_anchors.csv"
-    )
+    ap.add_argument("--anchors-out", type=Path, default=OUT_DIR / "value_anchors.csv")
     ap.add_argument(
         "--exemplars-out",
         type=Path,
@@ -116,7 +95,10 @@ def main() -> None:
         # The index is rebuilt every time: it is derived wholly from the dev
         # databases, and a stale one would quietly produce stale anchors.
         timings.append(
-            ("value index", run("value index", [str(VALUE_INDEX), "build"], args.dry_run))
+            (
+                "value index",
+                run("value index", [str(VALUE_INDEX), "build"], args.dry_run),
+            )
         )
         timings.append(
             (
@@ -140,17 +122,24 @@ def main() -> None:
             # so the name records when those answers were generated. The fresh
             # run then writes this same canonical name, which keeps the cache
             # sitting beside a CSV always the one that produced it.
-            stamp = datetime.fromtimestamp(cache.stat().st_mtime).strftime("%Y%m%d_%H%M%S")
+            stamp = datetime.fromtimestamp(cache.stat().st_mtime).strftime(
+                "%Y%m%d_%H%M%S"
+            )
             archived = cache.with_name(f"{cache.stem}_{stamp}.jsonl")
             if not args.dry_run:
                 cache.rename(archived)
             print(f"archived previous cache -> {archived.name}", flush=True)
         argv = [
-            str(EXEMPLARS), "predict",
-            "--out", str(out),
-            "--cache", str(cache),
-            "--k", str(args.k),
-            "--workers", str(args.workers),
+            str(EXEMPLARS),
+            "predict",
+            "--out",
+            str(out),
+            "--cache",
+            str(cache),
+            "--k",
+            str(args.k),
+            "--workers",
+            str(args.workers),
         ]
         if args.limit:
             argv += ["--limit", str(args.limit)]

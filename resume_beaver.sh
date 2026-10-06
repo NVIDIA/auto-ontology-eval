@@ -27,7 +27,7 @@ sleep 5
 caffeinate -imsw $$ &
 
 echo "Resuming — remaining tables only, then eval + judge. Log: $LOG"
-PYTHONPATH=../auto-ontology uv run python main.py \
+uv run python main.py \
   --database-name beaverbench \
   --skip-ingest \
   2>&1 | tee "$LOG"

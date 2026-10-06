@@ -45,16 +45,11 @@ if [[ -z "${DEFAULT_MODELS_API_KEY:-}" ]]; then
   exit 1
 fi
 
-# Absolute, because Gym runs each server after `cd`-ing into its own directory.
-# The default is the public NVIDIA/auto-ontology checkout cloned beside this repo.
-export PYTHONPATH="${AUTO_ONTOLOGY_PATH:-$ROOT/../auto-ontology}:$ROOT"
-
 # --agent takes the fully-qualified server-instance name: nemo-gym 0.6.0
 # rejects the bare inner key ("simple_agent") that 0.4.0 accepted.
 #
 # Gym builds each server its own venv from its requirements.txt. Auto Ontology
-# arrives from the public source checkout via PYTHONPATH so the Gym server and
-# the project use the same checked-out revision despite their dependency pins.
+# is installed transitively from the parent project's pinned Git dependency.
 exec .venv/bin/gym eval run \
   --search-dir . \
   --resources-server "$SERVER" \

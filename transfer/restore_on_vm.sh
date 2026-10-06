@@ -49,13 +49,12 @@ cat <<'EOF'
 Expected: 873 / 746 / 75 / 11 / 68 / 671
 
 Remaining steps on the VM:
-  1. Clone Auto Ontology at latest main next to this repo:
-       git clone https://github.com/NVIDIA/auto-ontology.git ../auto-ontology && \
-         (cd ../auto-ontology && git pull)
-  2. Apply migrations. The dump was taken at revision 57abbbf6ff90; main has
+  1. Install this project's locked dependencies: uv sync --frozen
+     Auto Ontology is installed automatically from the pinned Git revision.
+  2. Apply migrations through the deployed Auto Ontology service. The dump was
+     taken at revision 57abbbf6ff90; Auto Ontology has
      since added 8c3d5b17a204 (trigram indexes for global search). Without this
-     the catalog is missing indexes that newer Auto Ontology expects:
-       (cd ../auto-ontology && uv run alembic upgrade head)
+     the catalog is missing indexes that newer Auto Ontology expects.
   3. Copy .env across (it holds the API keys and CONNECTION_STRINGS) and repoint
      the sqlite:// paths in CONNECTION_STRINGS at the VM's checkout location --
      they are absolute paths to the 11 BIRD .sqlite files.
@@ -63,11 +62,11 @@ Remaining steps on the VM:
      The dump holds the *catalog* built from them, not the source DBs themselves;
      the eval executes generated SQL against the real SQLite files.
   5. Sanity-check before the long sweep:
-       PYTHONPATH=../auto-ontology uv run python -m ontology_sql_eval.retrieval.eval_chatbot \
+       uv run python -m ontology_sql_eval.retrieval.eval_chatbot \
          --input datasets/bird60/evaluation.json --output /tmp/smoke.csv \
          --workers 2 --limit 2 --run-id vm-smoke
   6. Run the sweep:
-       PYTHONPATH=../auto-ontology uv run python scripts/concurrency_sweep.py \
+       uv run python scripts/concurrency_sweep.py \
          --input datasets/bird60/evaluation.json --levels 1 2 3 4 5 6 7 8 \
          --sweep-id sweep-vm --resume
   7. Analyse:
@@ -79,5 +78,5 @@ Verify the run picked up the new Auto Ontology behaviour: summary.json should sh
   "evidence_as_parameter": true   (evidence sent as its own field, not glued
                                    onto the question text)
   "node_timing_mode": "phase"     (per-node timings measured start-to-end)
-If either reads false/"gap", ../auto-ontology is not on latest main.
+If either reads false/"gap", verify that the locked Auto Ontology revision is installed.
 EOF

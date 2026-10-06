@@ -1,13 +1,7 @@
 # Gym builds this server its own venv from this file.
 #
-# This arm imports Auto Ontology in-process, so it needs the parent project's
-# dependency set (Auto Ontology's runtime deps are mirrored there); `-e ../..`
-# installs it editable.
-#
-# Auto Ontology itself arrives from the public source checkout via
-# AUTO_ONTOLOGY_PATH (see scripts/run_gym_arm.sh). Keeping it on PYTHONPATH lets
-# this Gym venv reuse the parent project's dependency resolution and checked-out
-# Auto Ontology revision.
+# This arm imports Auto Ontology in-process. Installing the parent project
+# editable also installs its pinned Auto Ontology Git dependency.
 #
 # Why requirements.txt and not a pyproject.toml: Gym only honours a per-server
 # overrides.txt in the requirements branch, and this server needs one (see the

@@ -137,7 +137,7 @@ All three (except `run_bird_interact_cinteract.py`) require `:6001` and
 | `--shuffle` | Randomize task order. **Not seeded** — there is no `random.seed()` call anywhere in the pipeline, so a shuffled run's task order is not reproducible between runs. If you need a reproducible subset, use `--include`/`--force-include` with explicit instance IDs instead. |
 | `--include IDS...` / `--exclude IDS...` | Run only / skip specific instance_ids. |
 | `--force-include IDS...` | Guarantee these instance_ids are in the run, fill the rest of `--limit` from the remaining pool. |
-| `--agent-port` (default 6003), `--auto-ontology-dir` (default `../auto-ontology`) | Adapter wiring. |
+| `--agent-port` (default 6003) | Auto Ontology adapter port. |
 | `--phase-timeout` (default 600s) | Per `run_session` HTTP call — matches the official orchestrator's timeout. |
 | `--health-timeout` (default 10s) | Per-service health-check timeout before giving up. |
 | `--overwrite` | Overwrite an existing output stem instead of failing. |
@@ -193,9 +193,8 @@ error), each as `n/total (pct%)`:
 | `BIRD_INTERACT_ADK_DIR` | `start_bird_services.sh`, `eval_bird_interact.py`, `run_bird_interact_cinteract.py` | Overrides the ADK checkout path (default `third_party/BIRD-Interact/BIRD-Interact-ADK`). Not in `.env.example`. |
 | `START_BIRD_SERVICES_DRY_RUN` | `start_bird_services.sh` | Set to print the command instead of running it. |
 
-General prerequisites (Postgres, public `../auto-ontology` sibling checkout, `.env`, `uv sync`)
-are covered in the top-level [README.md](README.md#prerequisites) — they
-apply here too.
+General prerequisites (Postgres, `.env`, `uv sync`) are covered in the
+top-level [README.md](README.md#prerequisites) — they apply here too.
 
 ## Known issues
 
