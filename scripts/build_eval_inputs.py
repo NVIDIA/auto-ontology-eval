@@ -72,6 +72,22 @@ def main() -> None:
         default=OUT_DIR / "predicted_structural_exemplars.csv",
     )
     ap.add_argument("--k", type=int, default=5, help="Exemplars kept per question.")
+    # predict defaults both of these off, so they have to be passed explicitly
+    # or the file written here is not the file that is committed.
+    ap.add_argument(
+        "--alternatives",
+        type=int,
+        default=3,
+        help="Structurally different readings predicted per question, which "
+        "the k slots are then spread across. 0 stakes every slot on one "
+        "prediction.",
+    )
+    ap.add_argument(
+        "--no-schema",
+        dest="schema",
+        action="store_false",
+        help="Predict without showing the question's own schema.",
+    )
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument(
         "--limit", type=int, default=0, help="First N dev questions, for a smoke test."
@@ -141,6 +157,10 @@ def main() -> None:
             "--workers",
             str(args.workers),
         ]
+        if args.schema:
+            argv += ["--schema"]
+        if args.alternatives:
+            argv += ["--alternatives", str(args.alternatives)]
         if args.limit:
             argv += ["--limit", str(args.limit)]
         timings.append(

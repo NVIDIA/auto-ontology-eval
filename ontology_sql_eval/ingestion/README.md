@@ -19,8 +19,28 @@ read from beside that database: `datasets/<benchmark>/dev/<database_name>/` when
 ```bash
 uv run python -m ontology_sql_eval.ingestion.ingest
 uv run python -m ontology_sql_eval.ingestion.ingest --benchmark-name bird
+uv run python -m ontology_sql_eval.ingestion.apply_enrichment --database-name kdc_ca1
 uv run python -m ontology_sql_eval.ingestion.semantic --database-name <database_name>
 ```
+
+## Apply enrichment without re-ingesting
+
+Use the standalone enrichment command after the source schema already exists in
+the application PostgreSQL catalog. It reads `datasets/<database_name>/metadata.json`,
+`custom_analyses.json`, and `glossary_and_prompts.json`.
+
+```bash
+uv run python -m ontology_sql_eval.ingestion.apply_enrichment \
+  --database-name kdc_ca1
+```
+
+The command updates table and column descriptions/sample values in the catalog,
+upserts glossary entries into `frontend.acronyms`, inserts a custom prompt into
+`frontend.prompts` when that exact content is absent, and creates any missing
+custom analyses plus their semantic embeddings. It is safe to re-run: glossary
+entries upsert by name, prompts deduplicate by exact content, and existing
+analyses are skipped individually. Table and column names are lookup keys and
+are not renamed.
 
 ## Publishing our descriptions and analyses
 

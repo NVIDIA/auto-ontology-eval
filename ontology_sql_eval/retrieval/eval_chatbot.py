@@ -680,9 +680,7 @@ def _attach_llm_recorder(run_log: RunLogger) -> None:
     """
     client = getattr(auto_ontology_agent_main, "llm_client", None)
     if client is None:
-        logger.warning(
-            "No Auto Ontology llm_client — per-call LLM timing disabled"
-        )
+        logger.warning("No Auto Ontology llm_client — per-call LLM timing disabled")
         return
     existing = list(getattr(client, "callbacks", None) or [])
     if any(cb is run_log.llm_calls for cb in existing):
@@ -813,6 +811,7 @@ def _evaluate_question(
                 "custom_prompts": "",
                 "acronyms": [],
                 "shorten_answer": True,
+                "validate_sql_values": True,
             }
             if _SUPPORTS_EVIDENCE_PARAM:
                 payload["evidence"] = evidence
@@ -1146,6 +1145,7 @@ def run_single_question(
         "custom_prompts": "",
         "acronyms": [],
         "shorten_answer": True,
+        "validate_sql_values": True,
     }
     if _SUPPORTS_EVIDENCE_PARAM:
         payload["evidence"] = evidence
