@@ -16,7 +16,7 @@ dependencies = [
     "pandas>=2.0,<3",
     "pydantic>=2.0",
     "python-dotenv",
-    "auto-ontology-server @ git+https://github.com/NVIDIA/auto-ontology.git@1b4b17092e735d4583e7a6d9b148643b6a3e73b9",
+    "auto-ontology-server @ git+https://github.com/NVIDIA/auto-ontology.git@3018ac4fd124d38749a964187150654588e257a4",
     "nemo-retriever[tabular]",
     "psycopg[binary]>=3.3.3",
     "psycopg-pool>=3.3.1",
