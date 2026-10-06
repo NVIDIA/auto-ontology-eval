@@ -194,7 +194,7 @@ wheels = [
 [[package]]
 name = "apache-ossie-nvidia-auto-ontology"
 version = "0.1.0.dev0"
-source = { git = "https://github.com/apache/ossie.git?subdirectory=converters%2Fnvidia&rev=eefebcaa140f4d865b38ddef6f585bba8e6efbaa#eefebcaa140f4d865b38ddef6f585bba8e6efbaa" }
+source = { git = "https://github.com/apache/ossie.git?subdirectory=converters%2Fnvidia&rev=263a266508ced31988806713e2244e3f1aaf1c31#263a266508ced31988806713e2244e3f1aaf1c31" }
 dependencies = [
     { name = "pyyaml" },
     { name = "sqlglot" },
@@ -262,7 +262,7 @@ wheels = [
 [[package]]
 name = "auto-ontology-server"
 version = "1.1.0"
-source = { git = "https://github.com/NVIDIA/auto-ontology.git?rev=1b4b17092e735d4583e7a6d9b148643b6a3e73b9#1b4b17092e735d4583e7a6d9b148643b6a3e73b9" }
+source = { git = "https://github.com/NVIDIA/auto-ontology.git?rev=3018ac4fd124d38749a964187150654588e257a4#3018ac4fd124d38749a964187150654588e257a4" }
 dependencies = [
     { name = "alembic" },
     { name = "apache-ossie-nvidia-auto-ontology" },
@@ -2527,7 +2527,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "alembic", specifier = ">=1.19.1" },
-    { name = "auto-ontology-server", git = "https://github.com/NVIDIA/auto-ontology.git?rev=1b4b17092e735d4583e7a6d9b148643b6a3e73b9" },
+    { name = "auto-ontology-server", git = "https://github.com/NVIDIA/auto-ontology.git?rev=3018ac4fd124d38749a964187150654588e257a4" },
     { name = "databricks-sql-connector", specifier = ">=4.3.0" },
     { name = "datasets", specifier = ">=5.0.1" },
     { name = "duckdb", specifier = ">=1.5.2" },
