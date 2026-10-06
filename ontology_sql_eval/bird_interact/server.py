@@ -385,7 +385,9 @@ async def run_session(req: RunSessionRequest):
     t_loop_start = time.time()
     t_last_ask_user: float | None = None
     t_submit: float | None = None
-    unresolved_start = list(getattr(sess.auto_ontology_session, "persistent_unresolved", []))
+    unresolved_start = list(
+        getattr(sess.auto_ontology_session, "persistent_unresolved", [])
+    )
 
     # Backstop only: Auto Ontology stops asking once clarify_history reaches
     # max_clarify_turns, and that history spans the whole session rather than
@@ -437,7 +439,9 @@ async def run_session(req: RunSessionRequest):
                     "output": {"answer": answer},
                 }
             )
-            await asyncio.to_thread(auto_ontology_apply_user_answer, sess.auto_ontology_session, answer)
+            await asyncio.to_thread(
+                auto_ontology_apply_user_answer, sess.auto_ontology_session, answer
+            )
             continue
 
         if isinstance(action, SubmitSQLAction):
@@ -568,8 +572,12 @@ async def run_session(req: RunSessionRequest):
     timing_clarification_secs = t_clarify_end - t_loop_start
     timing_sql_gen_secs = (t_submit - t_clarify_end) if t_submit is not None else None
 
-    unresolved_end = list(getattr(sess.auto_ontology_session, "persistent_unresolved", []))
-    resolved_entities = list(getattr(sess.auto_ontology_session, "resolved_persistent", set()))
+    unresolved_end = list(
+        getattr(sess.auto_ontology_session, "persistent_unresolved", [])
+    )
+    resolved_entities = list(
+        getattr(sess.auto_ontology_session, "resolved_persistent", set())
+    )
     initial_extracted_entities = list(
         getattr(sess.auto_ontology_session, "initial_extracted_entities", [])
     )
