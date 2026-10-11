@@ -329,6 +329,10 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
 
         payload: Dict[str, Any] = {
             "question": question,
+            # Pins the intent to CALCULATION. Every BIRD question is answered by
+            # running SQL, so letting the intent classifier route elsewhere only
+            # creates ways to lose.
+            "calculation_only": True,
             "data_retriever": self._data_retriever,
             "semantic_retriever": self._semantic_retriever,
             "connectors": [connector],
@@ -345,6 +349,11 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
             # predates the parameter this is an inert extra key rather than an
             # error -- it simply has no effect.
             "shorten_answer": True,
+            # Enables the validate_sql_values node, which checks filter literals
+            # against the database before the SQL is accepted. Costly -- it is the
+            # single largest contributor to wall clock -- but the legacy harness
+            # runs with it, so omitting it makes the two arms incomparable.
+            "validate_sql_values": True,
         }
         if _SUPPORTS_EVIDENCE:
             payload["evidence"] = evidence
