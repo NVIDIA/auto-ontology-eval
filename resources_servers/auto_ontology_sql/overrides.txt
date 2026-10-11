@@ -18,7 +18,34 @@
 # runtime rather than during resolution.
 prometheus-fastapi-instrumentator>=8
 
-# nemo-gym 0.6.0 pins openai==2.44.0, but Auto Ontology's
-# langchain-openai>=1.6.0 requires openai>=2.45.0. Keep the compatible 2.x API
-# while allowing both packages to resolve in this server environment.
-openai>=2.45.0,<3
+# nemo-gym 0.6.0 pins openai==2.44.0 and langchain-openai>=1.6.0 requires
+# openai>=2.45.0. The pin has to win here: openai 2.45 made
+# InputTokensDetails.cache_write_tokens a required field, and the inference-api
+# gateway does not return it, so a 2.45+ server rejects every verify request's
+# response payload. langchain-openai only ever reads that field with dict .get,
+# which yields None on 2.44 rather than failing.
+openai==2.44.0
+
+# nemo-retriever is declared as an unpinned Git dependency, so the parent
+# project resolves it through uv.lock while this venv -- built with `uv pip
+# install -e ../..`, which ignores the lock -- resolves it to whatever HEAD is
+# at build time. The two then disagree, silently: a HEAD newer than b0a4ce1
+# requires embedding models to be revision-pinned and raises on the name Auto
+# Ontology passes, which get_relevant_tables catches and turns into an empty
+# table list. The agent keeps running and just never sees a relevant table, so
+# the arm scores several points low with nothing in the results to say why.
+#
+# Pinned to the commit in uv.lock so this arm embeds exactly as the legacy
+# harness does. Bump both together.
+nemo-retriever[tabular] @ git+https://github.com/NVIDIA/NeMo-Retriever.git@b0a4ce1f295d1457c89ae01bd806966ee05c8307#subdirectory=nemo_retriever
+
+# Mirrors the CVE overrides in the root pyproject's [tool.uv]. Repeated rather
+# than inherited because this venv is built under UV_NO_CONFIG=1, which is what
+# keeps the parent's openai override from clobbering the pin above -- but it
+# switches these off as well. Without them the nemo-retriever commit pinned
+# above drags its own exact pillow==12.2.0 / nltk==3.9.4 back in, and ray drops
+# below the version the parent runs.
+nltk>=3.10.3
+pillow>=12.3.0
+ray>=2.58.0
+urllib3>=2.8.0,<3
