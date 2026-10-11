@@ -394,6 +394,13 @@ either refuses to start or silently loses its semantic retrieval. Pass
 `GYM_REBUILD_VENV=1` after changing a server's dependencies. See
 [resources_servers/README.md](resources_servers/README.md#running-an-arm).
 
+> **If you built a Gym server venv before these pins existed, rebuild it once:**
+> `GYM_REBUILD_VENV=1 scripts/run_gym_arm.sh auto_ontology_sql /tmp/probe.jsonl`.
+> The venv is reused by default, so pulling this change does not update one that
+> already exists — it keeps the unpinned nemo-retriever it was built with, and
+> the ontology arm goes on scoring several points low with nothing in the
+> rollouts to say why. A venv built from scratch is already correct.
+
 Datasets: `bird`, `fdabench`, `wideworldimporters` (Postgres), `beaverbench`
 (MySQL). The ontology arm additionally needs the database ingested and its
 semantic layer compiled (workflow 1) — it drives the agent in-process, importing

@@ -94,7 +94,7 @@ ever want them off, and each one fails in a way that is easy to misread:
 |---|---|
 | `UV_NO_CONFIG=1` | uv walks *up* the tree to find `[tool.uv]`, so the root `pyproject.toml`'s `override-dependencies` leak into every server venv Gym builds. That is how the parent's `openai>=2.45` override defeats this arm's pin, and how a `ray` mismatch between parent and child appears. `UV_OVERRIDE` and a local `uv.toml` do **not** suppress it; only this does. `[tool.uv.sources]` is still honoured. |
 | `+allow_openai_version_skew=true` | Having set the above, the parent venv's openai no longer matches Gym's `openai==2.44.0`, and Gym refuses to start on the mismatch. The skew is the intended state. |
-| `+skip_venv_if_present=true` | Gym otherwise rebuilds the server venv from `requirements.txt` on every run, which costs minutes and can trip the metadata-timestamp race below. **Set `GYM_REBUILD_VENV=1` after editing a server's `requirements.txt` or `overrides.txt`** — otherwise the edit silently never takes effect, which is the same class of bug the pins exist to prevent. |
+| `+skip_venv_if_present=true` | Gym otherwise rebuilds the server venv from `requirements.txt` on every run, which costs minutes and can trip the metadata-timestamp race below. **Set `GYM_REBUILD_VENV=1` after editing a server's `requirements.txt` or `overrides.txt`, and once after pulling a change to either** — a venv that already exists is reused as-is, so otherwise the new pins silently never take effect, which is the same class of bug they exist to prevent. |
 
 Both arms run **in-process**: `auto_ontology_sql` imports Auto Ontology and drives its graph
 directly, so no Auto Ontology server is required. `--max-output-tokens 16` on the Auto Ontology arm is
