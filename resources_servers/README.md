@@ -73,9 +73,18 @@ scripts/run_gym_arm.sh schema_only_sql  runs/control/bird.jsonl
 scripts/run_gym_arm.sh auto_ontology_sql runs/treatment/bird.jsonl --max-output-tokens 16
 ```
 
-`scripts/run_full_compare.sh` runs both arms and the comparison in one go, with
-the prompt inputs switched on for the ontology arm; use it for a full sweep and
-the commands above when driving a single arm.
+Those two commands drive one arm each, against whatever `tasks.jsonl` happens to
+be on disk. **For a real comparison use `main.py` instead** -- it rebuilds the
+task files, checks they hold the dataset you asked for, runs both arms and the
+comparison, and stops on the first failure:
+
+```bash
+uv run python main.py --database-name bird --skip-ingest --skip-semantic \
+  --eval-workers 10 --run-dir runs/full_$(date +%Y%m%d-%H%M%S)
+```
+
+Reach for `run_gym_arm.sh` directly when you are driving a single arm on
+purpose and already know the task file is right.
 
 `run_gym_arm.sh` sets three things for you that a run cannot go without. They
 are in the script rather than in this document because there is no reason to
@@ -96,7 +105,7 @@ Useful environment variables:
 
 | Variable | Default | Notes |
 |---|---|---|
-| `GYM_CONCURRENCY` | 3 | Size against the **model endpoint's rate limit**, not CPU. 10 is measured-safe on the `sk-` key — two full 1,534-question ontology runs at 10 produced zero rate-limit failures — and is what `run_full_compare.sh` uses. The conservative default stays 3 because the ceiling belongs to the key, not the code. |
+| `GYM_CONCURRENCY` | 3 | Size against the **model endpoint's rate limit**, not CPU. 10 is measured-safe on the `sk-` key — two full 1,534-question ontology runs at 10 produced zero rate-limit failures. The conservative default stays 3 because the ceiling belongs to the key, not the code. Setting this alone is not enough for the ontology arm: its server gates agent runs behind a semaphore of its own (`max_concurrency`, also 3), so the arm stays throttled unless both move. `main.py --eval-workers` sets both. |
 | `GYM_API_KEY` | `.env`'s `DEFAULT_MODELS_API_KEY` | Overrides the key for *both* the policy model and Auto Ontology's own calls |
 | `GYM_MODEL` / `GYM_MODEL_URL` | bedrock-claude-opus-4-8 @ inference-api | |
 
@@ -115,7 +124,8 @@ Separate output directories do not cover every case of that error, though. Gym
 also caches `tasks_metrics.json` and `tasks_prepare.jsonl` beside the **task**
 file, under `resources_servers/<arm>/data/`, so rebuilding `tasks.jsonl` at a
 different question count aborts the next run of the *same* arm at collation --
-after the compute is spent. `run_full_compare.sh` clears them first.
+after the compute is spent. `main.py` clears them before each build, which is
+another reason to prefer it over driving the arms by hand.
 
 ## Environment
 
@@ -264,8 +274,19 @@ in the rollouts, only in the node trace, and cost about two points.
 
 `sql_examples_csv` and `value_anchors_csv` attach the question-keyed exemplars
 and value anchors from `prompt_inputs/` to the agent's payload. They are
-commented out in `configs/auto_ontology_sql.yaml` and must be switched on with a
-Hydra override, so the committed default is the comparable one:
+commented out in `configs/auto_ontology_sql.yaml` and must be asked for
+explicitly, so the committed default is the comparable one:
+
+```bash
+uv run python main.py --database-name bird --skip-ingest --skip-semantic \
+  --eval-workers 10 \
+  --sql-examples-csv prompt_inputs/bird/predicted_structural_exemplars.csv \
+  --sql-examples-k 5 \
+  --value-anchors-csv prompt_inputs/bird/value_anchors.csv
+```
+
+`main.py` turns those into Hydra overrides on the ontology arm. Driving
+`run_gym_arm.sh` yourself, the same thing is:
 
 ```bash
 CFG=+auto_ontology_sql_resources_server.resources_servers.auto_ontology_sql

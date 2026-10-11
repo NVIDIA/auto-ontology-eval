@@ -11,7 +11,8 @@
 # caches tasks_metrics.json and tasks_prepare.jsonl beside the *task* file, in
 # resources_servers/<arm>/data/, so rebuilding tasks.jsonl with a different
 # question count makes the next run of the same arm abort at collation -- after
-# the compute is spent. scripts/run_full_compare.sh clears those first.
+# the compute is spent. main.py clears those before each build, which is why a
+# comparison should go through it rather than calling this script twice.
 #
 # Concurrency defaults to 3: the sk- inference-api key rate-limits hard above
 # that, and Auto Ontology's retry turns a 429 into empty SQL rather than a visible error.

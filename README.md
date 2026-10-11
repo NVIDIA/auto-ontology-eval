@@ -358,9 +358,21 @@ Each workflow has its own README with purpose, run instructions, and outputs:
 
 ### NeMo Gym benchmark
 
-`main.py` runs this end to end (see [Full pipeline](#full-pipeline-end-to-end-example));
-the commands below drive the stages individually. Full guide:
-[resources_servers/README.md](resources_servers/README.md).
+`main.py` runs this end to end and is the way to produce a comparison — it
+rebuilds the task files, verifies they hold the dataset you asked for, runs both
+arms, and stops on the first failure:
+
+```bash
+uv run python main.py --database-name bird --skip-ingest --skip-semantic \
+  --eval-workers 10 --run-dir runs/full_$(date +%Y%m%d-%H%M%S)
+```
+
+Add `--sql-examples-csv` / `--value-anchors-csv` to give the ontology arm the
+question-keyed prompt inputs. The control arm cannot be given an equivalent, so
+the delta then covers those inputs as well as the ontology grounding.
+
+The stages are also drivable individually, against whatever task files are
+already on disk:
 
 ```bash
 # 1. build task files, once per dataset and arm
@@ -376,11 +388,10 @@ uv run python scripts/compare_arms.py \
   --control runs/control/bird.jsonl --treatment runs/treatment/bird.jsonl
 ```
 
-`scripts/run_full_compare.sh` does all three in one go. `run_gym_arm.sh` sets
-`UV_NO_CONFIG=1` and two Gym flags itself — without them the server venv picks
-up the parent's dependency overrides and the ontology arm either refuses to
-start or silently loses its semantic retrieval. Pass `GYM_REBUILD_VENV=1` after
-changing a server's dependencies. See
+`run_gym_arm.sh` sets `UV_NO_CONFIG=1` and two Gym flags itself — without them
+the server venv picks up the parent's dependency overrides and the ontology arm
+either refuses to start or silently loses its semantic retrieval. Pass
+`GYM_REBUILD_VENV=1` after changing a server's dependencies. See
 [resources_servers/README.md](resources_servers/README.md#running-an-arm).
 
 Datasets: `bird`, `fdabench`, `wideworldimporters` (Postgres), `beaverbench`
@@ -388,10 +399,16 @@ Datasets: `bird`, `fdabench`, `wideworldimporters` (Postgres), `beaverbench`
 semantic layer compiled (workflow 1) — it drives the agent in-process, importing
 the installed `auto_ontology` package.
 
-Knobs: `GYM_CONCURRENCY` (default 3 — size against the model endpoint's **rate
-limit**, not CPU; 10 is measured-safe on the `sk-` key), `GYM_API_KEY` (overrides
-the key for both the policy model and the agent's own calls), `GYM_MODEL`, and
-`GYM_MODEL_URL`.
+Knobs: `--eval-workers` on `main.py` (size against the model endpoint's **rate
+limit**, not CPU; 10 is measured-safe on the `sk-` key), or `GYM_CONCURRENCY`
+when driving an arm directly. `GYM_API_KEY` overrides the key for both the
+policy model and the agent's own calls; `GYM_MODEL` and `GYM_MODEL_URL` pick the
+endpoint.
+
+> [!NOTE]
+> Driving the ontology arm directly, `GYM_CONCURRENCY` alone leaves it throttled:
+> its server has a second ceiling (`max_concurrency`, default 3). `main.py`
+> raises both from `--eval-workers`.
 
 > [!WARNING]
 > Read the `health/*` counters next to the accuracy. A rate-limited or otherwise

@@ -110,6 +110,44 @@ def stage_semantic(benchmark_name: str) -> None:
         run_semantic(benchmark_name)
 
 
+# Hydra path to the ontology server's config block. The leading "+" is required:
+# gym reserves its own top-level keys with setdefault(KEY, False), so a nested
+# path under one of them is "not in struct" until it is added rather than set.
+_ONTOLOGY_CFG = (
+    "+auto_ontology_sql_resources_server.resources_servers.auto_ontology_sql"
+)
+
+
+def _ontology_arm_overrides(
+    *,
+    concurrency: int,
+    sql_examples_csv: str | None,
+    sql_examples_k: int,
+    sql_examples_min_score: float | None,
+    value_anchors_csv: str | None,
+) -> list[str]:
+    """Hydra overrides for the ontology arm.
+
+    ``max_concurrency`` is always sent. The server gates agent runs behind its
+    own semaphore, which defaults to 3, so raising only ``--eval-workers``
+    leaves the arm throttled at 3 with nothing to say so -- the run just takes
+    longer than it should and looks like the agent is slow.
+    """
+    overrides = [f"{_ONTOLOGY_CFG}.max_concurrency={concurrency}"]
+    if sql_examples_csv:
+        overrides += [
+            f"{_ONTOLOGY_CFG}.sql_examples_csv={sql_examples_csv}",
+            f"{_ONTOLOGY_CFG}.sql_examples_k={sql_examples_k}",
+        ]
+        if sql_examples_min_score is not None:
+            overrides.append(
+                f"{_ONTOLOGY_CFG}.sql_examples_min_score={sql_examples_min_score}"
+            )
+    if value_anchors_csv:
+        overrides.append(f"{_ONTOLOGY_CFG}.value_anchors_csv={value_anchors_csv}")
+    return overrides
+
+
 def stage_benchmark(
     *,
     database_name: str,
@@ -117,6 +155,11 @@ def stage_benchmark(
     limit: int | None = None,
     start_index: int = 0,
     end_index: int | None = None,
+    run_dir: Path | None = None,
+    sql_examples_csv: str | None = None,
+    sql_examples_k: int = 5,
+    sql_examples_min_score: float | None = None,
+    value_anchors_csv: str | None = None,
 ) -> None:
     """Run the NeMo Gym benchmark: both arms over the dataset, then compare.
 
@@ -126,7 +169,13 @@ def stage_benchmark(
 
     Writes rollouts to ``runs/control/`` and ``runs/treatment/`` -- not the
     ``input/<db>_<model>.csv`` the LLM judge consumes, which is why the judge
-    stage is skipped when this stage runs.
+    stage is skipped when this stage runs. Pass *run_dir* to keep each run's
+    rollouts instead of overwriting the previous one.
+
+    *sql_examples_csv* and *value_anchors_csv* attach the question-keyed prompt
+    inputs to the ontology arm. The control arm cannot be given an equivalent,
+    so a delta measured with them set covers those inputs **as well as** the
+    ontology grounding -- which is why they are off unless asked for.
     """
     _banner(3, "NeMo Gym benchmark (schema-only control vs ontology)")
     root = Path(__file__).resolve().parent
@@ -181,11 +230,12 @@ def stage_benchmark(
             )
 
     outputs = {}
+    base = Path(run_dir) if run_dir else Path("runs")
     for server, label in (
         ("schema_only_sql", "control"),
         ("auto_ontology_sql", "treatment"),
     ):
-        out = Path("runs") / label / f"{database_name}.jsonl"
+        out = base / label / f"{database_name}.jsonl"
         outputs[label] = out
         env = {**os.environ, "GYM_CONCURRENCY": str(concurrency)}
         cmd = ["./scripts/run_gym_arm.sh", server, str(out)]
@@ -193,6 +243,13 @@ def stage_benchmark(
         # capped rather than left to compete for the same rate limit.
         if label == "treatment":
             cmd += ["--max-output-tokens", "16"]
+            cmd += _ontology_arm_overrides(
+                concurrency=concurrency,
+                sql_examples_csv=sql_examples_csv,
+                sql_examples_k=sql_examples_k,
+                sql_examples_min_score=sql_examples_min_score,
+                value_anchors_csv=value_anchors_csv,
+            )
         logger.info("Running %s arm: %s", label, " ".join(cmd))
         subprocess.run(cmd, cwd=root, check=True, env=env)
 
@@ -294,6 +351,49 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="Run at most this many questions from the dataset.",
     )
+    parser.add_argument(
+        "--run-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Write benchmark rollouts under this directory instead of runs/. "
+            "Use it to keep a long run's output, which runs/ overwrites."
+        ),
+    )
+    prompt_inputs = parser.add_argument_group(
+        "prompt inputs (ontology arm only)",
+        "Question-keyed inputs attached to the ontology arm's payload. The "
+        "control arm cannot be given an equivalent, so a delta measured with "
+        "these set covers the inputs as well as the ontology grounding -- say "
+        "so when reporting it.",
+    )
+    prompt_inputs.add_argument(
+        "--sql-examples-csv",
+        default=None,
+        help="CSV of question-keyed SQL exemplars, e.g. "
+        "prompt_inputs/bird/predicted_structural_exemplars.csv",
+    )
+    prompt_inputs.add_argument(
+        "--sql-examples-k",
+        type=int,
+        default=5,
+        help="Exemplars per question (default: 5). Ignored without --sql-examples-csv.",
+    )
+    prompt_inputs.add_argument(
+        "--sql-examples-min-score",
+        type=float,
+        default=None,
+        help=(
+            "Withhold exemplars from questions whose best match scores below "
+            "this. Ignored without --sql-examples-csv."
+        ),
+    )
+    prompt_inputs.add_argument(
+        "--value-anchors-csv",
+        default=None,
+        help="CSV of question-keyed value anchors, e.g. "
+        "prompt_inputs/bird/value_anchors.csv",
+    )
     return parser.parse_args(argv)
 
 
@@ -323,6 +423,11 @@ def main(argv: list[str] | None = None) -> None:
             limit=args.limit,
             start_index=args.start_index,
             end_index=args.end_index,
+            run_dir=args.run_dir,
+            sql_examples_csv=args.sql_examples_csv,
+            sql_examples_k=args.sql_examples_k,
+            sql_examples_min_score=args.sql_examples_min_score,
+            value_anchors_csv=args.value_anchors_csv,
         )
 
     # The judge scores an eval CSV. The benchmark does not produce one -- it
