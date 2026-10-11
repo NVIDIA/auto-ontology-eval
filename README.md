@@ -213,9 +213,11 @@ uv run python -m ontology_sql_eval.retrieval.eval_chatbot \
 ```
 
 `SQL_EXAMPLES_CSV`, `SQL_EXAMPLES_K`, `SQL_EXAMPLES_MIN_SCORE` and
-`VALUE_ANCHORS_CSV` in `.env` supply the defaults for those flags. They apply
-only to `eval_chatbot` run directly: the `main.py` pipeline never passes either
-file, so a full-pipeline run has no exemplars and no anchors.
+`VALUE_ANCHORS_CSV` in `.env` supply the defaults for those flags, and apply
+only to `eval_chatbot` run directly. The `main.py` pipeline takes the same two
+files under different names — `--sql-examples-csv` and `--value-anchors-csv` —
+and passes neither by default, so a pipeline run without them has no exemplars
+and no anchors.
 
 ## Datasets
 
