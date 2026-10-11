@@ -37,7 +37,7 @@ import logging
 import os
 from urllib.parse import urlparse
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from dotenv import load_dotenv
 from pydantic import ConfigDict, Field
@@ -66,6 +66,11 @@ from auto_ontology.utils import (  # noqa: E402
     get_semantic_objects_retriever,
 )
 
+from ontology_sql_eval.prompt_inputs import (  # noqa: E402
+    load_sql_examples,
+    load_value_anchors,
+)
+
 from ontology_sql_eval.gym.exec_match import (  # noqa: E402
     drop_unusable_tasks,
     FailureCode,
@@ -78,6 +83,20 @@ from ontology_sql_eval.gym.exec_match import (  # noqa: E402
 from ontology_sql_eval.gym.tasks import DATASETS  # noqa: E402
 
 logger = logging.getLogger(__name__)
+
+# Gym configures no logging, so a module logger has no handler and Python's
+# last-resort handler drops anything below WARNING. Every startup diagnostic
+# this server emits -- which connectors resolved, how many exemplars and
+# anchors loaded -- was therefore invisible. Attach a handler to our own
+# loggers only: the root logger would also surface httpx, which logs a line per
+# request and runs ~23 of them per question.
+_log_handler = logging.StreamHandler()
+_log_handler.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
+for _logger_name in (__name__, "ontology_sql_eval"):
+    _own_logger = logging.getLogger(_logger_name)
+    _own_logger.addHandler(_log_handler)
+    _own_logger.setLevel(logging.INFO)
+    _own_logger.propagate = False
 
 
 def mysql_dsns_by_db(connection_strings: str) -> Dict[str, str]:
@@ -110,6 +129,16 @@ _GOLD_FAILURE = {
 # this harness runs against both.
 _SUPPORTS_EVIDENCE = "evidence" in getattr(TextToSQLPayload, "__annotations__", {})
 
+# Same probe for the two prompt inputs. On a build that predates either
+# parameter the payload key would be silently ignored, so a run that asked for
+# exemplars would quietly get none; refuse at startup instead.
+_SUPPORTS_SQL_EXAMPLES = "sql_examples" in getattr(
+    TextToSQLPayload, "__annotations__", {}
+)
+_SUPPORTS_VALUE_ANCHORS = "value_anchors" in getattr(
+    TextToSQLPayload, "__annotations__", {}
+)
+
 
 class AutoOntologySqlResourcesServerConfig(BaseResourcesServerConfig):
     name: str = "auto_ontology_sql"
@@ -121,6 +150,16 @@ class AutoOntologySqlResourcesServerConfig(BaseResourcesServerConfig):
     max_concurrency: int = 3
     sql_execution_timeout_s: float = 30.0
     postgres_dsn: Optional[str] = None
+
+    # Question-keyed prompt inputs, both optional and both off by default.
+    # Paths are relative to the repo root. These change what the agent is told,
+    # so a run that sets them is NOT comparable to a schema-only control that
+    # did not get the equivalent -- the delta then covers the exemplars and
+    # anchors as well as the ontology.
+    sql_examples_csv: Optional[str] = None
+    sql_examples_k: int = 5
+    sql_examples_min_score: float = 0.0
+    value_anchors_csv: Optional[str] = None
 
 
 class AutoOntologySqlVerifyRequest(BaseVerifyRequest):
@@ -134,6 +173,10 @@ class AutoOntologySqlVerifyRequest(BaseVerifyRequest):
     difficulty: Optional[str] = None
     task_id: Optional[str] = None
     evidence: str = ""
+    # The dataset's own question_id, which is what the prompt-input CSVs are
+    # keyed by. Int on BIRD/WWI but a string like "FDA0002" on FDABench, so it
+    # is accepted as either and stringified at lookup.
+    id: Optional[Union[int, str]] = None
 
 
 class AutoOntologySqlVerifyResponse(BaseVerifyResponse):
@@ -160,6 +203,12 @@ class AutoOntologySqlVerifyResponse(BaseVerifyResponse):
     execution_match: bool = False
     failure_reason: Optional[FailureCode] = None
     policy_output_ignored: bool = True
+    # How many exemplars and anchors this question's payload actually carried.
+    # Recorded per rollout because a mistyped path or a stale question_id key
+    # yields zero of them without failing, and the run would then be filed as
+    # "with prompt inputs" while having had none.
+    sql_examples_used: int = 0
+    value_anchors_used: int = 0
 
 
 class AutoOntologySqlResourcesServer(SimpleResourcesServer):
@@ -170,6 +219,13 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
         self._root = Path(__file__).resolve().parent.parent.parent
         self._executors: Dict[str, Any] = {}
         self._semaphore = asyncio.Semaphore(self.config.max_concurrency)
+        # Logged because this is the arm's throughput ceiling and it is set by a
+        # Hydra override that silently does nothing if the key path is wrong --
+        # leaving the run 3x slower than intended with nothing to show why.
+        logger.info(
+            "Agent concurrency ceiling: max_concurrency=%d",
+            self.config.max_concurrency,
+        )
 
         inflight = (os.environ.get("LLM_MAX_INFLIGHT") or "0").strip()
         if inflight != "0":
@@ -187,6 +243,41 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
         self._semantic_retriever = get_semantic_objects_retriever()
         self._connectors = {c.database_name: c for c in get_connectors()}
         logger.info("Auto Ontology connectors available: %s", sorted(self._connectors))
+
+        self._sql_examples: Dict[str, List[Dict[str, str]]] = {}
+        if self.config.sql_examples_csv and self.config.sql_examples_k > 0:
+            if not _SUPPORTS_SQL_EXAMPLES:
+                raise RuntimeError(
+                    "sql_examples_csv is set but this Auto Ontology build takes no "
+                    "'sql_examples' payload field; the examples would be dropped."
+                )
+            self._sql_examples = load_sql_examples(
+                self._root / self.config.sql_examples_csv,
+                self.config.sql_examples_k,
+                self.config.sql_examples_min_score,
+            )
+
+        self._value_anchors: Dict[str, List[Dict[str, str]]] = {}
+        if self.config.value_anchors_csv:
+            if not _SUPPORTS_VALUE_ANCHORS:
+                raise RuntimeError(
+                    "value_anchors_csv is set but this Auto Ontology build takes no "
+                    "'value_anchors' payload field; the anchors would be dropped."
+                )
+            self._value_anchors = load_value_anchors(
+                self._root / self.config.value_anchors_csv
+            )
+
+        logger.info(
+            "Prompt inputs: sql_examples=%s (k=%d, min_score=%.2f, %d questions "
+            "keyed) value_anchors=%s (%d questions keyed)",
+            self.config.sql_examples_csv or "off",
+            self.config.sql_examples_k,
+            self.config.sql_examples_min_score,
+            len(self._sql_examples),
+            self.config.value_anchors_csv or "off",
+            len(self._value_anchors),
+        )
 
     def _executor(self, dataset: str) -> Any:
         if dataset in self._executors:
@@ -226,7 +317,9 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
         self._executors[dataset] = executor
         return executor
 
-    def _run_agent(self, question: str, evidence: str, db_id: str) -> Dict[str, Any]:
+    def _run_agent(
+        self, question: str, evidence: str, db_id: str, question_id: str
+    ) -> Dict[str, Any]:
         """Drive Auto Ontology's graph to completion. Blocking; call on a worker thread."""
         connector = self._connectors.get(db_id)
         if connector is None:
@@ -258,6 +351,17 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
         elif evidence:
             payload["question"] = f"{question}\n\nEvidence: {evidence}"
 
+        # Only set when this question has an entry: an empty list would tell the
+        # agent "no exemplars exist", which is a different instruction from
+        # leaving the key off, and the min_score gate deliberately withholds
+        # exemplars from questions whose best match is too weak.
+        examples = self._sql_examples.get(question_id)
+        if examples:
+            payload["sql_examples"] = examples
+        anchors = self._value_anchors.get(question_id)
+        if anchors:
+            payload["value_anchors"] = anchors
+
         nodes: List[str] = []
         answer: Dict[str, Any] = {}
         error = ""
@@ -273,7 +377,13 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
                 error = str(event.get("message") or "agent error")
                 answer = event.get("partial_answer") or answer
 
-        return {"answer": answer, "nodes": nodes, "error": error}
+        return {
+            "answer": answer,
+            "nodes": nodes,
+            "error": error,
+            "sql_examples_used": len(examples or []),
+            "value_anchors_used": len(anchors or []),
+        }
 
     async def verify(
         self, body: AutoOntologySqlVerifyRequest
@@ -315,7 +425,11 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
         try:
             async with self._semaphore:
                 result = await asyncio.to_thread(
-                    self._run_agent, body.question, body.evidence, body.db_id
+                    self._run_agent,
+                    body.question,
+                    body.evidence,
+                    body.db_id,
+                    "" if body.id is None else str(body.id),
                 )
         except Exception as exc:
             logger.exception(
@@ -326,6 +440,11 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
         answer = result["answer"]
         sql = str(answer.get("sql_code") or "").strip()
         nodes = result["nodes"]
+
+        # Read by _response at call time, so every path below reports them. The
+        # pre-agent error path above correctly leaves both at zero.
+        carried["sql_examples_used"] = result["sql_examples_used"]
+        carried["value_anchors_used"] = result["value_anchors_used"]
 
         # Auto Ontology treats "cannot build a query" as a normal terminal state, not an
         # error, so an exhausted-retry rate limit arrives here as empty SQL with
