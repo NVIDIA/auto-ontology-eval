@@ -26,18 +26,14 @@ rm -f resources_servers/*/data/tasks_metrics.json \
       resources_servers/*/data/tasks_prepare.jsonl
 
 echo "=== control arm started $(date +%H:%M:%S) ==="
-UV_NO_CONFIG=1 GYM_CONCURRENCY="$CONC" scripts/run_gym_arm.sh \
+GYM_CONCURRENCY="$CONC" scripts/run_gym_arm.sh \
   schema_only_sql "$CTRL" \
-  +allow_openai_version_skew=true \
-  +skip_venv_if_present=true \
   > "$LOG_DIR/control.log" 2>&1
 echo "control exit=$? $(date +%H:%M:%S)"
 
 echo "=== ontology arm started $(date +%H:%M:%S) ==="
-UV_NO_CONFIG=1 GYM_CONCURRENCY="$CONC" scripts/run_gym_arm.sh \
+GYM_CONCURRENCY="$CONC" scripts/run_gym_arm.sh \
   auto_ontology_sql "$TRT" --max-output-tokens 16 \
-  +allow_openai_version_skew=true \
-  +skip_venv_if_present=true \
   "${CFG}.max_concurrency=${CONC}" \
   "${CFG}.sql_examples_csv=prompt_inputs/bird/predicted_structural_exemplars.csv" \
   "${CFG}.sql_examples_k=5" \

@@ -69,25 +69,23 @@ run starts — changing it silently changes what "schema-only" means.
 ## Running an arm
 
 ```bash
-UV_NO_CONFIG=1 scripts/run_gym_arm.sh schema_only_sql runs/control/bird.jsonl \
-  +allow_openai_version_skew=true +skip_venv_if_present=true
-
-UV_NO_CONFIG=1 scripts/run_gym_arm.sh auto_ontology_sql runs/treatment/bird.jsonl \
-  --max-output-tokens 16 \
-  +allow_openai_version_skew=true +skip_venv_if_present=true
+scripts/run_gym_arm.sh schema_only_sql  runs/control/bird.jsonl
+scripts/run_gym_arm.sh auto_ontology_sql runs/treatment/bird.jsonl --max-output-tokens 16
 ```
 
 `scripts/run_full_compare.sh` runs both arms and the comparison in one go, with
 the prompt inputs switched on for the ontology arm; use it for a full sweep and
 the commands above when driving a single arm.
 
-None of those three flags is optional, and each fails in its own way:
+`run_gym_arm.sh` sets three things for you that a run cannot go without. They
+are in the script rather than in this document because there is no reason to
+ever want them off, and each one fails in a way that is easy to misread:
 
 | | Why |
 |---|---|
 | `UV_NO_CONFIG=1` | uv walks *up* the tree to find `[tool.uv]`, so the root `pyproject.toml`'s `override-dependencies` leak into every server venv Gym builds. That is how the parent's `openai>=2.45` override defeats this arm's pin, and how a `ray` mismatch between parent and child appears. `UV_OVERRIDE` and a local `uv.toml` do **not** suppress it; only this does. `[tool.uv.sources]` is still honoured. |
-| `+allow_openai_version_skew=true` | Having set the above, the parent venv's openai no longer matches Gym's `openai==2.44.0`, and Gym refuses to start on the mismatch. |
-| `+skip_venv_if_present=true` | Gym otherwise rebuilds the server venv from `requirements.txt` on every run, which re-resolves the unpinned nemo-retriever to HEAD and silently reintroduces the empty-relevant-tables failure described under [Environment](#environment). It also avoids the metadata-timestamp race below. |
+| `+allow_openai_version_skew=true` | Having set the above, the parent venv's openai no longer matches Gym's `openai==2.44.0`, and Gym refuses to start on the mismatch. The skew is the intended state. |
+| `+skip_venv_if_present=true` | Gym otherwise rebuilds the server venv from `requirements.txt` on every run, which costs minutes and can trip the metadata-timestamp race below. **Set `GYM_REBUILD_VENV=1` after editing a server's `requirements.txt` or `overrides.txt`** — otherwise the edit silently never takes effect, which is the same class of bug the pins exist to prevent. |
 
 Both arms run **in-process**: `auto_ontology_sql` imports Auto Ontology and drives its graph
 directly, so no Auto Ontology server is required. `--max-output-tokens 16` on the Auto Ontology arm is
@@ -263,9 +261,8 @@ Hydra override, so the committed default is the comparable one:
 
 ```bash
 CFG=+auto_ontology_sql_resources_server.resources_servers.auto_ontology_sql
-UV_NO_CONFIG=1 scripts/run_gym_arm.sh auto_ontology_sql runs/treatment/bird.jsonl \
+scripts/run_gym_arm.sh auto_ontology_sql runs/treatment/bird.jsonl \
   --max-output-tokens 16 \
-  +allow_openai_version_skew=true +skip_venv_if_present=true \
   "$CFG.sql_examples_csv=prompt_inputs/bird/predicted_structural_exemplars.csv" \
   "$CFG.sql_examples_k=5" \
   "$CFG.value_anchors_csv=prompt_inputs/bird/value_anchors.csv"

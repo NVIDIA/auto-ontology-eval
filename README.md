@@ -368,20 +368,19 @@ uv run python scripts/build_gym_tasks.py --dataset bird --arm schema_only
 uv run python scripts/build_gym_tasks.py --dataset bird --arm auto_ontology
 
 # 2. run each arm into its OWN output directory
-UV_NO_CONFIG=1 scripts/run_gym_arm.sh schema_only_sql runs/control/bird.jsonl \
-  +allow_openai_version_skew=true +skip_venv_if_present=true
-UV_NO_CONFIG=1 scripts/run_gym_arm.sh auto_ontology_sql runs/treatment/bird.jsonl \
-  --max-output-tokens 16 +allow_openai_version_skew=true +skip_venv_if_present=true
+scripts/run_gym_arm.sh schema_only_sql   runs/control/bird.jsonl
+scripts/run_gym_arm.sh auto_ontology_sql runs/treatment/bird.jsonl --max-output-tokens 16
 
 # 3. compare
 uv run python scripts/compare_arms.py \
   --control runs/control/bird.jsonl --treatment runs/treatment/bird.jsonl
 ```
 
-`scripts/run_full_compare.sh` does all three in one go. The three flags are
-required, not tuning — without them the server venv picks up the parent's
-dependency overrides and the ontology arm either refuses to start or silently
-loses its semantic retrieval. See
+`scripts/run_full_compare.sh` does all three in one go. `run_gym_arm.sh` sets
+`UV_NO_CONFIG=1` and two Gym flags itself — without them the server venv picks
+up the parent's dependency overrides and the ontology arm either refuses to
+start or silently loses its semantic retrieval. Pass `GYM_REBUILD_VENV=1` after
+changing a server's dependencies. See
 [resources_servers/README.md](resources_servers/README.md#running-an-arm).
 
 Datasets: `bird`, `fdabench`, `wideworldimporters` (Postgres), `beaverbench`
