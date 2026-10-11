@@ -1,7 +1,5 @@
 # Ignore all files in this directory.
-# Copy PDFs and query files here locally:
-#   cp /path/to/vidore_v3_hr/pdfs/*.pdf unstructured/data/vidore_v3_hr/pdfs/
-#   cp /path/to/vidore_v3_hr/queries_en.csv unstructured/data/vidore_v3_hr/
-#   cp /path/to/vidore_v3_hr/qrels/* unstructured/data/vidore_v3_hr/qrels/
+# Populate it locally with:
+#   uv run python -m unstructured.download_data
 *
 !.gitignore

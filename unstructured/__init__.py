@@ -9,8 +9,9 @@ Evaluates chunk retrieval quality against the ViDoRe v3 HR benchmark:
 
 Steps
 -----
-1. ``run_ingest.py``  — run auto-ontology's ingest pipeline on the PDFs so
+1. ``download_data.py`` — fetch the 14 PDFs and build ``queries_en.csv``.
+2. ``run_ingest.py``  — run auto-ontology's ingest pipeline on the PDFs so
    chunks land in Postgres + pgvector.
-2. ``eval_retrieval.py``  — for each benchmark query do a vector similarity
+3. ``eval_retrieval.py``  — for each benchmark query do a vector similarity
    search and score against the gold pages in queries_en.csv.
 """
