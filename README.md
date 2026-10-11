@@ -368,13 +368,21 @@ uv run python scripts/build_gym_tasks.py --dataset bird --arm schema_only
 uv run python scripts/build_gym_tasks.py --dataset bird --arm auto_ontology
 
 # 2. run each arm into its OWN output directory
-scripts/run_gym_arm.sh schema_only_sql   runs/control/bird.jsonl
-scripts/run_gym_arm.sh auto_ontology_sql runs/treatment/bird.jsonl --max-output-tokens 16
+UV_NO_CONFIG=1 scripts/run_gym_arm.sh schema_only_sql runs/control/bird.jsonl \
+  +allow_openai_version_skew=true +skip_venv_if_present=true
+UV_NO_CONFIG=1 scripts/run_gym_arm.sh auto_ontology_sql runs/treatment/bird.jsonl \
+  --max-output-tokens 16 +allow_openai_version_skew=true +skip_venv_if_present=true
 
 # 3. compare
 uv run python scripts/compare_arms.py \
   --control runs/control/bird.jsonl --treatment runs/treatment/bird.jsonl
 ```
+
+`scripts/run_full_compare.sh` does all three in one go. The three flags are
+required, not tuning — without them the server venv picks up the parent's
+dependency overrides and the ontology arm either refuses to start or silently
+loses its semantic retrieval. See
+[resources_servers/README.md](resources_servers/README.md#running-an-arm).
 
 Datasets: `bird`, `fdabench`, `wideworldimporters` (Postgres), `beaverbench`
 (MySQL). The ontology arm additionally needs the database ingested and its
@@ -382,8 +390,9 @@ semantic layer compiled (workflow 1) — it drives the agent in-process, importi
 the installed `auto_ontology` package.
 
 Knobs: `GYM_CONCURRENCY` (default 3 — size against the model endpoint's **rate
-limit**, not CPU), `GYM_API_KEY` (overrides the key for both the policy model and
-the agent's own calls), `GYM_MODEL`, and `GYM_MODEL_URL`.
+limit**, not CPU; 10 is measured-safe on the `sk-` key), `GYM_API_KEY` (overrides
+the key for both the policy model and the agent's own calls), `GYM_MODEL`, and
+`GYM_MODEL_URL`.
 
 > [!WARNING]
 > Read the `health/*` counters next to the accuracy. A rate-limited or otherwise

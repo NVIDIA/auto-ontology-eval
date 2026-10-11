@@ -52,7 +52,7 @@ python scripts/build_gym_tasks.py --dataset bird --arm schema_only
 python scripts/build_gym_tasks.py --dataset bird --arm auto_ontology
 ```
 
-Datasets: `bird` (500q), `fdabench` (169q), `wideworldimporters` (41q,
+Datasets: `bird` (1,534q), `fdabench` (169q), `wideworldimporters` (41q,
 Postgres), `beaverbench` (MySQL). Output is deterministic, so regenerating is
 safe. `--limit N` takes a prefix; `--start-index` / `--end-index` slice, so a
 long run can be sharded or resumed.
@@ -69,9 +69,25 @@ run starts — changing it silently changes what "schema-only" means.
 ## Running an arm
 
 ```bash
-scripts/run_gym_arm.sh schema_only_sql  runs/control/bird.jsonl
-scripts/run_gym_arm.sh auto_ontology_sql runs/treatment/bird.jsonl --max-output-tokens 16
+UV_NO_CONFIG=1 scripts/run_gym_arm.sh schema_only_sql runs/control/bird.jsonl \
+  +allow_openai_version_skew=true +skip_venv_if_present=true
+
+UV_NO_CONFIG=1 scripts/run_gym_arm.sh auto_ontology_sql runs/treatment/bird.jsonl \
+  --max-output-tokens 16 \
+  +allow_openai_version_skew=true +skip_venv_if_present=true
 ```
+
+`scripts/run_full_compare.sh` runs both arms and the comparison in one go, with
+the prompt inputs switched on for the ontology arm; use it for a full sweep and
+the commands above when driving a single arm.
+
+None of those three flags is optional, and each fails in its own way:
+
+| | Why |
+|---|---|
+| `UV_NO_CONFIG=1` | uv walks *up* the tree to find `[tool.uv]`, so the root `pyproject.toml`'s `override-dependencies` leak into every server venv Gym builds. That is how the parent's `openai>=2.45` override defeats this arm's pin, and how a `ray` mismatch between parent and child appears. `UV_OVERRIDE` and a local `uv.toml` do **not** suppress it; only this does. `[tool.uv.sources]` is still honoured. |
+| `+allow_openai_version_skew=true` | Having set the above, the parent venv's openai no longer matches Gym's `openai==2.44.0`, and Gym refuses to start on the mismatch. |
+| `+skip_venv_if_present=true` | Gym otherwise rebuilds the server venv from `requirements.txt` on every run, which re-resolves the unpinned nemo-retriever to HEAD and silently reintroduces the empty-relevant-tables failure described under [Environment](#environment). It also avoids the metadata-timestamp race below. |
 
 Both arms run **in-process**: `auto_ontology_sql` imports Auto Ontology and drives its graph
 directly, so no Auto Ontology server is required. `--max-output-tokens 16` on the Auto Ontology arm is
@@ -82,7 +98,7 @@ Useful environment variables:
 
 | Variable | Default | Notes |
 |---|---|---|
-| `GYM_CONCURRENCY` | 3 | Size against the **model endpoint's rate limit**, not CPU |
+| `GYM_CONCURRENCY` | 3 | Size against the **model endpoint's rate limit**, not CPU. 10 is measured-safe on the `sk-` key — two full 1,534-question ontology runs at 10 produced zero rate-limit failures — and is what `run_full_compare.sh` uses. The conservative default stays 3 because the ceiling belongs to the key, not the code. |
 | `GYM_API_KEY` | `.env`'s `DEFAULT_MODELS_API_KEY` | Overrides the key for *both* the policy model and Auto Ontology's own calls |
 | `GYM_MODEL` / `GYM_MODEL_URL` | bedrock-claude-opus-4-8 @ inference-api | |
 
@@ -105,10 +121,31 @@ dependency decisions, recorded in `overrides.txt` and `pyproject.toml`:
   nemo-gym's `ray[serve]` (`starlette>=1.0.1`). The cap is stale — nemo_retriever
   never imports the instrumentator (it imports `prometheus_client`, a different
   package, and only inside its own HTTP service).
-- **`openai>=2.45,<3` override.** Auto Ontology requires
-  `langchain-openai>=1.6.0`, which needs `openai>=2.45.0`, while nemo-gym 0.6.0
-  pins `openai==2.44.0`. Both use the compatible OpenAI 2.x API, so the stale
-  patch-level Gym pin is lifted without crossing a major-version boundary.
+- **`openai==2.44.0` in the Auto Ontology arm.** The root `pyproject.toml` lifts
+  Gym's pin to `openai>=2.45,<3` so Auto Ontology's `langchain-openai>=1.6.0`
+  resolves. That is right for the parent venv and wrong for this one: openai
+  2.45.0 made `InputTokensDetails.cache_write_tokens` a *required* field, and the
+  inference-api gateway does not return it, so a 2.45+ server rejects the
+  response payload of every verify request and the whole arm fails with
+  `agent_run_error`. `langchain-openai` only ever reads that field with dict
+  `.get`, which yields `None` on 2.44 rather than failing, so Gym's pin is the
+  one that has to win here.
+- **`nemo-retriever` pinned to the `uv.lock` commit.** It is declared as an
+  *unpinned* Git dependency, so the parent venv resolves it through the lockfile
+  while this venv -- built with `uv pip install -e ../..`, which ignores the lock
+  -- resolves it to whatever HEAD is at build time. A HEAD newer than `b0a4ce1`
+  requires embedding models to be revision-pinned and rejects the gateway-style
+  name Auto Ontology passes (`nvidia/nvidia/nemotron-3-embed-1b`, correct for the
+  `sk-` endpoint but absent from the library's alias table). `get_relevant_tables`
+  catches that and returns an empty list, so the agent runs on with **no relevant
+  tables and nothing in the results to say why** -- worth about six points of
+  execution accuracy. Bump the pin and `uv.lock` together.
+- **CVE overrides repeated from `pyproject.toml`.** `nltk`, `pillow`, `ray` and
+  `urllib3` are restated in `overrides.txt` because this venv is built under
+  `UV_NO_CONFIG=1` (see below), which switches the parent's overrides off along
+  with its openai one. Without them the pinned nemo-retriever commit drags its
+  own exact `pillow==12.2.0` / `nltk==3.9.4` back in and pulls `ray` below the
+  version the parent runs.
 
 nemo-gym 0.6.0 requires Python **>=3.13.14**, which is why `requires-python` was
 raised from 3.12.
@@ -174,7 +211,7 @@ one exists. The judge stays available as a separate re-scoring pass over CSVs.
 
 | Dataset | Dialect | In the benchmark? |
 |---|---|---|
-| `bird` (500q) | SQLite | yes |
+| `bird` (1,534q) | SQLite | yes |
 | `fdabench` (169q) | SQLite | yes |
 | `wideworldimporters` (41q) | Postgres | yes |
 | `beaverbench` | MySQL | yes — seed with `scripts/seed_beaverbench.py --import-mysql` |
@@ -207,6 +244,39 @@ neither. The current pairing:
 That instruction is not cosmetic: extra columns fail `set(gold) == set(pred)`
 outright, so giving it to one arm only would measure projection guidance rather
 than ontology grounding.
+
+The Auto Ontology arm also has to carry `calculation_only=True` and
+`validate_sql_values=True`, which are not comparability knobs but parity with
+`ontology_sql_eval/retrieval/eval_chatbot.py` — the harness whose numbers this
+arm is checked against. The first pins the intent to CALCULATION (every BIRD
+question is answered by running SQL, so letting the classifier route elsewhere
+only creates ways to lose); the second enables the `validate_sql_values` node,
+which checks filter literals against the database. Omitting them is not visible
+in the rollouts, only in the node trace, and cost about two points.
+
+### Prompt inputs are off by default
+
+`sql_examples_csv` and `value_anchors_csv` attach the question-keyed exemplars
+and value anchors from `prompt_inputs/` to the agent's payload. They are
+commented out in `configs/auto_ontology_sql.yaml` and must be switched on with a
+Hydra override, so the committed default is the comparable one:
+
+```bash
+CFG=+auto_ontology_sql_resources_server.resources_servers.auto_ontology_sql
+UV_NO_CONFIG=1 scripts/run_gym_arm.sh auto_ontology_sql runs/treatment/bird.jsonl \
+  --max-output-tokens 16 \
+  +allow_openai_version_skew=true +skip_venv_if_present=true \
+  "$CFG.sql_examples_csv=prompt_inputs/bird/predicted_structural_exemplars.csv" \
+  "$CFG.sql_examples_k=5" \
+  "$CFG.value_anchors_csv=prompt_inputs/bird/value_anchors.csv"
+```
+
+The control arm cannot receive the equivalent, so **a delta measured with these
+on covers the exemplars and anchors as well as the ontology grounding** — say so
+when reporting it. Each rollout records `sql_examples_used` and
+`value_anchors_used` so a run can prove what it actually received rather than
+what it was configured to receive; the server also logs a `Prompt inputs:`
+summary at startup.
 
 The control's first sentence is upstream `bird_sql`'s prompt verbatim; the
 projection rule is our addition, so the baseline is no longer strictly identical
