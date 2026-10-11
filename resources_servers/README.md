@@ -100,14 +100,22 @@ Useful environment variables:
 | `GYM_API_KEY` | `.env`'s `DEFAULT_MODELS_API_KEY` | Overrides the key for *both* the policy model and Auto Ontology's own calls |
 | `GYM_MODEL` / `GYM_MODEL_URL` | bedrock-claude-opus-4-8 @ inference-api | |
 
-`GYM_API_KEY` has to override `DEFAULT_MODELS_API_KEY` rather than just
-`--model-api-key`: the Auto Ontology arm authenticates its in-process calls with the former,
-so changing only the CLI flag would move the policy model to the new key and leave
-the actual workload on the old one.
+`GYM_API_KEY` works by exporting `DEFAULT_MODELS_API_KEY`, which is what both
+consumers read: the Auto Ontology arm authenticates its own in-process calls
+with that variable, and the policy model's key is an interpolation of it (see
+[The API key never goes on the command line](#the-api-key-never-goes-on-the-command-line)).
+Pointing only the policy model at a new key would leave the actual workload --
+roughly 19 of every 20 calls -- on the old one.
 
 Give each arm its own output **directory**. Gym writes `preprocessed_datasets/`
 beside the output file, and a second arm's collation aborts on the first arm's
 leftover metrics ("Found conflicting aggregate metrics").
+
+Separate output directories do not cover every case of that error, though. Gym
+also caches `tasks_metrics.json` and `tasks_prepare.jsonl` beside the **task**
+file, under `resources_servers/<arm>/data/`, so rebuilding `tasks.jsonl` at a
+different question count aborts the next run of the *same* arm at collation --
+after the compute is spent. `run_full_compare.sh` clears them first.
 
 ## Environment
 
@@ -280,16 +288,23 @@ projection rule is our addition, so the baseline is no longer strictly identical
 to upstream's. That is the deliberate trade: internal comparability over
 comparability to published BIRD numbers.
 
-## Known issue: the API key is passed in argv
+## The API key never goes on the command line
 
-`scripts/run_gym_arm.sh` passes the model key via `--model-api-key`, which makes
-it visible in the process table (`ps`) to any user on the machine, and can leak
-into shell history and logs. Accepted on a single-user dev box; **fix before
-running this anywhere shared or in CI.**
+`run_gym_arm.sh` hands the key over as an OmegaConf *interpolation* rather than
+a value:
 
-The fix is to stop putting it on the command line -- resolve it inside a config
-instead, e.g. `api_key: ${oc.env:DEFAULT_MODELS_API_KEY}` in a merged config
-passed via `--config`, so the value only ever lives in the environment.
+```
++policy_api_key=${oc.env:DEFAULT_MODELS_API_KEY}
+```
+
+`gym eval run --model-api-key X` is only sugar for the override
+`+policy_api_key=X`, so passing the override directly costs nothing and keeps
+the secret out of `argv` -- where it would be readable by any user on the box
+through `ps`, and would end up in shell history and in any log that echoes the
+command. OmegaConf resolves it from the environment when the config is read.
+
+Keep it that way. If you add a flag that takes a credential, check whether it
+is sugar for an override you can interpolate instead.
 
 ## Comparing arms
 

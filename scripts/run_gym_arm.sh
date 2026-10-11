@@ -38,8 +38,9 @@ set +a
 # GYM_API_KEY overrides the key for *both* consumers, and must be applied after
 # sourcing .env (which would otherwise clobber it). The Auto Ontology arm runs the agent
 # in-process, so Auto Ontology's own ~19 calls per question authenticate with
-# DEFAULT_MODELS_API_KEY -- overriding only --model-api-key would change the
-# policy model's key and leave Auto Ontology on the old one.
+# DEFAULT_MODELS_API_KEY -- and so does the policy model, which reads it through
+# the interpolation below. Pointing only the policy model at a new key would
+# leave the actual workload on the old one.
 if [[ -n "${GYM_API_KEY:-}" ]]; then
   export DEFAULT_MODELS_API_KEY="$GYM_API_KEY"
 fi
@@ -68,6 +69,17 @@ export UV_NO_CONFIG=1
 # intended state, not an accident.
 GYM_FLAGS=(+allow_openai_version_skew=true)
 
+# The key is handed over as an OmegaConf interpolation, not a value. `gym eval
+# run --model-api-key X` is only sugar for the override `+policy_api_key=X`, so
+# passing the override directly keeps the secret out of argv -- where it would
+# otherwise be readable by any user on the box via `ps`, and would land in
+# shell history and in any log that echoes the command.
+#
+# Single-quoted so the shell leaves ${...} alone; OmegaConf resolves it from the
+# environment when the config is read. DEFAULT_MODELS_API_KEY is exported above,
+# so Gym's child processes inherit it either way.
+GYM_FLAGS+=('+policy_api_key=${oc.env:DEFAULT_MODELS_API_KEY}')
+
 # Reuse the server venv Gym already built. Rebuilding costs minutes and can trip
 # a race in nemo-retriever's timestamp-derived version ("Package metadata
 # version ... does not match ... from the wheel filename").
@@ -95,6 +107,5 @@ exec .venv/bin/gym eval run \
   --concurrency "${GYM_CONCURRENCY:-3}" \
   --model "${GYM_MODEL:-aws/anthropic/bedrock-claude-opus-4-8}" \
   --model-url "${GYM_MODEL_URL:-https://inference-api.nvidia.com/v1}" \
-  --model-api-key "$DEFAULT_MODELS_API_KEY" \
   "${GYM_FLAGS[@]}" \
   "$@"
