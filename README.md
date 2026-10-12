@@ -370,8 +370,20 @@ uv run python main.py --database-name bird --skip-ingest --skip-semantic \
 ```
 
 Add `--sql-examples-csv` / `--value-anchors-csv` to give the ontology arm the
-question-keyed prompt inputs. The control arm cannot be given an equivalent, so
-the delta then covers those inputs as well as the ontology grounding.
+question-keyed prompt inputs — the full form, which is what the reported BIRD
+delta was measured with:
+
+```bash
+uv run python main.py --database-name bird --skip-ingest --skip-semantic \
+  --eval-workers 10 --run-dir runs/full_$(date +%Y%m%d-%H%M%S) \
+  --sql-examples-csv prompt_inputs/bird/predicted_structural_exemplars.csv \
+  --sql-examples-k 5 \
+  --value-anchors-csv prompt_inputs/bird/value_anchors.csv
+```
+
+The control arm cannot be given an equivalent, so a delta measured this way
+covers those inputs as well as the ontology grounding. That is why they are off
+unless asked for.
 
 The stages are also drivable individually, against whatever task files are
 already on disk:
