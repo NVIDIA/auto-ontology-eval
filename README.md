@@ -360,9 +360,10 @@ Each workflow has its own README with purpose, run instructions, and outputs:
 
 ### NeMo Gym benchmark
 
-`main.py` runs this end to end and is the way to produce a comparison — it
-rebuilds the task files, verifies they hold the dataset you asked for, runs both
-arms, and stops on the first failure:
+`main.py` runs this end to end (see [Full pipeline](#full-pipeline-end-to-end-example))
+and is the way to produce a comparison — it rebuilds the task files, verifies
+they hold the dataset you asked for, runs both arms, and stops on the first
+failure:
 
 ```bash
 uv run python main.py --database-name bird --skip-ingest --skip-semantic \
