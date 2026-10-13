@@ -13,7 +13,9 @@ __pycache__/
 build/
 dist/
 
-# Virtual environments
+# Virtual environments. The bare form matters: this worktree's .venv is a
+# symlink to the main checkout's, and `.venv/` alone does not match a symlink.
+.venv
 .venv/
 venv/
 
@@ -55,6 +57,13 @@ venv/
 # Test-run outputs (transient, local only), including the flagged_questions
 # notes — not tracked on remote, kept local only.
 /results/*
+
+# Unstructured eval outputs. Both pipelines rebuild these from the corpus, and
+# answers.jsonl plus retrieval.json carry the full retrieved chunk text — 54 MB
+# across the two sides. Only report.json is small, and it is derived from the
+# answers, so nothing here is a source.
+/unstructured/results/
+/unstructured/benchmark/results/
 
 # Cursor / Claude Code local agent-plan and session state — machine-specific, never commit.
 .cursor/

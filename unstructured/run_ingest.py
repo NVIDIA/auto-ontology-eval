@@ -3,24 +3,26 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Run the auto-ontology unstructured ingest pipeline on the vidore_v3_hr PDFs.
+"""Ingest the vidore_v3_hr PDFs into Postgres: chunks and embeddings only.
 
-This script calls auto-ontology's ingest → extract → retrieve pipeline on
-every PDF in ``unstructured/data/vidore_v3_hr/pdfs/`` and writes the results
-into the auto-ontology Postgres instance (configured via ``POSTGRES_*`` env
-vars) and the pgvector collection ``unstructured_chunks``.
+This is the mechanical half of the pipeline — NeMo Retriever extracts and
+embeds each PDF, the chunks land in ``unstructured_chunk`` and their vectors in
+the pgvector collection ``unstructured_chunks``.  No LLM runs here, so a corpus
+can be re-ingested for the cost of the embeddings alone.
+
+Terms and attributes come from ``run_semantic.py``, which reads these chunks
+back out of Postgres.
 
 Pre-requisites
 --------------
 - auto-ontology Postgres running and migrated:
       cd ../auto-ontology && uv run alembic upgrade head
-- NVIDIA API key (embedding + LLM) set in the environment.
+- NVIDIA API key (embedding) set in the environment.
 - auto-ontology checked out on ``feature/unstructured``.
 
 Usage
 -----
     uv run python unstructured/run_ingest.py
-    uv run python unstructured/run_ingest.py --skip-retrieve   # skip link step
     uv run python unstructured/run_ingest.py --file path.pdf   # single file
 """
 
@@ -47,18 +49,12 @@ def main() -> None:
     parser.add_argument(
         "--file", help="Ingest a single file instead of the whole PDF directory."
     )
-    parser.add_argument(
-        "--skip-retrieve",
-        action="store_true",
-        help="Skip the attribute → chunk linking step.",
-    )
     args = parser.parse_args()
 
     # Import here so auto-ontology's sys.path addition (in config.py) has run.
     try:
         from auto_ontology.dal.session import get_engine
         from unstructured_ao.ingest import ingest_file  # auto-ontology module
-        from unstructured_ao.retrieve import link_document_attributes
     except ImportError as exc:
         logger.error(
             "Cannot import auto-ontology modules: %s\n"
@@ -85,22 +81,34 @@ def main() -> None:
     engine = get_engine()
 
     doc_ids: list[str] = []
-    with engine.begin() as conn:
-        for pdf in pdf_paths:
-            logger.info("  → %s", pdf.name)
-            doc_id = ingest_file(str(pdf), conn)
-            if doc_id:
-                doc_ids.append(doc_id)
-                if not args.skip_retrieve:
-                    link_document_attributes(doc_id, conn)
+    failed: list[Path] = []
+    for pdf in pdf_paths:
+        logger.info("  → %s", pdf.name)
+        # A transaction per document: a PDF that fails late in a long run
+        # should not roll back the ones already ingested.
+        try:
+            with engine.begin() as conn:
+                doc_id = ingest_file(str(pdf), conn)
+        except Exception:
+            logger.exception("Ingest failed for %s — continuing.", pdf.name)
+            failed.append(pdf)
+            continue
+        # ingest_file swallows an extraction failure and returns None, so the
+        # return value is the only signal that this PDF produced nothing.
+        if doc_id:
+            doc_ids.append(doc_id)
+        else:
+            failed.append(pdf)
 
     logger.info(
-        "Ingest complete: %d / %d document(s) processed.",
+        "Ingest complete: %d / %d document(s) in Postgres, %d failed.",
         len(doc_ids),
         len(pdf_paths),
+        len(failed),
     )
-    for doc_id in doc_ids:
-        logger.info("  doc_id=%s", doc_id)
+    for pdf in failed:
+        logger.warning("  failed: %s", pdf.name)
+    logger.info("Next: uv run python unstructured/run_semantic.py")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+# The ingested LanceDB table: 21 MB of binary that ingest.py regenerates from
+# the PDFs. Present locally, deliberately not committed.
+lancedb/

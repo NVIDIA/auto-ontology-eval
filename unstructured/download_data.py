@@ -11,7 +11,7 @@ Produces the layout the rest of this module expects::
 
     data/vidore_v3_hr/
       pdfs/*.pdf              14 European Commission HR/labour reports
-      queries_en.csv          query_id, query, gold_pages
+      queries_en.csv          query_id, query, answer, gold_pages
       qrels/qrels_en.csv      query_id, doc_id, page_number, score
 
 ``gold_pages`` is the ``"<doc_id> p.<page> | <doc_id> p.<page>"`` form that
@@ -90,8 +90,12 @@ def _read_split(split: str, columns: list[str]) -> list[dict]:
 def _build_tables() -> tuple[list[dict], list[dict]]:
     """Return ``(query_rows, qrel_rows)`` for the English subset."""
     logger.info("Reading queries …")
-    queries = _read_split("queries", ["query_id", "query", "language"])
-    english = {r["query_id"]: r["query"] for r in queries if r["language"] == LANGUAGE}
+    queries = _read_split("queries", ["query_id", "query", "language", "answer"])
+    english = {
+        r["query_id"]: (r["query"], r["answer"] or "")
+        for r in queries
+        if r["language"] == LANGUAGE
+    }
     logger.info("  %d English queries of %d total", len(english), len(queries))
 
     logger.info("Reading corpus page index …")
@@ -133,11 +137,15 @@ def _build_tables() -> tuple[list[dict], list[dict]]:
         {
             "query_id": qid,
             "query": text,
+            # Reference answer for the answer-quality tiers in eval_answers.py.
+            # Blank for queries the dataset ships unanswered; those are scored
+            # for retrieval only.
+            "answer": answer,
             "gold_pages": " | ".join(
                 f"{doc_id} p.{page}" for doc_id, page in sorted(set(gold.get(qid, [])))
             ),
         }
-        for qid, text in english.items()
+        for qid, (text, answer) in english.items()
     ]
     query_rows.sort(key=lambda r: int(r["query_id"]))
     return query_rows, qrel_rows
@@ -170,7 +178,9 @@ def main() -> None:
         return
 
     query_rows, qrel_rows = _build_tables()
-    _write_csv(config.QUERIES_CSV, query_rows, ["query_id", "query", "gold_pages"])
+    _write_csv(
+        config.QUERIES_CSV, query_rows, ["query_id", "query", "answer", "gold_pages"]
+    )
     _write_csv(
         config.QRELS_DIR / "qrels_en.csv",
         qrel_rows,
