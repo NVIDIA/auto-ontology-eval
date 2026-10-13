@@ -272,7 +272,7 @@ wheels = [
 [[package]]
 name = "auto-ontology-server"
 version = "1.1.0"
-source = { git = "https://github.com/NVIDIA/auto-ontology.git?rev=a519b4d1c94f367af416c21360a697b139ff78aa#a519b4d1c94f367af416c21360a697b139ff78aa" }
+source = { git = "https://github.com/NVIDIA/auto-ontology.git?rev=2deaca7814f5530d8be9f1847681d95a56b8f420#2deaca7814f5530d8be9f1847681d95a56b8f420" }
 dependencies = [
     { name = "alembic" },
     { name = "apache-ossie-nvidia-auto-ontology" },
@@ -2513,7 +2513,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "auto-ontology-server", git = "https://github.com/NVIDIA/auto-ontology.git?rev=a519b4d1c94f367af416c21360a697b139ff78aa" },
+    { name = "auto-ontology-server", git = "https://github.com/NVIDIA/auto-ontology.git?rev=2deaca7814f5530d8be9f1847681d95a56b8f420" },
     { name = "datasets", specifier = ">=5.0.1" },
     { name = "func-timeout", specifier = ">=4.3.5" },
     { name = "huggingface-hub", specifier = ">=1.28.0" },
