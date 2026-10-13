@@ -26,12 +26,6 @@ shift 2
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-# The schema-only arm imports ontology_sql_eval.gym.* but deliberately does not
-# install this project (it must not depend on Auto Ontology), so it finds the
-# package through PYTHONPATH. nemo-gym 0.7.0 puts only each server's own
-# directory there, not the repo root, and keeps whatever PYTHONPATH it inherits.
-export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
-
 if [[ ! -f .env ]]; then
   echo "run_gym_arm.sh: no .env in $ROOT (copy .env.example and fill it in)" >&2
   exit 1
@@ -41,6 +35,14 @@ set -a
 # shellcheck disable=SC1091
 . ./.env
 set +a
+
+# The schema-only arm imports ontology_sql_eval.gym.* but deliberately does not
+# install this project (it must not depend on Auto Ontology), so it finds the
+# package through PYTHONPATH. nemo-gym 0.7.0 puts only each server's own
+# directory there, not the repo root, and keeps whatever PYTHONPATH it inherits.
+# Set after .env is sourced, so a PYTHONPATH there cannot drop the root.
+export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
+
 
 # GYM_API_KEY overrides the key for *both* consumers, and must be applied after
 # sourcing .env (which would otherwise clobber it). The Auto Ontology arm runs the agent
@@ -81,29 +83,56 @@ GYM_FLAGS=('+policy_api_key=${oc.env:DEFAULT_MODELS_API_KEY}')
 # dependency edit that silently never takes effect is the failure this whole
 # script is trying to make impossible.
 #
-# The two that matter most are checked here rather than left to memory: a
-# server venv on a different nemo-gym or ray than this one runs old Gym code
-# under the new head, or cannot join its Ray cluster at all. Gym keeps each
-# server venv at <type>/<name>/.venv under --search-dir.
-gym_versions() {  # <venv>: "nemo-gym ray" as that venv's own interpreter sees them
-  "$1/bin/python" - <<'PY' 2>/dev/null
+# The packages whose mismatch breaks a run are checked here rather than left to
+# memory. A server venv on a different nemo-gym runs old Gym code under the new
+# head; a different ray cannot join the head's cluster; openai 2.45+ rejects the
+# inference-api gateway's responses; a newer nemo-retriever silently retrieves
+# no tables. Only the venvs Gym uses for this run are checked, at the
+# <type>/<name>/.venv paths it keeps them under --search-dir.
+CHECKED_DISTS=(nemo-gym ray openai nemo-retriever)
+dist_versions() {  # <venv>: a "name version" line per CHECKED_DISTS entry it has
+  "$1/bin/python" - "${CHECKED_DISTS[@]}" <<'PY'
+import sys
 from importlib.metadata import PackageNotFoundError, version
-def v(name):
+for name in sys.argv[1:]:
     try:
-        return version(name)
+        print(name, version(name))
     except PackageNotFoundError:
-        return "-"
-print(v("nemo-gym"), v("ray"))
+        pass
 PY
 }
-want="$(gym_versions .venv)"
+if [[ ! -x .venv/bin/python ]] || ! parent="$(dist_versions .venv)"; then
+  echo "run_gym_arm.sh: no working .venv in $ROOT; run \`uv sync\` first" >&2
+  exit 1
+fi
+# The comparison below is only as good as .venv itself: after a pull without
+# `uv sync`, .venv and the server venvs agree on the *old* versions.
+pinned="$(sed -n 's/^ *"nemo-gym==\([^"]*\)".*/\1/p' pyproject.toml)"
+if [[ -n "$pinned" ]] && ! grep -qx "nemo-gym $pinned" <<<"$parent"; then
+  echo "run_gym_arm.sh: .venv does not have pyproject.toml's nemo-gym==$pinned;" \
+       "run \`uv sync\` first" >&2
+  exit 1
+fi
+run_venvs=(
+  "resources_servers/$SERVER/.venv"
+  responses_api_agents/simple_agent/.venv
+  responses_api_models/inference_provider/.venv
+  environment_servers/legacy_agent/.venv
+)
 stale_venvs=()
-for venv in */*/.venv; do
+for venv in "${run_venvs[@]}"; do
   [[ -x "$venv/bin/python" ]] || continue
-  have="$(gym_versions "$venv")"
-  if [[ -n "$have" && "$have" != "$want" ]]; then
-    stale_venvs+=("$venv has nemo-gym/ray $have, .venv has $want")
+  if ! have="$(dist_versions "$venv")"; then
+    stale_venvs+=("$venv: its python fails to start")
+    continue
   fi
+  while read -r name version; do
+    [[ -n "$name" ]] || continue
+    want="$(awk -v n="$name" '$1 == n { print $2 }' <<<"$parent")"
+    if [[ "$version" != "$want" ]]; then
+      stale_venvs+=("$venv has $name $version, .venv has ${want:-none}")
+    fi
+  done <<<"$have"
 done
 if [[ ${#stale_venvs[@]} -gt 0 && -z "${GYM_REBUILD_VENV:-}" ]]; then
   echo "run_gym_arm.sh: rebuilding server venvs that are out of step with .venv:" >&2

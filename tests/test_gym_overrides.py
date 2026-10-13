@@ -6,9 +6,10 @@
 
 Gym builds each server venv with ``uv pip install`` run from inside this repo,
 and uv walks up the tree to the root ``pyproject.toml``, so its
-``override-dependencies`` apply there as well as in the parent venv. That is how
-the server venvs get the CVE floors, from one list. It also means an override
-can silently defeat a pin Gym itself passes on the command line. Both bugs this
+``override-dependencies`` and ``constraint-dependencies`` apply there as well as
+in the parent venv. That is how the server venvs get the CVE floors, from one
+place. It also means an entry there can silently defeat a pin Gym itself passes
+on the command line. Both bugs this
 guards against were silent: a Ray mismatch stops the cluster with an error that
 names neither venv, and an openai past Gym's pin rejects every response from
 the inference-api gateway.
@@ -25,10 +26,10 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def _override_names() -> set[str]:
+def _uv_names(key: str) -> set[str]:
     with (ROOT / "pyproject.toml").open("rb") as fh:
         pyproject = tomllib.load(fh)
-    listed = pyproject["tool"]["uv"]["override-dependencies"]
+    listed = pyproject["tool"]["uv"].get(key, [])
     return {re.split(r"[\[<>=!~ ;]", item, maxsplit=1)[0].lower() for item in listed}
 
 
@@ -48,8 +49,10 @@ def _override_names() -> set[str]:
         ),
     ],
 )
-def test_no_override_defeats_a_gym_pin(package: str, why: str) -> None:
-    assert package not in _override_names(), f"do not override {package}: {why}"
+@pytest.mark.parametrize("key", ["override-dependencies", "constraint-dependencies"])
+def test_no_override_defeats_a_gym_pin(package: str, why: str, key: str) -> None:
+    """uv applies constraints in the server venvs too, so they count as well."""
+    assert package not in _uv_names(key), f"do not list {package} in {key}: {why}"
 
 
 def test_no_per_server_overrides_file() -> None:
