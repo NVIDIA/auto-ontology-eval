@@ -12,7 +12,7 @@ ported source code and a sample dataset. Both are documented in
 | Package | Version (minimum) | License |
 |---|---|---|
 | langchain-nvidia-ai-endpoints | latest | MIT |
-| langchain-openai | ≥1.6.0 | MIT |
+| langchain-openai | ≥1.3.0, <1.3.5 | MIT |
 | langchain-postgres | ≥0.0.17 | MIT |
 | pandas | ≥2.0, <3 | BSD-3-Clause |
 | pydantic | ≥2.0 | MIT |
@@ -39,7 +39,8 @@ ported source code and a sample dataset. Both are documented in
 
 **Source dependencies:**
 
-- `nemo-retriever` — sourced from [NVIDIA/NeMo-Retriever](https://github.com/NVIDIA/NeMo-Retriever)
+- `nemo-retriever` — 26.8.1 from PyPI, pinned by Auto Ontology
+  ([NVIDIA/NeMo-Retriever](https://github.com/NVIDIA/NeMo-Retriever), Apache-2.0)
 - `auto_ontology` — sourced from
   [NVIDIA/auto-ontology](https://github.com/NVIDIA/auto-ontology) as a pinned
   Git dependency (Apache-2.0)

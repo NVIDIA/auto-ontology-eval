@@ -50,28 +50,27 @@ packages = ["ontology_sql_eval"]
 allow-direct-references = true
 
 [tool.uv]
-# Force patched versions of transitive dependencies with known CVEs
-# (nltk via nemo-retriever, pillow via matplotlib/nemo-retriever, urllib3
-# via nemo-retriever/requests/botocore).
-# Overrides (not constraints) because nemo-retriever pins pillow==12.2.0 and
-# urllib3==2.7.0 exactly. An override replaces every other package's range, so
-# urllib3 keeps the <3 bound requests and botocore declare.
-#
 # Gym builds each server venv with `uv pip install` run from inside this tree,
-# so uv applies these overrides there too. That is how the server venvs get the
-# CVE floors above, so they are listed once, here. Never add ray: a ray override
-# replaces Gym's exact `ray[default]==<head version>` pin, the server resolves
-# the newest Ray, and it fails to join the head's cluster ("Version mismatch").
-# nemo-gym's own ray[default]>=2.58.0 already holds the CVE floor.
+# so uv applies these overrides and constraints there too. That is how the
+# server venvs get the CVE floors below, so they are listed once, here. Never
+# add ray: a ray override replaces Gym's exact `ray[default]==<head version>`
+# pin, the server resolves the newest Ray, and it fails to join the head's
+# cluster ("Version mismatch"). nemo-gym's own ray[default]>=2.58.0 already
+# holds the CVE floor.
+#
+# urllib3 is an override, not a constraint, because nemo-retriever 26.8.1 pins
+# urllib3==2.7.0 exactly and only an override can lift that. An override
+# replaces every other package's range, so it restates the <3 bound requests
+# and botocore declare.
 override-dependencies = [
-    "nltk>=3.10.3",
-    "pillow>=12.3.0",
-    "urllib3>=2.8.0,<3",  # BDSA-2026-35861, BDSA-2026-35864
+    "urllib3>=2.8.0,<3",  # BDSA-2026-35861, BDSA-2026-35864 (via nemo-retriever, requests, botocore)
 ]
-# Minimum versions for transitive dependencies flagged by nSpect. Constraints
+# Minimum versions for transitive dependencies with known CVEs. Constraints
 # (not overrides) so each package's own upper bounds still apply.
 constraint-dependencies = [
     "anyio>=4.15.1",   # BDSA-2026-33862 (via httpx, starlette, openai, mcp)
+    "nltk>=3.10.3",    # via nemo-retriever, which requires only >=3.10.1
+    "pillow>=12.3.0",  # via matplotlib, nemo-retriever
     "pyasn1>=0.6.4",   # CVE-2026-59886 (via pyjks, pyasn1-modules)
     "pyjwt>=2.15.1",   # BDSA-2026-35552 (via databricks/snowflake connectors, mcp)
 ]

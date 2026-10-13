@@ -26,6 +26,12 @@ shift 2
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# The schema-only arm imports ontology_sql_eval.gym.* but deliberately does not
+# install this project (it must not depend on Auto Ontology), so it finds the
+# package through PYTHONPATH. nemo-gym 0.7.0 puts only each server's own
+# directory there, not the repo root, and keeps whatever PYTHONPATH it inherits.
+export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
+
 if [[ ! -f .env ]]; then
   echo "run_gym_arm.sh: no .env in $ROOT (copy .env.example and fill it in)" >&2
   exit 1
@@ -74,12 +80,42 @@ GYM_FLAGS=('+policy_api_key=${oc.env:DEFAULT_MODELS_API_KEY}')
 # only while the declared dependencies and the built venv agree, and a
 # dependency edit that silently never takes effect is the failure this whole
 # script is trying to make impossible.
+#
+# The two that matter most are checked here rather than left to memory: a
+# server venv on a different nemo-gym or ray than this one runs old Gym code
+# under the new head, or cannot join its Ray cluster at all. Gym keeps each
+# server venv at <type>/<name>/.venv under --search-dir.
+gym_versions() {  # <venv>: "nemo-gym ray" as that venv's own interpreter sees them
+  "$1/bin/python" - <<'PY' 2>/dev/null
+from importlib.metadata import PackageNotFoundError, version
+def v(name):
+    try:
+        return version(name)
+    except PackageNotFoundError:
+        return "-"
+print(v("nemo-gym"), v("ray"))
+PY
+}
+want="$(gym_versions .venv)"
+stale_venvs=()
+for venv in */*/.venv; do
+  [[ -x "$venv/bin/python" ]] || continue
+  have="$(gym_versions "$venv")"
+  if [[ -n "$have" && "$have" != "$want" ]]; then
+    stale_venvs+=("$venv has nemo-gym/ray $have, .venv has $want")
+  fi
+done
+if [[ ${#stale_venvs[@]} -gt 0 && -z "${GYM_REBUILD_VENV:-}" ]]; then
+  echo "run_gym_arm.sh: rebuilding server venvs that are out of step with .venv:" >&2
+  printf '  %s\n' "${stale_venvs[@]}" >&2
+  GYM_REBUILD_VENV=1
+fi
 if [[ -z "${GYM_REBUILD_VENV:-}" ]]; then
   GYM_FLAGS+=(+skip_venv_if_present=true)
 fi
 
-# --agent takes the fully-qualified server-instance name: nemo-gym 0.6.0
-# rejects the bare inner key ("simple_agent") that 0.4.0 accepted.
+# --agent takes the fully-qualified server-instance name: nemo-gym 0.6.0 and
+# later reject the bare inner key ("simple_agent") that 0.4.0 accepted.
 #
 # Gym builds each server its own venv from its requirements.txt. Auto Ontology
 # is installed transitively from the parent project's pinned Git dependency.

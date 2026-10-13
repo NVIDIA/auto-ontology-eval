@@ -93,7 +93,9 @@ which keeps it out of argv, and reuses existing server venvs with
 metadata-timestamp race below. **Set `GYM_REBUILD_VENV=1` after editing a server's
 `requirements.txt` or the root `pyproject.toml`'s `[tool.uv]` overrides, and once
 after pulling a change to either.** A venv that already exists is reused as-is,
-so otherwise the new pins silently never take effect.
+so otherwise the new pins silently never take effect. The one exception is
+checked for you: when a server venv's nemo-gym or Ray differs from `.venv`'s, the
+script rebuilds without being asked, since either mismatch breaks the run.
 
 Gym builds each server venv with `uv pip install` run from inside this repo, so uv
 also applies the root `pyproject.toml`'s `[tool.uv] override-dependencies` there.

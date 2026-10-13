@@ -9,14 +9,12 @@ resolution-markers = [
 [manifest]
 constraints = [
     { name = "anyio", specifier = ">=4.15.1" },
+    { name = "nltk", specifier = ">=3.10.3" },
+    { name = "pillow", specifier = ">=12.3.0" },
     { name = "pyasn1", specifier = ">=0.6.4" },
     { name = "pyjwt", specifier = ">=2.15.1" },
 ]
-overrides = [
-    { name = "nltk", specifier = ">=3.10.3" },
-    { name = "pillow", specifier = ">=12.3.0" },
-    { name = "urllib3", specifier = ">=2.8.0,<3" },
-]
+overrides = [{ name = "urllib3", specifier = ">=2.8.0,<3" }]
 
 [[package]]
 name = "aiobotocore"

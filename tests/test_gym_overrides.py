@@ -63,3 +63,31 @@ def test_no_per_server_overrides_file() -> None:
         for path in (ROOT / "resources_servers").glob("*/overrides.txt")
     )
     assert not stray, f"move these into pyproject.toml's [tool.uv]: {stray}"
+
+
+def test_server_requirements_pin_the_parents_nemo_gym() -> None:
+    """Each server venv must run the Gym version the head runs.
+
+    The servers' requirements.txt must name nemo-gym explicitly (see
+    resources_servers/README.md), so the version lives in three places.
+    """
+    with (ROOT / "pyproject.toml").open("rb") as fh:
+        pyproject = tomllib.load(fh)
+    parent = [
+        dep
+        for dep in pyproject["project"]["dependencies"]
+        if dep.startswith("nemo-gym")
+    ]
+    assert len(parent) == 1 and parent[0].startswith("nemo-gym=="), (
+        f"pyproject.toml must pin nemo-gym exactly, got {parent!r}"
+    )
+    for requirements in sorted((ROOT / "resources_servers").glob("*/requirements.txt")):
+        pins = [
+            line.strip()
+            for line in requirements.read_text().splitlines()
+            if line.strip().startswith("nemo-gym")
+        ]
+        assert pins == parent, (
+            f"{requirements.relative_to(ROOT)} pins {pins!r}, pyproject.toml "
+            f"{parent!r}; bump them together."
+        )
