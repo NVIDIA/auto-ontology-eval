@@ -91,6 +91,12 @@ allow-direct-references = true
 # The cap is stale: nemo_retriever never imports the instrumentator. Deliberately
 # unbounded above, unlike urllib3, because there is no upstream range to preserve.
 # See overrides.txt for the full rationale.
+#
+# This list does NOT reach the NeMo Gym resources-server venvs: those are built
+# under UV_NO_CONFIG=1 (scripts/run_gym_arm.sh), which stops uv discovering this
+# file at all. resources_servers/auto_ontology_sql/overrides.txt restates the
+# entries that have to hold there too, and tests/test_gym_overrides.py fails if
+# the two drift. Raise a floor here and you must raise it there as well.
 override-dependencies = [
     "nltk>=3.10.3",
     # nemo-gym 0.6.0 pins 2.44.0, while langchain-openai>=1.6.0 requires
