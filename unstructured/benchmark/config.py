@@ -32,6 +32,92 @@ os.environ.setdefault(
 
 NVIDIA_API_KEY = os.environ.get("NVIDIA_API_KEY", "")
 
+# The embedder, from the same EMBED_* triplet the attribute pipeline uses. The
+# two pipelines are compared against each other, and vectors from two different
+# models are not comparable: whichever side embeds differently is being measured
+# on a different space, so the comparison stops being about retrieval strategy.
+# One triplet in .env is what keeps them honest.
+#
+# NeMo's own default (nemotron-3-embed-1b) is deliberately not used here. It is
+# text-only, and half of what the extract stage yields from this corpus is
+# charts, tables and infographics; the VL model in EMBED_MODEL reads those as
+# images, which is also why ingest asks for the text_image modality.
+#
+# Both stages must agree. Ingest embeds the chunks and the retriever embeds the
+# query, and a mismatch between them puts the two in different spaces, where
+# search silently returns near-nothing rather than failing.
+EMBED_MODEL = os.environ.get("EMBED_MODEL", "")
+EMBED_ENDPOINT = os.environ.get("EMBED_ENDPOINT", "")
+EMBED_API_KEY = os.environ.get("EMBED_API_KEY", "")
+
+
+def _split_provider_prefix(model: str) -> tuple[str, str | None]:
+    """Split a wire model name into the registered name and a provider prefix.
+
+    This endpoint wants the vendor segment twice —
+    ``nvidia/nvidia/llama-nemotron-embed-vl-1b-v2`` — and the single-segment form
+    is rejected outright. NeMo wants the opposite: it looks the model up in its
+    registry to enforce the right tokenizer, prefix and input limit, and refuses
+    a name it cannot find, which the doubled form is. It prepends the provider
+    prefix itself when the request goes out, so splitting here satisfies both.
+    """
+    head, _, rest = model.partition("/")
+    if rest.startswith(f"{head}/"):
+        return rest, head
+    return model, None
+
+
+#: The registry name NeMo resolves, and the prefix it prepends on the wire.
+EMBED_MODEL_NAME, EMBED_PROVIDER_PREFIX = _split_provider_prefix(EMBED_MODEL)
+
+
+def require_embed_config() -> None:
+    missing = [
+        name
+        for name, value in (
+            ("EMBED_MODEL", EMBED_MODEL),
+            ("EMBED_ENDPOINT", EMBED_ENDPOINT),
+            ("EMBED_API_KEY", EMBED_API_KEY),
+        )
+        if not value
+    ]
+    if missing:
+        raise SystemExit(
+            f"{', '.join(missing)} not set in .env. The benchmark and the "
+            "attribute pipeline must embed with the same model to be comparable."
+        )
+
+
+def embed_params():
+    """``EmbedParams`` for the ingest-side chunk embeddings."""
+    from nemo_retriever.common.params import EmbedParams
+
+    require_embed_config()
+    return EmbedParams(
+        embed_invoke_url=EMBED_ENDPOINT,
+        model_name=EMBED_MODEL_NAME,
+        embed_model_name=EMBED_MODEL_NAME,
+        embed_model_provider_prefix=EMBED_PROVIDER_PREFIX,
+        api_key=EMBED_API_KEY,
+        embed_modality="text_image",
+    )
+
+
+def embed_kwargs() -> dict:
+    """Query-side embedding overrides for ``Retriever``.
+
+    Without these it falls back to NeMo's default model, which would embed the
+    query in a different space from the chunks ingest wrote.
+    """
+    require_embed_config()
+    return {
+        "model_name": EMBED_MODEL_NAME,
+        "embed_model_name": EMBED_MODEL_NAME,
+        "embed_model_provider_prefix": EMBED_PROVIDER_PREFIX,
+        "embed_invoke_url": EMBED_ENDPOINT,
+        "api_key": EMBED_API_KEY,
+    }
+
 # The ViDoRe v3 HR corpus that ships with this repo; ingest.py with no
 # arguments walks it, so only the PDFs are pointed at, not the csv alongside.
 DATASET_DIR = PROJECT_DIR.parent / "data" / "vidore_v3_hr"

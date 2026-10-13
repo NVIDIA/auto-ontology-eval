@@ -15,7 +15,7 @@ nothing of auto-ontology's Postgres.
 Only the retrieval step above is local to this file.  Everything after it —
 generator, prompt, token budget, reasoning cap, pacing, page-key arithmetic,
 graded qrels, scoring tiers, report — is ``unstructured/pipeline.py``, shared
-with ``unstructured/eval_attributes.py`` so that retrieval is the only
+with ``unstructured/attr_retrieve_generate.py`` so that retrieval is the only
 difference between the two reports.
 
 Tier 3, the LLM judge, is a separate pass in ``unstructured/judge.py``. Until it
@@ -64,6 +64,10 @@ class ChunkRetriever:
             )
         self._retriever = Retriever(
             top_k=pipeline.CHUNK_K,
+            # Without this the query is embedded with NeMo's default model while
+            # the table holds vectors from EMBED_MODEL, and the two spaces do not
+            # match: search returns near-nothing instead of failing outright.
+            embed_kwargs=config.embed_kwargs(),
             vdb_kwargs={"uri": config.LANCEDB_URI, "table_name": config.TABLE_NAME},
         )
 

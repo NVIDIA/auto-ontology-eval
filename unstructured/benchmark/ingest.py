@@ -73,13 +73,19 @@ def ingest(files: list[str], urls: list[str], append: bool = False) -> int:
             extract_charts=True,
             extract_infographics=True,
         )
-        .embed()
+        .embed(config.embed_params())
         .vdb_upload(
             vdb_op="lancedb",
             vdb_kwargs={
                 "uri": config.LANCEDB_URI,
                 "table_name": config.TABLE_NAME,
                 "overwrite": not append,
+                # Stamp the table with the model that produced its vectors.
+                # Querying refuses to run without it: .env says what we embed
+                # the query with now, and only the table can say what the stored
+                # vectors came from. A mismatch between the two returns almost
+                # nothing instead of failing, so NeMo verifies rather than trusts.
+                "embedding_model_name": config.EMBED_MODEL_NAME,
             },
         )
     )
