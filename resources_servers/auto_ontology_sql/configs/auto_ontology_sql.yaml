@@ -59,3 +59,24 @@ auto_ontology_sql_environment_server:
       agent_server:
         type: responses_api_agents
         name: auto_ontology_sql_simple_agent
+
+# Auto Ontology's own chat models, served through Gym so that Gym captures and
+# counts every call a question makes, not just the ignored policy call. Built
+# from what Auto Ontology itself resolves, exported by run_gym_arm.sh; see
+# ontology_sql_eval/gym/model_routing.py. The key stays an interpolation so it
+# never lands in argv or in a resolved config dump.
+auto_ontology_reasoning_model:
+  responses_api_models:
+    inference_provider:
+      entrypoint: app.py
+      base_url: ${oc.env:AUTO_ONTOLOGY_GYM_REASONING_ENDPOINT}
+      api_key: ${oc.env:AUTO_ONTOLOGY_GYM_REASONING_API_KEY}
+      model: ${oc.env:AUTO_ONTOLOGY_GYM_REASONING_MODEL}
+
+auto_ontology_non_reasoning_model:
+  responses_api_models:
+    inference_provider:
+      entrypoint: app.py
+      base_url: ${oc.env:AUTO_ONTOLOGY_GYM_NON_REASONING_ENDPOINT}
+      api_key: ${oc.env:AUTO_ONTOLOGY_GYM_NON_REASONING_API_KEY}
+      model: ${oc.env:AUTO_ONTOLOGY_GYM_NON_REASONING_MODEL}
