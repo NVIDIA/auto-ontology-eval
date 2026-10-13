@@ -1658,45 +1658,6 @@ wheels = [
 ]
 
 [[package]]
-name = "kumo-api"
-version = "0.92.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "numpy" },
-    { name = "pandas" },
-    { name = "protobuf" },
-    { name = "pydantic" },
-]
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/25/a5/452b2ee152b569c631127ab484ed6af9482d160c21691d5ef9ac9b8e2a5b/kumo_api-0.92.0-py3-none-any.whl", hash = "sha256:f5abcf0df6fa8fd22897004a9a19c123e101705a0d4c09451e8376e76026acc8", size = 94736, upload-time = "2026-06-16T22:00:22.222Z" },
-]
-
-[[package]]
-name = "kumoai"
-version = "2.22.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "aiohttp" },
-    { name = "jinja2" },
-    { name = "kumo-api" },
-    { name = "pandas" },
-    { name = "plotly" },
-    { name = "pyarrow" },
-    { name = "pydantic" },
-    { name = "requests" },
-    { name = "rich" },
-    { name = "tqdm" },
-    { name = "typing-extensions" },
-    { name = "urllib3" },
-]
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/53/ec/fc8653ac47d695c450b0969e97fbc2c9b159b62d693809dc31a98869004e/kumoai-2.22.0-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:5492057eba218d696ec3d2d522ffe609b15b78166cb2dc7d6cac683a1a381093", size = 387226, upload-time = "2026-05-11T13:28:58.52Z" },
-    { url = "https://files.pythonhosted.org/packages/80/b0/e25f55fad64d92fdf7e3d166940d4292a2460ab8da481875273120ceff1e/kumoai-2.22.0-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:7fc350d636d1dda5d12a04ece40897f3f1eb7408db07b8714a72680ccbf204cd", size = 404335, upload-time = "2026-05-11T13:28:59.903Z" },
-    { url = "https://files.pythonhosted.org/packages/29/4f/cfbfc043e905fc1d8cde183a71e05c7bbe630e4fd9acf76d6fee0c65e9db/kumoai-2.22.0-cp313-cp313-win_amd64.whl", hash = "sha256:a29096c2a2c6f63fa17b94eb6f9eeb9b36f688fcff2c42df46fde6443fc1bcc3", size = 387745, upload-time = "2026-05-11T13:29:01.49Z" },
-    { url = "https://files.pythonhosted.org/packages/4f/37/49f20c94079b95c6f90682b9e9aea7a08dac83c0c43135cec919b7ad3304/kumoai-2.22.0-py3-none-any.whl", hash = "sha256:406d974334220baf4375acb8082ad24bd1bcd6fef6433a89ea5d6d3f2ff209de", size = 295414, upload-time = "2026-05-11T13:29:06.956Z" },
-]
-
-[[package]]
 name = "lance-namespace"
 version = "0.9.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2537,7 +2498,6 @@ dependencies = [
     { name = "datasets" },
     { name = "func-timeout" },
     { name = "huggingface-hub" },
-    { name = "kumoai" },
     { name = "matplotlib" },
     { name = "nemo-gym" },
     { name = "numpy" },
@@ -2557,7 +2517,6 @@ requires-dist = [
     { name = "datasets", specifier = ">=5.0.1" },
     { name = "func-timeout", specifier = ">=4.3.5" },
     { name = "huggingface-hub", specifier = ">=1.28.0" },
-    { name = "kumoai", specifier = ">=2.22.0" },
     { name = "matplotlib", specifier = ">=3.11.1" },
     { name = "nemo-gym", specifier = "==0.7.0" },
     { name = "numpy", specifier = ">=2.0" },
@@ -2914,19 +2873,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d7/47/e4501f49c178ae1d9f4a75073fda4204f52647993f075a9db4d14930e0c5/platformdirs-4.10.0.tar.gz", hash = "sha256:31e761a6a0ca04faf7353ea759bdba55652be214725111e5aac52dfa29d4bef7", size = 31224, upload-time = "2026-05-28T03:32:53.587Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/81/e6/cd9575ac904136b3cbf7aa7ee819ef86eedb7274e46f230e94ea4342e729/platformdirs-4.10.0-py3-none-any.whl", hash = "sha256:fb516cdb12eb0d857d0cd85a7c57cea4d060bee4578d6cf5a14dfdf8cbf8784a", size = 22743, upload-time = "2026-05-28T03:32:52.175Z" },
-]
-
-[[package]]
-name = "plotly"
-version = "6.9.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "narwhals" },
-    { name = "packaging" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/96/07/795c79dbce40c39bece88e69d049babbd23ffa95b5d117f248db8ea03abb/plotly-6.9.0.tar.gz", hash = "sha256:967ad33e8c704fed051800d11d985eb206a9c795c14206b30a6f463ed9c67d0d", size = 6919903, upload-time = "2026-07-09T14:55:59.982Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/24/18/d8544811ab076f876c4892b3714f5b0dad335e1dc33aef826df431b8325d/plotly-6.9.0-py3-none-any.whl", hash = "sha256:36bebe2f1bb13884774fe61689c329071446f6ce4a8927fb1f0d6fb24f581236", size = 9909646, upload-time = "2026-07-09T14:55:55.421Z" },
 ]
 
 [[package]]
