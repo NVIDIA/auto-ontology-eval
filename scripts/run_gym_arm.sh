@@ -36,10 +36,12 @@ set -a
 . ./.env
 set +a
 
-# The schema-only arm imports ontology_sql_eval.gym.* but deliberately does not
-# install this project (it must not depend on Auto Ontology), so it finds the
-# package through PYTHONPATH. nemo-gym 0.7.0 puts only each server's own
-# directory there, not the repo root, and keeps whatever PYTHONPATH it inherits.
+# The schema-only arm imports ontology_sql_eval.gym.* (the shared executors and
+# grader) but deliberately does not install this project, since that would pull
+# in Auto Ontology. It finds the package through this PYTHONPATH entry: Gym puts
+# only each server's own directory there, and keeps whatever it inherits. The
+# repo root used to ride along with the GSF checkout path on this line, and went
+# when that was removed.
 # Set after .env is sourced, so a PYTHONPATH there cannot drop the root.
 export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
 
