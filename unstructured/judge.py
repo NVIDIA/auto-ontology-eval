@@ -14,7 +14,7 @@ and a judge can be swapped without regenerating a single answer.
 Judges either side, or both, since the two pipelines write the same fields:
 
     chunks      benchmark/results/answers.jsonl   benchmark/retrieve_generate.py
-    attributes  results/answers.jsonl             eval_attributes.py
+    attributes  results/answers.jsonl             attr_retrieve_generate.py
 
 Only rows that need a verdict are sent.  "Need" is keyed on the judge *model*,
 not merely on a score being absent, so changing ``pipeline.JUDGE_MODEL``
@@ -55,7 +55,7 @@ TARGETS = {
     ),
     "attributes": (
         pipeline.ATTRIBUTE_RESULTS,
-        "python -m unstructured.eval_attributes --report-only",
+        "python -m unstructured.attr_retrieve_generate --report-only",
     ),
 }
 

@@ -7,7 +7,7 @@ This folder holds the baseline only: chunks in LanceDB, searched directly.
 
     query → chunk vectors (LanceDB) → chunks → answer
 
-It is what the attribute pipeline in `unstructured/eval_attributes.py` is
+It is what the attribute pipeline in `unstructured/attr_retrieve_generate.py` is
 measured against. Nothing here touches auto-ontology's Postgres. Extraction and
 embedding go through NeMo Retriever; generation goes through the hosted NVIDIA
 endpoints.

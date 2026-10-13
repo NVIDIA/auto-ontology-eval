@@ -8,7 +8,7 @@
 Two pipelines are compared on the ViDoRe v3 HR corpus:
 
     benchmark/retrieve_generate.py   query → chunk vectors (LanceDB) → chunks
-    eval_attributes.py               query → attribute vectors → linked chunks
+    attr_retrieve_generate.py        query → attribute vectors → linked chunks
 
 They answer the same questions from different evidence.  For the comparison to
 mean anything, *only* the retrieval step may differ — so the generator, prompt,

@@ -26,13 +26,13 @@ the judge score ``n/a``.
 Prerequisites
 -------------
 - ``run_ingest.py`` and ``run_semantic.py`` have populated Postgres
-- attribute embeddings exist (``search_attributes.py --index`` reports 0 pending)
+- attribute embeddings exist (``run_semantic.py`` indexes as it extracts)
 
 Usage
 -----
-    python -m unstructured.eval_attributes
-    python -m unstructured.eval_attributes --limit 10
-    python -m unstructured.eval_attributes --report-only
+    python -m unstructured.attr_retrieve_generate
+    python -m unstructured.attr_retrieve_generate --limit 10
+    python -m unstructured.attr_retrieve_generate --report-only
 
 Answers and searches are appended as they land, so an interrupted run resumes
 where it stopped instead of paying for the same queries twice.
