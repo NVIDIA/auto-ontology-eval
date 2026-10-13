@@ -26,6 +26,33 @@ MySQL corpus is a common case, not an exotic one. `tests/test_gym_beaver_match.p
 holds our implementation against the official evaluator in
 `ontology_sql_eval/judge/beaver.py`.
 
+BEAVER also differs in how it runs and reports, and both arms follow it there
+too:
+
+- **10-second query timeout** for `beaverbench`, whatever
+  `sql_execution_timeout_s` is set to (`QUERY_TIMEOUTS` in `exec_match.py`). A
+  query that is slower than that is counted as an empty result, as it is
+  officially.
+- **Accuracy without empty-gold questions.** Every rollout records
+  `gold_result` (`empty_gold` / `nonempty_gold`), and the metrics carry
+  `nonempty_gold/pass@1[avg-of-k]/accuracy` beside the overall number;
+  `scripts/compare_arms.py` prints a matching `nonempty gold` row. An empty
+  gold result is matched by any prediction that returns nothing -- including
+  one that errored -- so this is the more honest of the two.
+
+- **Every query that produces no rows is an empty result** -- an error, a
+  timeout, or no prediction at all (an empty model answer, an agent crash), on
+  the gold side as well as the prediction side (`ERRORS_AS_EMPTY` in
+  `exec_match.py`). So a missing prediction against empty gold scores 1.0, and a
+  task whose gold query fails stays in the denominator instead of being
+  excluded; its rollouts carry `gold_result: failed_gold` and are counted in
+  `health/gold_failure_scored_as_empty_count`. A missing prediction still keeps
+  its `no_model_output` / `unknown_error` failure code, so the health gate sees
+  an outage even where it scored.
+
+Every other dataset keeps the stricter handling: a failed prediction is a miss,
+and a failed gold query drops the task (`health/excluded_unusable_gold_count`).
+
 Neither rule involves an LLM. The LLM judge (`judge/scorer.py`) is a separate
 tool and is not used by either arm.
 
