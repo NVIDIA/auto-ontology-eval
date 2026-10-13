@@ -2,20 +2,17 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""The Gym server's overrides must stay in step with the parent environment.
+"""The root ``[tool.uv]`` overrides also reach the Gym server venvs.
 
-``resources_servers/auto_ontology_sql/overrides.txt`` restates pins that also
-live in ``uv.lock`` and the root ``pyproject.toml``. The duplication is forced:
-Gym builds that server's venv under ``UV_NO_CONFIG=1``, which is what stops the
-parent's ``override-dependencies`` leaking in and clobbering the server's own
-``openai`` pin -- but it switches off the parent's other overrides at the same
-time, so they have to be repeated.
-
-Duplication that nothing checks is duplication that drifts, and both of the
-bugs these pins exist to prevent were silent: a Ray mismatch stops the cluster
-with an error that names neither venv, and a newer nemo-retriever leaves the
-ontology arm retrieving nothing at all while still reporting a score. These
-tests turn "bump both together" from a comment into a rule.
+Gym builds each server venv with ``uv pip install`` run from inside this repo,
+and uv walks up the tree to the root ``pyproject.toml``, so its
+``override-dependencies`` and ``constraint-dependencies`` apply there as well as
+in the parent venv. That is how the server venvs get the CVE floors, from one
+place. It also means an entry there can silently defeat a pin Gym itself passes
+on the command line. Both bugs this
+guards against were silent: a Ray mismatch stops the cluster with an error that
+names neither venv, and an openai past Gym's pin rejects every response from
+the inference-api gateway.
 """
 
 from __future__ import annotations
@@ -27,87 +24,73 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-OVERRIDES = ROOT / "resources_servers" / "auto_ontology_sql" / "overrides.txt"
 
 
-def _overrides() -> dict[str, str]:
-    """Requirement lines from overrides.txt, keyed by package name."""
-    entries: dict[str, str] = {}
-    for raw in OVERRIDES.read_text().splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#"):
-            continue
-        # "nemo-retriever[tabular] @ git+..." and "ray==2.59.0" alike: the name
-        # is everything before the first extra, comparison or " @ ".
-        name = re.split(r"[\[<>=!~ ]", line, maxsplit=1)[0]
-        entries[name] = line
-    return entries
-
-
-def _locked() -> dict[str, dict]:
-    """``[[package]]`` entries from uv.lock, keyed by name."""
-    with (ROOT / "uv.lock").open("rb") as fh:
-        lock = tomllib.load(fh)
-    return {pkg["name"]: pkg for pkg in lock["package"]}
-
-
-def _pyproject_overrides() -> dict[str, str]:
+def _uv_names(key: str) -> set[str]:
     with (ROOT / "pyproject.toml").open("rb") as fh:
         pyproject = tomllib.load(fh)
-    listed = pyproject["tool"]["uv"]["override-dependencies"]
-    return {re.split(r"[\[<>=!~ ]", item, maxsplit=1)[0]: item for item in listed}
+    listed = pyproject["tool"]["uv"].get(key, [])
+    return {re.split(r"[\[<>=!~ ;]", item, maxsplit=1)[0].lower() for item in listed}
 
 
-def test_nemo_retriever_commit_matches_the_lockfile() -> None:
-    """The server must embed with the same revision the legacy harness uses.
+@pytest.mark.parametrize(
+    ("package", "why"),
+    [
+        (
+            "ray",
+            "Gym pins ray[default]==<head version> into every server venv; an "
+            "override replaces that pin and the server fails to join the cluster",
+        ),
+        (
+            "openai",
+            "Gym pins the parent's openai into every server venv, and Auto "
+            "Ontology pins openai==2.44.0 to match nemo-gym; an override replaces "
+            "both, and openai 2.45+ rejects the inference-api gateway's responses",
+        ),
+    ],
+)
+@pytest.mark.parametrize("key", ["override-dependencies", "constraint-dependencies"])
+def test_no_override_defeats_a_gym_pin(package: str, why: str, key: str) -> None:
+    """uv applies constraints in the server venvs too, so they count as well."""
+    assert package not in _uv_names(key), f"do not list {package} in {key}: {why}"
 
-    nemo-retriever is an *unpinned* Git dependency, so the parent venv takes the
-    locked commit while this venv -- built with ``uv pip install -e ../..``,
-    which ignores the lock -- would otherwise take whatever HEAD is. A newer
-    HEAD rejects the gateway-style embedding model name Auto Ontology passes,
-    and ``get_relevant_tables`` turns that into an empty table list rather than
-    an error.
+
+def test_no_per_server_overrides_file() -> None:
+    """Overrides live in one place.
+
+    Gym also honours an ``overrides.txt`` beside a server's requirements.txt.
+    A second list drifts from the first, and the root list already applies.
     """
-    override = _overrides()["nemo-retriever"]
-    pinned = re.search(r"@([0-9a-f]{40})#", override)
-    assert pinned, f"nemo-retriever override must pin a full commit sha: {override}"
-
-    source = _locked()["nemo-retriever"]["source"]["git"]
-    locked = re.search(r"#([0-9a-f]{40})$", source)
-    assert locked, f"could not read the locked nemo-retriever commit from {source!r}"
-
-    assert pinned.group(1) == locked.group(1), (
-        "overrides.txt and uv.lock disagree on the nemo-retriever commit. "
-        "Bump both together, and re-run the ontology arm: a mismatch here is "
-        "not visible in the rollouts, only in the node trace."
+    stray = sorted(
+        str(path.relative_to(ROOT))
+        for path in (ROOT / "resources_servers").glob("*/overrides.txt")
     )
+    assert not stray, f"move these into pyproject.toml's [tool.uv]: {stray}"
 
 
-def test_ray_is_pinned_to_the_locked_version() -> None:
-    """Gym's cluster needs the driver and the server's workers on one version.
+def test_server_requirements_pin_the_parents_nemo_gym() -> None:
+    """Each server venv must run the Gym version the head runs.
 
-    A lower bound is not enough: the parent's version is frozen by uv.lock while
-    this venv resolves freely, so ``ray>=`` agrees only until the next release.
+    The servers' requirements.txt must name nemo-gym explicitly (see
+    resources_servers/README.md), so the version lives in three places.
     """
-    override = _overrides()["ray"]
-    assert override.startswith("ray=="), (
-        f"ray must be pinned exactly so parent and server agree, got {override!r}"
+    with (ROOT / "pyproject.toml").open("rb") as fh:
+        pyproject = tomllib.load(fh)
+    parent = [
+        dep
+        for dep in pyproject["project"]["dependencies"]
+        if dep.startswith("nemo-gym")
+    ]
+    assert len(parent) == 1 and parent[0].startswith("nemo-gym=="), (
+        f"pyproject.toml must pin nemo-gym exactly, got {parent!r}"
     )
-    assert override == f"ray=={_locked()['ray']['version']}", (
-        f"{override!r} does not match uv.lock's ray "
-        f"{_locked()['ray']['version']!r}; bump both together."
-    )
-
-
-@pytest.mark.parametrize("package", ["nltk", "pillow", "urllib3"])
-def test_cve_overrides_match_pyproject(package: str) -> None:
-    """The restated CVE floors must not fall behind the parent's.
-
-    These are the patched-version overrides from the root pyproject, repeated
-    here because UV_NO_CONFIG=1 switches the originals off. Raising one without
-    the other would leave the server on the vulnerable version.
-    """
-    assert _overrides()[package] == _pyproject_overrides()[package], (
-        f"{package} differs between overrides.txt and pyproject.toml's "
-        "override-dependencies; they must be raised together."
-    )
+    for requirements in sorted((ROOT / "resources_servers").glob("*/requirements.txt")):
+        pins = [
+            line.strip()
+            for line in requirements.read_text().splitlines()
+            if line.strip().startswith("nemo-gym")
+        ]
+        assert pins == parent, (
+            f"{requirements.relative_to(ROOT)} pins {pins!r}, pyproject.toml "
+            f"{parent!r}; bump them together."
+        )

@@ -3,59 +3,31 @@ name = "ontology-sql-eval"
 version = "0.1.0"
 description = "LLM-powered re-scoring of Text-to-SQL evaluation CSVs, plus Auto Ontology-backed ingestion and retrieval evaluation."
 readme = "README.md"
-# nemo-gym 0.6.0 requires >=3.13.14. Raised from >=3.12 when the Gym
+# nemo-gym requires >=3.13.14. Raised from >=3.12 when the Gym
 # environments were added so the harness and the Gym resources servers can share
-# one interpreter; see overrides.txt.
+# one interpreter.
 requires-python = ">=3.13.14,<3.14"
 license = { text = "Apache-2.0" }
 dependencies = [
-    "langchain-nvidia-ai-endpoints",
-    # Auto Ontology requires >=1.6.0. NeMo Gym 0.6.0's stale openai==2.44.0
-    # pin is overridden below to the compatible 2.x range required here.
-    "langchain-openai>=1.6.0",
-    "pandas>=2.0,<3",
-    "pydantic>=2.0",
-    "python-dotenv",
-    "auto-ontology-server @ git+https://github.com/NVIDIA/auto-ontology.git@3018ac4fd124d38749a964187150654588e257a4",
-    "nemo-retriever[tabular]",
-    "psycopg[binary]>=3.3.3",
-    "psycopg-pool>=3.3.1",
-    "snowflake-connector-python>=4.7.4",
-    "databricks-sql-connector>=4.3.0",
-    "mysql-connector-python>=26.7.0",
-    "kumoai>=2.22.0",
-    "langchain-postgres>=0.0.17",
-    "duckdb>=1.5.2",
-    "pyheavydb>=8.0.1.post1",
-    "hvac>=2.4.0",
-    "httpx>=0.28.1",
-    "fastapi>=0.115.0",
-    "uvicorn[standard]>=0.32.0",
+    # Auto Ontology's runtime dependencies (connectors, nemo-retriever, langchain,
+    # pandas, fastapi, ...) come in through this package. Do not redeclare them
+    # here: a second copy drifts out of sync with what Auto Ontology is tested
+    # against. List only what this project needs on top of it.
+    "auto-ontology-server @ git+https://github.com/NVIDIA/auto-ontology.git@2deaca7814f5530d8be9f1847681d95a56b8f420",
     # Imported directly by bird_interact/bird_interact_http.py. Also reachable
-    # transitively through nemo-retriever, but that is an unpinned git HEAD.
+    # transitively through Auto Ontology, but not as part of its contract.
     "sqlglot>=30.12.0",
-    "importlib-metadata>=9.0.0",
-    # auto_ontology.connectors is imported eagerly by the semantic DAL, which
-    # unconditionally imports every connector module (trino, mysql, kyuubi).
-    # These are required even if a run never touches those connectors.
-    "sqlalchemy>=2.0.52",
-    "alembic>=1.19.1",
-    "mysql-connector-python>=26.7.0",
-    "pyyaml>=6.0.3",
-    "trino>=0.339.0",
-    "pyhive[hive-pure-sasl]>=0.7.0",
-    "thrift>=0.24.0",
-    "thrift-sasl>=0.4.3",
-    "pure-sasl>=0.6.2",
-    "pyjks>=20.0.0",
     # BIRD official EX/VES judge (ontology_sql_eval/judge/bird.py)
     "func-timeout>=4.3.5",
     "numpy>=2.0",
-    "datasets>=5.0.1",
-    "matplotlib>=3.11.1",
-    "huggingface-hub>=1.28.0",
+    # CPU/RAM sampling in retrieval/run_logging.py
     "psutil>=7.2.2",
-    "nemo-gym==0.6.0",
+    # Dataset seeding (scripts/seed_beaverbench.py, scripts/seed_bird_interact.py)
+    "datasets>=5.0.1",
+    "huggingface-hub>=1.28.0",
+    # Charts in scripts/analyze_bird_interact.py
+    "matplotlib>=3.11.1",
+    "nemo-gym==0.7.0",
 ]
 
 [project.scripts]
@@ -78,42 +50,27 @@ packages = ["ontology_sql_eval"]
 allow-direct-references = true
 
 [tool.uv]
-# Force patched versions of transitive dependencies with known CVEs
-# (nltk/ray via nemo-retriever, pillow via matplotlib/nemo-retriever, urllib3
-# via nemo-retriever/requests/botocore).
-# Overrides (not constraints) because nemo-retriever pins pillow==12.2.0 and
-# urllib3==2.7.0 exactly. An override replaces every other package's range, so
-# urllib3 keeps the <3 bound requests and botocore declare.
+# Gym builds each server venv with `uv pip install` run from inside this tree,
+# so uv applies these overrides and constraints there too. That is how the
+# server venvs get the CVE floors below, so they are listed once, here. Never
+# add ray: a ray override replaces Gym's exact `ray[default]==<head version>`
+# pin, the server resolves the newest Ray, and it fails to join the head's
+# cluster ("Version mismatch"). nemo-gym's own ray[default]>=2.58.0 already
+# holds the CVE floor.
 #
-# prometheus-fastapi-instrumentator is here for a different reason -- not a CVE.
-# nemo-retriever caps it at <8, and every release in that range pins
-# starlette<1.0.0, which collides with nemo-gym's ray[serve] (starlette>=1.0.1).
-# The cap is stale: nemo_retriever never imports the instrumentator. Deliberately
-# unbounded above, unlike urllib3, because there is no upstream range to preserve.
-# See overrides.txt for the full rationale.
-#
-# This list does NOT reach the NeMo Gym resources-server venvs: those are built
-# under UV_NO_CONFIG=1 (scripts/run_gym_arm.sh), which stops uv discovering this
-# file at all. resources_servers/auto_ontology_sql/overrides.txt restates the
-# entries that have to hold there too, and tests/test_gym_overrides.py fails if
-# the two drift. Raise a floor here and you must raise it there as well.
+# urllib3 is an override, not a constraint, because nemo-retriever 26.8.1 pins
+# urllib3==2.7.0 exactly and only an override can lift that. An override
+# replaces every other package's range, so it restates the <3 bound requests
+# and botocore declare.
 override-dependencies = [
-    "nltk>=3.10.3",
-    # nemo-gym 0.6.0 pins 2.44.0, while langchain-openai>=1.6.0 requires
-    # openai>=2.45.0. Keep the same major version and override the stale exact pin.
-    "openai>=2.45.0,<3",
-    "pillow>=12.3.0",
-    "ray>=2.58.0",
-    "urllib3>=2.8.0,<3",  # BDSA-2026-35861, BDSA-2026-35864
-    "prometheus-fastapi-instrumentator>=8",
+    "urllib3>=2.8.0,<3",  # BDSA-2026-35861, BDSA-2026-35864 (via nemo-retriever, requests, botocore)
 ]
-# Minimum versions for transitive dependencies flagged by nSpect. Constraints
+# Minimum versions for transitive dependencies with known CVEs. Constraints
 # (not overrides) so each package's own upper bounds still apply.
 constraint-dependencies = [
     "anyio>=4.15.1",   # BDSA-2026-33862 (via httpx, starlette, openai, mcp)
+    "nltk>=3.10.3",    # via nemo-retriever, which requires only >=3.10.1
+    "pillow>=12.3.0",  # via matplotlib, nemo-retriever
     "pyasn1>=0.6.4",   # CVE-2026-59886 (via pyjks, pyasn1-modules)
     "pyjwt>=2.15.1",   # BDSA-2026-35552 (via databricks/snowflake connectors, mcp)
 ]
-
-[tool.uv.sources]
-nemo-retriever = { git = "https://github.com/NVIDIA/NeMo-Retriever.git", subdirectory = "nemo_retriever" }

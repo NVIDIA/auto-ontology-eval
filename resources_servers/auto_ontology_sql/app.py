@@ -14,13 +14,6 @@ Grading is shared with the schema-only arm -- same executor, same BIRD
 set-equality rule, same failure codes -- so a difference in the number can only
 come from the SQL.
 
-Sharing one interpreter with ``nemo_gym`` took two dependency decisions, both
-recorded in ``overrides.txt`` and ``pyproject.toml``: an override lifting
-nemo-retriever's stale ``prometheus-fastapi-instrumentator<8`` cap (it pins
-``starlette<1.0.0``, which collides with nemo-gym's ray[serve]), and a
-the OpenAI 2.x override that reconciles Auto Ontology with NeMo Gym's stale
-``openai==2.44.0`` pin.
-
 Three couplings with Auto Ontology this module must respect:
 
 * ``auto_ontology.retrieval.text_to_sql.main`` builds its LLM client and compiles the

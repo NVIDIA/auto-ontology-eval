@@ -86,15 +86,24 @@ uv run python main.py --database-name bird --skip-ingest --skip-semantic \
 Reach for `run_gym_arm.sh` directly when you are driving a single arm on
 purpose and already know the task file is right.
 
-`run_gym_arm.sh` sets three things for you that a run cannot go without. They
-are in the script rather than in this document because there is no reason to
-ever want them off, and each one fails in a way that is easy to misread:
+`run_gym_arm.sh` passes the model key as `+policy_api_key=${oc.env:DEFAULT_MODELS_API_KEY}`,
+which keeps it out of argv, and reuses existing server venvs with
+`+skip_venv_if_present=true`. Gym otherwise rebuilds a server venv from
+`requirements.txt` on every run, which costs minutes and can trip the
+metadata-timestamp race below. **Set `GYM_REBUILD_VENV=1` after editing a server's
+`requirements.txt` or the root `pyproject.toml`'s `[tool.uv]` overrides, and once
+after pulling a change to either.** A venv that already exists is reused as-is,
+so otherwise the new pins silently never take effect. The one exception is
+checked for you: when a server venv's nemo-gym or Ray differs from `.venv`'s, the
+script rebuilds without being asked, since either mismatch breaks the run.
 
-| | Why |
-|---|---|
-| `UV_NO_CONFIG=1` | uv walks *up* the tree to find `[tool.uv]`, so the root `pyproject.toml`'s `override-dependencies` leak into every server venv Gym builds. That is how the parent's `openai>=2.45` override defeats this arm's pin, and how a `ray` mismatch between parent and child appears. `UV_OVERRIDE` and a local `uv.toml` do **not** suppress it; only this does. `[tool.uv.sources]` is still honoured. |
-| `+allow_openai_version_skew=true` | Having set the above, the parent venv's openai no longer matches Gym's `openai==2.44.0`, and Gym refuses to start on the mismatch. The skew is the intended state. |
-| `+skip_venv_if_present=true` | Gym otherwise rebuilds the server venv from `requirements.txt` on every run, which costs minutes and can trip the metadata-timestamp race below. **Set `GYM_REBUILD_VENV=1` after editing a server's `requirements.txt` or `overrides.txt`, and once after pulling a change to either** — a venv that already exists is reused as-is, so otherwise the new pins silently never take effect, which is the same class of bug they exist to prevent. |
+Gym builds each server venv with `uv pip install` run from inside this repo, so uv
+also applies the root `pyproject.toml`'s `[tool.uv] override-dependencies` there.
+That is deliberate: it is how the server venvs get the CVE floors without a second
+list to keep in sync. It is also why `ray` must never be added to that list: an
+override replaces Gym's exact `ray[default]==<head version>` pin, the server venv
+resolves the newest Ray, and it fails to join the head's cluster with
+`Version mismatch`.
 
 Both arms run **in-process**: `auto_ontology_sql` imports Auto Ontology and drives its graph
 directly, so no Auto Ontology server is required. `--max-output-tokens 16` on the Auto Ontology arm is
@@ -129,41 +138,15 @@ another reason to prefer it over driving the arms by hand.
 
 ## Environment
 
-One venv holds both `nemo_gym` and Auto Ontology's dependencies. Getting there took two
-dependency decisions, recorded in `overrides.txt` and `pyproject.toml`:
+One venv holds both `nemo_gym` and Auto Ontology's dependencies, with no overrides
+needed between them: Auto Ontology pins `openai==2.44.0` to match nemo-gym, and
+nemo-retriever no longer caps `prometheus-fastapi-instrumentator` below 8.
 
-- **`prometheus-fastapi-instrumentator>=8` override.** nemo-retriever caps it at
-  `<8`, and every release in that range pins `starlette<1.0.0`, which collides with
-  nemo-gym's `ray[serve]` (`starlette>=1.0.1`). The cap is stale — nemo_retriever
-  never imports the instrumentator (it imports `prometheus_client`, a different
-  package, and only inside its own HTTP service).
-- **`openai==2.44.0` in the Auto Ontology arm.** The root `pyproject.toml` lifts
-  Gym's pin to `openai>=2.45,<3` so Auto Ontology's `langchain-openai>=1.6.0`
-  resolves. That is right for the parent venv and wrong for this one: openai
-  2.45.0 made `InputTokensDetails.cache_write_tokens` a *required* field, and the
-  inference-api gateway does not return it, so a 2.45+ server rejects the
-  response payload of every verify request and the whole arm fails with
-  `agent_run_error`. `langchain-openai` only ever reads that field with dict
-  `.get`, which yields `None` on 2.44 rather than failing, so Gym's pin is the
-  one that has to win here.
-- **`nemo-retriever` pinned to the `uv.lock` commit.** It is declared as an
-  *unpinned* Git dependency, so the parent venv resolves it through the lockfile
-  while this venv -- built with `uv pip install -e ../..`, which ignores the lock
-  -- resolves it to whatever HEAD is at build time. A HEAD newer than `b0a4ce1`
-  requires embedding models to be revision-pinned and rejects the gateway-style
-  name Auto Ontology passes (`nvidia/nvidia/nemotron-3-embed-1b`, correct for the
-  `sk-` endpoint but absent from the library's alias table). `get_relevant_tables`
-  catches that and returns an empty list, so the agent runs on with **no relevant
-  tables and nothing in the results to say why** -- worth about six points of
-  execution accuracy. Bump the pin and `uv.lock` together.
-- **CVE overrides repeated from `pyproject.toml`.** `nltk`, `pillow`, `ray` and
-  `urllib3` are restated in `overrides.txt` because this venv is built under
-  `UV_NO_CONFIG=1` (see below), which switches the parent's overrides off along
-  with its openai one. Without them the pinned nemo-retriever commit drags its
-  own exact `pillow==12.2.0` / `nltk==3.9.4` back in and pulls `ray` below the
-  version the parent runs.
+Auto Ontology's runtime dependencies are not redeclared in `pyproject.toml` — they
+arrive through the `auto-ontology-server` Git dependency. Add a package there only
+when this project needs it on top of Auto Ontology.
 
-nemo-gym 0.6.0 requires Python **>=3.13.14**, which is why `requires-python` was
+nemo-gym requires Python **>=3.13.14**, which is why `requires-python` was
 raised from 3.12.
 
 Auto Ontology is installed from the parent project's pinned Git dependency.
@@ -182,7 +165,7 @@ Four things about Gym's CLI that are easy to lose an hour to:
    and wrongly concludes it is an editable Gym checkout.
 4. `--agent` takes the **fully-qualified instance name** (`<server>_simple_agent`),
    i.e. the top-level config key — not the inner `simple_agent`, which is the server
-   *type*. nemo-gym 0.6.0 validates this eagerly; 0.4.0 did not validate it at all
+   *type*. nemo-gym 0.6.0+ validates this eagerly; 0.4.0 did not validate it at all
    and silently ignored a wrong value, so runs could appear to work with a bad name.
 
 Gym builds each server its own venv from its `requirements.txt`. If that build fails
