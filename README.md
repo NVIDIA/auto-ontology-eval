@@ -213,9 +213,11 @@ uv run python -m ontology_sql_eval.retrieval.eval_chatbot \
 ```
 
 `SQL_EXAMPLES_CSV`, `SQL_EXAMPLES_K`, `SQL_EXAMPLES_MIN_SCORE` and
-`VALUE_ANCHORS_CSV` in `.env` supply the defaults for those flags. They apply
-only to `eval_chatbot` run directly: the `main.py` pipeline never passes either
-file, so a full-pipeline run has no exemplars and no anchors.
+`VALUE_ANCHORS_CSV` in `.env` supply the defaults for those flags, and apply
+only to `eval_chatbot` run directly. The `main.py` pipeline takes the same two
+files under different names — `--sql-examples-csv` and `--value-anchors-csv` —
+and passes neither by default, so a pipeline run without them has no exemplars
+and no anchors.
 
 ## Datasets
 
@@ -358,9 +360,34 @@ Each workflow has its own README with purpose, run instructions, and outputs:
 
 ### NeMo Gym benchmark
 
-`main.py` runs this end to end (see [Full pipeline](#full-pipeline-end-to-end-example));
-the commands below drive the stages individually. Full guide:
-[resources_servers/README.md](resources_servers/README.md).
+`main.py` runs this end to end (see [Full pipeline](#full-pipeline-end-to-end-example))
+and is the way to produce a comparison — it rebuilds the task files, verifies
+they hold the dataset you asked for, runs both arms, and stops on the first
+failure:
+
+```bash
+uv run python main.py --database-name bird --skip-ingest --skip-semantic \
+  --eval-workers 10 --run-dir runs/full_$(date +%Y%m%d-%H%M%S)
+```
+
+Add `--sql-examples-csv` / `--value-anchors-csv` to give the ontology arm the
+question-keyed prompt inputs — the full form, which is what the reported BIRD
+delta was measured with:
+
+```bash
+uv run python main.py --database-name bird --skip-ingest --skip-semantic \
+  --eval-workers 10 --run-dir runs/full_$(date +%Y%m%d-%H%M%S) \
+  --sql-examples-csv prompt_inputs/bird/predicted_structural_exemplars.csv \
+  --sql-examples-k 5 \
+  --value-anchors-csv prompt_inputs/bird/value_anchors.csv
+```
+
+The control arm cannot be given an equivalent, so a delta measured this way
+covers those inputs as well as the ontology grounding. That is why they are off
+unless asked for.
+
+The stages are also drivable individually, against whatever task files are
+already on disk:
 
 ```bash
 # 1. build task files, once per dataset and arm
@@ -376,14 +403,33 @@ uv run python scripts/compare_arms.py \
   --control runs/control/bird.jsonl --treatment runs/treatment/bird.jsonl
 ```
 
+`run_gym_arm.sh` reuses existing server venvs, so pass `GYM_REBUILD_VENV=1`
+after changing a server's dependencies. See
+[resources_servers/README.md](resources_servers/README.md#running-an-arm).
+
+> **If you built a Gym server venv before these pins existed, rebuild it once:**
+> `GYM_REBUILD_VENV=1 scripts/run_gym_arm.sh auto_ontology_sql /tmp/probe.jsonl`.
+> The venv is reused by default, so pulling this change does not update one that
+> already exists — it keeps the nemo-retriever and openai it was built with. A
+> nemo-retriever newer than 26.8.1 makes the ontology arm score several points
+> low with nothing in the rollouts to say why, and openai 2.45+ rejects the
+> inference-api gateway's responses. A venv built from scratch is already correct.
+
 Datasets: `bird`, `fdabench`, `wideworldimporters` (Postgres), `beaverbench`
 (MySQL). The ontology arm additionally needs the database ingested and its
 semantic layer compiled (workflow 1) — it drives the agent in-process, importing
 the installed `auto_ontology` package.
 
-Knobs: `GYM_CONCURRENCY` (default 3 — size against the model endpoint's **rate
-limit**, not CPU), `GYM_API_KEY` (overrides the key for both the policy model and
-the agent's own calls), `GYM_MODEL`, and `GYM_MODEL_URL`.
+Knobs: `--eval-workers` on `main.py` (size against the model endpoint's **rate
+limit**, not CPU; 10 is measured-safe on the `sk-` key), or `GYM_CONCURRENCY`
+when driving an arm directly. `GYM_API_KEY` overrides the key for both the
+policy model and the agent's own calls; `GYM_MODEL` and `GYM_MODEL_URL` pick the
+endpoint.
+
+> [!NOTE]
+> Driving the ontology arm directly, `GYM_CONCURRENCY` alone leaves it throttled:
+> its server has a second ceiling (`max_concurrency`, default 3). `main.py`
+> raises both from `--eval-workers`.
 
 > [!WARNING]
 > Read the `health/*` counters next to the accuracy. A rate-limited or otherwise
