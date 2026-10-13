@@ -39,3 +39,14 @@ auto_ontology_sql_simple_agent:
           type: validation
           jsonl_fpath: resources_servers/auto_ontology_sql/data/tasks.jsonl
           license: Creative Commons Attribution-ShareAlike 4.0 International
+
+# Rollouts reach the agent only through an environment server. legacy_agent
+# relays /run to the agent unchanged; nemo-gym 0.7.0 generates this block (with
+# a deprecation warning) when it is missing, and a later release requires it.
+auto_ontology_sql_environment_server:
+  environment_servers:
+    legacy_agent:
+      entrypoint: app.py
+      agent_server:
+        type: responses_api_agents
+        name: auto_ontology_sql_simple_agent

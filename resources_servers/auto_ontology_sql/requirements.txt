@@ -2,13 +2,9 @@
 #
 # This arm imports Auto Ontology in-process. Installing the parent project
 # editable also installs its pinned Auto Ontology Git dependency.
-#
-# Why requirements.txt and not a pyproject.toml: Gym only honours a per-server
-# overrides.txt in the requirements branch, and this server needs one (see the
-# sibling overrides.txt). Gym passes it as `--override` automatically.
 -e ../..
 
 # Listed explicitly: Gym decides whether to install nemo-gym by looking for a
 # pyproject.toml two levels up, finds this repo's, and wrongly concludes it is
 # an editable Gym checkout.
-nemo-gym==0.6.0
+nemo-gym==0.7.0

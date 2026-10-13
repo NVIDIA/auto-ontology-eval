@@ -97,20 +97,15 @@ leftover metrics ("Found conflicting aggregate metrics").
 
 ## Environment
 
-One venv holds both `nemo_gym` and Auto Ontology's dependencies. Getting there took two
-dependency decisions, recorded in `overrides.txt` and `pyproject.toml`:
+One venv holds both `nemo_gym` and Auto Ontology's dependencies, with no overrides
+needed between them: Auto Ontology pins `openai==2.44.0` to match nemo-gym, and
+nemo-retriever no longer caps `prometheus-fastapi-instrumentator` below 8.
 
-- **`prometheus-fastapi-instrumentator>=8` override.** nemo-retriever caps it at
-  `<8`, and every release in that range pins `starlette<1.0.0`, which collides with
-  nemo-gym's `ray[serve]` (`starlette>=1.0.1`). The cap is stale — nemo_retriever
-  never imports the instrumentator (it imports `prometheus_client`, a different
-  package, and only inside its own HTTP service).
-- **`openai>=2.45,<3` override.** Auto Ontology requires
-  `langchain-openai>=1.6.0`, which needs `openai>=2.45.0`, while nemo-gym 0.6.0
-  pins `openai==2.44.0`. Both use the compatible OpenAI 2.x API, so the stale
-  patch-level Gym pin is lifted without crossing a major-version boundary.
+Auto Ontology's runtime dependencies are not redeclared in `pyproject.toml` — they
+arrive through the `auto-ontology-server` Git dependency. Add a package there only
+when this project needs it on top of Auto Ontology.
 
-nemo-gym 0.6.0 requires Python **>=3.13.14**, which is why `requires-python` was
+nemo-gym requires Python **>=3.13.14**, which is why `requires-python` was
 raised from 3.12.
 
 Auto Ontology is installed from the parent project's pinned Git dependency.
@@ -129,7 +124,7 @@ Four things about Gym's CLI that are easy to lose an hour to:
    and wrongly concludes it is an editable Gym checkout.
 4. `--agent` takes the **fully-qualified instance name** (`<server>_simple_agent`),
    i.e. the top-level config key — not the inner `simple_agent`, which is the server
-   *type*. nemo-gym 0.6.0 validates this eagerly; 0.4.0 did not validate it at all
+   *type*. nemo-gym 0.6.0+ validates this eagerly; 0.4.0 did not validate it at all
    and silently ignored a wrong value, so runs could appear to work with a bad name.
 
 Gym builds each server its own venv from its `requirements.txt`. If that build fails
