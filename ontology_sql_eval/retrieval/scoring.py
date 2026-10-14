@@ -15,11 +15,12 @@ from __future__ import annotations
 import difflib
 import json
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 
-from auto_ontology.connectors.base import SQLDatabase
+if TYPE_CHECKING:
+    from auto_ontology.connectors.base import SQLDatabase
 
 _NUM_RE = re.compile(r"-?\d+(?:\.\d+)?")
 _SCORE_STR_LIMIT = 8000
@@ -186,8 +187,9 @@ def score_answer(expected_raw: str, returned_db_str: str) -> Dict[str, Any]:
         expected_df = _db_result_to_df(expected_raw)
     actual_df = _db_result_to_df(returned_db_str)
 
+    both_parsed_as_df = expected_df is not None and actual_df is not None
     structural_match = 0
-    if expected_df is not None and actual_df is not None:
+    if both_parsed_as_df:
         structural_match = 1 if _df_values_equal(expected_df, actual_df) else 0
 
     # Truncate large strings before expensive text operations
@@ -196,11 +198,8 @@ def score_answer(expected_raw: str, returned_db_str: str) -> Dict[str, Any]:
 
     expected_nums = sorted(round(n, 4) for n in _extract_numbers(expected_capped))
     actual_nums = sorted(round(n, 4) for n in _extract_numbers(haystack))
-    if not expected_nums and not actual_nums:
-        nums_match = 1
-    else:
-        nums_match = 1 if expected_nums and expected_nums == actual_nums else 0
-
+    nums_match = 1 if (expected_nums and expected_nums == actual_nums) else 0
+    
     sim = (
         difflib.SequenceMatcher(
             None, normalize_text(expected_capped), normalize_text(haystack)
@@ -210,8 +209,8 @@ def score_answer(expected_raw: str, returned_db_str: str) -> Dict[str, Any]:
     )
     if structural_match:
         sim = 1.0
-    elif nums_match:
-        sim = max(sim, 1.0)
+    elif not both_parsed_as_df and nums_match:
+        sim = 1.0
 
     return {
         "answer_text_similarity": round(sim, 4),
