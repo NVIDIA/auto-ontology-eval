@@ -64,6 +64,31 @@ included as a public worked example. The upstream notice is reproduced in
 `datasets/wideworldimporters/LICENSE`; the DDL files carry the Microsoft
 copyright and MIT identifier in their headers.
 
+### 2. BEAVER benchmark evaluation logic
+
+| | |
+|---|---|
+| **Location in this repo** | `ontology_sql_eval/judge/beaver.py` |
+| **Upstream project** | BEAVER — https://github.com/beaverbench/beaver |
+| **Copyright holder** | Copyright (c) 2024 MIT Data Systems Group |
+| **License** | MIT |
+
+`beaver.py` ports the execution and comparison logic of BEAVER's official
+execution-accuracy (`ex_acc`) evaluator, from `eval/utils/ex_acc.py` and
+`eval/evaluate_ex_acc.py`. The file carries the upstream copyright and license
+identifier in its header, followed by the NVIDIA copyright block covering
+NVIDIA's modifications.
+
+### Note on the BEAVER dataset
+
+The BEAVER **dataset** is not included in this repository.
+`scripts/seed_beaverbench.py` downloads the questions and MySQL dumps at runtime
+from the gated HuggingFace datasets
+[`beaverbench/beaver-query`](https://huggingface.co/datasets/beaverbench/beaver-query)
+and [`beaverbench/beaver-table`](https://huggingface.co/datasets/beaverbench/beaver-table),
+and `datasets/beaverbench/` ships only a README and a `.gitkeep`. Its terms are
+set by its authors on those dataset pages.
+
 ### Note on the BIRD dataset
 
 The BIRD Mini-Dev **dataset** is not included in this repository.
@@ -114,9 +139,11 @@ script because that database is not redistributed with FDABench-Lite.
 Applies to: langchain-nvidia-ai-endpoints, langchain-openai, langchain-postgres,
 pydantic, duckdb, fastapi, ruff.
 
-Also applies to the included third-party content above, under its copyright:
+Also applies to the included third-party content above, under their respective
+copyrights:
 
 - SQL Server Samples (`datasets/wideworldimporters/`) — Copyright (c) Microsoft Corporation
+- BEAVER (`ontology_sql_eval/judge/beaver.py`) — Copyright (c) 2024 MIT Data Systems Group
 
 ---
 

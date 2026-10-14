@@ -497,5 +497,9 @@ documented in
   ([microsoft/sql-server-samples](https://github.com/microsoft/sql-server-samples),
   Copyright (c) Microsoft Corporation). Its upstream notice is reproduced in
   [datasets/wideworldimporters/LICENSE](datasets/wideworldimporters/LICENSE).
+- [`ontology_sql_eval/judge/beaver.py`](ontology_sql_eval/judge/beaver.py) —
+  ports BEAVER's official execution-accuracy evaluator
+  ([beaverbench/beaver](https://github.com/beaverbench/beaver),
+  Copyright (c) 2024 MIT Data Systems Group).
 
 To report a security vulnerability, follow the process in [SECURITY.md](SECURITY.md).
