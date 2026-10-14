@@ -14,6 +14,12 @@ The two disagree (a query returning ten identical rows where gold returns one
 passes BIRD and fails the DataFrame rule), and matching BIRD keeps our headline
 number quotable against published results.
 
+BEAVER is the exception: it is scored with BEAVER's own official ex_acc rule
+(:func:`beaver_result_match`, a 10-second query timeout, failed or missing
+queries scored as empty results, and accuracy reported both with and without
+empty-gold questions) so its numbers are quotable against the BEAVER
+leaderboard instead.
+
 Queries run against the database file or DSN directly, not through an Auto Ontology
 connector, so the schema-only arm carries no Auto Ontology dependency at all.
 """
@@ -71,8 +77,9 @@ __all__ = [
     "result_sets_match",
     "beaver_result_match",
     "matcher_for",
+    "timeout_for",
+    "gold_result_tag",
     "execute_and_compare",
-    "gold_is_runnable",
 ]
 
 _NO_ANSWER_FILLER = "SELECT 1"
@@ -178,6 +185,41 @@ MATCHERS = {"beaverbench": beaver_result_match}
 def matcher_for(dataset: str):
     """Return the result-comparison function a dataset should be scored with."""
     return MATCHERS.get(dataset, result_sets_match)
+
+
+# Datasets whose official evaluator counts any query that does not produce rows
+# -- an error, a timeout, or no prediction at all -- as an *empty result* and
+# scores it, on the gold side as well as the prediction side. So a missing or
+# broken prediction against empty gold scores 1.0, and a task whose gold query
+# fails stays in the denominator. Every other dataset keeps BIRD's stricter
+# handling: a failed prediction is a miss and a failed gold drops the task.
+# Following BEAVER here is what keeps its numbers comparable to the leaderboard.
+ERRORS_AS_EMPTY = {"beaverbench"}
+
+
+# Query timeout per dataset, overriding the server's configured default. BEAVER's
+# official evaluator gives every query 10 seconds, and a query that finishes in
+# 20 is a pass here but an empty result there -- so the leaderboard number is
+# only reproducible with the leaderboard's timeout.
+QUERY_TIMEOUTS = {"beaverbench": 10.0}
+
+
+def timeout_for(dataset: str, default: float) -> float:
+    """Return the query timeout, in seconds, a dataset should be executed with."""
+    return QUERY_TIMEOUTS.get(dataset, default)
+
+
+def gold_result_tag(gold_rows: ResultSet) -> str:
+    """Label a task by whether its gold query returns any rows.
+
+    Recorded on every rollout as ``gold_result`` so the verifiers can report
+    accuracy over ``nonempty_gold`` tasks alone. That is the second of the two
+    numbers BEAVER publishes: an empty gold result is matched by any query that
+    also returns nothing -- including one that errored -- so those questions
+    inflate the headline figure. (A third value, ``"failed_gold"``, comes from
+    :func:`execute_and_compare` on datasets that score a failed gold as empty.)
+    """
+    return "nonempty_gold" if gold_rows else "empty_gold"
 
 
 class Executor(Protocol):
@@ -329,46 +371,42 @@ class PostgresExecutor:
                 return None, "timeout"
 
 
-async def gold_is_runnable(
-    executor: Executor, db_id: str, gold_sql: str
-) -> Optional[str]:
-    """Return a ``gold_sql_*`` tag when the benchmark's own query does not run.
-
-    Needed on the paths that short-circuit before ``execute_and_compare`` -- an
-    empty model answer or an agent failure. Without this, a task whose gold is
-    broken is recorded as an ordinary miss and stays in the denominator, which
-    biases every arm downward on the datasets that have broken gold.
-    """
-    rows, status = await executor.execute(db_id, gold_sql)
-    return None if rows is not None else f"gold_sql_{status or 'error'}"
-
-
 async def execute_and_compare(
     executor: Executor,
     db_id: str,
     gold_sql: str,
-    pred_sql: str,
+    pred_sql: Optional[str],
     dataset: str = "",
-) -> tuple[bool, Optional[str]]:
-    """Run both queries and compare. Returns ``(match, error_tag)``.
+) -> tuple[bool, Optional[str], Optional[str]]:
+    """Run both queries and compare. Returns ``(match, error_tag, gold_result)``.
 
-    Gold is executed first: if the benchmark's own query does not run, that is a
-    dataset problem and the task must be excluded from the denominator rather
-    than counted as a model failure.
+    ``pred_sql=None`` means there is no prediction at all -- an empty model
+    answer or an agent failure. Gold is still run: on most datasets a broken
+    gold query must take the task out of the denominator rather than leave it
+    there as an ordinary miss, and on BEAVER a missing prediction is scored.
+
+    Gold is executed first. If it does not run, that is a dataset problem: the
+    ``gold_sql_*`` tag returned tells the caller to exclude the task, except on
+    BEAVER, which scores it (see :data:`ERRORS_AS_EMPTY`). ``gold_result`` is
+    :func:`gold_result_tag` when gold ran, ``"failed_gold"`` when it failed and
+    was scored as empty, and ``None`` when the task is excluded.
     """
+    errors_as_empty = dataset in ERRORS_AS_EMPTY
     gold_rows, gold_status = await executor.execute(db_id, gold_sql)
     if gold_rows is None:
-        return False, f"gold_sql_{gold_status or 'error'}"
+        if not errors_as_empty:
+            return False, f"gold_sql_{gold_status or 'error'}", None
+        gold_rows, gold_result = [], "failed_gold"
+    else:
+        gold_result = gold_result_tag(gold_rows)
 
-    pred_rows, pred_status = await executor.execute(db_id, pred_sql)
+    if pred_sql is None:
+        pred_rows, pred_status = None, "missing"
+    else:
+        pred_rows, pred_status = await executor.execute(db_id, pred_sql)
     if pred_rows is None:
-        # BEAVER's official evaluator counts a failed or timed-out query as an
-        # *empty result*, so a broken prediction against empty gold scores 1.0.
-        # Returning an error here instead would under-score us against the
-        # published leaderboard, which is the comparability the BEAVER matcher
-        # exists to preserve. Every other dataset keeps BIRD's stricter rule.
-        if dataset in MATCHERS:
-            return matcher_for(dataset)(gold_rows, []), None
-        return False, f"pred_sql_{pred_status or 'error'}"
+        if errors_as_empty:
+            return matcher_for(dataset)(gold_rows, []), None, gold_result
+        return False, f"pred_sql_{pred_status or 'error'}", gold_result
 
-    return matcher_for(dataset)(gold_rows, pred_rows), None
+    return matcher_for(dataset)(gold_rows, pred_rows), None, gold_result
