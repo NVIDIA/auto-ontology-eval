@@ -19,50 +19,41 @@ Usage::
 from __future__ import annotations
 
 import logging
-import os
 from typing import Optional
 
+from ontology_sql_eval.env import load_env
+
+# ruff: noqa: E402 - Auto Ontology imports must follow environment bootstrap.
+# Auto Ontology resolves its model and store settings when it is imported, so
+# .env has to be loaded first or those settings silently miss it.
+load_env()
+
 import pandas as pd
-from nemo_retriever.common.params.models import EmbedParams
 from nemo_retriever.operators.vdb import IngestVdbOperator
 from auto_ontology.catalog import ingest_catalog
 from auto_ontology.connectors.base import SQLDatabase
+from auto_ontology.utils import get_embed_params
 from auto_ontology.utils.embedding import batch_embed
 from auto_ontology.utils.embedding_rows import CatalogEmbeddingRowsOp
 
 from auto_ontology.vdb import get_data_vdb
-
-from ontology_sql_eval.env import load_env
-
-load_env()
 
 logger = logging.getLogger(__name__)
 
 MOCK_DATABASE_NAME = "mock_shop"
 MOCK_SCHEMA = "public"
 
-_DEFAULT_MODELS_API_KEY = os.environ.get(
-    "DEFAULT_MODELS_API_KEY", ""
-) or os.environ.get("NVIDIA_API_KEY", "")
-_EMBED_ENDPOINT = os.environ.get(
-    "EMBED_ENDPOINT", "https://integrate.api.nvidia.com/v1"
-)
-_EMBED_MODEL = os.environ.get("EMBED_MODEL", "nvidia/llama-nemotron-embed-1b-v2")
+# The same embedding settings the real ingest uses: EMBED_*, then
+# DEFAULT_MODELS_*, then Auto Ontology's built-in default for the key's prefix.
+# Vectors from a different model would live in a different space from the
+# queries' and retrieve nothing useful.
+EMBED_PARAMS = get_embed_params()
 
-if not _DEFAULT_MODELS_API_KEY:
+if not EMBED_PARAMS.api_key:
     raise EnvironmentError(
-        "DEFAULT_MODELS_API_KEY is not set. Export it before running, e.g.:\n\n"
-        "    export DEFAULT_MODELS_API_KEY='nvapi-...'\n"
-        "Legacy NVIDIA_API_KEY is also supported as a fallback.\n"
+        "No embedding API key. Set DEFAULT_MODELS_API_KEY (or EMBED_API_KEY) in "
+        ".env; see .env.example."
     )
-
-
-EMBED_PARAMS = EmbedParams(
-    embed_invoke_url=_EMBED_ENDPOINT,
-    model_name=_EMBED_MODEL,
-    api_key=_DEFAULT_MODELS_API_KEY,
-    embed_modality="text",
-)
 
 
 # Intentionally non-user-friendly names (underscore prefixes, numeric suffixes)
