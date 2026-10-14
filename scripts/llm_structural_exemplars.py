@@ -1446,7 +1446,7 @@ def predict(args: argparse.Namespace) -> None:
                     # equivalence score it is not self-reported.
                     "skeleton_match": round(ratio, 4),
                     # The column `--sql-examples-min-score` gates on, so this
-                    # CSV can be fed to eval_chatbot unchanged. Duplicated
+                    # CSV can be fed to the benchmark unchanged. Duplicated
                     # rather than renamed because the gate reads `score` from
                     # every exemplar source, while `skeleton_match` says what
                     # the number actually measures for this one.

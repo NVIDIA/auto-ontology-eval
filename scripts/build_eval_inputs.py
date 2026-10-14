@@ -1,6 +1,6 @@
-"""Write both files the eval takes on the command line, in one run.
+"""Write both files the benchmark takes on the command line, in one run.
 
-``eval_chatbot`` is given ``--value-anchors`` and ``--sql-examples``, and
+``main.py`` is given ``--value-anchors-csv`` and ``--sql-examples-csv``, and
 producing them took three commands across two scripts: build the value index,
 derive the anchors from it, then have the LLM predict a query per dev question
 and match its shape against train. Which of those to run, and in what order,
@@ -178,7 +178,7 @@ def main() -> None:
         print(f"  {'-> ' + args.anchors_out.name:<22} {rows(args.anchors_out)}")
     if want_exemplars:
         print(f"  {'-> ' + args.exemplars_out.name:<22} {rows(args.exemplars_out)}")
-    print("\npass these to the eval as --value-anchors and --sql-examples.")
+    print("\npass these to main.py as --value-anchors-csv and --sql-examples-csv.")
 
 
 if __name__ == "__main__":

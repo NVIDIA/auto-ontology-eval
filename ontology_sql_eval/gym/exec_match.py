@@ -8,11 +8,10 @@ Both arms are graded by this module so that a difference in the reported number
 can only come from the SQL, never from the grader.
 
 Comparison follows the official BIRD rule -- ``set(gold) == set(pred)``, which
-ignores row order *and* collapses duplicate rows -- rather than the DataFrame
-shape-and-multiset comparison in :mod:`ontology_sql_eval.retrieval.scoring`.
-The two disagree (a query returning ten identical rows where gold returns one
-passes BIRD and fails the DataFrame rule), and matching BIRD keeps our headline
-number quotable against published results.
+ignores row order *and* collapses duplicate rows -- rather than a stricter
+shape-and-multiset comparison. The two disagree (a query returning ten
+identical rows where gold returns one passes BIRD and fails a multiset rule),
+and matching BIRD keeps our headline number quotable against published results.
 
 BEAVER is the exception: it is scored with BEAVER's own official ex_acc rule
 (:func:`beaver_result_match`, a 10-second query timeout, failed or missing

@@ -17,10 +17,10 @@ The typical lifecycle is **ingest → semantic compile → benchmark**: you inge
 database so the agent can retrieve its schema, then run the benchmark to see how
 much that grounding is worth against a schema-only control.
 
-The judge is a separate tool, not a stage of that flow. It scores eval CSVs,
-such as those the single-arm retrieval eval (`eval_chatbot`) writes. The
-benchmark itself uses no LLM judge — scoring is deterministic execution match,
-with each benchmark's official rule where it has one (BIRD, BEAVER).
+The judge is a separate tool, not a stage of that flow: it scores eval CSVs
+you supply. The benchmark itself uses no LLM judge — scoring is deterministic
+execution match, with each benchmark's official rule where it has one (BIRD,
+BEAVER).
 
 > [!IMPORTANT]
 > **Auto Ontology is installed automatically.**
@@ -31,7 +31,7 @@ with each benchmark's official rule where it has one (BIRD, BEAVER).
 
 ## Prerequisites
 
-| Requirement                                                                  | Ingestion  | Retrieval eval | Judge |
+| Requirement                                                                  | Ingestion  |   Benchmark    | Judge |
 | ---------------------------------------------------------------------------- | :--------: | :------------: | :---: |
 | [uv](https://docs.astral.sh/uv/) + Python 3.13.14                           |    yes     |      yes       |  yes  |
 | Network access to `NVIDIA/NeMo-Retriever`                                    |    yes     |      yes       |  no   |
@@ -43,7 +43,7 @@ Auto Ontology and NeMo Retriever are installed from GitHub by `uv sync`; their
 sources are pinned in [pyproject.toml](pyproject.toml) and
 [uv.lock](uv.lock).
 
-For ingestion and retrieval eval you also need a live **Postgres** service
+For ingestion and the benchmark you also need a live **Postgres** service
 (it holds both Auto Ontology's catalog and the pgvector collections), plus a
 reachable source DB. Auto Ontology's catalog schema must be migrated first:
 follow the deployment and migration instructions in the
@@ -88,7 +88,7 @@ cp .env.example .env   # then fill in your values
 
 ## Seed the local source DB (required)
 
-> **Required to run this project.** Ingestion and retrieval eval need a reachable
+> **Required to run this project.** Ingestion and the benchmark need a reachable
 > source database. Only the standalone judge can run without a source DB.
 
 Each bundled dataset's README documents how to stand up its source DB and set
@@ -115,12 +115,11 @@ uv run python main.py --database-name <database_name>
 ```
 
 The benchmark stage builds both arms' task files, runs the schema-only control
-and the ontology-grounded arm, and compares them. It replaced the old
-single-arm retrieval eval: that measured how well the agent does, this measures
-how much the ontology is worth.
+and the ontology-grounded arm, and compares them. It measures how much the
+ontology is worth, not just how well the agent does.
 
-Stages can be skipped with `--skip-ingest`, `--skip-semantic`, `--skip-eval`
-(the benchmark) and `--skip-judge`. A ten-question smoke run against an
+Stages can be skipped with `--skip-ingest`, `--skip-semantic` and `--skip-eval`
+(the benchmark). A ten-question smoke run against an
 already-ingested dataset, three questions at a time:
 
 ```bash
@@ -132,11 +131,8 @@ uv run python main.py --database-name bird \
 **rate limit**, not CPU.
 
 > [!NOTE]
-> The **LLM judge** scores an eval CSV, and the benchmark writes Gym rollouts
-> rather than a CSV, so the judge is skipped whenever the benchmark runs. It
-> still runs over a CSV produced elsewhere (by the retrieval eval, say): pass
-> `--skip-eval` to reach it. The standalone `ontology-sql-eval` console script
-> does the same job directly.
+> The **LLM judge** is not part of `main.py`: it scores eval CSVs, and the
+> benchmark writes Gym rollouts. Run it on its own with `uv run ontology-sql-eval`.
 
 Each arm writes Gym's own artifacts next to its rollouts —
 `*_aggregate_metrics.json` (pass@1 overall and per difficulty, plus `health/*`
@@ -201,22 +197,19 @@ The exemplar step caches model responses next to its CSV. A rebuild archives
 any existing cache under a timestamped name first, so the answers are always
 resampled rather than replayed — caches are gitignored, the CSVs are not.
 
-Pass the results to the eval (the flags are independent; either can be omitted):
+Pass the results to the benchmark's ontology arm (the flags are independent;
+either can be omitted):
 
 ```bash
-uv run python -m ontology_sql_eval.retrieval.eval_chatbot \
-    --database-name bird \
-    --sql-examples prompt_inputs/bird/predicted_structural_exemplars.csv \
+uv run python main.py --database-name bird --skip-ingest --skip-semantic \
+    --sql-examples-csv prompt_inputs/bird/predicted_structural_exemplars.csv \
     --sql-examples-k 5 \
-    --value-anchors prompt_inputs/bird/value_anchors.csv
+    --value-anchors-csv prompt_inputs/bird/value_anchors.csv
 ```
 
-`SQL_EXAMPLES_CSV`, `SQL_EXAMPLES_K`, `SQL_EXAMPLES_MIN_SCORE` and
-`VALUE_ANCHORS_CSV` in `.env` supply the defaults for those flags, and apply
-only to `eval_chatbot` run directly. The `main.py` pipeline takes the same two
-files under different names — `--sql-examples-csv` and `--value-anchors-csv` —
-and passes neither by default, so a pipeline run without them has no exemplars
-and no anchors.
+Neither is passed by default, so a run without them has no exemplars and no
+anchors. The control arm gets no equivalent, so a delta measured with them
+covers the inputs as well as the ontology grounding.
 
 ## Datasets
 
@@ -225,21 +218,16 @@ folder name is the database name and is used to derive default file paths.
 
 ```
 datasets/<database_name>/
-  evaluation.json        # eval questions + expected SQL (retrieval-eval input)
+  evaluation.json        # eval questions + expected SQL (benchmark input)
   metadata.json          # table/column descriptions (ingestion enrichment; optional)
   custom_analyses.json   # named example analyses (ingestion enrichment; optional)
 ```
-
-The retrieval eval writes its results CSV to the repo-root `input/` folder
-(`input/<database_name>_<model>.csv`), not into the dataset folder, so the judge
-can score it directly.
 
 The repo ships with four public worked examples:
 
 ### BIRD
 
-The [BIRD](https://bird-bench.github.io/) benchmark, plus the official
-EX/VES scoring script. Defaults to full **Dev** (11 SQLite databases,
+The [BIRD](https://bird-bench.github.io/) benchmark. Defaults to full **Dev** (11 SQLite databases,
 1,534 questions) and stores the **Train** question corpus without its
 databases; the cheaper **Mini-Dev** subset (500 questions) is also available. See
 **[datasets/bird/README.md](datasets/bird/README.md)** for how to download
@@ -279,15 +267,16 @@ are generic across datasets; the examples use `wideworldimporters` throughout.
 
 ### `evaluation.json`
 
-A JSON **array** of question objects. Fields consumed by the retrieval eval:
+A JSON **array** of question objects. Fields consumed by the benchmark:
 
 | Field         | Required | Purpose                                                                |
 | ------------- | :------: | ---------------------------------------------------------------------- |
-| `question_id` |    no    | Identifier for logging and the CSV row. Falls back to the array index. |
+| `question_id` |    no    | Task id both arms are joined on. Falls back to a hash of the question. |
+| `db_id`       |   yes    | Database the question runs against.                                    |
 | `question`    |   yes    | Natural-language question sent to the agent.                           |
+| `evidence`    |    no    | Hint text appended to the question.                                    |
 | `SQL`         |   yes    | Expected (ground-truth) SQL.                                           |
-| `answer_raw`  |    no    | Expected user-facing answer, compared against the agent's DB result.   |
-| `difficulty`  |    no    | Passed through to the output CSV.                                      |
+| `difficulty`  |    no    | Reported as a per-difficulty accuracy breakdown.                       |
 
 ```json
 [
@@ -351,9 +340,6 @@ Each workflow has its own README with purpose, run instructions, and outputs:
   vs the ontology-grounded agent, one deterministic verifier, one delta
   (requires Auto Ontology for the ontology arm). This is `main.py`'s evaluation
   stage.
-- **[Retrieval eval](ontology_sql_eval/retrieval/README.md)** — the single-arm
-  agent runner. No longer a `main.py` stage; run it directly to produce the
-  CSVs the judge scores (requires Auto Ontology).
 - **[SQL judge](ontology_sql_eval/judge/README.md)** — standalone LLM re-scorer
   for eval CSVs (no Auto Ontology checkout required).
 
@@ -454,19 +440,13 @@ ontology_sql_eval/          single namespace package
     runner.py               batch/directory orchestration
     models.py               Pydantic score model + scoring prompt
     main.py                 CLI entry point (ontology-sql-eval)
-    bird.py                 BIRD official EX + VES scoring (separate from the LLM judge)
   ingestion/                Auto Ontology-backed ingestion pipeline
     README.md               ingestion workflow guide
     ingest.py               source DB -> pgvector ingest (calls enrich_graph)
     semantic.py             compile the semantic layer over the ingested graph
     enrich_graph.py         graph metadata + custom-analysis enrichment
     mock_ingest.py          in-memory 4-table demo ingest (mock_shop)
-  retrieval/                Auto Ontology-backed retrieval eval
-    README.md               retrieval-eval workflow guide
-    eval_chatbot.py         retrieval eval driver (--workers runs N in parallel)
-    run_logging.py          per-run log bundle, phase timeline, timing summary
-    scoring.py              SQL/answer scoring helpers
-main.py                     end-to-end pipeline entry point (ingest -> judge)
+main.py                     end-to-end pipeline entry point (ingest -> benchmark)
 scripts/
   build_eval_inputs.py      build both prompt-input CSVs (anchors + exemplars) in one run
   value_index.py            value -> column index over the BIRD Dev DBs; writes value_anchors.csv
@@ -508,14 +488,10 @@ headers in each source file, and the `license` field in
 [pyproject.toml](pyproject.toml)). Third-party dependency licenses are listed in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-Two items of third-party content are included in this repository, both MIT
-licensed and documented in
+Third-party content included in this repository is MIT licensed and
+documented in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md#included-third-party-content):
 
-- [`ontology_sql_eval/judge/bird.py`](ontology_sql_eval/judge/bird.py) — ports
-  evaluation logic from the BIRD benchmark
-  ([AlibabaResearch/DAMO-ConvAI](https://github.com/AlibabaResearch/DAMO-ConvAI),
-  Copyright (c) 2022 Alibaba Research).
 - [`datasets/wideworldimporters/`](datasets/wideworldimporters/) — a Postgres
   port of Microsoft's WideWorldImporters sample database
   ([microsoft/sql-server-samples](https://github.com/microsoft/sql-server-samples),

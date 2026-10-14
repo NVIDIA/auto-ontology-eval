@@ -8,23 +8,24 @@ Runs the full evaluation pipeline for a dataset, in order:
 
 1. Ingest      source DB schema -> Postgres + pgvector (``CONNECTION_STRINGS``)
 2. Semantic    compile the semantic layer (``ingestion.semantic``)
-3. Eval        run the text-to-SQL agent -> ``datasets/<db>/<model>.csv``
-4. Judge       LLM re-score the eval CSV -> ``datasets/<db>/<model>_scores.csv``
+3. Benchmark   NeMo Gym: schema-only control vs the ontology-grounded agent,
+               rollouts -> ``runs/{control,treatment}/<db>.jsonl``, delta printed
 
-Stages 1-3 import the Auto Ontology dependency installed by ``uv sync``::
+All stages import the Auto Ontology dependency installed by ``uv sync``::
 
     uv run python main.py --database-name wideworldimporters
 
 Any stage can be skipped with ``--skip-ingest`` / ``--skip-semantic`` /
-``--skip-eval`` / ``--skip-judge`` (skipped stages don't import their deps).
+``--skip-eval`` (skipped stages don't import their deps).
 
-The eval stage runs ``--eval-workers`` questions concurrently and can be
-restricted with ``--start-index`` / ``--end-index`` / ``--limit``. It writes a
-full instrumentation bundle (per-question logs, node timings, a phase timeline
-and an aggregated summary) to ``logs/<run-id>/``::
+The benchmark runs ``--eval-workers`` questions concurrently per arm and can be
+restricted with ``--start-index`` / ``--end-index`` / ``--limit``::
 
     uv run python main.py --database-name bird \
         --skip-ingest --skip-semantic --limit 10 --eval-workers 2
+
+The LLM judge is not a stage: it scores eval CSVs, and the benchmark writes Gym
+rollouts. Run it on its own with ``uv run ontology-sql-eval``.
 """
 
 from __future__ import annotations
@@ -38,9 +39,6 @@ import sys
 from pathlib import Path
 
 logger = logging.getLogger("pipeline")
-
-_REPO_ROOT = Path(__file__).resolve().parent
-OUTPUT_DIR = _REPO_ROOT / "output"
 
 
 def _banner(step: int, title: str) -> None:
@@ -167,10 +165,9 @@ def stage_benchmark(
     does; this measures how much the ontology is worth, by running a schema-only
     control over the same questions and databases and reporting the delta.
 
-    Writes rollouts to ``runs/control/`` and ``runs/treatment/`` -- not the
-    ``input/<db>_<model>.csv`` the LLM judge consumes, which is why the judge
-    stage is skipped when this stage runs. Pass *run_dir* to keep each run's
-    rollouts instead of overwriting the previous one.
+    Writes rollouts to ``runs/control/`` and ``runs/treatment/``. Pass
+    *run_dir* to keep each run's rollouts instead of overwriting the previous
+    one.
 
     *sql_examples_csv* and *value_anchors_csv* attach the question-keyed prompt
     inputs to the ontology arm. The control arm cannot be given an equivalent,
@@ -268,30 +265,12 @@ def stage_benchmark(
     )
 
 
-def stage_judge(eval_csv: Path, workers: int = 1) -> Path:
-    """LLM re-score ``eval_csv`` from ``input/``; write scores to ``output/``."""
-    _banner(4, "LLM judge (re-score eval CSV)")
-    from ontology_sql_eval.judge.runner import run
-
-    scored_path = OUTPUT_DIR / f"{eval_csv.stem}_scores.csv"
-    run(eval_csv, scored_path, workers=workers)
-    return scored_path
-
-
-def _eval_output_path(*, database_name: str) -> Path:
-    """Resolve the eval CSV path without running eval (for --skip-eval)."""
-    from ontology_sql_eval.retrieval.eval_chatbot import _resolve_paths
-
-    _, output_path = _resolve_paths(database_name, None, None)
-    return output_path
-
-
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="ontology-sql-eval-pipeline",
         description=(
             "Run the full evaluation pipeline: ingest -> semantic compile -> "
-            "retrieval eval -> LLM judge."
+            "NeMo Gym benchmark."
         ),
     )
     parser.add_argument(
@@ -309,19 +288,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--skip-eval",
         action="store_true",
-        help=(
-            "Skip the benchmark stage, e.g. to run only the judge over an "
-            "existing eval CSV."
-        ),
-    )
-    parser.add_argument(
-        "--skip-judge", action="store_true", help="Skip the LLM-judge stage."
-    )
-    parser.add_argument(
-        "--workers",
-        type=int,
-        default=1,
-        help="Number of concurrent judge scoring workers (default: 1).",
+        help=("Skip the benchmark stage, e.g. to only ingest and compile."),
     )
     parser.add_argument(
         "--eval-workers",
@@ -414,8 +381,7 @@ def main(argv: list[str] | None = None) -> None:
     if not args.skip_semantic:
         stage_semantic(database_name)
 
-    run_benchmark = not args.skip_eval
-    if run_benchmark:
+    if not args.skip_eval:
         stage_benchmark(
             database_name=database_name,
             concurrency=args.eval_workers,
@@ -428,28 +394,6 @@ def main(argv: list[str] | None = None) -> None:
             sql_examples_min_score=args.sql_examples_min_score,
             value_anchors_csv=args.value_anchors_csv,
         )
-
-    # The judge scores an eval CSV. The benchmark does not produce one -- it
-    # writes Gym rollouts -- so the judge only runs over a CSV produced
-    # elsewhere: by the retrieval eval (eval_chatbot), or a previous run.
-    if not args.skip_judge:
-        eval_csv = _eval_output_path(database_name=database_name)
-        if run_benchmark:
-            logger.info(
-                "Skipping judge: the benchmark writes Gym rollouts, not %s. "
-                "Judge an existing CSV with --skip-eval, or use the "
-                "`ontology-sql-eval` console script.",
-                eval_csv,
-            )
-        elif not eval_csv.exists():
-            raise SystemExit(
-                f"Eval CSV not found: {eval_csv}\n"
-                "Produce one first (python -m ontology_sql_eval.retrieval.eval_chatbot), "
-                "or pass --skip-judge."
-            )
-        else:
-            scored = stage_judge(eval_csv, workers=args.workers)
-            logger.info("Pipeline complete. Scored output: %s", scored)
 
 
 if __name__ == "__main__":

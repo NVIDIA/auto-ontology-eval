@@ -4,9 +4,8 @@
 
 """Auto Ontology-grounded text-to-SQL resources server: the treatment arm.
 
-Drives Auto Ontology's LangGraph agent **in-process**, exactly as
-``ontology_sql_eval.retrieval.eval_chatbot`` does, so this arm behaves
-identically to the harness it replaces. Gym's policy model is not in the loop:
+Drives Auto Ontology's LangGraph agent **in-process**, exactly as the
+single-arm harness it replaced did, so the two behave identically. Gym's policy model is not in the loop:
 ``verify`` runs the agent itself and ignores the rollout's model output. That
 costs RL-trainability and buys an apples-to-apples comparison.
 
@@ -338,8 +337,8 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
             # set(gold) == set(pred) comparison outright, so omitting this scores
             # Auto Ontology with a handicap the legacy harness no longer carries.
             #
-            # Set unconditionally, as ontology_sql_eval.retrieval.eval_chatbot
-            # does. TextToSQLPayload is a TypedDict, so on an Auto Ontology revision that
+            # Set unconditionally, as the single-arm harness this arm replaced
+            # did. TextToSQLPayload is a TypedDict, so on an Auto Ontology revision that
             # predates the parameter this is an inert extra key rather than an
             # error -- it simply has no effect.
             "shorten_answer": True,

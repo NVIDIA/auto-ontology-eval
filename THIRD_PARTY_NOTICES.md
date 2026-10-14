@@ -5,8 +5,7 @@ standard Python package dependencies (dynamic linking via the Python
 interpreter); no third-party Python *package* source is copied or vendored into
 this repository.
 
-Separately, this repository does include two items of third-party content —
-ported source code and a sample dataset. Both are documented in
+Separately, this repository includes third-party content, documented in
 [Included Third-Party Content](#included-third-party-content) below.
 
 | Package | Version (minimum) | License |
@@ -28,7 +27,6 @@ ported source code and a sample dataset. Both are documented in
 | fastapi | ≥0.115.0 | MIT |
 | uvicorn[standard] | ≥0.32.0 | BSD-3-Clause |
 | importlib-metadata | ≥9.0.0 | Apache-2.0 |
-| func-timeout | ≥4.3.5 | LGPLv2 |
 | numpy | ≥2.0 | BSD-3-Clause |
 
 **Development dependencies** (not distributed):
@@ -52,22 +50,7 @@ ported source code and a sample dataset. Both are documented in
 The following third-party material is included in this repository, in addition
 to the package dependencies listed above.
 
-### 1. BIRD benchmark evaluation logic
-
-| | |
-|---|---|
-| **Location in this repo** | `ontology_sql_eval/judge/bird.py` |
-| **Upstream project** | DAMO-ConvAI — https://github.com/AlibabaResearch/DAMO-ConvAI |
-| **Copyright holder** | Copyright (c) 2022 Alibaba Research |
-| **License** | MIT |
-
-`bird.py` ports the EX (Execution Accuracy) and VES (Valid Efficiency Score)
-execution logic from the BIRD benchmark's official `evaluation.py` and
-`evaluation_ves.py`. The file carries the upstream copyright and license
-identifier in its header, followed by the NVIDIA copyright block covering
-NVIDIA's modifications.
-
-### 2. WideWorldImporters sample database
+### 1. WideWorldImporters sample database
 
 | | |
 |---|---|
@@ -86,8 +69,7 @@ copyright and MIT identifier in their headers.
 The BIRD Mini-Dev **dataset** is not included in this repository.
 `scripts/seed_bird.py` downloads it at runtime from the official distribution,
 and `datasets/bird/` ships only a README and a `.gitkeep`. The BIRD dataset is
-distributed by its authors under CC BY-SA 4.0 — a separate matter from the
-MIT-licensed DAMO-ConvAI evaluation *code* referenced in section 1 above.
+distributed by its authors under CC BY-SA 4.0.
 
 ### Note on FDABench-Lite and its source databases
 
@@ -132,10 +114,8 @@ script because that database is not redistributed with FDABench-Lite.
 Applies to: langchain-nvidia-ai-endpoints, langchain-openai, langchain-postgres,
 pydantic, duckdb, fastapi, ruff.
 
-Also applies to the two items of included third-party content above, under
-their respective copyrights:
+Also applies to the included third-party content above, under its copyright:
 
-- DAMO-ConvAI (`ontology_sql_eval/judge/bird.py`) — Copyright (c) 2022 Alibaba Research
 - SQL Server Samples (`datasets/wideworldimporters/`) — Copyright (c) Microsoft Corporation
 
 ---
@@ -185,15 +165,4 @@ Full text: https://www.gnu.org/licenses/lgpl-3.0.html
 Applies to: psycopg, psycopg-pool.
 
 These packages are used via dynamic linking (standard Python import). No LGPL
-source is copied or modified.
-
----
-
-### GNU Lesser General Public License v2 (LGPLv2)
-
-Full text: https://www.gnu.org/licenses/old-licenses/lgpl-2.0.html
-
-Applies to: func-timeout.
-
-This package is used via dynamic linking (standard Python import). No LGPLv2
 source is copied or modified.

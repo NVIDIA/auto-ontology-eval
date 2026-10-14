@@ -14,8 +14,6 @@ data-layer VDB populated.
 Usage::
 
     uv run python -m ontology_sql_eval.ingestion.mock_ingest
-
-Or via the "Debug Mock Ingest" launch config in .vscode/launch.json.
 """
 
 from __future__ import annotations
