@@ -14,10 +14,16 @@ Grading is shared with the schema-only arm -- same executor, same BIRD
 set-equality rule, same failure codes -- so a difference in the number can only
 come from the SQL.
 
+Auto Ontology's own LLM calls go through two Gym model servers rather than
+straight to the endpoint (see ``ontology_sql_eval.gym.model_routing``), each
+tagged with the rollout it belongs to. With ``+observability_enabled=true`` Gym
+captures them per rollout, and ``verify`` reports the question's token totals.
+
 Three couplings with Auto Ontology this module must respect:
 
 * ``auto_ontology.retrieval.text_to_sql.main`` builds its LLM client and compiles the
-  graph *at import time*, so the environment is loaded before Auto Ontology imports.
+  graph *at import time*, so the environment is loaded -- and the endpoints
+  repointed at Gym -- before Auto Ontology imports.
 * Auto Ontology is installed from the parent project's pinned Git dependency.
 * ``stream_agent_response`` is a blocking generator, so it runs on a worker
   thread under a semaphore rather than on the event loop.
@@ -39,6 +45,15 @@ from pydantic import ConfigDict, Field
 # client while its modules are being imported.
 load_dotenv()
 
+from ontology_sql_eval.gym.model_routing import (  # noqa: E402
+    captured_usage,
+    route_through_gym,
+    tag_rollout_requests,
+)
+
+route_through_gym()
+tag_rollout_requests()
+
 from nemo_gym.base_resources_server import (  # noqa: E402
     BaseResourcesServerConfig,
     BaseVerifyRequest,
@@ -50,6 +65,7 @@ from nemo_gym.reward_profile import (  # noqa: E402
     compute_subset_metrics,
     highest_k_metrics,
 )
+from nemo_gym.rollout_correlation import current_rollout_id  # noqa: E402
 
 from auto_ontology.connectors import get_connectors  # noqa: E402
 from auto_ontology.retrieval.text_to_sql.main import stream_agent_response  # noqa: E402
@@ -206,6 +222,24 @@ class AutoOntologySqlVerifyResponse(BaseVerifyResponse):
     # "with prompt inputs" while having had none.
     sql_examples_used: int = 0
     value_anchors_used: int = 0
+    # Auto Ontology's own LLM usage for this question, as Gym captured it. None
+    # rather than 0 when nothing was captured (observability off), so a run
+    # without capture reports no token metrics instead of a mean of zero.
+    agent_llm_calls: Optional[int] = None
+    agent_llm_calls_without_usage: Optional[int] = None
+    agent_input_tokens: Optional[int] = None
+    agent_cached_input_tokens: Optional[int] = None
+    agent_output_tokens: Optional[int] = None
+    agent_total_tokens: Optional[int] = None
+
+
+# The per-question token fields, surfaced in key metrics as their means.
+_TOKEN_FIELDS = (
+    "agent_llm_calls",
+    "agent_input_tokens",
+    "agent_output_tokens",
+    "agent_total_tokens",
+)
 
 
 class AutoOntologySqlResourcesServer(SimpleResourcesServer):
@@ -425,6 +459,7 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
                 **kwargs,
             )
 
+        rollout_id = current_rollout_id()
         try:
             async with self._semaphore:
                 result = await asyncio.to_thread(
@@ -438,9 +473,16 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
             logger.exception(
                 "Auto Ontology agent failed task_id=%s: %s", body.task_id, exc
             )
+            # A failed agent has usually spent tokens before failing. Recorded
+            # first: _without_prediction builds its response through _response,
+            # which reads carried at call time.
+            carried.update(await self._usage(rollout_id, body.task_id))
             return await self._without_prediction(
                 body, _response, FailureCode.UNKNOWN_ERROR, agent_error=str(exc)
             )
+
+        # Read by _response at call time, like the counts below.
+        carried.update(await self._usage(rollout_id, body.task_id))
 
         answer = result["answer"]
         sql = str(answer.get("sql_code") or "").strip()
@@ -541,6 +583,30 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
             **kwargs,
         )
 
+    async def _usage(
+        self, rollout_id: Optional[str], task_id: Optional[str]
+    ) -> Dict[str, int]:
+        """This rollout's captured token totals, logged per question. Never raises."""
+        try:
+            usage = await asyncio.to_thread(captured_usage, rollout_id)
+        except Exception:
+            logger.warning(
+                "Could not read token usage for task_id=%s", task_id, exc_info=True
+            )
+            return {}
+        if usage:
+            logger.info(
+                "task_id=%s tokens: %d in (%d cached), %d out, %d total over %d "
+                "LLM calls",
+                task_id,
+                usage["agent_input_tokens"],
+                usage["agent_cached_input_tokens"],
+                usage["agent_output_tokens"],
+                usage["agent_total_tokens"],
+                usage["agent_llm_calls"],
+            )
+        return usage
+
     @staticmethod
     def _score_fn(r: dict) -> Dict[str, float]:
         return {"accuracy": float(r.get("reward", 0.0) > 0)}
@@ -587,6 +653,9 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
             for name, value in agent_metrics.items()
             if name.startswith("health/")
         }
+        for field in _TOKEN_FIELDS:
+            if f"mean/{field}" in agent_metrics:
+                key[f"mean/{field}"] = agent_metrics[f"mean/{field}"]
         key.update(
             highest_k_metrics(
                 agent_metrics, "pass@1[avg-of-{k}]", score_names=["accuracy"]
