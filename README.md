@@ -454,7 +454,6 @@ ontology_sql_eval/          single namespace package
     ingest.py               source DB -> pgvector ingest (calls enrich_graph)
     semantic.py             compile the semantic layer over the ingested graph
     enrich_graph.py         graph metadata + custom-analysis enrichment
-    mock_ingest.py          in-memory 4-table demo ingest (mock_shop)
   gym/                      Gym task building + execution-match scoring shared by both arms
   bird_interact/            BIRD-Interact harness (see BIRD_INTERACT_README.md)
   env.py                    .env loading
