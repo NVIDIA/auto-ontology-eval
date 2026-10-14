@@ -1,4 +1,4 @@
-# Ontology SQL Eeval
+# Ontology SQL Eval
 
 A Text-to-SQL evaluation toolkit for benchmarking a text-to-SQL agent against a
 dataset and scoring the results. It bundles three workflows in one project:
@@ -33,15 +33,15 @@ BEAVER).
 
 | Requirement                                                                  | Ingestion  |   Benchmark    | Judge |
 | ---------------------------------------------------------------------------- | :--------: | :------------: | :---: |
-| [uv](https://docs.astral.sh/uv/) + Python 3.13.14                           |    yes     |      yes       |  yes  |
-| Network access to `NVIDIA/NeMo-Retriever`                                    |    yes     |      yes       |  no   |
+| [uv](https://docs.astral.sh/uv/) + Python 3.13 (≥3.13.14; uv installs it)   |    yes     |      yes       |  yes  |
+| Network access to GitHub (`NVIDIA/auto-ontology`) and PyPI                   |    yes     |      yes       |  yes  |
 | Postgres (catalog + pgvector) service                                        |    yes     |      yes       |  no   |
 | Reachable source database                                                    |    yes     |      yes       |  no   |
 | LLM API key                                                                  | embed only |      yes       |  yes  |
 
-Auto Ontology and NeMo Retriever are installed from GitHub by `uv sync`; their
-sources are pinned in [pyproject.toml](pyproject.toml) and
-[uv.lock](uv.lock).
+`uv sync` installs Auto Ontology from its pinned GitHub revision and everything
+else, NeMo Retriever included, from PyPI; versions are pinned in
+[pyproject.toml](pyproject.toml) and [uv.lock](uv.lock).
 
 For ingestion and the benchmark you also need a live **Postgres** service
 (it holds both Auto Ontology's catalog and the pgvector collections), plus a
@@ -69,22 +69,24 @@ cp .env.example .env   # then fill in your values
 > [https://integrate.api.nvidia.com](https://integrate.api.nvidia.com)). See
 > [.env.example](.env.example) for the exact model IDs used for each role.
 >
-> **Use only models that support structured output.**
->
-> Other models may fail at
-> runtime or produce invalid scores. In particular,
->
-> All settings are read from `.env` (see [.env.example](.env.example) for the full
-> list). Variables are grouped by the workflow that uses them:
+> **Use only models that support structured output.** Other models may fail at
+> runtime or produce invalid scores.
+
+All settings are read from `.env` (see [.env.example](.env.example) for the full
+list). Variables are grouped by the workflow that uses them:
 
 | Variable                                              | Used by       | Description                                                           |
 | ----------------------------------------------------- | ------------- | --------------------------------------------------------------------- |
-| `DEFAULT_MODELS_API_KEY`, `DEFAULT_MODELS_ENDPOINT`, `DEFAULT_MODELS_MODEL` | shared default | Default credentials/model for model-backed workflows; legacy `NVIDIA_API_KEY` / `BASE_URL` / `MODEL_NAME` remain fallbacks. |
-| `REASONING_API_KEY`, `REASONING_ENDPOINT`, `REASONING_MODEL` | agent (eval) | LLM that the text-to-SQL agent generates with (falls back to `DEFAULT_MODELS_*`). |
-| `JUDGE_API_KEY`, `JUDGE_BASE_URL`, `JUDGE_MODEL_NAME` | judge         | LLM that the judge scores with (falls back to `DEFAULT_MODELS_*`, then legacy shared vars, then a built-in default for the key prefix). |
-| `EMBED_API_KEY`, `EMBED_ENDPOINT`, `EMBED_MODEL`      | ingest + eval | Embedding endpoint (must be identical for ingest and query).          |
-| `POSTGRES_*`                                          | ingest + eval | Store connection — Auto Ontology's catalog and pgvector collections.  |
-| `CONNECTION_STRINGS`                                  | ingest + eval | Source DB to extract schema from / execute SQL against.               |
+| `DEFAULT_MODELS_API_KEY`, `DEFAULT_MODELS_ENDPOINT`, `DEFAULT_MODELS_MODEL` | shared default | Default credentials/model for every model-backed workflow. The key is **required** by the benchmark: both arms authenticate with it. |
+| `REASONING_API_KEY`, `REASONING_ENDPOINT`, `REASONING_MODEL` | ontology arm  | LLM the Auto Ontology agent generates SQL with (falls back to `DEFAULT_MODELS_*`). |
+| `GYM_MODEL`, `GYM_MODEL_URL`                          | control arm   | Model the schema-only control answers with (default `aws/anthropic/bedrock-claude-opus-4-8` at `https://inference-api.nvidia.com/v1`). Optional. |
+| `JUDGE_API_KEY`, `JUDGE_BASE_URL`, `JUDGE_MODEL_NAME` | judge         | LLM that the judge scores with (falls back to `DEFAULT_MODELS_*`, then the legacy `NVIDIA_API_KEY` / `BASE_URL` / `MODEL_NAME`, then a built-in default for the key prefix). |
+| `EMBED_API_KEY`, `EMBED_ENDPOINT`, `EMBED_MODEL`      | ingest + benchmark | Embedding endpoint (must be identical for ingest and query).     |
+| `POSTGRES_*`                                          | ingest + benchmark | Store connection — Auto Ontology's catalog and pgvector collections. |
+| `CONNECTION_STRINGS`                                  | ingest + benchmark | Source DB to extract schema from / execute SQL against.          |
+
+To compare like with like, point `GYM_MODEL` and `REASONING_MODEL` at the same
+model.
 
 ## Seed the local source DB (required)
 
@@ -146,20 +148,20 @@ To drive the stages by hand — build task files, run one arm, compare — see
 
 For concrete, copy-pasteable walkthroughs, see the per-dataset READMEs:
 [WideWorldImporters](datasets/wideworldimporters/README.md),
-[BIRD Mini-Dev](datasets/bird/README.md),
+[BIRD](datasets/bird/README.md),
 [FDABench-Lite](datasets/fdabench/README.md),
 [BEAVER](datasets/beaverbench/README.md). See the per-workflow READMEs under
 [Workflows](#workflows) for the details of each stage.
 
 ## Prompt inputs: SQL examples and value anchors
 
-Two optional CSVs can be injected into the agent's SQL-generation prompt. Both
-are keyed by `question_id` and both are built from BIRD Dev:
+Two optional CSVs can be injected into the ontology arm's SQL-generation
+prompt. Both are keyed by `question_id` and both are built from BIRD Dev:
 
-| File                                                 | Eval flag         | What it carries                                                                                                |
-| ---------------------------------------------------- | ----------------- | --------------------------------------------------------------------------------------------------------------- |
-| `prompt_inputs/bird/predicted_structural_exemplars.csv` | `--sql-examples`  | Train questions whose SQL has the same shape as the one this question needs, ranked — few-shot exemplars.      |
-| `prompt_inputs/bird/value_anchors.csv`                  | `--value-anchors` | Which column stores a phrase from the question, and its exact stored spelling — so filters match real values. |
+| File                                                    | `main.py` flag        | What it carries                                                                                                |
+| ------------------------------------------------------- | --------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `prompt_inputs/bird/predicted_structural_exemplars.csv` | `--sql-examples-csv`  | Train questions whose SQL has the same shape as the one this question needs, ranked — few-shot exemplars.      |
+| `prompt_inputs/bird/value_anchors.csv`                  | `--value-anchors-csv` | Which column stores a phrase from the question, and its exact stored spelling — so filters match real values. |
 
 Generated copies of both are committed, so a run can reuse them without
 regenerating. To rebuild them, [`scripts/build_eval_inputs.py`](scripts/build_eval_inputs.py)
@@ -440,14 +442,23 @@ ontology_sql_eval/          single namespace package
     runner.py               batch/directory orchestration
     models.py               Pydantic score model + scoring prompt
     main.py                 CLI entry point (ontology-sql-eval)
+    beaver.py               ported BEAVER ex_acc evaluator (reference for the Gym rule's tests)
   ingestion/                Auto Ontology-backed ingestion pipeline
     README.md               ingestion workflow guide
     ingest.py               source DB -> pgvector ingest (calls enrich_graph)
     semantic.py             compile the semantic layer over the ingested graph
     enrich_graph.py         graph metadata + custom-analysis enrichment
     mock_ingest.py          in-memory 4-table demo ingest (mock_shop)
+  gym/                      Gym task building + execution-match scoring shared by both arms
+  bird_interact/            BIRD-Interact harness (see BIRD_INTERACT_README.md)
+  env.py                    .env loading
+  prompt_inputs.py          loaders for the prompt-input CSVs
+resources_servers/          the two Gym arms: schema_only_sql (control), auto_ontology_sql
 main.py                     end-to-end pipeline entry point (ingest -> benchmark)
 scripts/
+  build_gym_tasks.py        build one arm's Gym task file from datasets/<name>/evaluation.json
+  run_gym_arm.sh            run one arm through NeMo Gym
+  compare_arms.py           health-gated delta report between the two arms
   build_eval_inputs.py      build both prompt-input CSVs (anchors + exemplars) in one run
   value_index.py            value -> column index over the BIRD Dev DBs; writes value_anchors.csv
   llm_structural_exemplars.py  LLM-predicted SQL matched against train; writes the exemplars CSV
@@ -464,17 +475,17 @@ datasets/
   beaverbench/              README.md, evaluation.json, dumps/*.sql, <db_id>/metadata.json
   wideworldimporters/       README.md, evaluation.json, custom_analyses.json, ddl/, data/
 prompt_inputs/<dataset>/    tracked eval prompt inputs (sql examples + value anchors)
+runs/{control,treatment}/   benchmark rollouts + Gym metrics (gitignored)
 input/                      judge input CSVs to score (contents gitignored)
 output/                     judge scored CSVs (<name>_scores.csv; contents gitignored)
-logs/<run-id>/              per-eval-run logs + timings (contents gitignored)
 ```
 
 ## Development
 
-VS Code launch configurations for all of the above (Run full pipeline, Judge,
-Ingest, Semantic compile, Eval, Eval single-query, Seed local WWI,
-Seed local BIRD, Seed local FDABench, Seed local BEAVER) are provided in [.vscode/launch.json](.vscode/launch.json); they set
-load `.env` automatically. The type checker uses the project's `.venv`, as
+VS Code launch configurations (Run full pipeline, Benchmark (BIRD, 1 question),
+Judge, Ingest, Semantic compile, and Seed local WWI / BIRD / FDABench / BEAVER)
+are provided in [.vscode/launch.json](.vscode/launch.json); they load `.env`
+automatically. The type checker uses the project's `.venv`, as
 configured in [pyrightconfig.json](pyrightconfig.json).
 
 ## Contributing
