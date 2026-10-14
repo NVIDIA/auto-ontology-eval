@@ -5,9 +5,10 @@
 """Auto Ontology-grounded text-to-SQL resources server: the treatment arm.
 
 Drives Auto Ontology's LangGraph agent **in-process**, exactly as the
-single-arm harness it replaced did, so the two behave identically. Gym's policy model is not in the loop:
-``verify`` runs the agent itself and ignores the rollout's model output. That
-costs RL-trainability and buys an apples-to-apples comparison.
+single-arm harness it replaced did, so the two behave identically. Gym's policy
+model is not in the loop: ``verify`` runs the agent itself and ignores the
+rollout's model output. That costs RL-trainability and buys an apples-to-apples
+comparison.
 
 Grading is shared with the schema-only arm -- same executor, same BIRD
 set-equality rule, same failure codes -- so a difference in the number can only
