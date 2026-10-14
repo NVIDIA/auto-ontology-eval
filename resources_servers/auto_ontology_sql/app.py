@@ -71,7 +71,7 @@ from ontology_sql_eval.gym.exec_match import (  # noqa: E402
     PostgresExecutor,
     SqliteExecutor,
     execute_and_compare,
-    gold_is_runnable,
+    timeout_for,
 )
 from ontology_sql_eval.gym.tasks import DATASETS  # noqa: E402
 
@@ -195,6 +195,10 @@ class AutoOntologySqlVerifyResponse(BaseVerifyResponse):
     agent_nodes: List[str] = []
     execution_match: bool = False
     failure_reason: Optional[FailureCode] = None
+    # "empty_gold" / "nonempty_gold", or None when gold never ran. Grouped on in
+    # compute_metrics for BEAVER's second headline number, accuracy over
+    # nonempty_gold tasks only.
+    gold_result: Optional[str] = None
     policy_output_ignored: bool = True
     # How many exemplars and anchors this question's payload actually carried.
     # Recorded per rollout because a mistyped path or a stale question_id key
@@ -279,6 +283,7 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
         spec = DATASETS.get(dataset)
         if spec is None:
             raise KeyError(f"unknown dataset {dataset!r}")
+        timeout_s = timeout_for(dataset, self.config.sql_execution_timeout_s)
 
         if spec.dialect == "mysql":
             dsns = mysql_dsns_by_db(os.environ.get("CONNECTION_STRINGS", ""))
@@ -287,9 +292,7 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
                     f"no mysql:// entry in CONNECTION_STRINGS for dataset {dataset!r}; "
                     "seed it with scripts/seed_beaverbench.py --import-mysql"
                 )
-            executor: Any = MySqlExecutor(
-                dsns, timeout_s=self.config.sql_execution_timeout_s
-            )
+            executor: Any = MySqlExecutor(dsns, timeout_s=timeout_s)
         elif spec.dialect == "postgres":
             dsn = (
                 (self.config.postgres_dsn or os.environ.get("CONNECTION_STRINGS", ""))
@@ -298,13 +301,11 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
             )
             if not dsn:
                 raise RuntimeError(f"no Postgres DSN available for dataset {dataset!r}")
-            executor = PostgresExecutor(
-                dsn, timeout_s=self.config.sql_execution_timeout_s
-            )
+            executor = PostgresExecutor(dsn, timeout_s=timeout_s)
         else:
             executor = SqliteExecutor(
                 self._root / self.config.datasets_dir / spec.db_root,
-                timeout_s=self.config.sql_execution_timeout_s,
+                timeout_s=timeout_s,
             )
 
         self._executors[dataset] = executor
@@ -437,7 +438,9 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
             logger.exception(
                 "Auto Ontology agent failed task_id=%s: %s", body.task_id, exc
             )
-            return _response(0.0, FailureCode.UNKNOWN_ERROR, agent_error=str(exc))
+            return await self._without_prediction(
+                body, _response, FailureCode.UNKNOWN_ERROR, agent_error=str(exc)
+            )
 
         answer = result["answer"]
         sql = str(answer.get("sql_code") or "").strip()
@@ -453,15 +456,9 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
         # nothing on the error channel. Counting it separately is what stops an
         # outage from reading as a low score.
         if not sql:
-            # As above: a broken gold query must leave the denominator rather
-            # than be recorded as the agent producing a wrong answer.
-            gold_bad = await gold_is_runnable(
-                self._executor(body.dataset), body.db_id, body.gt_sql
-            )
-            if gold_bad:
-                return _response(0.0, _GOLD_FAILURE[gold_bad], agent_nodes=nodes)
-            return _response(
-                0.0,
+            return await self._without_prediction(
+                body,
+                _response,
                 FailureCode.NO_MODEL_OUTPUT,
                 agent_answer=str(answer.get("response") or ""),
                 agent_error=result["error"],
@@ -469,7 +466,7 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
             )
 
         try:
-            match, err = await execute_and_compare(
+            match, err, gold_result = await execute_and_compare(
                 self._executor(body.dataset), body.db_id, body.gt_sql, sql, body.dataset
             )
         except Exception as exc:
@@ -499,6 +496,49 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
             agent_error=result["error"],
             agent_nodes=nodes,
             execution_match=match,
+            gold_result=gold_result,
+        )
+
+    async def _without_prediction(
+        self,
+        body: AutoOntologySqlVerifyRequest,
+        respond: Any,
+        failure: FailureCode,
+        **kwargs: Any,
+    ) -> AutoOntologySqlVerifyResponse:
+        """Score a task the agent produced no SQL for.
+
+        Gold is run even though there is nothing to compare: a task whose
+        benchmark query is broken must leave the denominator rather than be
+        recorded as the agent producing a wrong answer -- and on BEAVER, whose
+        official evaluator scores a missing prediction as an empty result, this
+        can match. ``failure`` is kept either way, so the health gate sees it.
+        """
+        try:
+            match, err, gold_result = await execute_and_compare(
+                self._executor(body.dataset),
+                body.db_id,
+                body.gt_sql,
+                None,
+                body.dataset,
+            )
+        except Exception as exc:
+            # Often the same fault that broke the agent (an unknown dataset, an
+            # unreachable database); the original failure is the one to report.
+            logger.exception("gold check failed task_id=%s: %s", body.task_id, exc)
+            return respond(0.0, failure, **kwargs)
+        if err in _GOLD_FAILURE:
+            # An empty answer over broken gold says nothing; an agent crash
+            # still does, so it keeps its own code for the health counters.
+            if failure is FailureCode.NO_MODEL_OUTPUT:
+                return respond(0.0, _GOLD_FAILURE[err], **kwargs)
+            return respond(0.0, failure, **kwargs)
+        return respond(
+            1.0 if match else 0.0,
+            failure,
+            execution_match=match,
+            gold_result=gold_result,
+            **kwargs,
         )
 
     @staticmethod
@@ -513,7 +553,7 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
         metrics, *_ = compute_pass_majority_metrics(
             usable, score_fn=self._score_fn, answer_key="extracted_sql"
         )
-        for subset in ("difficulty", "dataset"):
+        for subset in ("difficulty", "dataset", "gold_result"):
             metrics.update(
                 compute_subset_metrics(usable, subset, self._score_fn, "extracted_sql")
             )
@@ -533,6 +573,12 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
             n = sum(1 for r in rollouts if r.get("failure_reason") == code.value)
             metrics[f"health/{code.value}_rate"] = n / total
             metrics[f"health/{code.value}_count"] = n
+        # On BEAVER a gold query that errors or times out is scored as an empty
+        # result rather than excluded, so these tasks stay in the denominator;
+        # this is the official evaluator's "gold SQL errors/timeouts" line.
+        metrics["health/gold_failure_scored_as_empty_count"] = sum(
+            1 for r in rollouts if r.get("gold_result") == "failed_gold"
+        )
         return metrics
 
     def get_key_metrics(self, agent_metrics: Dict[str, Any]) -> Dict[str, Any]:
@@ -548,6 +594,16 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
         )
         key.update(
             highest_k_metrics(agent_metrics, "pass@{k}", score_names=["accuracy"])
+        )
+        # BEAVER reports accuracy both with and without empty-gold questions;
+        # this is the "without". Present for every dataset, since the split is
+        # just as informative elsewhere.
+        key.update(
+            highest_k_metrics(
+                agent_metrics,
+                "nonempty_gold/pass@1[avg-of-{k}]",
+                score_names=["accuracy"],
+            )
         )
         return key
 

@@ -136,6 +136,15 @@ def main() -> int:
 
     buckets = collections.OrderedDict()
     buckets["ALL"] = common
+    # BEAVER's second headline number: accuracy without the questions whose gold
+    # result is empty, which any empty or failed prediction matches. Gold is a
+    # property of the question, so either arm's record will do.
+    golds = {
+        k: {control[k].get("gold_result"), treatment[k].get("gold_result")}
+        for k in common
+    }
+    if any(g & {"empty_gold", "failed_gold"} for g in golds.values()):
+        buckets["nonempty gold"] = [k for k in common if "nonempty_gold" in golds[k]]
     for label in sorted({control[k].get("difficulty") or "" for k in common}):
         if label:
             buckets[label] = [
