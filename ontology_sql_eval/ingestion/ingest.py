@@ -37,7 +37,7 @@ from auto_ontology.utils import get_embed_params  # noqa: E402
 from auto_ontology.utils.embedding import batch_embed_chunks
 from auto_ontology.utils.embedding_rows import CatalogEmbeddingRowsOp
 from auto_ontology.vdb import get_data_vdb, get_semantic_vdb  # noqa: E402
-from nemo_retriever.common.vdb.records import to_client_vdb_records
+from auto_ontology.vdb.records import to_vdb_records  # noqa: E402
 from ontology_sql_eval.ingestion.enrich_graph import (  # noqa: E402
     add_custom_analyses,
     apply_metadata,
@@ -87,7 +87,7 @@ def _ingest_catalog_with_metadata(
     data_vdb = None
     rows_written = 0
     for chunk in batch_embed_chunks(embed_rows, embed_params, label=database_name):
-        records = to_client_vdb_records(chunk)
+        records = to_vdb_records(chunk)
         if not records:
             continue
         if data_vdb is None:

@@ -93,7 +93,7 @@ The bottleneck-hunting fields are:
 
 Only calls issued on a question's own thread can be attributed to it, so the
 per-question and per-node counts are effectively the **chat completion** counts.
-`nemo_retriever` dispatches embeddings to its own thread pool, and a pool thread
+Auto Ontology's batch embedding fans out over a thread pool, and a pool thread
 starts from an empty context; those show up in the run-wide `http_endpoints`
 tally and in `http_calls_unattributed`, not against a question.
 
