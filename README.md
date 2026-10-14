@@ -58,16 +58,22 @@ cp .env.example .env   # then fill in your values
 
 ## Configuration
 
-> **Disclaimer**
+> **Tested configuration**
 >
-> This project was tested
-> with **GPT 5.5** (agent, via
-> [https://inference-api.nvidia.com](https://inference-api.nvidia.com))
+> This project is tested with a single `sk-` key against
+> [inference-api.nvidia.com](https://inference-api.nvidia.com) and no model
+> pinned in `.env`, so every role uses the built-in default for that key:
 >
-> and
-> **Nemotron** (judge / embeddings, via
-> [https://integrate.api.nvidia.com](https://integrate.api.nvidia.com)). See
-> [.env.example](.env.example) for the exact model IDs used for each role.
+> | Role | Model |
+> | --- | --- |
+> | Agent (ontology arm) and control arm | `aws/anthropic/bedrock-claude-opus-4-8` |
+> | Agent's non-reasoning calls | `aws/anthropic/bedrock-claude-sonnet-5-5` |
+> | Embeddings | `nvidia/nvidia/nemotron-3-embed-1b` |
+> | Judge | `nvidia/nvidia/Nemotron-3-Nano-30B-A3B` |
+>
+> The agent and embedding defaults come from the pinned Auto Ontology revision,
+> so they can change when it is bumped. An `nvapi-` key selects Nemotron
+> defaults on integrate.api.nvidia.com instead.
 >
 > **Use only models that support structured output.** Other models may fail at
 > runtime or produce invalid scores.
