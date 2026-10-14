@@ -15,8 +15,7 @@
 benchmark. [scripts/seed_bird.py](../../scripts/seed_bird.py) installs the full
 official **Dev** split by default (1,534 questions over 11 SQLite databases) and
 its Train question corpus, or can install the cheaper **Mini-Dev** subset alone.
-The repo additionally ships the official EX/VES scoring script ported from the
-BIRD repo. Unlike WideWorldImporters, BIRD's source DBs are SQLite files (no
+Unlike WideWorldImporters, BIRD's source DBs are SQLite files (no
 Postgres seeding step) and each question carries its own `db_id`, routing to the
 matching connector at eval time.
 
@@ -108,12 +107,13 @@ uv run python main.py --database-name bird
 ```
 
 This ingests every database in `CONNECTION_STRINGS`, compiles the semantic
-layer, runs the agent against `datasets/bird/evaluation.json`
-(→ `input/bird_<model>.csv`), then LLM-judges the result
-(→ `output/bird_<model>_scores.csv`). Individual stages can be skipped with
-`--skip-ingest`, `--skip-semantic`, `--skip-eval`, `--skip-judge`. The semantic
-stage automatically replaces BIRD's shipped descriptions with the tracked set
-under `annotations/bird/` when it is present.
+layer, then runs the NeMo Gym benchmark over `datasets/bird/evaluation.json`:
+the schema-only control and the ontology-grounded arm, scored with BIRD's
+execution-match rule, with rollouts in `runs/control/` and `runs/treatment/` and
+the delta printed at the end. Stages can be skipped with `--skip-ingest`,
+`--skip-semantic` and `--skip-eval`. The semantic stage automatically replaces
+BIRD's shipped descriptions with the tracked set under `annotations/bird/` when
+it is present.
 
 ### Manual (per-stage) equivalent
 
@@ -122,70 +122,33 @@ under `annotations/bird/` when it is present.
 uv run python -m ontology_sql_eval.ingestion.ingest --benchmark-name bird
 uv run python -m ontology_sql_eval.ingestion.semantic --benchmark-name bird
 
-# 2. Run the agent against the eval set -> input/bird_<model>.csv.
-# This matches the "Eval" configuration in .vscode/launch.json.
-uv run python -m ontology_sql_eval.retrieval.eval_chatbot \
-  --database-name bird \
-  --workers 10 \
-  --sql-examples prompt_inputs/bird/predicted_structural_exemplars.csv \
+# 2. Run the benchmark on the ingested DBs (first 10 questions, 3 at a time).
+uv run python main.py --database-name bird \
+  --skip-ingest --skip-semantic --limit 10 --eval-workers 3 \
+  --sql-examples-csv prompt_inputs/bird/predicted_structural_exemplars.csv \
   --sql-examples-k 5 \
-  --value-anchors prompt_inputs/bird/value_anchors.csv
-
-# 3. Re-score every CSV in input/ with the LLM judge -> output/<name>_scores.csv
-uv run ontology-sql-eval
+  --value-anchors-csv prompt_inputs/bird/value_anchors.csv
 ```
 
 Both ingestion commands walk every entry in `CONNECTION_STRINGS`, so all 11
 databases are handled in one invocation each.
 
-The eval inputs shown above are optional:
+The prompt inputs shown above are optional and go to the ontology arm only:
 
-- `--sql-examples` loads question-keyed structural examples generated from the
-  BIRD Train corpus; `--sql-examples-k 5` supplies at most five to the agent.
-- `--value-anchors` loads question-keyed, precomputed database-value matches.
-- `--workers 10` evaluates up to ten questions concurrently.
+- `--sql-examples-csv` loads question-keyed structural examples generated from
+  the BIRD Train corpus; `--sql-examples-k 5` supplies at most five to the agent.
+- `--value-anchors-csv` loads question-keyed, precomputed database-value matches.
 
 These files provide prompt context only. They do not replace
 `datasets/bird/evaluation.json`, and the eval questions' gold SQL is not used to
-select examples or anchors.
+select examples or anchors. The control arm gets no equivalent, so a delta
+measured with them covers the inputs as well as the ontology grounding.
 
-### Evaluating a slice
+`--start-index` / `--end-index` / `--limit` select a slice of the questions.
 
-`eval_chatbot` takes any file in `evaluation.json` format, so a hand-picked
-subset of questions can be run on its own — one database, one difficulty, one
-reproduction. Keep those files in `subsets/` and name the output after the
-subset so a probe never overwrites a full run:
+## Scoring
 
-```bash
-uv run python -m ontology_sql_eval.retrieval.eval_chatbot \
-    --input datasets/bird/subsets/formula_1.json \
-    --output input/formula_1_<model>.csv
-```
-
-Scoring a subset needs no extra flags: `--dataset-name bird` still resolves the
-right databases, because the judge maps each `question_id` back to its `db_id`
-through the full `evaluation.json`.
-
-## Official scoring (EX + VES)
-
-In addition to the generic LLM judge, BIRD ships its own deterministic
-**Execution Accuracy (EX)** and **Valid Efficiency Score (VES)** metrics,
-ported from the official BIRD evaluation scripts:
-
-```bash
-uv run python -m ontology_sql_eval.judge.bird \
-  --input input/bird_<model>.csv \
-  --dataset-name bird \
-  --skip-ves            # omit to also compute VES (slower — times EX-passing rows)
-```
-
-`--dataset-name` resolves both `evaluation.json` (for the `question_id → db_id`
-map) and the `dev/` SQLite root; override either with `--evaluation-json` /
-`--db-root`. Results are written to `output/<input_stem>_bird_scores.csv`.
-
-See [ontology_sql_eval/judge/bird.py](../../ontology_sql_eval/judge/bird.py)
-for the remaining flags (`--num-cpus`, `--meta-time-out`, `--iterate-num`,
-`--no-output-csv`, `--debug`).
-
-This is a separate, additional scoring step — it does not replace the LLM judge
-stage in `main.py`.
+Both arms are scored with BIRD's official execution accuracy (EX):
+`set(gold_rows) == set(pred_rows)`, which ignores row order and collapses
+duplicate rows. No LLM judge is involved. BIRD's Valid Efficiency Score (VES)
+is not computed.

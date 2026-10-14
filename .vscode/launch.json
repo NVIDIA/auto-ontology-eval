@@ -81,21 +81,6 @@
       "justMyCode": false
     },
     {
-      "name": "Judge BIRD (EX + VES)",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "ontology_sql_eval.judge.bird",
-      "args": [
-        "--input",
-        "input/bird_gpt-5.5.csv",
-        "--skip-ves"
-      ],
-      "console": "integratedTerminal",
-      "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/bin/python",
-      "justMyCode": false
-    },
-    {
       "name": "Ingest",
       "type": "debugpy",
       "request": "launch",
@@ -118,29 +103,17 @@
       "justMyCode": false
     },
     {
-      "name": "Eval",
+      "name": "Benchmark (BIRD, 1 question)",
       "type": "debugpy",
       "request": "launch",
-      "module": "ontology_sql_eval.retrieval.eval_chatbot",
+      "program": "${workspaceFolder}/main.py",
       "args": [
         "--database-name",
-        "bird"
-      ],
-      "console": "integratedTerminal",
-      "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/bin/python",
-      "envFile": "${workspaceFolder}/.env",
-      "justMyCode": false
-    },
-    {
-      "name": "Eval (single query)",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "ontology_sql_eval.retrieval.eval_chatbot",
-      "args": [
-        "--single",
-        "--database-name",
-        "wideworldimporters"
+        "bird",
+        "--skip-ingest",
+        "--skip-semantic",
+        "--limit",
+        "1"
       ],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",

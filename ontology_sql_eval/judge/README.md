@@ -7,10 +7,7 @@ semantics, and similarity to the ground truth. This workflow is fully
 self-contained — no Auto Ontology/NeMo install, database, or vector stores required, only
 a judge LLM API key.
 
-The judge scores every CSV in `input/`. The retrieval eval writes its results
-straight into `input/` (as `input/<db>_<model>.csv`), so after an eval run you
-can judge with no manual copy. You can also drop in any CSV by hand. Each file
-must contain `question`, `expected_sql`, and `returned_sql` columns (and
+The judge scores every CSV you put in `input/`. Each file must contain `question`, `expected_sql`, and `returned_sql` columns (and
 optionally `returned_answer`, used as a result preview). Rows with an empty
 `returned_sql` are skipped. Scored CSVs are written to
 `output/<name>_scores.csv`.
@@ -41,10 +38,3 @@ The scoring model is configured via `JUDGE_MODEL_NAME` / `JUDGE_BASE_URL` /
 built-in endpoint/model is chosen from the API key prefix (`sk-` →
 inference-api.nvidia.com, `nvapi-` → integrate.api.nvidia.com), matching Auto Ontology's
 `model_config` behavior.
-
-## BIRD official scoring (EX + VES)
-
-For the BIRD dataset, `bird.py` in this package additionally ports BIRD's own
-deterministic Execution Accuracy / Valid Efficiency Score metrics — a separate
-step from the generic LLM scoring above. See
-[datasets/bird/README.md](../../datasets/bird/README.md#official-scoring-ex--ves).

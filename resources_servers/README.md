@@ -201,33 +201,19 @@ a race in nemo-retriever's timestamp-derived version, not a real conflict — re
 
 ## How this relates to the repo's other scorers
 
-Three scorers live in this repo. They are not redundant, and only one is used by
-the benchmark.
+Two scorers live in this repo, and only one is used by the benchmark.
 
 | Scorer | What it measures | Used by |
 |---|---|---|
 | **Gym verifier** (`ontology_sql_eval/gym/exec_match.py`) | Execution match, binary reward | both benchmark arms |
-| **BIRD official** (`ontology_sql_eval/judge/bird.py`) | EX **and VES** | standalone CLI, over an eval CSV |
-| **LLM judge** (`ontology_sql_eval/judge/scorer.py`) | Logic / semantic rubric | `main.py`'s judge stage, over an eval CSV |
+| **LLM judge** (`ontology_sql_eval/judge/scorer.py`) | Logic / semantic rubric | standalone CLI (`ontology-sql-eval`), over an eval CSV |
 
-**The Gym verifier's EX is BIRD's official EX.** Both are
-`set(gold_rows) == set(pred_rows)`: `judge/bird.py` ports it from DAMO-ConvAI,
-and this one came from NeMo Gym's `bird_sql`, which mirrors the same evaluator.
-They agree on row order, duplicate collapsing and extra columns. Running both
-over the same BIRD predictions should give the same accuracy -- if it does not,
-one of them has a bug.
+**The Gym verifier's EX is BIRD's official EX**, `set(gold_rows) ==
+set(pred_rows)`, taken from NeMo Gym's `bird_sql`, which mirrors BIRD's own
+evaluator: row order and duplicate rows are ignored, extra columns fail.
 
-**VES has no equivalent here.** Valid Efficiency Score is a *runtime ratio* over
-EX-passing questions -- how fast the predicted query is versus gold -- which
-`judge/bird.py` computes by re-running each passing query (`--iterate-num`,
-default 100) with outlier removal. The benchmark measures correctness only. For
-VES, run `judge/bird.py` over an eval CSV; the benchmark writes Gym rollouts,
-not a CSV.
-
-`judge/bird.py` also reports an `extra_col_nearmiss` diagnostic -- predictions
-that would have matched but for extra selected columns. That is exactly the
-failure mode `shorten_answer` and the control arm's matching projection rule
-exist to prevent.
+**VES is not computed.** BIRD's Valid Efficiency Score is a runtime ratio over
+EX-passing questions; the benchmark measures correctness only.
 
 **The LLM judge is used by neither arm.** Scoring here is deterministic by
 design, and NeMo Gym's own guidance is to prefer a deterministic verifier where
@@ -273,8 +259,8 @@ than ontology grounding.
 
 The Auto Ontology arm also has to carry `calculation_only=True` and
 `validate_sql_values=True`, which are not comparability knobs but parity with
-`ontology_sql_eval/retrieval/eval_chatbot.py` — the harness whose numbers this
-arm is checked against. The first pins the intent to CALCULATION (every BIRD
+the single-arm harness this arm replaced, whose numbers it was checked against.
+The first pins the intent to CALCULATION (every BIRD
 question is answered by running SQL, so letting the classifier route elsewhere
 only creates ways to lose); the second enables the `validate_sql_values` node,
 which checks filter literals against the database. Omitting them is not visible
@@ -386,4 +372,4 @@ keeps the arm behaviourally identical to the existing harness, at the cost of it
 being RL-trainable.
 
 Arm B also needs the pre-ingested Auto Ontology catalog (Postgres + pgvector) for every
-database it touches; build it with `main.py --skip-eval --skip-judge`.
+database it touches; build it with `main.py --skip-eval`.

@@ -110,13 +110,3 @@ Data destinations:
 | Destination                      | Content                                                                                        |
 | -------------------------------- | ---------------------------------------------------------------------------------------------- |
 | Postgres (`POSTGRES_*`) | Catalog and semantic rows plus schema and custom-analysis embeddings. |
-
-## Quick smoke test (DB-free)
-
-For a quick, DB-free smoke test of the embed pipeline (uses an in-memory
-4-table `mock_shop` schema; needs `DEFAULT_MODELS_API_KEY` for embeddings;
-legacy `NVIDIA_API_KEY` is supported as a fallback):
-
-```bash
-uv run python -m ontology_sql_eval.ingestion.mock_ingest
-```

@@ -1041,12 +1041,6 @@ http = [
 ]
 
 [[package]]
-name = "func-timeout"
-version = "4.3.5"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/b3/0d/bf0567477f7281d9a3926c582bfef21bff7498fc0ffd3e9de21811896a0b/func_timeout-4.3.5.tar.gz", hash = "sha256:74cd3c428ec94f4edfba81f9b2f14904846d5ffccc27c92433b8b5939b5575dd", size = 44264, upload-time = "2019-08-19T21:32:07.43Z" }
-
-[[package]]
 name = "future"
 version = "1.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2494,12 +2488,9 @@ source = { editable = "." }
 dependencies = [
     { name = "auto-ontology-server" },
     { name = "datasets" },
-    { name = "func-timeout" },
     { name = "huggingface-hub" },
     { name = "matplotlib" },
     { name = "nemo-gym" },
-    { name = "numpy" },
-    { name = "psutil" },
     { name = "sqlglot" },
 ]
 
@@ -2513,12 +2504,9 @@ dev = [
 requires-dist = [
     { name = "auto-ontology-server", git = "https://github.com/NVIDIA/auto-ontology.git?rev=2deaca7814f5530d8be9f1847681d95a56b8f420" },
     { name = "datasets", specifier = ">=5.0.1" },
-    { name = "func-timeout", specifier = ">=4.3.5" },
     { name = "huggingface-hub", specifier = ">=1.28.0" },
     { name = "matplotlib", specifier = ">=3.11.1" },
     { name = "nemo-gym", specifier = "==0.7.0" },
-    { name = "numpy", specifier = ">=2.0" },
-    { name = "psutil", specifier = ">=7.2.2" },
     { name = "sqlglot", specifier = ">=30.12.0" },
 ]
 

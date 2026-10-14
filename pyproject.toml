@@ -1,7 +1,7 @@
 [project]
 name = "ontology-sql-eval"
 version = "0.1.0"
-description = "LLM-powered re-scoring of Text-to-SQL evaluation CSVs, plus Auto Ontology-backed ingestion and retrieval evaluation."
+description = "LLM-powered re-scoring of Text-to-SQL evaluation CSVs, plus Auto Ontology-backed ingestion and a NeMo Gym benchmark."
 readme = "README.md"
 # nemo-gym requires >=3.13.14. Raised from >=3.12 when the Gym
 # environments were added so the harness and the Gym resources servers can share
@@ -17,11 +17,6 @@ dependencies = [
     # Imported directly by bird_interact/bird_interact_http.py. Also reachable
     # transitively through Auto Ontology, but not as part of its contract.
     "sqlglot>=30.12.0",
-    # BIRD official EX/VES judge (ontology_sql_eval/judge/bird.py)
-    "func-timeout>=4.3.5",
-    "numpy>=2.0",
-    # CPU/RAM sampling in retrieval/run_logging.py
-    "psutil>=7.2.2",
     # Dataset seeding (scripts/seed_beaverbench.py, scripts/seed_bird_interact.py)
     "datasets>=5.0.1",
     "huggingface-hub>=1.28.0",

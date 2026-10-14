@@ -94,17 +94,24 @@ uv run python main.py --database-name fdabench
 ```
 
 This ingests every database in `CONNECTION_STRINGS`, compiles the semantic
-layer, runs the agent against `datasets/fdabench/evaluation.json`
-(→ `input/fdabench_<model>.csv`), then LLM-judges the result
-(→ `output/fdabench_<model>_scores.csv`).
+layer, then runs the NeMo Gym benchmark over `datasets/fdabench/evaluation.json`:
+the schema-only control and the ontology-grounded arm, scored by execution
+match, with rollouts in `runs/control/` and `runs/treatment/` and the delta
+printed at the end. Re-run without re-ingesting, and smoke-test on a few
+questions first:
+
+```bash
+uv run python main.py --database-name fdabench \
+    --skip-ingest --skip-semantic --limit 10 --eval-workers 3
+```
 
 ## Notes
 
 - Question text is taken from each gold SQL subtask's
   `natural_language_query` (the SQL-focused prompt), not the full multi-source
   FDABench agent query.
-- FDABench's MCQ / report rubric scoring is **not** ported here — scoring uses
-  this repo's generic exec-match + LLM judge path.
+- FDABench's MCQ / report rubric scoring is **not** ported here — scoring is
+  this repo's execution match (BIRD's rule).
 - Per-database `metadata.json` lives under
   `datasets/fdabench/<db_id>/metadata.json`. Ingestion resolves that nested
   layout automatically (same as a top-level `datasets/<db_id>/metadata.json`).
