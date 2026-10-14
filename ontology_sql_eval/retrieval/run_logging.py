@@ -116,8 +116,8 @@ def http_calls() -> int:
     are calling the model too many times".
 
     Caveat worth knowing when reading the numbers: only calls issued on the
-    question's own thread can be attributed. ``nemo_retriever`` dispatches
-    embedding requests to its own thread pool, and a pool thread starts from an
+    question's own thread can be attributed. Auto Ontology's batch embedding
+    fans requests out over a thread pool, and a pool thread starts from an
     empty context, so those land in the run-level ``http_endpoints`` tally
     instead of on a question. In practice the per-question figure is the *chat
     completion* count, which is the one that maps to agent nodes.
@@ -569,11 +569,10 @@ def system_memory() -> dict[str, Any]:
 def _pin_logger_level(logger: logging.Logger, level: int) -> None:
     """Hold *logger* at *level* against third-party reconfiguration.
 
-    ``nemo_retriever.common.api.internal.transform.embed_text`` runs
-    ``logging.getLogger("httpx").setLevel(logging.ERROR)`` at import time, and
-    that module is imported lazily on the first embedding call — i.e. partway
-    through the first question, not at startup. Setting the level once up front
-    is therefore not enough: httpx goes quiet after a request or two and every
+    A dependency that quiets httpx at import time -- nemo_retriever's
+    ``embed_text`` did, lazily, on the first embedding call -- would otherwise
+    silence it partway through the first question. Setting the level once up
+    front is not enough: httpx goes quiet after a request or two and every
     per-node model-call count silently reads zero.
     """
     logging.Logger.setLevel(logger, level)
@@ -973,8 +972,8 @@ class RunLogger:
             "phases": phase_stats,
             "agent_nodes": node_stats,
             "http_calls": stats(numeric("http_calls")),
-            # Run-wide totals by endpoint, including the embedding calls that
-            # nemo_retriever issues off-thread and that no question can claim.
+            # Run-wide totals by endpoint, including the embedding calls
+            # issued off-thread that no question can claim.
             "http_endpoints": dict(
                 sorted(
                     (

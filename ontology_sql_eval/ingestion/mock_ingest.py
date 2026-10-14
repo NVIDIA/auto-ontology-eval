@@ -25,14 +25,13 @@ import os
 from typing import Optional
 
 import pandas as pd
-from nemo_retriever.common.params.models import EmbedParams
-from nemo_retriever.operators.vdb import IngestVdbOperator
 from auto_ontology.catalog import ingest_catalog
 from auto_ontology.connectors.base import SQLDatabase
-from auto_ontology.utils.embedding import batch_embed
+from auto_ontology.utils.embedding import EmbedParams, batch_embed
 from auto_ontology.utils.embedding_rows import CatalogEmbeddingRowsOp
 
 from auto_ontology.vdb import get_data_vdb
+from auto_ontology.vdb.records import write_embedded_rows
 
 from ontology_sql_eval.env import load_env
 
@@ -217,9 +216,8 @@ def run_mock_ingest() -> None:
     vdb = get_data_vdb(database_name=database_name, reset=True)
 
     if result_df is not None and not result_df.empty:
-        ingest_op = IngestVdbOperator(vdb=vdb)
-        ingest_op(result_df.to_dict(orient="records"))
-        logger.info("Mock ingest wrote %d rows to pgvector", len(result_df))
+        written = write_embedded_rows(vdb, result_df)
+        logger.info("Mock ingest wrote %d rows to pgvector", written)
     else:
         logger.warning("Mock ingest produced 0 rows")
 

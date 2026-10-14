@@ -82,8 +82,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from nemo_retriever.common.params.models import EmbedParams
-    from nemo_retriever.common.vdb.adt_vdb import VDB
+    from auto_ontology.utils.embedding import EmbedParams
+    from auto_ontology.vdb.postgres import PostgresVDB
 
 logger = logging.getLogger(__name__)
 
@@ -255,7 +255,7 @@ def add_custom_analyses(
     dialect: str,  # noqa: ARG001 — kept for call-site compatibility; Auto Ontology resolves
     # the dialect from the connector itself now.
     embed_params: "EmbedParams | None" = None,
-    vdb: "VDB | None" = None,
+    vdb: "PostgresVDB | None" = None,
     benchmark_name: str | None = None,
 ) -> None:
     """Ingest custom analyses for *database_name* into Postgres and the VDB.

@@ -410,10 +410,9 @@ after changing a server's dependencies. See
 > `GYM_REBUILD_VENV=1 scripts/run_gym_arm.sh auto_ontology_sql /tmp/probe.jsonl`.
 > The venv is reused by default. `run_gym_arm.sh` rebuilds on its own when a
 > server venv's nemo-gym or Ray differs from `.venv`'s, but not for other
-> packages: an existing venv keeps the nemo-retriever and openai it was built
-> with. A nemo-retriever newer than 26.8.1 makes the ontology arm score several
-> points low with nothing in the rollouts to say why, and openai 2.45+ rejects
-> the inference-api gateway's responses. A venv built from scratch is already
+> packages: an existing venv keeps the Auto Ontology and openai it was built
+> with, so it misses an Auto Ontology bump, and openai 2.45+ rejects the
+> inference-api gateway's responses. A venv built from scratch is already
 > correct.
 
 Datasets: `bird`, `fdabench`, `wideworldimporters` (Postgres), `beaverbench`
