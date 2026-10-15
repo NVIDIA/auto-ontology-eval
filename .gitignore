@@ -58,12 +58,26 @@ venv/
 # notes — not tracked on remote, kept local only.
 /results/*
 
-# Unstructured eval outputs. Both pipelines rebuild these from the corpus, and
+# Unstructured eval outputs. Every arm rebuilds these from the corpus, and
 # answers.jsonl plus retrieval.json carry the full retrieved chunk text — 54 MB
 # across the two sides. Only report.json is small, and it is derived from the
 # answers, so nothing here is a source.
 /unstructured/results/
 /unstructured/benchmark/results/
+/unstructured/chunk_first_results/
+# Tagged variants of the same, one directory per arm of an A/B so a run never
+# overwrites the numbers it is being compared against.
+/unstructured/results-*/
+/unstructured/chunk_first_results-*/
+# The ontology agent's, kept while its answers are still on disk: the pipeline
+# that wrote them has been removed, so nothing can regenerate or re-score them.
+/unstructured/agent_results/
+/unstructured/agent_results-*/
+
+# Experiments: scratch that answers one question against the live corpus and
+# prints the answer. Whatever they settle gets written down where it had
+# consequences, so the script itself is not what anyone comes back to.
+/unstructured/scripts/
 
 # Cursor / Claude Code local agent-plan and session state — machine-specific, never commit.
 .cursor/

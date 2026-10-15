@@ -3,17 +3,19 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Everything the two retrieval paths share, so retrieval is the only variable.
+"""Everything the arms share, so retrieval is the only variable between them.
 
-Two pipelines are compared on the ViDoRe v3 HR corpus:
+Three are compared on the ViDoRe v3 HR corpus:
 
     benchmark/retrieve_generate.py   query → chunk vectors (LanceDB) → chunks
+    chunk_first.py                   the above, labelled with the ontology
     attr_retrieve_generate.py        query → attribute vectors → linked chunks
 
 They answer the same questions from different evidence.  For the comparison to
-mean anything, *only* the retrieval step may differ — so the generator, prompt,
-token budget, reasoning cap, rate limiters, page-key arithmetic, graded qrels,
-scoring tiers and report format all live here, on one path, used by both.
+mean anything, *only* the retrieval step may differ — so the token budget,
+page-key arithmetic, graded qrels, scoring tiers and report format all live
+here, on one path, used by all of them, and the generator and its prompt live
+one level further out, in the library every arm answers through.
 
 This is not merely tidiness.  When the two halves were separate files that
 imported across, their judge timeout and token budget drifted apart unnoticed,
@@ -37,27 +39,23 @@ import csv
 import json
 import os
 import random
-import threading
 import time
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-from dotenv import load_dotenv
-
 MODULE_DIR = Path(__file__).parent
-REPO_ROOT = MODULE_DIR.parent
 
-load_dotenv(REPO_ROOT / ".env")
+# Loads the repo-root .env, keeps Ray from advertising Apple Silicon as a GPU
+# (NeMo Retriever would then pick CUDA-only operators over the hosted NIMs), and
+# puts the library on sys.path. Every script here imports it first; this module
+# does too, rather than repeating the first two, which it used to.
+import unstructured.config  # noqa: E402,F401
 
-# Ray advertises Apple Silicon as a GPU, and NeMo Retriever then picks the
-# CUDA-only operator variants instead of the hosted NIM endpoints. Must be set
-# before anything imports nemo_retriever, which is why it is here: both
-# pipelines import this module first.
-os.environ.setdefault(
-    "RAY_OVERRIDE_RESOURCES",
-    json.dumps({"GPU": 0, "CPU": max(16, os.cpu_count() or 8)}),
-)
+# The answering half of the pipeline — prompt, model, pacing, retries — belongs
+# to the product and lives in the library. Imported through the path config just
+# set, so it has to come after.
+from unstructured_ao import answer as answer_lib  # noqa: E402
 
 NVIDIA_API_KEY = os.environ.get("NVIDIA_API_KEY", "")
 
@@ -70,45 +68,32 @@ QRELS_CSV = DATA_DIR / "qrels" / "qrels_en.csv"
 LANGUAGE = "english"
 KS = (1, 3, 5, 10)
 
-# Each pipeline writes its own directory, so a run can never overwrite the
-# numbers it is being compared against. Both paths are named here rather than
-# in the pipelines, so neither has to import the other just to find the report
-# it compares itself to — the baseline must not drag in Postgres, and the
-# attribute side must not drag in LanceDB.
+# Each arm writes its own directory, so a run can never overwrite the numbers
+# it is being compared against. The paths are named here rather than in the
+# arms, so none has to import another just to find the report it compares
+# itself to — the baseline must not drag in Postgres, and the attribute side
+# must not drag in LanceDB.
 CHUNK_RESULTS = MODULE_DIR / "benchmark" / "results"
 ATTRIBUTE_RESULTS = MODULE_DIR / "results"
+# Chunk search with the ontology hung off what it found, rather than placed in
+# front of it. Its own directory because its first run is a parity check
+# against CHUNK_RESULTS and must not be written into the thing it is matching.
+CHUNK_FIRST_RESULTS = MODULE_DIR / "chunk_first_results"
 
 
 # --- models -------------------------------------------------------------------
-API_BASE = "https://integrate.api.nvidia.com/v1"
-
+# The generator is the product's, so its endpoint, model, prompt, pacing and
+# retries live in the library; these names are re-exported because the reports
+# print what answered them, and a report should not have to know where the
+# generator is configured to say which one it was.
+#
 # The published baseline generated with llama-3.3-nemotron-super-49b-v1.5 and
 # judged with Mixtral-8x22B; both now return 410 from the hosted API.
-GEN_MODEL = "nvidia/nemotron-3-super-120b-a12b"
-GEN_MAX_TOKENS = 4096
-
-# How much the generator may reason before answering. Unbounded, it spends the
-# whole budget thinking on hard queries and returns nothing ("thinking
-# truncated"); capping it keeps the reasoning and leaves room for the answer.
-# Measured on a query that truncates with reasoning unbounded:
-#
-#   default  unbounded           4096 tokens, 47s, empty answer
-#   low      kept but capped      502 tokens,  5s, answers
-#   off      no reasoning block    19 tokens,  1s, answers
-#
-# The endpoint accepts several other spellings of this and then ignores them,
-# so they look like they work and change nothing: a flat `reasoning_effort`, a
-# `chat_template_kwargs.thinking_budget`, a "/no_think" suffix, a "detailed
-# thinking off" system line, and asking for brief reasoning in the prompt.
-# `max_thinking_tokens` is rejected with a 400.
-REASONING_MODES = {
-    "default": {},
-    "off": {"chat_template_kwargs": {"thinking": False}},
-    "low": {"reasoning": {"effort": "low"}},
-    "medium": {"reasoning": {"effort": "medium"}},
-    "high": {"reasoning": {"effort": "high"}},
-}
-GEN_REASONING = "low"
+API_BASE = answer_lib.API_BASE
+GEN_MODEL = answer_lib.GEN_MODEL
+GEN_MAX_TOKENS = answer_lib.GEN_MAX_TOKENS
+REASONING_MODES = answer_lib.REASONING_MODES
+GEN_REASONING = answer_lib.REASONING_EFFORT
 
 # The judge runs on its own endpoint and credential, not the generator's. The
 # free integrate.api endpoint has no judge worth using: of everything `/v1/models`
@@ -150,8 +135,11 @@ JUDGE_RETRIES = 2
 # --- retrieval budgets --------------------------------------------------------
 # Chunks retrieved per query; several can land on the same page.
 CHUNK_K = 30
-# Chunks handed to the generator, matching the QA_TOP_K default.
-CONTEXT_K = 5
+# Chunks handed to the generator.  Was 5, the QA_TOP_K default; doubled so the
+# attribute path can spend its budget across several concepts and still reach
+# the evidence under each.  Shared, so both pipelines move together and the
+# comparison stays about retrieval.
+CONTEXT_K = 10
 
 # Attributes matched per query. Each carries roughly five to six linked chunks,
 # so this lands near the 30-chunk budget rather than handing the generator a
@@ -170,62 +158,40 @@ PAGE_OFFSET = -1
 
 
 # --- pacing -------------------------------------------------------------------
-# The hosted endpoint caps requests per minute per model, and the buckets are
-# independent, so generation and judging never contend. Measured ceilings:
-# nemotron-3-super tops out near 8/min and gets *worse* when pushed harder.
+# The generator's budget is the library's, since the library makes the calls.
+# What is paced here is the judge, on its own endpoint and credential, so the
+# two buckets are independent and never contend.
 #
 # Judging costs two requests per query (AnswerAccuracy rates each answer twice
 # with the roles swapped), so the judge supplies JUDGE_RPM / 2 queries a minute.
-#
-# Pacing client-side keeps every request inside the budget instead of spending
-# the budget on rejections; workers simply block on their model's limiter.
-GEN_RPM = 7
-# The judge is on a different endpoint and key from the generator, so its budget
-# is unrelated to GEN_RPM. 24 was paced for the free endpoint, where it was never
-# the constraint: verdicts took ~100s, so eight workers could only produce twelve
-# a minute anyway. A 3.9s verdict makes the limiter the only thing holding the
+# 24 was paced for the free endpoint, where the limiter was never the
+# constraint: verdicts took ~100s, so eight workers could only produce twelve a
+# minute anyway. A 3.9s verdict makes the limiter the only thing holding the
 # judge back, hence the raise. Lower it if refusals appear.
 JUDGE_RPM = 60
 MAX_WORKERS = 8
 
+# Retrieval's retries. Generation has its own, inside the library, on the same
+# schedule; these are kept separate because a vector search that fails fails for
+# different reasons and may want a different patience.
 MAX_ATTEMPTS = 4
 BACKOFF_BASE_SECONDS = 5
 
-# Transient API failures are retried on the next run instead of being cached as
-# a result. "thinking_truncated" is retried too: it used to be a dead end, since
-# retrying at temperature 0 under the same budget truncates identically, but
-# with GEN_REASONING capped the retry now has room to reach an answer.
-RETRYABLE_ERRORS = (
-    "RateLimitError",
-    "APITimeoutError",
-    "APIConnectionError",
-    "InternalServerError",
-    "APIStatusError",
-)
+# Which recorded errors are worth another run rather than being read as results.
+# The library's, because the library produces the strings being matched.
+# "thinking_truncated" is retried too: it used to be a dead end, since retrying
+# at temperature 0 under the same budget truncates identically, but with
+# reasoning capped the retry now has room to reach an answer.
+RETRYABLE_ERRORS = answer_lib.RETRYABLE_ERRORS
 
 
-class RateLimiter:
-    """Spaces requests to one model evenly across all worker threads."""
-
-    def __init__(self, per_minute: float):
-        self._interval = 60.0 / per_minute
-        self._lock = threading.Lock()
-        self._next = 0.0
-
-    def acquire(self, requests: int = 1) -> None:
-        """Block until *requests* slots are available, then reserve them."""
-        with self._lock:
-            start = max(time.monotonic(), self._next)
-            self._next = start + self._interval * requests
-        delay = start - time.monotonic()
-        if delay > 0:
-            time.sleep(delay)
-
-
-# One limiter per model, shared by every worker in the process. Two processes
-# would each pace to the full budget and together exceed it, so the stages are
-# meant to be run one at a time.
-GEN_LIMITER = RateLimiter(GEN_RPM)
+# The generator's limiter belongs to the generator, so it is the library's and
+# is simply re-exported: a second RateLimiter over the same model would pace to
+# the full budget alongside the first and together exceed it.
+RateLimiter = answer_lib.RateLimiter
+GEN_LIMITER = answer_lib.GEN_LIMITER
+# The judge is the harness's own, on a different endpoint and key, so its
+# budget is unrelated and stays here.
 JUDGE_LIMITER = RateLimiter(JUDGE_RPM)
 
 
@@ -247,11 +213,8 @@ def require_judge_key() -> None:
 
 
 def make_client():
-    from openai import OpenAI
-
-    return OpenAI(
-        base_url=API_BASE, api_key=NVIDIA_API_KEY, timeout=180.0, max_retries=3
-    )
+    """The generation client, owned by the library that owns the model."""
+    return answer_lib.get_client()
 
 
 # ── dataset ──────────────────────────────────────────────────────────────────
@@ -300,6 +263,25 @@ def load_qrels() -> dict[int, dict[str, int]]:
 
 # ── results on disk ──────────────────────────────────────────────────────────
 
+#: What a cached search consists of.  ``labels`` and ``preamble`` are optional:
+#: only the attribute path has anything to say about its hits, and they are
+#: cached with the chunks so a resumed run reproduces the same prompt rather
+#: than a bare one.
+RETRIEVAL_KEYS = (
+    "query_id",
+    "query",
+    "answer",
+    "chunks",
+    "pages",
+    "labels",
+    "preamble",
+    # Ontology the chunk-first path gathered around its hits and deliberately
+    # did not show the generator. Cached with the rest so the decision to use
+    # it can be taken later without paying for the retrieval again.
+    "ontology",
+    "attributes",
+)
+
 
 class Results:
     """The three files one pipeline writes, and the rows already in them."""
@@ -329,12 +311,21 @@ class Results:
         cached: dict[str, dict] = {}
         if self.retrieval_json.exists():
             cached = {
-                r["query"]: r for r in json.loads(self.retrieval_json.read_text())
+                r["query"]: r
+                for r in json.loads(self.retrieval_json.read_text())
+                if r.get("chunks")
             }
         for row in self.answers().values():
+            # Only rows that actually retrieved something. A row whose search
+            # failed carries a query and no chunks, and seeding that as a
+            # cache entry tells the next run the search is already paid for:
+            # it then generates against an empty context and can never
+            # recover, however many times it is resumed.
+            if not row.get("chunks"):
+                continue
             cached.setdefault(
                 row["query"],
-                {k: row[k] for k in ("query_id", "query", "answer", "chunks", "pages")},
+                {k: row[k] for k in RETRIEVAL_KEYS if k in row},
             )
         return cached
 
@@ -343,11 +334,22 @@ class Results:
         self.retrieval_json.write_text(json.dumps(list(cached.values())))
 
 
+#: Prefix marking a row whose retrieval never completed.  Tagged rather than
+#: matched on the exception name because the embed stage wraps everything as
+#: ``RuntimeError``, which is far too broad to retry on generally.
+SEARCH_FAILED = "search_failed"
+
+
 def is_retryable(row: dict) -> bool:
     error = row.get("gen_error") or ""
-    return any(error.startswith(name) for name in RETRYABLE_ERRORS) or error in (
-        "retries_exhausted",
-        "thinking_truncated",
+    return (
+        any(error.startswith(name) for name in RETRYABLE_ERRORS)
+        or error.startswith(SEARCH_FAILED)
+        or error
+        in (
+            "retries_exhausted",
+            "thinking_truncated",
+        )
     )
 
 
@@ -360,54 +362,70 @@ def is_answered(row: dict) -> bool:
 
 # ── generate ─────────────────────────────────────────────────────────────────
 
-SYSTEM_PROMPT = (
-    "You are a precise question-answering assistant. "
-    "Answer the question using ONLY the information provided in the context below. "
-    "If the context does not contain enough information to answer, say so clearly. "
-    "Be concise and factual."
-)
-USER_TEMPLATE = "Context:\n{context}\n\nQuestion: {query}\n\nAnswer:"
+# The prompt is the product's, not the harness's, so it is read from the
+# library rather than restated here — a second copy would drift and the harness
+# would quietly stop measuring what ships.
+SYSTEM_PROMPT = answer_lib.SYSTEM_PROMPT
+USER_TEMPLATE = answer_lib.USER_TEMPLATE
+
+
+def build_context(record: dict) -> str:
+    """The prompt's context block for a saved row.
+
+    A thin adapter over the library's renderer: the harness stores annotations
+    in a row and the library takes them as arguments, and keeping the
+    translation here means the prompt itself has one definition.
+    """
+    return answer_lib.build_context(
+        record.get("chunks") or [],
+        labels=record.get("labels"),
+        note=record.get("preamble"),
+    )
+
+
+def search(retriever, query: str) -> tuple[tuple, str | None]:
+    """One retrieval, retried, as ``(hits, error)``.
+
+    Every failure is retried, unlike generation, where the error name decides:
+    a refusal is a real answer, but there is no such thing as a meaningful
+    failed search, so anything that comes back as an exception is transient by
+    definition.  The hosted endpoint has two ways of saying "busy" and neither
+    is named for it — a 429, and a 401 whose body reads ``sorry, too many
+    clients already``, which is its own backing database out of connections
+    reported as an auth failure.  Matching on exception type would miss both,
+    since they surface here as ``RuntimeError`` from inside the embed stage.
+    """
+    for attempt in range(MAX_ATTEMPTS):
+        try:
+            return retriever.search(query), None
+        except Exception as exc:  # noqa: BLE001 — one bad query must not end the run
+            error = f"{type(exc).__name__}: {exc}"[:200]
+            if attempt == MAX_ATTEMPTS - 1:
+                return (), f"{SEARCH_FAILED}: {error}"
+            time.sleep(BACKOFF_BASE_SECONDS * 2**attempt + random.random())
+    return (), "retries_exhausted"
 
 
 def generate(client, record: dict) -> tuple[str, str | None]:
-    """Grounded answer for one query, as ``(answer, error)``."""
-    context = "\n\n---\n\n".join(record["chunks"]) or "(no context retrieved)"
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {
-            "role": "user",
-            "content": USER_TEMPLATE.format(context=context, query=record["query"]),
-        },
-    ]
-    body = REASONING_MODES[GEN_REASONING]
-    extra = {"extra_body": body} if body else {}
+    """Grounded answer for one saved row, as ``(answer, error)``."""
+    return answer_lib.answer(
+        record["query"],
+        record.get("chunks") or [],
+        labels=record.get("labels"),
+        note=record.get("preamble"),
+        client=client,
+    )
 
-    for attempt in range(MAX_ATTEMPTS):
-        GEN_LIMITER.acquire()
-        try:
-            response = client.chat.completions.create(
-                model=GEN_MODEL,
-                messages=messages,
-                temperature=0.0,
-                max_tokens=GEN_MAX_TOKENS,
-                **extra,
-            )
-        except Exception as exc:  # noqa: BLE001 — one bad query must not end the run
-            error = f"{type(exc).__name__}: {exc}"[:200]
-            if (
-                type(exc).__name__ not in RETRYABLE_ERRORS
-                or attempt == MAX_ATTEMPTS - 1
-            ):
-                return "", error
-            time.sleep(BACKOFF_BASE_SECONDS * 2**attempt + random.random())
-            continue
 
-        answer = (response.choices[0].message.content or "").strip()
-        # Reasoning models can spend the whole budget thinking and return
-        # nothing. Retryable now, because GEN_REASONING caps the thinking.
-        return answer, None if answer else "thinking_truncated"
+def generate_raw(client, messages: list[dict]) -> tuple[str, str | None]:
+    """One paced, retried completion over an arbitrary conversation.
 
-    return "", "retries_exhausted"
+    For ``scripts/tune_prompt.py``, which swaps the system prompt per call and so
+    cannot go through ``generate``. The pacing and the retries are the
+    library's, so it spends the same budget as a real run rather than a second
+    one alongside it.
+    """
+    return answer_lib.complete(messages, client=client)
 
 
 def answer_one(record: dict, client, retriever, cache: dict[str, dict]) -> dict:
@@ -426,11 +444,32 @@ def answer_one(record: dict, client, retriever, cache: dict[str, dict]) -> dict:
 
     if not record.get("chunks"):
         hit = cache.get(record["query"])
-        if hit:
-            record = {**record, "chunks": hit["chunks"], "pages": hit["pages"]}
+        # Chunks, not merely an entry: an entry without them is a search that
+        # failed, and accepting it here skips the retry it was recorded for.
+        if hit and hit.get("chunks"):
+            record = {**record, **{k: hit[k] for k in RETRIEVAL_KEYS if k in hit}}
         else:
-            chunks, pages = retriever.search(record["query"])
-            record = {**record, "chunks": chunks, "pages": pages}
+            # A retriever may return annotations alongside the chunks; the
+            # chunk path has nothing to say about its hits and returns two.
+            found, search_error = search(retriever, record["query"])
+            if search_error:
+                # Retrieval failed, so there is nothing to generate from. Record
+                # it as retryable and let the run continue: a query that cannot
+                # be searched must not take the other 300 down with it.
+                return {
+                    **record,
+                    "generated": "",
+                    "gen_error": search_error,
+                    "judge_score": None,
+                    "judge_error": None,
+                    "judge_model": None,
+                    "answer_in_context": False,
+                    "token_f1": 0.0,
+                    "failure_mode": "generation_error",
+                }
+            chunks, pages = found[0], found[1]
+            annotations = found[2] if len(found) > 2 else {}
+            record = {**record, "chunks": chunks, "pages": pages, **annotations}
 
     answer, gen_error = generate(client, record)
     in_context = answer_in_context(record["answer"], record["chunks"])
@@ -489,6 +528,7 @@ def run_pipeline(queries: list[dict], retriever, results: Results) -> list[dict]
     results.dir.mkdir(parents=True, exist_ok=True)
     scored: dict[int, dict] = dict(done)
     landed: list[dict] = []
+    failed: list[str] = []
     with results.answers_jsonl.open("a") as handle, ThreadPoolExecutor(
         MAX_WORKERS
     ) as pool:
@@ -496,15 +536,22 @@ def run_pipeline(queries: list[dict], retriever, results: Results) -> list[dict]
         # Completion order, not submission order, so one slow query cannot hold
         # finished work unwritten.
         for i, future in enumerate(as_completed(futures), 1):
-            row = future.result()
+            try:
+                row = future.result()
+            except Exception as exc:  # noqa: BLE001 — see below
+                # A bare future.result() re-raises in this thread and tears down
+                # the pool, which once cost 86 queries over a transient embed
+                # failure. The query is recorded as retryable and picked up by
+                # the next run; nothing already answered is lost either way,
+                # since answers are appended as they land.
+                failed.append(f"{type(exc).__name__}: {exc}"[:200])
+                continue
             scored[row["query_id"]] = row
             landed.append(row)
             handle.write(json.dumps(row) + "\n")
             handle.flush()
 
-            cache[row["query"]] = {
-                k: row[k] for k in ("query_id", "query", "answer", "chunks", "pages")
-            }
+            cache[row["query"]] = {k: row[k] for k in RETRIEVAL_KEYS if k in row}
             if i % 25 == 0 or i == len(todo):
                 results.save_retrieval(cache)
 
@@ -515,6 +562,12 @@ def run_pipeline(queries: list[dict], retriever, results: Results) -> list[dict]
                 f"{_fmt(_running(landed, 'token_f1'), 10)}"
                 + (f"   {row['gen_error']}" if row["gen_error"] else "")
             )
+
+    if failed:
+        print(f"\n  {len(failed)} query(ies) crashed and were not recorded:")
+        for error in dict.fromkeys(failed):
+            print(f"    {error}")
+        print("  Re-run to pick them up; answers already landed are kept.")
 
     return [scored[r["query_id"]] for r in queries if r["query_id"] in scored]
 

@@ -5,16 +5,17 @@
 
 """Tier 3 — the LLM judge, as its own pass over answers already on disk.
 
-The two pipelines retrieve and generate; this scores what they produced.  It is
+The arms retrieve and generate; this scores what they produced.  It is
 a separate stage because it fails independently: the judge model has its own
 quota, and on this endpoint it is routinely spent while generation is perfectly
 healthy.  Keeping them apart means a dead judge costs nothing already paid for,
 and a judge can be swapped without regenerating a single answer.
 
-Judges either side, or both, since the two pipelines write the same fields:
+Judges any arm, or all of them, since they all write the same fields:
 
-    chunks      benchmark/results/answers.jsonl   benchmark/retrieve_generate.py
-    attributes  results/answers.jsonl             attr_retrieve_generate.py
+    chunks       benchmark/results/answers.jsonl    benchmark/retrieve_generate.py
+    chunk-first  chunk_first_results/answers.jsonl  chunk_first.py
+    attributes   results/answers.jsonl              attr_retrieve_generate.py
 
 Only rows that need a verdict are sent.  "Need" is keyed on the judge *model*,
 not merely on a score being absent, so changing ``pipeline.JUDGE_MODEL``
@@ -36,6 +37,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -47,15 +49,22 @@ from unstructured import pipeline
 JUDGE_MODEL = pipeline.JUDGE_MODEL
 
 #: Which answers file belongs to which pipeline, and the command that rebuilds
-#: that pipeline's report once verdicts have landed.
+#: that pipeline's report once verdicts have landed.  The interpreter is the one
+#: running this, not a bare ``python``: these lines get copied straight out of
+#: the terminal, and ``python`` is usually not on PATH when the work is done
+#: from a virtualenv that was never activated.
 TARGETS = {
     "chunks": (
         pipeline.CHUNK_RESULTS,
-        "python -m unstructured.benchmark.retrieve_generate --report-only",
+        f"{sys.executable} -m unstructured.benchmark.retrieve_generate --report-only",
     ),
     "attributes": (
         pipeline.ATTRIBUTE_RESULTS,
-        "python -m unstructured.attr_retrieve_generate --report-only",
+        f"{sys.executable} -m unstructured.attr_retrieve_generate --report-only",
+    ),
+    "chunk-first": (
+        pipeline.CHUNK_FIRST_RESULTS,
+        f"{sys.executable} -m unstructured.chunk_first --report-only",
     ),
 }
 
@@ -182,10 +191,23 @@ def main() -> None:
         action="store_true",
         help="Report what would be judged without calling the model.",
     )
+    parser.add_argument(
+        "--tag",
+        help="Judge a tagged variant's directory instead of the plain one, "
+        "using the same suffix the pipeline was run with.",
+    )
     args = parser.parse_args()
 
     pipeline.require_judge_key()
     targets = {args.only: TARGETS[args.only]} if args.only else TARGETS
+    if args.tag:
+        targets = {
+            name: (
+                directory.with_name(f"{directory.name}-{args.tag}"),
+                f"{command} --tag {args.tag}",
+            )
+            for name, (directory, command) in targets.items()
+        }
     print(f"Judge: {JUDGE_MODEL}")
     print(f"  endpoint={pipeline.JUDGE_API_BASE}")
     print(
