@@ -61,9 +61,9 @@ BIRD follows its official evaluator (`evaluation_ex.py`) in how it runs, too
   `gold_result: failed_gold`, and count in `health/gold_failure_scored_count`.
 
 On Mini-Dev this decides two questions. 701's gold query takes about 157 s, so no
-prediction can be scored correct; it still counts. 518's takes about 29 s,
-leaving the prediction about a second, so it almost always times out. Both count
-against every arm alike, as on the leaderboard.
+prediction can be scored correct; it still counts. 518's takes about 26 s on an
+idle machine, leaving the prediction a few seconds, so whether it can pass
+depends on machine speed and load, as it does under the official evaluator.
 
 Every other dataset keeps the stricter handling: a failed prediction is a miss,
 each query gets the full limit, and a failed gold query drops the task

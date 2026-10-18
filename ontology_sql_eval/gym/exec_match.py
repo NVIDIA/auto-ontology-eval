@@ -214,8 +214,9 @@ QUERY_TIMEOUTS = {"beaverbench": 10.0}
 # each query gets the full limit and a failed gold query excludes the task.
 #
 # On BIRD Mini-Dev this decides two questions. 701's gold query takes ~157s, so
-# it can never be answered; officially it still counts. 518's takes ~29s, so the
-# prediction has about a second left; officially it almost always times out.
+# it can never be answered; officially it still counts. 518's takes ~26s on an
+# idle machine, leaving the prediction a few seconds: it passes or times out
+# depending on machine speed and load, as it does officially.
 SHARED_TIMEOUT = {"bird"}
 
 
