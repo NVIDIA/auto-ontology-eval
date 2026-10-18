@@ -26,7 +26,7 @@ Splits: `dw`, `nova`, `neutron`, `dw_real` (`dw_real` questions run against the
 
 ```bash
 # Default: dw split, 100-question sample (seed 77), download dumps, import MySQL
-uv run python scripts/seed_beaverbench.py --import-mysql
+uv run python scripts/seed/seed_beaverbench.py --import-mysql
 ```
 
 This writes:

@@ -182,7 +182,16 @@ fi
 #
 # Gym builds each server its own venv from its requirements.txt. Auto Ontology
 # is installed transitively from the parent project's pinned Git dependency.
-exec .venv/bin/gym eval run \
+#
+# Gym is started in a process group of its own, and the whole group is signalled
+# when this script exits. Gym starts each server as `bash -c "... && python
+# app.py"` and, at shutdown, signals only that bash. macOS's bash 3.2 runs the
+# python as a child rather than exec'ing it, so the server never hears the
+# signal; when Gym then SIGKILLs the bash, the server is orphaned and keeps
+# running, two to four of them per arm. They stay in Gym's process group, which
+# is how the trap below still reaches them.
+set -m  # job control: the background job gets its own process group
+.venv/bin/gym eval run \
   --search-dir . \
   --resources-server "$SERVER" \
   --model-type inference_provider \
@@ -193,4 +202,20 @@ exec .venv/bin/gym eval run \
   --model "${GYM_MODEL:-aws/anthropic/bedrock-claude-opus-4-8}" \
   --model-url "${GYM_MODEL_URL:-https://inference-api.nvidia.com/v1}" \
   "${GYM_FLAGS[@]}" \
-  "$@"
+  "$@" &
+gym_pgid=$!
+
+# Ctrl-C reaches only this script's process group, so pass it on to Gym's
+# group for a graceful shutdown. On any exit, clean up whatever is left in it.
+trap 'kill -INT -- "-$gym_pgid" 2>/dev/null || true' INT TERM
+trap 'kill -TERM -- "-$gym_pgid" 2>/dev/null || true' EXIT
+
+# A trapped signal interrupts `wait`, so keep waiting until Gym has exited;
+# the last wait carries its exit status.
+status=0
+wait "$gym_pgid" || status=$?
+while kill -0 "$gym_pgid" 2>/dev/null; do
+  status=0
+  wait "$gym_pgid" || status=$?
+done
+exit "$status"

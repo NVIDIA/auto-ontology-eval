@@ -1,0 +1,37 @@
+[
+  {
+    "name": "Did Member Attend Answered As A Label",
+    "description": "A yes/no question about whether a member attended a named event is not answered with COUNT(*) or with a single row. The expected result is one labelled row for every attendance row that member has: select CASE WHEN event.event_name = '<the event>' THEN 'YES' END over member INNER JOIN attendance INNER JOIN event, filtering only on the member's first_name and last_name, so the CASE marks the row for the event asked about and leaves the member's other events NULL. There is no ELSE branch, and the NULL rows are part of the expected output rather than an oversight to correct. A member is identified by first_name and last_name on member; attendance links member to event through attendance.link_to_member and attendance.link_to_event. An event name containing an apostrophe is escaped by doubling it, as in 'Kid''s Care'. Related phrasings: did X attend, has X attended, was X present at.",
+    "sql": "SELECT CASE WHEN T3.event_name = 'Kid''s Care' THEN 'YES' END AS result FROM member AS T1 INNER JOIN attendance AS T2 ON T1.member_id = T2.link_to_member INNER JOIN event AS T3 ON T2.link_to_event = T3.event_id WHERE T1.first_name = 'Emily' AND T1.last_name = 'Jaquith'"
+  },
+  {
+    "name": "Budget Category With Event Type",
+    "description": "budget.category is the budget category and event.type is the event type; when a question names both an event type and a budget property it wants both columns, DISTINCT budget.category first and then event.type. Join event to budget on event.event_id = budget.link_to_event. A budget spent of 0 is budget.spent = 0, and the location is event.location, matched exactly as written, such as 'MU 215'. Returning the category alone leaves out the type the question also asked for. Related phrasings: budget category of the events located at, guest speaker type, 0 budget spent.",
+    "sql": "SELECT DISTINCT T2.category, T1.type FROM event AS T1 INNER JOIN budget AS T2 ON T1.event_id = T2.link_to_event WHERE T1.location = 'MU 215' AND T2.spent = 0 AND T1.type = 'Guest Speaker'"
+  },
+  {
+    "name": "Approved Expense Flag",
+    "description": "Approved expenses use expense.approved = 'true' (string), not boolean 1/TRUE and not budget flags alone. Join event \u2192 budget \u2192 expense for event-named spend. 'Identify the type of expenses and their total value approved for the October Meeting event' reads the type from event.type, not from expense.expense_description, and totals SUM(expense.cost) over the whole event in one row. Related phrasings: approved expenses, approved = true, type of expenses and their total value, October Meeting expenses.",
+    "sql": "SELECT T1.type, SUM(T3.cost) FROM event AS T1 INNER JOIN budget AS T2 ON T1.event_id = T2.link_to_event INNER JOIN expense AS T3 ON T2.budget_id = T3.link_to_budget WHERE T1.event_name = 'October Meeting'"
+  },
+  {
+    "name": "Duplicate Event Names",
+    "description": "event_name is a label, not an identifier: a name such as 'Football game' can cover separate events held on different dates, each with its own event_id, attendance and budget rows. Group any per-event measure by event.event_id, selecting event_name only for display. Grouping by the name merges unrelated events and sums their measures, silently inflating counts and any threshold, ranking or average built on them. Grouping by the id is always safe, since an id is exactly one event. A name used as a filter, as in WHERE event_name = 'October Meeting', is matched as written, though it may select more than one event. Related phrasings: per event totals, attendance per event, amount spent per event, one row per event.",
+    "sql": "SELECT T1.event_name, SUM(T2.spent) AS spent FROM event AS T1 INNER JOIN budget AS T2 ON T1.event_id = T2.link_to_event GROUP BY T1.event_id"
+  },
+  {
+    "name": "Which Budget Is Answered With Budget Id",
+    "description": "The budget table carries no name, so budget_id is the only value that tells one budget line from another: category, amount, spent and remaining are all shared by many lines. A question asking which budget, or which one among the budgets for a category, is answered by projecting budget.budget_id. Returning the category names a kind of spending shared by many lines, and returning the amount or the maximum of it answers with the measure that was ranked rather than with the budget that holds it, so neither identifies the budget asked for. A question that instead asks which budget category something falls under is asking for budget.category, and a question naming another property of the budget, such as its remaining or its location, is asking for that column. Related phrasings: which budget, which one has the highest budgeted amount, top three budgets, the budget that allowed the most.",
+    "sql": "SELECT budget_id FROM budget WHERE event_status = 'Closed' ORDER BY remaining ASC LIMIT 1"
+  },
+  {
+    "name": "Percentage Of A Cost Or Budget Amount Against The Total Cost",
+    "description": "What is the percentage of the cost, what percentage was the budget, the percentage of cost for one event against the total cost for all events. The share one group of events takes of the money is a conditional SUM of the amount over the unfiltered SUM of that same amount, so the other events stay in the query instead of being removed by a WHERE clause. A total cost divided by a count of events is an average cost per event, not a percentage, and reads far above 100. What decides the denominator is the quantity the question takes a percentage of: a percentage of the events or of the members counts rows and divides by COUNT even when the condition it tests is about money, such as events that went over budget. CAST the numerator to REAL before multiplying by 100 so integer division does not truncate.",
+    "sql": "SELECT CAST(SUM(CASE WHEN category = 'Food' THEN amount ELSE 0 END) AS REAL) * 100 / SUM(amount) FROM budget"
+  },
+  {
+    "name": "Percentage Of Members Or Events Counted Against The Whole Population",
+    "description": "What percentage of the members, what percentage of the events, what proportion of the zip codes, the difference in the percentage between two groups. Counting how many rows fall into a group and expressing it as a percentage divides a conditional SUM of 1 by a COUNT of the whole population, so the rows outside the group stay in the query. A difference between two percentages of one population subtracts the two conditional sums and divides once by that population. A WHERE clause is only for narrowing the population the percentage is taken over, as in among the members of one t-shirt size or the events of one year. CAST the numerator to REAL before multiplying by 100 so integer division does not truncate.",
+    "sql": "SELECT CAST(SUM(CASE WHEN position = 'Member' THEN 1 ELSE 0 END) AS REAL) * 100 / COUNT(member_id) FROM member"
+  }
+]

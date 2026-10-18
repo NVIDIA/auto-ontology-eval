@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterator, Literal
 
+from ontology_sql_eval.paths import DATASETS_DIR
 from ontology_sql_eval.gym.ddl import (
     column_description_block,
     mysql_schema_dump,
@@ -36,6 +37,23 @@ from ontology_sql_eval.gym.ddl import (
 )
 
 Arm = Literal["schema_only", "auto_ontology"]
+
+# The Gym resources server that runs each arm.
+SERVER_FOR_ARM: dict[Arm, str] = {
+    "schema_only": "schema_only_sql",
+    "auto_ontology": "auto_ontology_sql",
+}
+
+
+def task_file(root: Path, arm: Arm) -> Path:
+    """Where an arm's tasks go: the file its resources server's config loads.
+
+    A fixed name, not ``<dataset>.jsonl``: Gym loads whatever the server config
+    points at, and a per-dataset filename meant the config had to name one
+    dataset up front -- so every other dataset silently ran that one.
+    """
+    return root / "resources_servers" / SERVER_FOR_ARM[arm] / "data" / "tasks.jsonl"
+
 
 # The first sentence is upstream bird_sql's prompt verbatim. The projection rule
 # is added to match what Auto Ontology receives via shorten_answer=True, which appends
@@ -66,16 +84,16 @@ class DatasetSpec:
 
     @property
     def evaluation_json(self) -> Path:
-        return Path("datasets") / self.name / "evaluation.json"
+        return DATASETS_DIR / self.name / "evaluation.json"
 
     def sqlite_path(self, db_id: str) -> Path:
-        return Path("datasets") / self.db_root / db_id / f"{db_id}.sqlite"
+        return DATASETS_DIR / self.db_root / db_id / f"{db_id}.sqlite"
 
     def description_dir(self, db_id: str) -> Path:
-        return Path("datasets") / self.db_root / db_id / "database_description"
+        return DATASETS_DIR / self.db_root / db_id / "database_description"
 
     def mysql_dump_path(self, db_id: str) -> Path:
-        return Path("datasets") / self.db_root / "dumps" / f"{db_id}.sql"
+        return DATASETS_DIR / self.db_root / "dumps" / f"{db_id}.sql"
 
 
 DATASETS: dict[str, DatasetSpec] = {
@@ -88,7 +106,7 @@ DATASETS: dict[str, DatasetSpec] = {
         "wideworldimporters", "postgres", "wideworldimporters"
     ),
     # BEAVER. Gold SQL is MySQL dialect and each db_id is its own physical
-    # database. Seeded by scripts/seed_beaverbench.py; not committed.
+    # database. Seeded by scripts/seed/seed_beaverbench.py; not committed.
     "beaverbench": DatasetSpec("beaverbench", "mysql", "beaverbench"),
 }
 
@@ -106,7 +124,7 @@ def load_questions(spec: DatasetSpec, root: Path) -> list[dict[str, Any]]:
 def _schema_for(spec: DatasetSpec, root: Path, db_id: str, descriptions: bool) -> str:
     """Build the schema text for one database, cached by the caller."""
     if spec.dialect == "postgres":
-        return postgres_schema_dump(root / "datasets" / spec.db_root / "ddl")
+        return postgres_schema_dump(root / DATASETS_DIR / spec.db_root / "ddl")
 
     if spec.dialect == "mysql":
         return mysql_schema_dump(root / spec.mysql_dump_path(db_id))
@@ -173,7 +191,7 @@ def build_records(
         # question_id is an int on BIRD/WWI but a string like "FDA0002" on
         # FDABench, so the joinable key is always rendered as text.
         #
-        # Never fall back to the list index: task_id is what compare_arms.py
+        # Never fall back to the list index: task_id is what gym/compare.py
         # joins the two arms on, and an index shifts under --limit or any
         # reordering of evaluation.json, silently pairing a control question
         # with a *different* treatment question. A content hash is stable

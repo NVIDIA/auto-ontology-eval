@@ -20,7 +20,7 @@
       "name": "Seed local WWI",
       "type": "debugpy",
       "request": "launch",
-      "program": "${workspaceFolder}/scripts/seed_wwi.py",
+      "program": "${workspaceFolder}/scripts/seed/seed_wwi.py",
       "args": [
         "--database-name",
         "wideworldimporters",
@@ -37,7 +37,7 @@
       "name": "Seed local BIRD",
       "type": "debugpy",
       "request": "launch",
-      "program": "${workspaceFolder}/scripts/seed_bird.py",
+      "program": "${workspaceFolder}/scripts/seed/seed_bird.py",
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
@@ -48,7 +48,7 @@
       "name": "Seed local FDABench",
       "type": "debugpy",
       "request": "launch",
-      "program": "${workspaceFolder}/scripts/seed_fdabench.py",
+      "program": "${workspaceFolder}/scripts/seed/seed_fdabench.py",
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",
       "python": "${workspaceFolder}/.venv/bin/python",
@@ -59,7 +59,7 @@
       "name": "Seed local BEAVER",
       "type": "debugpy",
       "request": "launch",
-      "program": "${workspaceFolder}/scripts/seed_beaverbench.py",
+      "program": "${workspaceFolder}/scripts/seed/seed_beaverbench.py",
       "args": [
         "--import-mysql"
       ],
@@ -105,11 +105,11 @@
         "--eval-workers",
         "10",
         "--sql-examples-csv",
-        "output/predicted_structural_exemplars.csv",
+        "inputs/extra_prompts/bird/predicted_structural_exemplars.csv",
         "--sql-examples-k",
         "5",
         "--value-anchors-csv",
-        "output/value_anchors.csv"
+        "inputs/extra_prompts/bird/value_anchors.csv"
       ],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",

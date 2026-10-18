@@ -1,0 +1,12 @@
+[
+  {
+    "name": "Best Performer Returns Name And The Measure",
+    "description": "When the question asks which of several named players performs best at a skill, project both Player.player_name and the skill column from Player_Attributes, in that order, then ORDER BY that skill DESC LIMIT 1. The measure is part of the answer: the name alone does not say how the player performed. Join Player to Player_Attributes on player_api_id, not on id, and restrict the candidates with player_name IN (...) listing the names exactly as the question spells them. The skill columns are the attribute names themselves, so crossing actions is Player_Attributes.crossing, finishing rate is finishing and curve score is curve. Related phrasings: which of these players performs the best in crossing actions, who is better at, best in.",
+    "sql": "SELECT t1.player_name, t2.crossing FROM Player AS t1 INNER JOIN Player_Attributes AS t2 ON t1.player_api_id = t2.player_api_id WHERE t1.player_name IN ('Alexis', 'Ariel Borysiuk', 'Arouna Kone') ORDER BY t2.crossing DESC LIMIT 1"
+  },
+  {
+    "name": "Average Of A Rating Divides With A Real Cast",
+    "description": "An average or a percentage here is written as a division, and SQLite divides two integers into an integer: SUM(sprint_speed) / COUNT(id) reads 59 where the value is 59.42. Cast the numerator to REAL so the fraction survives. Divide by COUNT of the row id rather than switching to AVG, which skips the rows whose measure is missing and so answers a slightly different question. The example averages sprint_speed over the attribute rows dated 2013 for players heavier than 180 pounds; Player_Attributes holds one row per player per date, so the year narrows it to that season's snapshots, and the join runs on player_api_id because player_fifa_api_id is absent on some attribute rows. Related phrasings: what was the average, calculate the average, average overall rating, percentage of players.",
+    "sql": "SELECT CAST(SUM(t2.sprint_speed) AS REAL) / COUNT(t2.id) FROM Player AS t1 INNER JOIN Player_Attributes AS t2 ON t1.player_api_id = t2.player_api_id WHERE t1.weight > 180 AND STRFTIME('%Y', t2.`date`) = '2013'"
+  }
+]

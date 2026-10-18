@@ -5,7 +5,7 @@
 """Local ingest: source DB schema -> Auto Ontology catalog + pgvector embeddings.
 
 Vendored from Auto Ontology's ``dev_tools/local_ingest.py`` and retargeted so the
-enrichment step reads this repo's ``datasets/`` and ``annotations/`` files
+enrichment step reads this repo's ``datasets/`` and ``inputs/annotations/`` files
 instead of Auto Ontology's copy.
 
 Run after the Postgres catalog + pgvector services are up (see Auto Ontology's

@@ -19,20 +19,23 @@ venv/
 # Gym 0.7+ serializes server venv setup with a lock file beside each .venv.
 .venv.setup.lock
 
-# Scratch output of the prompt-input scripts — keep the folder, ignore its contents
+# Scratch output of the extra-prompt scripts — keep the folder, ignore its contents
 /output/*
 !/output/.gitkeep
 
-# Per-run eval instrumentation bundles — keep the folder, ignore the runs
-/logs/*
-!/logs/.gitkeep
-
-# Eval prompt inputs are tracked; the LLM response caches written beside them
+# Extra prompts are tracked; the LLM response caches written beside them
 # (including the timestamped copies a rebuild archives) are not.
-/prompt_inputs/**/*_cache*.jsonl
+/inputs/extra_prompts/**/*_cache*.jsonl
+
+# Downloaded by scripts/migrate_catalog.py, and Gym's uv cache
+/cache/
 
 # OS / editor
 .DS_Store
+
+# The old location of inputs/extra_prompts/. Git moves the tracked CSVs, but
+# not the untracked LLM response caches written beside them.
+/prompt_inputs/
 
 # Datasets kept local only (not tracked on remote) — keep the folders, ignore their contents
 /datasets/bird/*
@@ -73,6 +76,8 @@ resources_servers/*/data/*
 !resources_servers/*/data/example_rollouts.jsonl
 # Rollouts, aggregate metrics and materialized inputs from `gym eval run`.
 runs/
+# Legacy evaluator per-question and run logs.
+logs/
 # Hydra's default per-run dir. Holds only the resolved config snapshot, which
 # records every override verbatim -- including policy_api_key.
 outputs/

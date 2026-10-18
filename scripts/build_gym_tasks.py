@@ -6,7 +6,7 @@
 
     python scripts/build_gym_tasks.py --dataset bird --arm schema_only
 
-Writes to ``resources_servers/<arm-server>/data/<dataset>.jsonl``. Run it once
+Writes to ``resources_servers/<arm-server>/data/tasks.jsonl``. Run it once
 per (dataset, arm); the output is deterministic, so regenerating is safe.
 """
 
@@ -15,12 +15,13 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from ontology_sql_eval.gym.tasks import DATASETS, build_records, write_jsonl
-
-SERVER_FOR_ARM = {
-    "schema_only": "schema_only_sql",
-    "auto_ontology": "auto_ontology_sql",
-}
+from ontology_sql_eval.gym.tasks import (
+    DATASETS,
+    SERVER_FOR_ARM,
+    build_records,
+    task_file,
+    write_jsonl,
+)
 
 
 def main() -> None:
@@ -41,22 +42,13 @@ def main() -> None:
     root = Path(__file__).resolve().parent.parent
     spec = DATASETS[args.dataset]
     # Resolve so a relative --output still reports cleanly below.
-    out = (args.output.resolve() if args.output else None) or (
-        root
-        / "resources_servers"
-        / SERVER_FOR_ARM[args.arm]
-        / "data"
-        # Fixed name, not <dataset>.jsonl: Gym loads whatever the server config
-        # points at, and a per-dataset filename meant the config had to name one
-        # dataset up front -- so every other dataset silently ran that one.
-        / "tasks.jsonl"
-    )
+    out = args.output.resolve() if args.output else task_file(root, args.arm)
 
     count = write_jsonl(
         build_records(
             spec,
             root,
-            args.arm,  # type: ignore[arg-type]
+            args.arm,
             descriptions=not args.no_descriptions,
             limit=args.limit,
             start_index=args.start_index,

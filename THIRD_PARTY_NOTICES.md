@@ -66,20 +66,22 @@ copyright and MIT identifier in their headers.
 
 | | |
 |---|---|
-| **Location in this repo** | `ontology_sql_eval/judge/beaver.py` |
+| **Location in this repo** | `tests/gym/beaver_reference.py` |
 | **Upstream project** | BEAVER — https://github.com/beaverbench/beaver |
 | **Copyright holder** | Copyright (c) 2024 MIT Data Systems Group |
 | **License** | MIT |
 
-`beaver.py` ports the execution and comparison logic of BEAVER's official
-execution-accuracy (`ex_acc`) evaluator, from `eval/utils/ex_acc.py`. The file carries the upstream copyright and license
-identifier in its header, followed by the NVIDIA copyright block covering
+`beaver_reference.py` ports the execution and comparison logic of BEAVER's
+official execution-accuracy (`ex_acc`) evaluator, from `eval/utils/ex_acc.py`.
+Only the test suite uses it, as the reference the benchmark's own
+implementation is checked against. The file carries the upstream copyright and
+license identifier in its header, followed by the NVIDIA copyright block covering
 NVIDIA's modifications.
 
 ### Note on the BEAVER dataset
 
 The BEAVER **dataset** is not included in this repository.
-`scripts/seed_beaverbench.py` downloads the questions and MySQL dumps at runtime
+`scripts/seed/seed_beaverbench.py` downloads the questions and MySQL dumps at runtime
 from the gated HuggingFace datasets
 [`beaverbench/beaver-query`](https://huggingface.co/datasets/beaverbench/beaver-query)
 and [`beaverbench/beaver-table`](https://huggingface.co/datasets/beaverbench/beaver-table),
@@ -89,14 +91,14 @@ set by its authors on those dataset pages.
 ### Note on the BIRD dataset
 
 The BIRD Mini-Dev **dataset** is not included in this repository.
-`scripts/seed_bird.py` downloads it at runtime from the official distribution,
+`scripts/seed/seed_bird.py` downloads it at runtime from the official distribution,
 and `datasets/bird/` ships only a README and a `.gitkeep`. The BIRD dataset is
 distributed by its authors under CC BY-SA 4.0.
 
 ### Note on FDABench-Lite and its source databases
 
 FDABench-Lite tasks and the SQLite databases they require are **not** included
-in this repository. `scripts/seed_fdabench.py` downloads them at runtime, and
+in this repository. `scripts/seed/seed_fdabench.py` downloads them at runtime, and
 `datasets/fdabench/` ships only a README and a `.gitkeep`.
 
 | Runtime download | Upstream | License (as published by authors) |
@@ -140,7 +142,7 @@ Also applies to the included third-party content above, under their respective
 copyrights:
 
 - SQL Server Samples (`datasets/wideworldimporters/`) — Copyright (c) Microsoft Corporation
-- BEAVER (`ontology_sql_eval/judge/beaver.py`) — Copyright (c) 2024 MIT Data Systems Group
+- BEAVER (`tests/gym/beaver_reference.py`) — Copyright (c) 2024 MIT Data Systems Group
 
 ---
 
