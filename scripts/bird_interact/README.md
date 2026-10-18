@@ -62,7 +62,7 @@ uv run python scripts/bird_interact/seed_bird_interact.py --dataset lite   # or:
 This sparse-clones the upstream ADK repo (`github.com/bird-bench/BIRD-Interact`,
 ADK code + Docker `env/` only) into `third_party/BIRD-Interact/`, downloads the
 task JSONL from HuggingFace (`birdsql/bird-interact-<variant>`), and builds
-`data/datasets/bird_interact[_full]/` (public JSONL, combined JSONL, `manifest.json`,
+`datasets/bird_interact[_full]/` (public JSONL, combined JSONL, `manifest.json`,
 `gt/` placeholder). `--dataset` is required, no default. Use `--force` to
 re-download.
 
@@ -82,7 +82,7 @@ Two ways to get the GT file:
 Drop the received file at:
 
 ```
-data/datasets/bird_interact[_full]/gt/bird_interact_data_with_gt.jsonl
+datasets/bird_interact[_full]/gt/bird_interact_data_with_gt.jsonl
 ```
 
 Then re-run the seeder (step 1) to regenerate the combined data file that the
@@ -130,7 +130,7 @@ All three (except `run_bird_interact_cinteract.py`) require `:6001` and
 
 | Flag | Purpose |
 | --- | --- |
-| `--data` | Path to the combined GT jsonl (default: `data/datasets/bird_interact/bird_interact_data_with_gt.jsonl`). Point this at `bird_interact_full/...` to run Full. |
+| `--data` | Path to the combined GT jsonl (default: `datasets/bird_interact/bird_interact_data_with_gt.jsonl`). Point this at `bird_interact_full/...` to run Full. |
 | `--output` | Output stem → `results/<stem>/<stem>.jsonl` + `.csv` (default `cinteract_query_all`). |
 | `--limit N` | Cap number of tasks. |
 | `--difficulty {simple,moderate,challenging}` | Filter to one tier. |

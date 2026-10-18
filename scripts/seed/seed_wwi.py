@@ -4,7 +4,7 @@
 
 """Seed a local Postgres instance with pre-generated DDL + CSV data.
 
-Reads DDL and CSV files from ``data/datasets/<database_name>/`` (``ddl/`` and
+Reads DDL and CSV files from ``datasets/<database_name>/`` (``ddl/`` and
 ``data/``) and applies them to a local Postgres instance. All artifacts are
 pre-generated, so no source (e.g. MSSQL) connection is required.
 
@@ -13,7 +13,7 @@ Usage::
     uv run python scripts/seed/seed_wwi.py --database-name wideworldimporters
 
 The ``--database-name`` value both selects the source folder
-``data/datasets/<name>/`` and names the target database (default
+``datasets/<name>/`` and names the target database (default
 ``wideworldimporters``). Postgres credentials come from the environment / .env:
 
     POSTGRES_HOST, POSTGRES_PORT, POSTGRES_USER, POSTGRES_PASSWORD
@@ -50,8 +50,8 @@ DDL_FILES_POST_DATA = [
 
 
 def _paths(database_name: str) -> tuple[Path, Path]:
-    """Return (ddl_dir, data_dir) for ``data/datasets/<database_name>/``."""
-    base = Path(__file__).resolve().parents[2] / "data" / "datasets" / database_name
+    """Return (ddl_dir, data_dir) for ``datasets/<database_name>/``."""
+    base = Path(__file__).resolve().parents[2] / "datasets" / database_name
     return base / "ddl", base / "data"
 
 
@@ -188,7 +188,7 @@ if __name__ == "__main__":
         default=DEFAULT_DB,
         help=(
             "Dataset / target database name. Selects the source folder "
-            f"data/datasets/<name>/ and names the target DB (default: {DEFAULT_DB})."
+            f"datasets/<name>/ and names the target DB (default: {DEFAULT_DB})."
         ),
     )
     parser.add_argument(

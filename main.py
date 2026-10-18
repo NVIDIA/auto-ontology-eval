@@ -263,7 +263,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--database-name",
         required=True,
         help="Dataset / database name. "
-        "Selects data/datasets/<name>/evaluation.json; per-question db_id routes the connector.",
+        "Selects datasets/<name>/evaluation.json; per-question db_id routes the connector.",
     )
     parser.add_argument(
         "--skip-ingest", action="store_true", help="Skip the ingest stage."
@@ -323,7 +323,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--sql-examples-csv",
         default=None,
         help="CSV of question-keyed SQL exemplars, e.g. "
-        "data/prompt_inputs/bird/predicted_structural_exemplars.csv",
+        "inputs/extra_prompts/bird/predicted_structural_exemplars.csv",
     )
     prompt_inputs.add_argument(
         "--sql-examples-k",
@@ -344,7 +344,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--value-anchors-csv",
         default=None,
         help="CSV of question-keyed value anchors, e.g. "
-        "data/prompt_inputs/bird/value_anchors.csv",
+        "inputs/extra_prompts/bird/value_anchors.csv",
     )
     return parser.parse_args(argv)
 

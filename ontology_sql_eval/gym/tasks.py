@@ -4,7 +4,7 @@
 
 """Convert the eval datasets into NeMo Gym task records.
 
-Our datasets are JSON *arrays* (``data/datasets/<name>/evaluation.json``); Gym wants
+Our datasets are JSON *arrays* (``datasets/<name>/evaluation.json``); Gym wants
 JSONL where each line carries the prompt under ``responses_create_params`` plus
 whatever extra fields the resources server's verify request declares. The record
 shape here deliberately mirrors Gym's own ``bird_sql`` environment
@@ -78,8 +78,8 @@ class DatasetSpec:
     name: str
     dialect: str
     # A dataset's questions and its databases can live in different
-    # directories: seed_bird.py writes evaluation.json to data/datasets/bird/ but the
-    # databases to data/datasets/bird/dev/.
+    # directories: seed_bird.py writes evaluation.json to datasets/bird/ but the
+    # databases to datasets/bird/dev/.
     db_root: str
 
     @property
@@ -98,7 +98,7 @@ class DatasetSpec:
 
 DATASETS: dict[str, DatasetSpec] = {
     # db_root is "bird/dev", not "bird": seed_bird.py writes evaluation.json to
-    # data/datasets/bird/ but the databases to data/datasets/bird/dev/<db_id>/. This is
+    # datasets/bird/ but the databases to datasets/bird/dev/<db_id>/. This is
     # exactly why name and db_root are separate fields.
     "bird": DatasetSpec("bird", "sqlite", "bird/dev"),
     "fdabench": DatasetSpec("fdabench", "sqlite", "fdabench"),

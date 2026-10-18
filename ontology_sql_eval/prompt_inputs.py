@@ -2,7 +2,7 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Loaders for the question-keyed prompt inputs under ``data/prompt_inputs/``.
+"""Loaders for the question-keyed prompt inputs under ``inputs/extra_prompts/``.
 
 Both files are built by ``scripts/prompt_inputs/build_eval_inputs.py`` and keyed by
 ``question_id``: structural exemplars drawn from the BIRD Train corpus, and
@@ -45,7 +45,7 @@ def load_sql_examples(
     if not path.exists():
         raise SystemExit(
             f"SQL examples file not found: {path}\n"
-            "The repo ships one at data/prompt_inputs/bird/"
+            "The repo ships one at inputs/extra_prompts/bird/"
             "predicted_structural_exemplars.csv; rebuild it with: "
             "python scripts/prompt_inputs/build_eval_inputs.py --only exemplars"
         )
@@ -140,7 +140,7 @@ def load_value_anchors(path: Path) -> Dict[str, List[Dict[str, str]]]:
     if not path.exists():
         raise SystemExit(
             f"Value anchors file not found: {path}\n"
-            "The repo ships one at data/prompt_inputs/bird/value_anchors.csv; "
+            "The repo ships one at inputs/extra_prompts/bird/value_anchors.csv; "
             "rebuild it with: python scripts/prompt_inputs/build_eval_inputs.py "
             "--only anchors"
         )

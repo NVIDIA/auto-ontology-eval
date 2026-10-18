@@ -9,7 +9,7 @@ schema_only_sql_resources_server:
   resources_servers:
     schema_only_sql:
       entrypoint: app.py
-      datasets_dir: data/datasets
+      datasets_dir: datasets
       max_concurrency: 32
       sql_execution_timeout_s: 30.0
       domain: coding

@@ -2,16 +2,16 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Download FDABench-Lite and populate ``data/datasets/fdabench/``.
+"""Download FDABench-Lite and populate ``datasets/fdabench/``.
 
 Fetches the HuggingFace Lite task JSONLs, converts gold SQL subtasks into a
 combined ``evaluation.json``, and installs only the SQLite databases those
 tasks need::
 
-    data/datasets/fdabench/evaluation.json
-    data/datasets/fdabench/<db_id>/<db_id>.sqlite
-    data/datasets/fdabench/<db_id>/database_description/*.csv  # BIRD only
-    data/datasets/fdabench/<db_id>/metadata.json               # from those CSVs
+    datasets/fdabench/evaluation.json
+    datasets/fdabench/<db_id>/<db_id>.sqlite
+    datasets/fdabench/<db_id>/database_description/*.csv  # BIRD only
+    datasets/fdabench/<db_id>/metadata.json               # from those CSVs
 
 Dabstep tasks are skipped (no redistributable ``merchant_data.db``). Tasks
 without ``expected_SQL`` in ``gold_subtasks`` are also skipped. All remaining
@@ -147,7 +147,7 @@ def _repo_root() -> Path:
 
 
 def _default_dest() -> Path:
-    return _repo_root() / "data" / "datasets" / "fdabench"
+    return _repo_root() / "datasets" / "fdabench"
 
 
 class DownloadError(RuntimeError):
@@ -989,7 +989,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Download FDABench-Lite tasks from HuggingFace and populate "
-            "data/datasets/fdabench/ with evaluation.json plus the required SQLite "
+            "datasets/fdabench/ with evaluation.json plus the required SQLite "
             "databases (BIRD train / Spider2-lite local / Spider1)."
         ),
         epilog=(
@@ -1004,7 +1004,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--dest",
         type=Path,
         default=None,
-        help="Destination directory (default: data/datasets/fdabench/).",
+        help="Destination directory (default: datasets/fdabench/).",
     )
     parser.add_argument(
         "--force",
@@ -1014,7 +1014,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--keep-archive",
         action="store_true",
-        help="Keep downloaded zip archives under data/datasets/fdabench/.cache/.",
+        help="Keep downloaded zip archives under datasets/fdabench/.cache/.",
     )
     parser.add_argument(
         "--no-write-env",

@@ -32,7 +32,7 @@ VALUE_INDEX = ROOT / "scripts/prompt_inputs/value_index.py"
 EXEMPLARS = ROOT / "scripts/prompt_inputs/llm_structural_exemplars.py"
 # Not output/, whose contents are gitignored: these two files are eval inputs
 # and are committed, so a run can be reproduced without regenerating them.
-OUT_DIR = ROOT / "data/prompt_inputs/bird"
+OUT_DIR = ROOT / "inputs/extra_prompts/bird"
 
 
 def run(step: str, argv: list[str], dry_run: bool = False) -> float:

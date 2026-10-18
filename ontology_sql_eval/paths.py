@@ -13,5 +13,5 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # Relative to the repo root.
-DATASETS_DIR = Path("data", "datasets")
-ANNOTATIONS_DIR = Path("data", "annotations")
+DATASETS_DIR = Path("datasets")
+ANNOTATIONS_DIR = Path("inputs", "annotations")

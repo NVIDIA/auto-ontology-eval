@@ -7,7 +7,7 @@ Bird c-Interact orchestrator against the merged GT jsonl, and writes a
 results CSV.
 
 Run scripts/bird_interact/seed_bird_interact.py first to clone the upstream repo and
-prepare data/datasets/bird_interact/.
+prepare datasets/bird_interact/.
 
 WARNING: the manual uvicorn bootstrap below does not go through
 scripts/bird_interact/start_bird_services.sh, so it does not apply our required ADK
@@ -37,7 +37,7 @@ Prerequisites — start separately BEFORE running this script:
 
 Usage:
     python scripts/bird_interact/run_bird_interact_cinteract.py \\
-        --data data/datasets/bird_interact/bird_interact_data_with_gt.jsonl \\
+        --data datasets/bird_interact/bird_interact_data_with_gt.jsonl \\
         --output results/cinteract_lite.csv \\
         [--limit N]
 """
@@ -61,11 +61,7 @@ ONTOLOGY_DIR = Path(__file__).resolve().parents[2]
 _default_adk = ONTOLOGY_DIR / "third_party" / "BIRD-Interact" / "BIRD-Interact-ADK"
 BIRD_ADK_DIR = Path(os.environ.get("BIRD_INTERACT_ADK_DIR", str(_default_adk)))
 DEFAULT_DATA = (
-    ONTOLOGY_DIR
-    / "data"
-    / "datasets"
-    / "bird_interact"
-    / "bird_interact_data_with_gt.jsonl"
+    ONTOLOGY_DIR / "datasets" / "bird_interact" / "bird_interact_data_with_gt.jsonl"
 )
 
 

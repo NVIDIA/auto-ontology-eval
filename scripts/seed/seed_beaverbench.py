@@ -2,15 +2,15 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Download BEAVER and populate ``data/datasets/beaverbench/``.
+"""Download BEAVER and populate ``datasets/beaverbench/``.
 
 Fetches questions from HuggingFace ``beaverbench/beaver-query``, optional table
 metadata from ``beaverbench/beaver-table``, and the gated MySQL dump zip from
 ``beaverbench/beaver-table`` (``beaver_db.zip``). Writes::
 
-    data/datasets/beaverbench/evaluation.json
-    data/datasets/beaverbench/<db_id>/metadata.json   # when --with-metadata
-    data/datasets/beaverbench/dumps/<db_id>.sql
+    datasets/beaverbench/evaluation.json
+    datasets/beaverbench/<db_id>/metadata.json   # when --with-metadata
+    datasets/beaverbench/dumps/<db_id>.sql
 
 Optionally imports the SQL dumps into a local MySQL (default: Docker container
 ``beaver-mysql`` on port 3306) and writes ``CONNECTION_STRINGS`` into ``.env``.
@@ -79,7 +79,7 @@ def _repo_root() -> Path:
 
 
 def _default_dest() -> Path:
-    return _repo_root() / "data" / "datasets" / "beaverbench"
+    return _repo_root() / "datasets" / "beaverbench"
 
 
 def _parse_if_string(val: Any, default_type: type = list) -> Any:
@@ -487,7 +487,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Download BEAVER (beaverbench) questions + MySQL dumps into "
-            "data/datasets/beaverbench/ for ontology-sql-eval."
+            "datasets/beaverbench/ for ontology-sql-eval."
         )
     )
     parser.add_argument(
@@ -516,7 +516,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--dest",
         type=Path,
         default=None,
-        help="Destination directory (default: data/datasets/beaverbench/).",
+        help="Destination directory (default: datasets/beaverbench/).",
     )
     parser.add_argument(
         "--tasks-only",

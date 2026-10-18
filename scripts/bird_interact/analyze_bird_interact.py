@@ -46,11 +46,7 @@ class _Tee:
 
 ONTOLOGY_DIR = Path(__file__).resolve().parents[2]
 DEFAULT_DATA = (
-    ONTOLOGY_DIR
-    / "data"
-    / "datasets"
-    / "bird_interact"
-    / "bird_interact_data_with_gt.jsonl"
+    ONTOLOGY_DIR / "datasets" / "bird_interact" / "bird_interact_data_with_gt.jsonl"
 )
 
 # Non-critical ambiguity types to exclude from the unresolved-vs-ambiguity analysis

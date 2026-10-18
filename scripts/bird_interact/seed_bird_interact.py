@@ -8,7 +8,7 @@ Sparse-clones https://github.com/bird-bench/BIRD-Interact (ADK code + Docker
 env only — the upstream repo no longer ships task data as git paths) into
 third_party/BIRD-Interact/, downloads the requested variant's task data from
 its HuggingFace dataset repo (birdsql/bird-interact-<variant>), and prepares
-data/datasets/bird_interact[_full]/ for use with the Auto Ontology adapter and
+datasets/bird_interact[_full]/ for use with the Auto Ontology adapter and
 run_bird_interact_cinteract.py.
 
 Layout after running this script (example: --dataset lite)::
@@ -18,7 +18,7 @@ Layout after running this script (example: --dataset lite)::
         env/                    ← Docker Compose for PostgreSQL task DBs
         bird-interact-lite/     ← HF dataset snapshot (task JSONL, per-DB KB)
 
-    data/datasets/bird_interact/
+    datasets/bird_interact/
         bird_interact_data.jsonl            ← public tasks (no GT)
         bird_interact_data_with_gt.jsonl    ← combined file used by the runner
                                               (= GT copy if GT present, else public)
@@ -28,7 +28,7 @@ Layout after running this script (example: --dataset lite)::
             bird_interact_data_with_gt.jsonl  ← place emailed GT file here
 
 --dataset full uses the same layout under bird-interact-full/ and
-data/datasets/bird_interact_full/.
+datasets/bird_interact_full/.
 
 Usage::
 
@@ -39,7 +39,7 @@ Usage::
 --dataset is required — there is no default variant.
 
 GT SQLs and test cases are NOT in the public repo/dataset. After running this
-script, follow the instructions in data/datasets/bird_interact[_full]/gt/README.md
+script, follow the instructions in datasets/bird_interact[_full]/gt/README.md
 (or the output printed here) to obtain them by email and re-run.
 """
 
@@ -106,9 +106,9 @@ Alternatively, get the file from the shared Google Drive.
 ## Where to place them
 
 Drop the received file directly into THIS directory
-(data/datasets/bird_interact{"_full" if variant == "full" else ""}/gt/).  The seeder expects:
+(datasets/bird_interact{"_full" if variant == "full" else ""}/gt/).  The seeder expects:
 
-    data/datasets/bird_interact{"_full" if variant == "full" else ""}/gt/bird_interact_data_with_gt.jsonl
+    datasets/bird_interact{"_full" if variant == "full" else ""}/gt/bird_interact_data_with_gt.jsonl
 
 Once the file is present, re-run the seeder to regenerate the combined data
 file and manifest:
@@ -117,7 +117,7 @@ file and manifest:
 
 The seeder copies it to:
 
-    data/datasets/bird_interact{"_full" if variant == "full" else ""}/bird_interact_data_with_gt.jsonl
+    datasets/bird_interact{"_full" if variant == "full" else ""}/bird_interact_data_with_gt.jsonl
 
 That path is what scripts/bird_interact/run_bird_interact_cinteract.py reads by default.
 
@@ -135,7 +135,7 @@ def _repo_root() -> Path:
 
 def _datasets_dir(variant: str) -> Path:
     suffix = "_full" if variant == "full" else ""
-    return _repo_root() / "data" / "datasets" / f"bird_interact{suffix}"
+    return _repo_root() / "datasets" / f"bird_interact{suffix}"
 
 
 def _gt_dir(variant: str) -> Path:
@@ -521,14 +521,14 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Clone BIRD-Interact ADK code and fetch the requested dataset variant "
-            "(from its HuggingFace dataset repo) into data/datasets/bird_interact[_full]/ "
+            "(from its HuggingFace dataset repo) into datasets/bird_interact[_full]/ "
             "with the public task JSONL, GT placeholder, and manifest."
         ),
         epilog=(
             "GT SQLs and test cases require emailing bird.bench25@gmail.com "
             "with subject [bird-interact-<variant> GT&Test Cases], or downloading "
             "them from the shared drive. "
-            "Place received files in data/datasets/bird_interact[_full]/gt/ and re-run."
+            "Place received files in datasets/bird_interact[_full]/gt/ and re-run."
         ),
     )
     parser.add_argument(

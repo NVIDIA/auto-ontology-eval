@@ -25,35 +25,32 @@ venv/
 
 # Eval prompt inputs are tracked; the LLM response caches written beside them
 # (including the timestamped copies a rebuild archives) are not.
-/data/prompt_inputs/**/*_cache*.jsonl
+/inputs/extra_prompts/**/*_cache*.jsonl
 
 # OS / editor
 .DS_Store
 
-# The data directories' old locations, before they moved under data/. Seeded
-# downloads left there by an unmigrated checkout are gigabytes of third-party
-# data that must not be committed; see the README's migration note.
-/datasets/
-/annotations/
+# The old location of inputs/extra_prompts/. Git moves the tracked CSVs, but
+# not the untracked LLM response caches written beside them.
 /prompt_inputs/
 
 # Datasets kept local only (not tracked on remote) — keep the folders, ignore their contents
-/data/datasets/bird/*
-/data/datasets/bird_interact/*
-/data/datasets/bird_interact_full/*
-/data/datasets/fdabench/*
-/data/datasets/beaverbench/*
-/data/datasets/dor_prod/
-!/data/datasets/bird/.gitkeep
-!/data/datasets/bird/README.md
-!/data/datasets/bird_interact/.gitkeep
-!/data/datasets/bird_interact/gt/
-/data/datasets/bird_interact/gt/*
-!/data/datasets/bird_interact/gt/.gitkeep
-!/data/datasets/fdabench/.gitkeep
-!/data/datasets/fdabench/README.md
-!/data/datasets/beaverbench/.gitkeep
-!/data/datasets/beaverbench/README.md
+/datasets/bird/*
+/datasets/bird_interact/*
+/datasets/bird_interact_full/*
+/datasets/fdabench/*
+/datasets/beaverbench/*
+/datasets/dor_prod/
+!/datasets/bird/.gitkeep
+!/datasets/bird/README.md
+!/datasets/bird_interact/.gitkeep
+!/datasets/bird_interact/gt/
+/datasets/bird_interact/gt/*
+!/datasets/bird_interact/gt/.gitkeep
+!/datasets/fdabench/.gitkeep
+!/datasets/fdabench/README.md
+!/datasets/beaverbench/.gitkeep
+!/datasets/beaverbench/README.md
 
 # Test-run outputs (transient, local only), including the flagged_questions
 # notes — not tracked on remote, kept local only.

@@ -1881,10 +1881,10 @@ def main() -> None:
 
     def shared(sub: argparse.ArgumentParser) -> None:
         sub.add_argument(
-            "--input", type=Path, default=ROOT / "data/datasets/bird/evaluation.json"
+            "--input", type=Path, default=ROOT / "datasets/bird/evaluation.json"
         )
         sub.add_argument(
-            "--train", type=Path, default=ROOT / "data/datasets/bird/train/train.json"
+            "--train", type=Path, default=ROOT / "datasets/bird/train/train.json"
         )
         sub.add_argument(
             "--candidates",
@@ -1950,7 +1950,7 @@ def main() -> None:
     predict_parser.add_argument(
         "--dev-dir",
         type=Path,
-        default=ROOT / "data/datasets/bird/dev",
+        default=ROOT / "datasets/bird/dev",
         help="Where <db_id>/<db_id>.sqlite live, for --schema.",
     )
     predict_parser.add_argument(

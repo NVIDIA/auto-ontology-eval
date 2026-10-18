@@ -49,11 +49,7 @@ from ontology_sql_eval.bird_interact.harness import (
 
 ONTOLOGY_DIR = Path(__file__).resolve().parents[2]
 DEFAULT_DATA = (
-    ONTOLOGY_DIR
-    / "data"
-    / "datasets"
-    / "bird_interact"
-    / "bird_interact_data_with_gt.jsonl"
+    ONTOLOGY_DIR / "datasets" / "bird_interact" / "bird_interact_data_with_gt.jsonl"
 )
 USER_SIM_URL = "http://127.0.0.1:6001"
 DB_ENV_URL = "http://127.0.0.1:6002"

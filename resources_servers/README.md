@@ -258,16 +258,16 @@ in the rollouts, only in the node trace, and cost about two points.
 ### Prompt inputs are off by default
 
 `sql_examples_csv` and `value_anchors_csv` attach the question-keyed exemplars
-and value anchors from `data/prompt_inputs/` to the agent's payload. They are
+and value anchors from `inputs/extra_prompts/` to the agent's payload. They are
 commented out in `configs/auto_ontology_sql.yaml` and must be asked for
 explicitly, so the committed default is the comparable one:
 
 ```bash
 uv run python main.py --database-name bird --skip-ingest --skip-semantic \
   --eval-workers 10 \
-  --sql-examples-csv data/prompt_inputs/bird/predicted_structural_exemplars.csv \
+  --sql-examples-csv inputs/extra_prompts/bird/predicted_structural_exemplars.csv \
   --sql-examples-k 5 \
-  --value-anchors-csv data/prompt_inputs/bird/value_anchors.csv
+  --value-anchors-csv inputs/extra_prompts/bird/value_anchors.csv
 ```
 
 `main.py` turns those into Hydra overrides on the ontology arm. Driving
@@ -277,9 +277,9 @@ uv run python main.py --database-name bird --skip-ingest --skip-semantic \
 CFG=+auto_ontology_sql_resources_server.resources_servers.auto_ontology_sql
 scripts/run_gym_arm.sh auto_ontology_sql runs/treatment/bird.jsonl \
   --max-output-tokens 16 \
-  "$CFG.sql_examples_csv=data/prompt_inputs/bird/predicted_structural_exemplars.csv" \
+  "$CFG.sql_examples_csv=inputs/extra_prompts/bird/predicted_structural_exemplars.csv" \
   "$CFG.sql_examples_k=5" \
-  "$CFG.value_anchors_csv=data/prompt_inputs/bird/value_anchors.csv"
+  "$CFG.value_anchors_csv=inputs/extra_prompts/bird/value_anchors.csv"
 ```
 
 The control arm cannot receive the equivalent, so **a delta measured with these

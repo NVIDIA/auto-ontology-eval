@@ -6,11 +6,11 @@
 
 Fetches the official zip(s) for one or more BIRD splits and writes::
 
-    data/datasets/bird/evaluation.json                 # Mini-Dev / Dev questions only
-    data/datasets/bird/dev/<db_id>/<db_id>.sqlite      # evaluation databases
-    data/datasets/bird/dev/<db_id>/database_description/*.csv
-    data/datasets/bird/dev/<db_id>/metadata.json       # derived column descriptions
-    data/datasets/bird/train/train.json                # Train Q/evidence/SQL rows
+    datasets/bird/evaluation.json                 # Mini-Dev / Dev questions only
+    datasets/bird/dev/<db_id>/<db_id>.sqlite      # evaluation databases
+    datasets/bird/dev/<db_id>/database_description/*.csv
+    datasets/bird/dev/<db_id>/metadata.json       # derived column descriptions
+    datasets/bird/train/train.json                # Train Q/evidence/SQL rows
 
 Mini-Dev / Dev SQLite DBs land under ``dev/`` and drive evaluation.
 Selecting Dev also stores the Train questions under ``train/`` for future
@@ -40,7 +40,7 @@ from the BIRD Mini-Dev README's 2025-07-04 update — the corrected
 
 After download, ingest the Dev databases into the Postgres catalog via::
 
-    CONNECTION_STRINGS=sqlite:///<abs-path>/data/datasets/bird/dev/<db_id>/<db_id>.sqlite \\
+    CONNECTION_STRINGS=sqlite:///<abs-path>/datasets/bird/dev/<db_id>/<db_id>.sqlite \\
       uv run python main.py --database-name bird --skip-eval
 """
 
@@ -131,7 +131,7 @@ def _repo_root() -> Path:
 
 
 def _default_dest() -> Path:
-    return _repo_root() / "data" / "datasets" / "bird"
+    return _repo_root() / "datasets" / "bird"
 
 
 def _archive_cache_path(dest: Path, archive_name: str) -> Path:
@@ -139,12 +139,12 @@ def _archive_cache_path(dest: Path, archive_name: str) -> Path:
 
 
 def _eval_db_root(dest: Path) -> Path:
-    """SQLite evaluation databases live under ``data/datasets/bird/dev/``."""
+    """SQLite evaluation databases live under ``datasets/bird/dev/``."""
     return dest / "dev"
 
 
 def _train_root(dest: Path) -> Path:
-    """Train question rows live under ``data/datasets/bird/train/``."""
+    """Train question rows live under ``datasets/bird/train/``."""
     return dest / "train"
 
 
@@ -454,7 +454,7 @@ def _offset_question_ids(
 
 
 def _write_evaluation_file(dest: Path, rows: list[dict[str, Any]]) -> None:
-    """Write Mini-Dev / Dev questions to ``data/datasets/bird/evaluation.json``."""
+    """Write Mini-Dev / Dev questions to ``datasets/bird/evaluation.json``."""
     eval_path = dest / "evaluation.json"
     with eval_path.open("w") as f:
         json.dump(rows, f, indent=2)
@@ -471,7 +471,7 @@ def _write_train_file(dest: Path, rows: list[dict[str, Any]]) -> None:
 
 
 def _cleanup_legacy_flat_layout(dest: Path) -> None:
-    """Remove pre-split flat ``data/datasets/bird/<db_id>/`` entries if present."""
+    """Remove pre-split flat ``datasets/bird/<db_id>/`` entries if present."""
     keep_names = {"dev", "train", "evaluation.json", "README.md", ".gitkeep"}
     removed = 0
     for child in dest.iterdir():
@@ -491,7 +491,7 @@ def _cleanup_legacy_flat_layout(dest: Path) -> None:
 
 
 def _migrate_legacy_flat_layout(dest: Path) -> None:
-    """Move a pre-split flat ``data/datasets/bird/<db_id>/`` tree into ``dev/``.
+    """Move a pre-split flat ``datasets/bird/<db_id>/`` tree into ``dev/``.
 
     Evaluation DB ids are taken from ``evaluation.json`` when present; their
     SQLite folders move under ``dev/``. Remaining flat DB folders (Train-only
@@ -578,7 +578,7 @@ def _print_summary(
     """Log a summary, write ``CONNECTION_STRINGS`` to ``.env``, and print it.
 
     Connection strings point at evaluation SQLite files under
-    ``data/datasets/bird/dev/``.
+    ``datasets/bird/dev/``.
     """
     eval_root = _eval_db_root(dest)
     logger.info("=" * 60)
@@ -725,8 +725,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help=(
             "Which BIRD split(s) to install (default: "
             f"{DEFAULT_SPLIT}). mini-dev/dev write SQLite under "
-            "data/datasets/bird/dev/ and evaluation.json; dev also writes "
-            "data/datasets/bird/train/train.json."
+            "datasets/bird/dev/ and evaluation.json; dev also writes "
+            "datasets/bird/train/train.json."
         ),
     )
     parser.add_argument(
@@ -742,7 +742,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--dest",
         type=Path,
         default=None,
-        help="Destination directory (default: data/datasets/bird/ in the repo root).",
+        help="Destination directory (default: datasets/bird/ in the repo root).",
     )
     parser.add_argument(
         "--force",

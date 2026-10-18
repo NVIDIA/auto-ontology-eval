@@ -92,30 +92,25 @@ model.
 > source database.
 
 > [!NOTE]
-> **Seeded before `datasets/`, `annotations/` and `prompt_inputs/` moved under
-> `data/`?** Move the downloaded data along with them, and point any SQLite
-> paths in `.env` at the new location:
+> **Upgrading a checkout from before `annotations/` and `prompt_inputs/` moved
+> to `inputs/annotations/` and `inputs/extra_prompts/`?** Git moves the tracked
+> files. Untracked LLM response caches stay behind; move them if you want
+> `build_eval_inputs.py` to find them:
 >
 > ```bash
-> mkdir -p data
-> for d in datasets annotations prompt_inputs; do
->   [ -d "$d" ] && rsync -a "$d/" "data/$d/" && rm -rf "$d"
-> done
-> # Normalise first, so a path already under data/ is not moved twice.
-> sed -i.bak -e 's#/data/datasets/#/datasets/#g' -e 's#/datasets/#/data/datasets/#g' .env
-> rm .env.bak
+> mv prompt_inputs/bird/*_cache*.jsonl inputs/extra_prompts/bird/ 2>/dev/null
 > ```
 
 Each bundled dataset's README documents how to stand up its source DB and set
 `CONNECTION_STRINGS` (see [Configuration](#configuration)):
 
-- **[WideWorldImporters](data/datasets/wideworldimporters/README.md)** — seed a
+- **[WideWorldImporters](datasets/wideworldimporters/README.md)** — seed a
   local Postgres from pre-generated DDL + CSVs.
-- **[BIRD](data/datasets/bird/README.md)** — download Dev or Mini-Dev SQLite files;
+- **[BIRD](datasets/bird/README.md)** — download Dev or Mini-Dev SQLite files;
   Dev also includes the Train question corpus.
-- **[FDABench-Lite](data/datasets/fdabench/README.md)** — download Lite tasks +
+- **[FDABench-Lite](datasets/fdabench/README.md)** — download Lite tasks +
   SQLite databases (BIRD train / Spider1 / Spider2-lite local).
-- **[BEAVER](data/datasets/beaverbench/README.md)** — download BeaverBench questions +
+- **[BEAVER](datasets/beaverbench/README.md)** — download BeaverBench questions +
   MySQL dumps (`dw` / `nova` / `neutron`).
 
 ## Full pipeline (end-to-end example)
@@ -156,10 +151,10 @@ To drive the stages by hand — build task files, run one arm, compare — see
 [resources_servers/README.md](resources_servers/README.md).
 
 For concrete, copy-pasteable walkthroughs, see the per-dataset READMEs:
-[WideWorldImporters](data/datasets/wideworldimporters/README.md),
-[BIRD](data/datasets/bird/README.md),
-[FDABench-Lite](data/datasets/fdabench/README.md),
-[BEAVER](data/datasets/beaverbench/README.md). See the per-workflow READMEs under
+[WideWorldImporters](datasets/wideworldimporters/README.md),
+[BIRD](datasets/bird/README.md),
+[FDABench-Lite](datasets/fdabench/README.md),
+[BEAVER](datasets/beaverbench/README.md). See the per-workflow READMEs under
 [Workflows](#workflows) for the details of each stage.
 
 ## Prompt inputs: SQL examples and value anchors
@@ -169,8 +164,8 @@ prompt. Both are keyed by `question_id` and both are built from BIRD Dev:
 
 | File                                                    | `main.py` flag        | What it carries                                                                                                |
 | ------------------------------------------------------- | --------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `data/prompt_inputs/bird/predicted_structural_exemplars.csv` | `--sql-examples-csv`  | Train questions whose SQL has the same shape as the one this question needs, ranked — few-shot exemplars.      |
-| `data/prompt_inputs/bird/value_anchors.csv`                  | `--value-anchors-csv` | Which column stores a phrase from the question, and its exact stored spelling — so filters match real values. |
+| `inputs/extra_prompts/bird/predicted_structural_exemplars.csv` | `--sql-examples-csv`  | Train questions whose SQL has the same shape as the one this question needs, ranked — few-shot exemplars.      |
+| `inputs/extra_prompts/bird/value_anchors.csv`                  | `--value-anchors-csv` | Which column stores a phrase from the question, and its exact stored spelling — so filters match real values. |
 
 Generated copies of both are committed, so a run can reuse them without
 regenerating. To rebuild them, [`scripts/prompt_inputs/build_eval_inputs.py`](scripts/prompt_inputs/build_eval_inputs.py)
@@ -182,7 +177,7 @@ uv run python scripts/prompt_inputs/build_eval_inputs.py
 
 It needs the BIRD **Dev** split *and* its Train corpus on disk
 (`uv run python scripts/seed/seed_bird.py --splits dev`, see
-[data/datasets/bird/README.md](data/datasets/bird/README.md)) plus the `REASONING_*`
+[datasets/bird/README.md](datasets/bird/README.md)) plus the `REASONING_*`
 credentials from [Configuration](#configuration) — the exemplar step asks the
 model to predict a query for every Dev question, so it is the slow and the only
 paid half of the run.
@@ -202,7 +197,7 @@ without saying so.
 | `--workers N`        | `8`                    | Concurrent model requests in the exemplar step.                |
 | `--limit N`          | all                    | First N Dev questions, for a smoke test.                       |
 | `--dry-run`          | off                    | Print the commands that would run, and run none of them.       |
-| `--anchors-out`, `--exemplars-out` | `data/prompt_inputs/bird/` | Write somewhere else.                              |
+| `--anchors-out`, `--exemplars-out` | `inputs/extra_prompts/bird/` | Write somewhere else.                              |
 
 The exemplar step caches model responses next to its CSV. A rebuild archives
 any existing cache under a timestamped name first, so the answers are always
@@ -213,9 +208,9 @@ either can be omitted):
 
 ```bash
 uv run python main.py --database-name bird --skip-ingest --skip-semantic \
-    --sql-examples-csv data/prompt_inputs/bird/predicted_structural_exemplars.csv \
+    --sql-examples-csv inputs/extra_prompts/bird/predicted_structural_exemplars.csv \
     --sql-examples-k 5 \
-    --value-anchors-csv data/prompt_inputs/bird/value_anchors.csv
+    --value-anchors-csv inputs/extra_prompts/bird/value_anchors.csv
 ```
 
 Neither is passed by default, so a run without them has no exemplars and no
@@ -224,11 +219,11 @@ covers the inputs as well as the ontology grounding.
 
 ## Datasets
 
-Each dataset lives in its own folder under `data/datasets/<database_name>/`. The
+Each dataset lives in its own folder under `datasets/<database_name>/`. The
 folder name is the database name and is used to derive default file paths.
 
 ```
-data/datasets/<database_name>/
+datasets/<database_name>/
   evaluation.json        # eval questions + expected SQL (benchmark input)
   metadata.json          # table/column descriptions (ingestion enrichment; optional)
   custom_analyses.json   # named example analyses (ingestion enrichment; optional)
@@ -241,7 +236,7 @@ The repo ships with four public worked examples:
 The [BIRD](https://bird-bench.github.io/) benchmark. Defaults to full **Dev** (11 SQLite databases,
 1,534 questions) and stores the **Train** question corpus without its
 databases; the cheaper **Mini-Dev** subset (500 questions) is also available. See
-**[data/datasets/bird/README.md](data/datasets/bird/README.md)** for how to download
+**[datasets/bird/README.md](datasets/bird/README.md)** for how to download
 the dataset(s) and run the full pipeline.
 
 ### FDABench-Lite
@@ -249,21 +244,21 @@ the dataset(s) and run the full pipeline.
 The [FDABench](https://github.com/fdabench/FDAbench) Lite subset, mapped to
 text-to-SQL: gold SQL from each task's subtasks, plus the SQLite databases
 those tasks need (169 questions, 15 databases). See
-**[data/datasets/fdabench/README.md](data/datasets/fdabench/README.md)** for how to
+**[datasets/fdabench/README.md](datasets/fdabench/README.md)** for how to
 download and run the full pipeline.
 
 ### BEAVER (BeaverBench)
 
 The [BEAVER](https://beaverbench.github.io/) enterprise text-to-SQL benchmark
 (gated HuggingFace questions + MySQL dumps). Defaults to a 100-question `dw`
-sample. See **[data/datasets/beaverbench/README.md](data/datasets/beaverbench/README.md)**
+sample. See **[datasets/beaverbench/README.md](datasets/beaverbench/README.md)**
 for how to download, import MySQL, and run the full pipeline.
 
 ### WideWorldImporters (WWI)
 
 Microsoft's WideWorldImporters sample OLTP database, ported to Postgres and
 seeded from pre-generated DDL + CSVs. See
-**[data/datasets/wideworldimporters/README.md](data/datasets/wideworldimporters/README.md)**
+**[datasets/wideworldimporters/README.md](datasets/wideworldimporters/README.md)**
 for how to seed the database and run the full pipeline.
 
 ### BIRD-Interact
@@ -371,9 +366,9 @@ delta was measured with:
 ```bash
 uv run python main.py --database-name bird --skip-ingest --skip-semantic \
   --eval-workers 10 --run-dir runs/full_$(date +%Y%m%d-%H%M%S) \
-  --sql-examples-csv data/prompt_inputs/bird/predicted_structural_exemplars.csv \
+  --sql-examples-csv inputs/extra_prompts/bird/predicted_structural_exemplars.csv \
   --sql-examples-k 5 \
-  --value-anchors-csv data/prompt_inputs/bird/value_anchors.csv
+  --value-anchors-csv inputs/extra_prompts/bird/value_anchors.csv
 ```
 
 The control arm cannot be given an equivalent, so a delta measured this way
@@ -433,7 +428,7 @@ endpoint.
 > failed that way.
 
 > [!NOTE]
-> BIRD databases live under `data/datasets/bird/dev/<db_id>/`. A seed made before that
+> BIRD databases live under `datasets/bird/dev/<db_id>/`. A seed made before that
 > layout change reports `gold_execution_error` on every task — re-seed with
 > `scripts/seed/seed_bird.py`, or move the per-database directories under `dev/`.
 
@@ -448,7 +443,7 @@ ontology_sql_eval/          single namespace package
     semantic.py             compile the semantic layer over the ingested graph
     enrich_graph.py         graph metadata + custom-analysis enrichment
   gym/                      the benchmark logic shared by both arms and main.py
-    tasks.py                build Gym task files from data/datasets/<name>/evaluation.json
+    tasks.py                build Gym task files from datasets/<name>/evaluation.json
     ddl.py                  schema dumps for the schema-only arm's prompt
     exec_match.py           execution-match verifier (BIRD EX, BEAVER ex_acc)
     model_routing.py        routes Auto Ontology's model calls through Gym's model servers
@@ -460,27 +455,27 @@ resources_servers/          the two Gym arms: schema_only_sql (control), auto_on
 scripts/
   build_gym_tasks.py        build one arm's Gym task file
   run_gym_arm.sh            run one arm through NeMo Gym
-  seed/                     stand up a dataset's source DBs under data/datasets/
+  seed/                     stand up a dataset's source DBs under datasets/
     seed_bird.py            BIRD eval data and the Dev Train corpus
     seed_fdabench.py        FDABench-Lite tasks + SQLite DBs
     seed_beaverbench.py     BEAVER questions + MySQL dumps
-    seed_wwi.py             a local Postgres from data/datasets/<db>/{ddl,data}
-  prompt_inputs/            build the CSVs under data/prompt_inputs/
+    seed_wwi.py             a local Postgres from datasets/<db>/{ddl,data}
+  prompt_inputs/            build the CSVs under inputs/extra_prompts/
     build_eval_inputs.py    both CSVs (anchors + exemplars) in one run
     value_index.py          value -> column index over the BIRD Dev DBs; value anchors
     llm_structural_exemplars.py  LLM-predicted SQL matched against train; exemplars
   bird_interact/            BIRD-Interact: README, seeding, runners, analysis, ADK patches
-data/
-  datasets/
-    <database_name>/        evaluation.json, metadata.json, custom_analyses.json
-      ddl/                  seed DDL (schemas, sequences, tables, indexes, fkeys, views)
-      data/                 seed CSV data (COPYed into the tables)
-    bird/                   README.md, evaluation.json, dev/<db_id>/<db_id>.sqlite (11 DBs)
-    fdabench/               README.md, evaluation.json, <db_id>/<db_id>.sqlite (15 DBs)
-    beaverbench/            README.md, evaluation.json, dumps/*.sql, <db_id>/metadata.json
-    wideworldimporters/     README.md, evaluation.json, custom_analyses.json, ddl/, data/
-  annotations/<dataset>/    tracked descriptions + custom analyses applied at ingest
-  prompt_inputs/<dataset>/  tracked eval prompt inputs (sql examples + value anchors)
+datasets/
+  <database_name>/          evaluation.json, metadata.json, custom_analyses.json
+    ddl/                    seed DDL (schemas, sequences, tables, indexes, fkeys, views)
+    data/                   seed CSV data (COPYed into the tables)
+  bird/                     README.md, evaluation.json, dev/<db_id>/<db_id>.sqlite (11 DBs)
+  fdabench/                 README.md, evaluation.json, <db_id>/<db_id>.sqlite (15 DBs)
+  beaverbench/              README.md, evaluation.json, dumps/*.sql, <db_id>/metadata.json
+  wideworldimporters/       README.md, evaluation.json, custom_analyses.json, ddl/, data/
+inputs/                     tracked inputs we add on top of the datasets
+  annotations/<dataset>/    descriptions + custom analyses applied at ingest
+  extra_prompts/<dataset>/  eval prompt inputs (sql examples + value anchors)
 tests/                      pytest suite, one folder per area (gym/, ingestion/, bird_interact/, scripts/)
 runs/{control,treatment}/   benchmark rollouts + Gym metrics (gitignored)
 output/                     scratch output of the prompt-input scripts (gitignored)
@@ -509,11 +504,11 @@ Third-party content included in this repository is MIT licensed and
 documented in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md#included-third-party-content):
 
-- [`data/datasets/wideworldimporters/`](data/datasets/wideworldimporters/) — a Postgres
+- [`datasets/wideworldimporters/`](datasets/wideworldimporters/) — a Postgres
   port of Microsoft's WideWorldImporters sample database
   ([microsoft/sql-server-samples](https://github.com/microsoft/sql-server-samples),
   Copyright (c) Microsoft Corporation). Its upstream notice is reproduced in
-  [data/datasets/wideworldimporters/LICENSE](data/datasets/wideworldimporters/LICENSE).
+  [datasets/wideworldimporters/LICENSE](datasets/wideworldimporters/LICENSE).
 - [`tests/gym/beaver_reference.py`](tests/gym/beaver_reference.py) —
   ports BEAVER's official execution-accuracy rule
   ([beaverbench/beaver](https://github.com/beaverbench/beaver),
