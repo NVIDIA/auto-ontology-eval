@@ -36,7 +36,6 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import os
 import random
 import subprocess
 import sys
@@ -45,6 +44,13 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+
+from ontology_sql_eval.bird_interact.harness import (
+    build_debug_message,
+    check_health,
+    post,
+    start_auto_ontology_adapter,
+)
 
 ONTOLOGY_DIR = Path(__file__).resolve().parents[2]
 DEFAULT_DATA = (
@@ -86,66 +92,6 @@ def _infer_dataset_label(data_path: Path) -> str:
     return "full" if "full" in str(data_path).lower() else "lite"
 
 
-def load_env(dotenv_path: Path) -> dict[str, str]:
-    env: dict[str, str] = {}
-    if not dotenv_path.exists():
-        return env
-    for line in dotenv_path.read_text().splitlines():
-        line = line.strip()
-        if line and not line.startswith("#") and "=" in line:
-            k, _, v = line.partition("=")
-            env[k.strip()] = v.strip()
-    return env
-
-
-def check_health(url: str, label: str, timeout: int) -> bool:
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        try:
-            r = httpx.get(f"{url}/health", timeout=3.0)
-            if r.status_code == 200:
-                print(f"  [OK] {label}")
-                return True
-        except Exception:
-            pass
-        time.sleep(1)
-    print(f"  [FAIL] {label} not healthy after {timeout}s", file=sys.stderr)
-    return False
-
-
-def post(url: str, payload: dict, timeout: float = 120.0) -> dict:
-    r = httpx.post(url, json=payload, timeout=timeout)
-    r.raise_for_status()
-    return r.json()
-
-
-def start_auto_ontology_adapter(
-    port: int, log_path: Path | None = None
-) -> subprocess.Popen:
-    dotenv_vars = load_env(ONTOLOGY_DIR / ".env")
-    env = {**os.environ, **dotenv_vars}
-    log_file = open(log_path, "w") if log_path else subprocess.DEVNULL
-    proc = subprocess.Popen(
-        [
-            sys.executable,
-            "-m",
-            "uvicorn",
-            "ontology_sql_eval.bird_interact.server:app",
-            "--host",
-            "127.0.0.1",
-            "--port",
-            str(port),
-            "--log-level",
-            "info",
-        ],
-        cwd=str(ONTOLOGY_DIR),
-        env=env,
-        stdout=log_file,
-        stderr=log_file,
-    )
-    return proc
-
-
 def _extract_sql(trajectory: list[dict]) -> str | None:
     """Return the SQL from the last submit_sql call in a tool trajectory."""
     calls = [t for t in trajectory if t.get("tool") == "submit_sql"]
@@ -157,14 +103,6 @@ def _exec_error(raw: str | None) -> str | None:
     if raw and "[exec_err_flg]" in raw:
         return raw.split("[exec_err_flg]", 1)[1].strip()
     return None
-
-
-def _build_debug_message(last_submit_raw: str) -> str:
-    """Mirror the official orchestrator's debug message construction."""
-    if "[exec_err_flg]" in last_submit_raw:
-        actual_error = last_submit_raw.split("[exec_err_flg]", 1)[1].strip()
-        return f"Your SQL is not executable: {actual_error}\nPlease fix and call submit_sql."
-    return "Your SQL is not correct. You have one more chance. Please fix and call submit_sql."
 
 
 def _load_tasks(
@@ -367,7 +305,7 @@ def run_task(
     if _current_phase is not None:
         _current_phase[0] = "phase1_debug"
     if not p1_pass:
-        debug_msg = _build_debug_message(state.get("_last_submit_raw", ""))
+        debug_msg = build_debug_message(state.get("_last_submit_raw", ""))
         t0 = time.time()
         resp = post(
             f"{agent_url}/run_session",
@@ -414,7 +352,7 @@ def run_task(
         if _current_phase is not None:
             _current_phase[0] = "phase2_debug"
         if not p2_pass:
-            debug_msg = _build_debug_message(state.get("_last_submit_raw", ""))
+            debug_msg = build_debug_message(state.get("_last_submit_raw", ""))
             t0 = time.time()
             resp = post(
                 f"{agent_url}/run_session",

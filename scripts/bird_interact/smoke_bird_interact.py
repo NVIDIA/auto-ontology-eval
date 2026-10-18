@@ -34,14 +34,18 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
-import random
 import subprocess
 import sys
-import time
 from pathlib import Path
 
-import httpx
+
+from ontology_sql_eval.bird_interact.harness import (
+    check_health,
+    load_task,
+    post,
+    print_trajectory,
+    start_auto_ontology_adapter,
+)
 
 ONTOLOGY_DIR = Path(__file__).resolve().parents[2]
 DEFAULT_DATA = (
@@ -55,169 +59,6 @@ USER_SIM_URL = "http://127.0.0.1:6001"
 DB_ENV_URL = "http://127.0.0.1:6002"
 
 PATIENCE = 3
-
-
-def load_env(dotenv_path: Path) -> dict[str, str]:
-    env: dict[str, str] = {}
-    if not dotenv_path.exists():
-        return env
-    for line in dotenv_path.read_text().splitlines():
-        line = line.strip()
-        if line and not line.startswith("#") and "=" in line:
-            k, _, v = line.partition("=")
-            env[k.strip()] = v.strip()
-    return env
-
-
-def _print_trajectory(state: dict) -> None:
-    dialogue = state.get("dialogue_history", [])
-    trajectory = state.get("tool_trajectory", [])
-    if dialogue:
-        print("  Dialogue:")
-        for turn in dialogue:
-            role = turn.get("role", "?").upper()
-            print(f"    [{role}] {turn.get('content', '')[:200]}")
-    sql_calls = [t for t in trajectory if t.get("tool") == "submit_sql"]
-    if sql_calls:
-        print("  SQL submitted:")
-        for call in sql_calls:
-            sql = call.get("input", {}).get("sql", "(empty)")
-            result = call.get("output", {})
-            print(f"    {sql[:400]}")
-            print(
-                f"    → reward={result.get('reward')}  phase_completed={result.get('phase_completed')}  msg={result.get('message', '')[:100]}"
-            )
-    elif not dialogue:
-        print("  (no dialogue or SQL in trajectory)")
-
-
-def check_health(url: str, label: str, timeout: int) -> bool:
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        try:
-            r = httpx.get(f"{url}/health", timeout=3.0)
-            if r.status_code == 200:
-                print(f"  [OK] {label}")
-                return True
-        except Exception:
-            pass
-        time.sleep(1)
-    print(f"  [FAIL] {label} not healthy after {timeout}s", file=sys.stderr)
-    return False
-
-
-def post(url: str, payload: dict, timeout: float = 120.0) -> dict:
-    r = httpx.post(url, json=payload, timeout=timeout)
-    r.raise_for_status()
-    return r.json()
-
-
-def load_task(
-    data_path: Path,
-    index: int,
-    db_filter: str | None,
-    random_pick: bool = False,
-    instance_id: str | None = None,
-    category_filter: str | None = None,
-    difficulty_filter: str | None = None,
-) -> tuple[int, dict]:
-    if not data_path.exists():
-        print(f"Data file not found: {data_path}", file=sys.stderr)
-        sys.exit(1)
-    tasks = [json.loads(line) for line in data_path.open() if line.strip()]
-    if instance_id:
-        matches = [
-            (i, t) for i, t in enumerate(tasks) if t.get("instance_id") == instance_id
-        ]
-        if not matches:
-            print(f"No task found with instance_id={instance_id!r}", file=sys.stderr)
-            sys.exit(1)
-        idx, task = matches[0]
-        if (task.get("category") or "").lower() == "management":
-            print(
-                f"WARNING: instance_id={instance_id!r} is a management-category task; "
-                "management is not supported by this toolchain (query-category only). "
-                "Skipping.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-        return idx, task
-    if category_filter == "management":
-        print(
-            "WARNING: --category management is not supported by this toolchain "
-            "(query-category only). Skipping.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-    pool = (
-        [(i, t) for i, t in enumerate(tasks) if t.get("selected_database") == db_filter]
-        if db_filter
-        else list(enumerate(tasks))
-    )
-    n_before = len(pool)
-    pool = [
-        (i, t) for i, t in pool if (t.get("category") or "").lower() != "management"
-    ]
-    if n_before != len(pool):
-        print(
-            f"WARNING: excluded {n_before - len(pool)} management-category task(s) "
-            "from the selection pool (not supported by this toolchain).",
-            file=sys.stderr,
-        )
-    if category_filter:
-        pool = [
-            (i, t)
-            for i, t in pool
-            if (t.get("category") or "").lower() == category_filter.lower()
-        ]
-    if difficulty_filter:
-        pool = [
-            (i, t)
-            for i, t in pool
-            if (t.get("difficulty_tier") or "").lower() == difficulty_filter.lower()
-        ]
-    if not pool:
-        parts = []
-        if db_filter:
-            parts.append(f"db={db_filter!r}")
-        if category_filter:
-            parts.append(f"category={category_filter!r}")
-        if difficulty_filter:
-            parts.append(f"difficulty_tier={difficulty_filter!r}")
-        print(f"No tasks found for {', '.join(parts)}", file=sys.stderr)
-        sys.exit(1)
-    if random_pick:
-        idx, task = random.choice(pool)
-        return idx, task
-    if index < 0 or index >= len(pool):
-        print(
-            f"Task index {index} out of range (selection pool has {len(pool)} task(s))",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-    return pool[index]
-
-
-def start_auto_ontology_adapter(port: int) -> subprocess.Popen:
-    dotenv_vars = load_env(ONTOLOGY_DIR / ".env")
-    env = {**os.environ, **dotenv_vars}
-    proc = subprocess.Popen(
-        [
-            sys.executable,
-            "-m",
-            "uvicorn",
-            "ontology_sql_eval.bird_interact.server:app",
-            "--host",
-            "127.0.0.1",
-            "--port",
-            str(port),
-            "--log-level",
-            "info",
-        ],
-        cwd=str(ONTOLOGY_DIR),
-        env=env,
-    )
-    return proc
 
 
 def main() -> None:
@@ -375,7 +216,7 @@ def main() -> None:
         print(f"  phase1_completed: {p1_pass}  |  reward: {reward}")
         if state.get("_last_submit_raw"):
             print(f"  submit feedback: {state['_last_submit_raw'][:200]}")
-        _print_trajectory(state)
+        print_trajectory(state)
 
         # ── 9. Phase 2 ────────────────────────────────────────────────────────
         follow_up = task.get("follow_up") or {}
@@ -403,7 +244,7 @@ def main() -> None:
             print(f"  phase2_completed: {p2_pass}  |  reward: {reward}")
             if state.get("_last_submit_raw"):
                 print(f"  submit feedback: {state['_last_submit_raw'][:200]}")
-            _print_trajectory(state)
+            print_trajectory(state)
 
         elif p1_pass:
             print("\n(task has no follow_up — skipping phase 2)")
