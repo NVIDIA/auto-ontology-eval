@@ -22,9 +22,9 @@ differently and we want numbers that are comparable to each one's own leaderboar
 
 They genuinely disagree. BEAVER treats `1` and `"1"` as equal and strips
 whitespace, but **not** `Decimal("150.250")` and `Decimal("150.25")` -- which on a
-MySQL corpus is a common case, not an exotic one. `tests/test_gym_beaver_match.py`
-holds our implementation against the official evaluator in
-`ontology_sql_eval/judge/beaver.py`.
+MySQL corpus is a common case, not an exotic one. `tests/gym/test_beaver_match.py`
+holds our implementation against the official evaluator, ported in
+`tests/gym/beaver_reference.py`.
 
 BEAVER also differs in how it runs and reports, and both arms follow it there
 too:
@@ -36,7 +36,7 @@ too:
 - **Accuracy without empty-gold questions.** Every rollout records
   `gold_result` (`empty_gold` / `nonempty_gold`), and the metrics carry
   `nonempty_gold/pass@1[avg-of-k]/accuracy` beside the overall number;
-  `scripts/compare_arms.py` prints a matching `nonempty gold` row. An empty
+  `ontology_sql_eval/gym/compare.py` prints a matching `nonempty gold` row. An empty
   gold result is matched by any prediction that returns nothing -- including
   one that errored -- so this is the more honest of the two.
 
@@ -231,7 +231,7 @@ Gym's own guidance is to prefer a deterministic verifier where one exists.
 | `bird` (1,534q) | SQLite | yes |
 | `fdabench` (169q) | SQLite | yes |
 | `wideworldimporters` (41q) | Postgres | yes |
-| `beaverbench` | MySQL | yes — seed with `scripts/seed_beaverbench.py --import-mysql` |
+| `beaverbench` | MySQL | yes — seed with `scripts/seed/seed_beaverbench.py --import-mysql` |
 | `bird_interact` | Postgres | **no, by design** |
 
 `beaverbench` needs a `mysql://` entry in `CONNECTION_STRINGS` (the seeder writes
@@ -247,7 +247,7 @@ turns, test cases, and a user-simulation loop driven by the c-Interact
 orchestrator. Both arms here are single-shot by construction — the control gets
 one prompt and the Auto Ontology arm runs one `stream_agent_response` to completion — so
 representing it would mean a new multi-turn environment, not a registry entry.
-Use `scripts/run_bird_interact_cinteract.py` for that benchmark.
+Use `scripts/bird_interact/run_bird_interact_cinteract.py` for that benchmark.
 
 ## Keeping the arms comparable
 
@@ -271,19 +271,19 @@ only creates ways to lose); the second enables the `validate_sql_values` node,
 which checks filter literals against the database. Omitting them is not visible
 in the rollouts, only in the node trace, and cost about two points.
 
-### Prompt inputs are off by default
+### Extra prompts are off by default
 
 `sql_examples_csv` and `value_anchors_csv` attach the question-keyed exemplars
-and value anchors from `prompt_inputs/` to the agent's payload. They are
+and value anchors from `inputs/extra_prompts/` to the agent's payload. They are
 commented out in `configs/auto_ontology_sql.yaml` and must be asked for
 explicitly, so the committed default is the comparable one:
 
 ```bash
 uv run python main.py --database-name bird --skip-ingest --skip-semantic \
   --eval-workers 10 \
-  --sql-examples-csv prompt_inputs/bird/predicted_structural_exemplars.csv \
+  --sql-examples-csv inputs/extra_prompts/bird/predicted_structural_exemplars.csv \
   --sql-examples-k 5 \
-  --value-anchors-csv prompt_inputs/bird/value_anchors.csv
+  --value-anchors-csv inputs/extra_prompts/bird/value_anchors.csv
 ```
 
 `main.py` turns those into Hydra overrides on the ontology arm. Driving
@@ -293,16 +293,16 @@ uv run python main.py --database-name bird --skip-ingest --skip-semantic \
 CFG=+auto_ontology_sql_resources_server.resources_servers.auto_ontology_sql
 scripts/run_gym_arm.sh auto_ontology_sql runs/treatment/bird.jsonl \
   --max-output-tokens 16 \
-  "$CFG.sql_examples_csv=prompt_inputs/bird/predicted_structural_exemplars.csv" \
+  "$CFG.sql_examples_csv=inputs/extra_prompts/bird/predicted_structural_exemplars.csv" \
   "$CFG.sql_examples_k=5" \
-  "$CFG.value_anchors_csv=prompt_inputs/bird/value_anchors.csv"
+  "$CFG.value_anchors_csv=inputs/extra_prompts/bird/value_anchors.csv"
 ```
 
 The control arm cannot receive the equivalent, so **a delta measured with these
 on covers the exemplars and anchors as well as the ontology grounding** — say so
 when reporting it. Each rollout records `sql_examples_used` and
 `value_anchors_used` so a run can prove what it actually received rather than
-what it was configured to receive; the server also logs a `Prompt inputs:`
+what it was configured to receive; the server also logs a `Extra prompts:`
 summary at startup.
 
 The control's first sentence is upstream `bird_sql`'s prompt verbatim; the
@@ -331,7 +331,7 @@ is sugar for an override you can interpolate instead.
 ## Comparing arms
 
 ```bash
-python scripts/compare_arms.py --control <control_rollouts> --treatment <auto_ontology_rollouts>
+python -m ontology_sql_eval.gym.compare --control <control_rollouts> --treatment <auto_ontology_rollouts>
 ```
 
 Reports accuracy overall and by difficulty, the delta, and which individual
@@ -349,7 +349,7 @@ Hence two deliberate features:
 
 - `FailureCode.NO_MODEL_OUTPUT` is distinct from "wrong SQL", and both servers
   report `health/*` counters alongside accuracy.
-- `compare_arms.py` **refuses** to print a headline number when either arm is above
+- `gym/compare.py` **refuses** to print a headline number when either arm is above
   5% broken-run failures (`no_model_output` or `unknown_error`), unless
   `--ignore-health` is passed. Tasks whose *gold* query never ran are excluded
   from the denominator entirely rather than counted as misses.

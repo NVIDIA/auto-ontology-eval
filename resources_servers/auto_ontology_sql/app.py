@@ -75,7 +75,7 @@ from auto_ontology.utils import (  # noqa: E402
     get_semantic_objects_retriever,
 )
 
-from ontology_sql_eval.prompt_inputs import (  # noqa: E402
+from ontology_sql_eval.extra_prompts import (  # noqa: E402
     load_sql_examples,
     load_value_anchors,
 )
@@ -90,6 +90,7 @@ from ontology_sql_eval.gym.exec_match import (  # noqa: E402
     timeout_for,
 )
 from ontology_sql_eval.gym.tasks import DATASETS  # noqa: E402
+from ontology_sql_eval.paths import DATASETS_DIR  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +139,7 @@ _GOLD_FAILURE = {
 # this harness runs against both.
 _SUPPORTS_EVIDENCE = "evidence" in getattr(TextToSQLPayload, "__annotations__", {})
 
-# Same probe for the two prompt inputs. On a build that predates either
+# Same probe for the two extra prompts. On a build that predates either
 # parameter the payload key would be silently ignored, so a run that asked for
 # exemplars would quietly get none; refuse at startup instead.
 _SUPPORTS_SQL_EXAMPLES = "sql_examples" in getattr(
@@ -151,7 +152,7 @@ _SUPPORTS_VALUE_ANCHORS = "value_anchors" in getattr(
 
 class AutoOntologySqlResourcesServerConfig(BaseResourcesServerConfig):
     name: str = "auto_ontology_sql"
-    datasets_dir: str = "datasets"
+    datasets_dir: str = str(DATASETS_DIR)
     # Sized against the *model endpoint's* rate limit, not CPU. A 60-question run at 8
     # concurrent questions against bedrock-claude-opus-4-8 came back 66% HTTP
     # 429; Auto Ontology's retry turned that into empty SQL and a plausible-looking 13.3%
@@ -160,7 +161,7 @@ class AutoOntologySqlResourcesServerConfig(BaseResourcesServerConfig):
     sql_execution_timeout_s: float = 30.0
     postgres_dsn: Optional[str] = None
 
-    # Question-keyed prompt inputs, both optional and both off by default.
+    # Question-keyed extra prompts, both optional and both off by default.
     # Paths are relative to the repo root. These change what the agent is told,
     # so a run that sets them is NOT comparable to a schema-only control that
     # did not get the equivalent -- the delta then covers the exemplars and
@@ -182,7 +183,7 @@ class AutoOntologySqlVerifyRequest(BaseVerifyRequest):
     difficulty: Optional[str] = None
     task_id: Optional[str] = None
     evidence: str = ""
-    # The dataset's own question_id, which is what the prompt-input CSVs are
+    # The dataset's own question_id, which is what the extra-prompt CSVs are
     # keyed by. Int on BIRD/WWI but a string like "FDA0002" on FDABench, so it
     # is accepted as either and stringified at lookup.
     id: Optional[Union[int, str]] = None
@@ -219,7 +220,7 @@ class AutoOntologySqlVerifyResponse(BaseVerifyResponse):
     # How many exemplars and anchors this question's payload actually carried.
     # Recorded per rollout because a mistyped path or a stale question_id key
     # yields zero of them without failing, and the run would then be filed as
-    # "with prompt inputs" while having had none.
+    # "with extra prompts" while having had none.
     sql_examples_used: int = 0
     value_anchors_used: int = 0
     # Auto Ontology's own LLM usage for this question, as Gym captured it. None
@@ -300,7 +301,7 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
             )
 
         logger.info(
-            "Prompt inputs: sql_examples=%s (k=%d, min_score=%.2f, %d questions "
+            "Extra prompts: sql_examples=%s (k=%d, min_score=%.2f, %d questions "
             "keyed) value_anchors=%s (%d questions keyed)",
             self.config.sql_examples_csv or "off",
             self.config.sql_examples_k,
@@ -324,7 +325,7 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
             if not dsns:
                 raise RuntimeError(
                     f"no mysql:// entry in CONNECTION_STRINGS for dataset {dataset!r}; "
-                    "seed it with scripts/seed_beaverbench.py --import-mysql"
+                    "seed it with scripts/seed/seed_beaverbench.py --import-mysql"
                 )
             executor: Any = MySqlExecutor(dsns, timeout_s=timeout_s)
         elif spec.dialect == "postgres":
@@ -637,7 +638,7 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
             FailureCode.GOLD_EXECUTION_TIMEOUT,
             # Without this, an arm that errors on every task (a db_id the
             # connectors do not know, say) reports 0% with every health
-            # counter green, and compare_arms.py publishes it.
+            # counter green, and gym/compare.py publishes it.
             FailureCode.UNKNOWN_ERROR,
         ):
             n = sum(1 for r in rollouts if r.get("failure_reason") == code.value)

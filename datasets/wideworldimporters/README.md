@@ -16,14 +16,14 @@ seed artifacts are already generated under this folder.
 ## Seed the local Postgres
 
 ```bash
-uv run python scripts/seed_wwi.py --database-name wideworldimporters --drop
+uv run python scripts/seed/seed_wwi.py --database-name wideworldimporters --drop
 ```
 
 This creates the database (using `POSTGRES_*` from `.env`, with
 `POSTGRES_DATABASE` as the admin connection), then applies DDL from `ddl/` and
 loads CSVs from `data/` in this folder.
 
-Flags (see [scripts/seed_wwi.py](../../scripts/seed_wwi.py)):
+Flags (see [scripts/seed/seed_wwi.py](../../scripts/seed/seed_wwi.py)):
 
 - `--database-name <name>` — selects `datasets/<name>/` and names the target DB
   (default `wideworldimporters`).

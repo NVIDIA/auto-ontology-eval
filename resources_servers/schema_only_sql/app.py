@@ -53,6 +53,7 @@ from ontology_sql_eval.gym.exec_match import (
     timeout_for,
 )
 from ontology_sql_eval.gym.tasks import DATASETS
+from ontology_sql_eval.paths import DATASETS_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +86,7 @@ _UNUSABLE = {FailureCode.GOLD_EXECUTION_ERROR, FailureCode.GOLD_EXECUTION_TIMEOU
 
 class SchemaOnlySqlResourcesServerConfig(BaseResourcesServerConfig):
     name: str = "schema_only_sql"
-    datasets_dir: str = "datasets"
+    datasets_dir: str = str(DATASETS_DIR)
     max_concurrency: int = 32
     sql_execution_timeout_s: float = 30.0
     # Only needed for the Postgres-backed dataset; falls back to the env var the
@@ -160,7 +161,7 @@ class SchemaOnlySqlResourcesServer(SimpleResourcesServer):
             if not dsns:
                 raise RuntimeError(
                     f"no mysql:// entry in CONNECTION_STRINGS for dataset {dataset!r}; "
-                    "seed it with scripts/seed_beaverbench.py --import-mysql"
+                    "seed it with scripts/seed/seed_beaverbench.py --import-mysql"
                 )
             executor: Any = MySqlExecutor(dsns, timeout_s=timeout_s)
         elif spec.dialect == "postgres":
@@ -338,7 +339,7 @@ class SchemaOnlySqlResourcesServer(SimpleResourcesServer):
             FailureCode.GOLD_EXECUTION_TIMEOUT,
             # Without this, an arm that errors on every task (a db_id the
             # connectors do not know, say) reports 0% with every health
-            # counter green, and compare_arms.py publishes it.
+            # counter green, and gym/compare.py publishes it.
             FailureCode.UNKNOWN_ERROR,
         ):
             n = sum(1 for r in rollouts if r.get("failure_reason") == code.value)

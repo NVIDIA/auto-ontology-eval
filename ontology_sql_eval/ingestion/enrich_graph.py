@@ -44,12 +44,12 @@ Custom analyses (optional, ``custom_analyses.json``)::
     ]
 
 Both files above describe the *downloaded* dataset. Our own analyses and our
-corrections to its annotations live in ``annotations/<dataset>/`` instead, since
+corrections to its annotations live in ``inputs/annotations/<dataset>/`` instead, since
 ``datasets/bird/`` is downloaded and replaced wholesale and cannot hold anything
 that has to survive::
 
-    annotations/<dataset>/custom_analyses/<database_name>.json
-    annotations/<dataset>/semantic_descriptions.csv   # one export, every database
+    inputs/annotations/<dataset>/custom_analyses/<database_name>.json
+    inputs/annotations/<dataset>/semantic_descriptions.csv   # one export, every database
 
 Nothing has to be configured to use them: both are found by that layout and take
 precedence over the dataset's own copies. Each is picked up by the stage that can
@@ -81,14 +81,17 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from ontology_sql_eval.paths import ANNOTATIONS_DIR as ANNOTATIONS_SUBDIR
+from ontology_sql_eval.paths import DATASETS_DIR, REPO_ROOT
+
 if TYPE_CHECKING:
     from auto_ontology.utils.embedding import EmbedParams
     from auto_ontology.vdb.postgres import PostgresVDB
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_DIR = Path(__file__).resolve().parents[2] / "datasets"
-ANNOTATIONS_DIR = Path(__file__).resolve().parents[2] / "annotations"
+DEFAULT_DIR = REPO_ROOT / DATASETS_DIR
+ANNOTATIONS_DIR = REPO_ROOT / ANNOTATIONS_SUBDIR
 
 
 def _dataset_file_path(
@@ -144,7 +147,7 @@ def _annotations_file_path(
 ) -> Path | None:
     """Resolve one of *our own* annotation files, or ``None`` when we have none.
 
-    Ours live in ``annotations/<dataset>/`` rather than beside the database, because
+    Ours live in ``inputs/annotations/<dataset>/`` rather than beside the database, because
     ``datasets/bird/`` is downloaded, gitignored and replaced wholesale, so nothing
     put inside it survives. When the caller does not name a benchmark — an ingest
     run without ``--benchmark-name`` — every annotations folder is searched, so
@@ -166,7 +169,7 @@ def custom_analyses_json_path(
 ) -> Path | None:
     """Resolve *database_name*'s custom analyses, or ``None`` when it has none.
 
-    Ours win: ``annotations/<dataset>/custom_analyses/<database_name>.json``, one
+    Ours win: ``inputs/annotations/<dataset>/custom_analyses/<database_name>.json``, one
     spec per database (see :func:`_annotations_file_path` for why they sit there).
     Without one, the database's own ``custom_analyses.json`` is used (see
     :func:`_dataset_file_path`), which is what a hand-maintained dataset has.
@@ -260,7 +263,7 @@ def add_custom_analyses(
 ) -> None:
     """Ingest custom analyses for *database_name* into Postgres and the VDB.
 
-    Reads the database's analyses — ours from ``annotations/<dataset>/`` when
+    Reads the database's analyses — ours from ``inputs/annotations/<dataset>/`` when
     present, otherwise its own ``custom_analyses.json``; see
     :func:`custom_analyses_json_path`. For each
     ``{"name", "description", "sql"}`` entry it creates a ``CustomAnalysis``
@@ -405,7 +408,7 @@ def saved_descriptions_csv_path(
     Three sources, in order:
 
     1. *explicit*, for a caller that names the file itself;
-    2. ``annotations/<dataset>/semantic_descriptions.csv``. This is the one that
+    2. ``inputs/annotations/<dataset>/semantic_descriptions.csv``. This is the one that
        matters in practice: the corrections have to outlive ``datasets/bird/``,
        which is downloaded, ignored by git and replaced wholesale, so they are kept
        outside it — one export covering every database;
@@ -504,7 +507,7 @@ def apply_saved_descriptions(
     resolved = saved_descriptions_csv_path(database_name, benchmark_name, csv_path)
     if resolved is None:
         logger.info(
-            "No saved description set for %s (none under annotations/, none "
+            "No saved description set for %s (none under inputs/annotations/, none "
             "beside its metadata.json) — leaving descriptions as ingested.",
             database_name,
         )

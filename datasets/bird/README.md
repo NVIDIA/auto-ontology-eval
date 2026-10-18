@@ -12,7 +12,7 @@
 > licensing is appropriate for your intended use.
 
 [BIRD](https://bird-bench.github.io/) is a large-scale cross-domain Text-to-SQL
-benchmark. [scripts/seed_bird.py](../../scripts/seed_bird.py) installs the full
+benchmark. [scripts/seed/seed_bird.py](../../scripts/seed/seed_bird.py) installs the full
 official **Dev** split by default (1,534 questions over 11 SQLite databases) and
 its Train question corpus, or can install the cheaper **Mini-Dev** subset alone.
 Unlike WideWorldImporters, BIRD's source DBs are SQLite files (no
@@ -22,15 +22,15 @@ matching connector at eval time.
 > **Nothing you want to keep belongs in this folder.** Everything under
 > `datasets/bird/` except this README and `.gitkeep` is gitignored and replaced
 > wholesale by the next download. Our own column descriptions and custom
-> analyses therefore live outside it, in `annotations/bird/`, and are picked up
+> analyses therefore live outside it, in `inputs/annotations/bird/`, and are picked up
 > from there automatically — see
 > [Publishing our descriptions and analyses](../../ontology_sql_eval/ingestion/README.md#publishing-our-descriptions-and-analyses).
 
 ## Download
 
 ```bash
-uv run python scripts/seed_bird.py                     # Dev (default): 1,534 Qs, 11 DBs
-uv run python scripts/seed_bird.py --splits mini-dev    # 500-Q subset of the same 11 DBs
+uv run python scripts/seed/seed_bird.py                     # Dev (default): 1,534 Qs, 11 DBs
+uv run python scripts/seed/seed_bird.py --splits mini-dev    # 500-Q subset of the same 11 DBs
 ```
 
 | Split      | Questions | Databases installed | Role                                                                                       |
@@ -69,11 +69,11 @@ datasets/bird/
   train/train.json                         # Train corpus, included with Dev
   subsets/<name>.json                      # optional hand-picked question slices (see below)
 
-annotations/bird/                          # tracked, outside the download
+inputs/annotations/bird/                          # tracked, outside the download
   custom_analyses/<db_id>.json             # our analyses, one file per db_id
   semantic_descriptions.csv                # our column descriptions, all 11 databases
 
-prompt_inputs/bird/                         # precomputed inputs supplied during eval
+inputs/extra_prompts/bird/                         # precomputed inputs supplied during eval
   predicted_structural_exemplars.csv        # question-keyed Train SQL examples
   value_anchors.csv                         # question-keyed verified value anchors
 ```
@@ -112,7 +112,7 @@ the schema-only control and the ontology-grounded arm, scored with BIRD's
 execution-match rule, with rollouts in `runs/control/` and `runs/treatment/` and
 the delta printed at the end. Stages can be skipped with `--skip-ingest`,
 `--skip-semantic` and `--skip-eval`. The semantic stage automatically replaces
-BIRD's shipped descriptions with the tracked set under `annotations/bird/` when
+BIRD's shipped descriptions with the tracked set under `inputs/annotations/bird/` when
 it is present.
 
 ### Manual (per-stage) equivalent
@@ -125,15 +125,15 @@ uv run python -m ontology_sql_eval.ingestion.semantic --benchmark-name bird
 # 2. Run the benchmark on the ingested DBs (first 10 questions, 3 at a time).
 uv run python main.py --database-name bird \
   --skip-ingest --skip-semantic --limit 10 --eval-workers 3 \
-  --sql-examples-csv prompt_inputs/bird/predicted_structural_exemplars.csv \
+  --sql-examples-csv inputs/extra_prompts/bird/predicted_structural_exemplars.csv \
   --sql-examples-k 5 \
-  --value-anchors-csv prompt_inputs/bird/value_anchors.csv
+  --value-anchors-csv inputs/extra_prompts/bird/value_anchors.csv
 ```
 
 Both ingestion commands walk every entry in `CONNECTION_STRINGS`, so all 11
 databases are handled in one invocation each.
 
-The prompt inputs shown above are optional and go to the ontology arm only:
+The extra prompts shown above are optional and go to the ontology arm only:
 
 - `--sql-examples-csv` loads question-keyed structural examples generated from
   the BIRD Train corpus; `--sql-examples-k 5` supplies at most five to the agent.

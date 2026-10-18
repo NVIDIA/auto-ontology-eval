@@ -39,9 +39,7 @@ else from PyPI; versions are pinned in
 
 For ingestion and the benchmark you also need a live **Postgres** service
 (it holds both Auto Ontology's catalog and the pgvector collections), plus a
-reachable source DB. Auto Ontology's catalog schema must be migrated first:
-follow the deployment and migration instructions in the
-[Auto Ontology repository](https://github.com/NVIDIA/auto-ontology).
+reachable source DB.
 
 ## Setup
 
@@ -147,26 +145,26 @@ For concrete, copy-pasteable walkthroughs, see the per-dataset READMEs:
 [BEAVER](datasets/beaverbench/README.md). See the per-workflow READMEs under
 [Workflows](#workflows) for the details of each stage.
 
-## Prompt inputs: SQL examples and value anchors
+## Extra prompts: SQL examples and value anchors
 
 Two optional CSVs can be injected into the ontology arm's SQL-generation
 prompt. Both are keyed by `question_id` and both are built from BIRD Dev:
 
 | File                                                    | `main.py` flag        | What it carries                                                                                                |
 | ------------------------------------------------------- | --------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `prompt_inputs/bird/predicted_structural_exemplars.csv` | `--sql-examples-csv`  | Train questions whose SQL has the same shape as the one this question needs, ranked — few-shot exemplars.      |
-| `prompt_inputs/bird/value_anchors.csv`                  | `--value-anchors-csv` | Which column stores a phrase from the question, and its exact stored spelling — so filters match real values. |
+| `inputs/extra_prompts/bird/predicted_structural_exemplars.csv` | `--sql-examples-csv`  | Train questions whose SQL has the same shape as the one this question needs, ranked — few-shot exemplars.      |
+| `inputs/extra_prompts/bird/value_anchors.csv`                  | `--value-anchors-csv` | Which column stores a phrase from the question, and its exact stored spelling — so filters match real values. |
 
 Generated copies of both are committed, so a run can reuse them without
-regenerating. To rebuild them, [`scripts/build_eval_inputs.py`](scripts/build_eval_inputs.py)
+regenerating. To rebuild them, [`scripts/extra_prompts/build_eval_inputs.py`](scripts/extra_prompts/build_eval_inputs.py)
 runs every step in order and writes both files:
 
 ```bash
-uv run python scripts/build_eval_inputs.py
+uv run python scripts/extra_prompts/build_eval_inputs.py
 ```
 
 It needs the BIRD **Dev** split *and* its Train corpus on disk
-(`uv run python scripts/seed_bird.py --splits dev`, see
+(`uv run python scripts/seed/seed_bird.py --splits dev`, see
 [datasets/bird/README.md](datasets/bird/README.md)) plus the `REASONING_*`
 credentials from [Configuration](#configuration) — the exemplar step asks the
 model to predict a query for every Dev question, so it is the slow and the only
@@ -187,7 +185,7 @@ without saying so.
 | `--workers N`        | `8`                    | Concurrent model requests in the exemplar step.                |
 | `--limit N`          | all                    | First N Dev questions, for a smoke test.                       |
 | `--dry-run`          | off                    | Print the commands that would run, and run none of them.       |
-| `--anchors-out`, `--exemplars-out` | `prompt_inputs/bird/` | Write somewhere else.                              |
+| `--anchors-out`, `--exemplars-out` | `inputs/extra_prompts/bird/` | Write somewhere else.                              |
 
 The exemplar step caches model responses next to its CSV. A rebuild archives
 any existing cache under a timestamped name first, so the answers are always
@@ -198,9 +196,9 @@ either can be omitted):
 
 ```bash
 uv run python main.py --database-name bird --skip-ingest --skip-semantic \
-    --sql-examples-csv prompt_inputs/bird/predicted_structural_exemplars.csv \
+    --sql-examples-csv inputs/extra_prompts/bird/predicted_structural_exemplars.csv \
     --sql-examples-k 5 \
-    --value-anchors-csv prompt_inputs/bird/value_anchors.csv
+    --value-anchors-csv inputs/extra_prompts/bird/value_anchors.csv
 ```
 
 Neither is passed by default, so a run without them has no exemplars and no
@@ -255,7 +253,7 @@ for how to seed the database and run the full pipeline.
 
 Runs against Lite (~300 tasks / 18 DBs) and Full (600 tasks / 22 DBs)
 BIRD-Interact, c-Interact mode only, query-category tasks only. See
-**[BIRD_INTERACT_README.md](BIRD_INTERACT_README.md)** for seeding, GT,
+**[scripts/bird_interact/README.md](scripts/bird_interact/README.md)** for seeding, GT,
 running, and results.
 
 The schemas below (`evaluation.json`, `metadata.json`, `custom_analyses.json`)
@@ -350,15 +348,15 @@ uv run python main.py --database-name bird --skip-ingest --skip-semantic \
 ```
 
 Add `--sql-examples-csv` / `--value-anchors-csv` to give the ontology arm the
-question-keyed prompt inputs — the full form, which is what the reported BIRD
+question-keyed extra prompts — the full form, which is what the reported BIRD
 delta was measured with:
 
 ```bash
 uv run python main.py --database-name bird --skip-ingest --skip-semantic \
   --eval-workers 10 --run-dir runs/full_$(date +%Y%m%d-%H%M%S) \
-  --sql-examples-csv prompt_inputs/bird/predicted_structural_exemplars.csv \
+  --sql-examples-csv inputs/extra_prompts/bird/predicted_structural_exemplars.csv \
   --sql-examples-k 5 \
-  --value-anchors-csv prompt_inputs/bird/value_anchors.csv
+  --value-anchors-csv inputs/extra_prompts/bird/value_anchors.csv
 ```
 
 The control arm cannot be given an equivalent, so a delta measured this way
@@ -378,7 +376,7 @@ scripts/run_gym_arm.sh schema_only_sql   runs/control/bird.jsonl
 scripts/run_gym_arm.sh auto_ontology_sql runs/treatment/bird.jsonl --max-output-tokens 16
 
 # 3. compare
-uv run python scripts/compare_arms.py \
+uv run python -m ontology_sql_eval.gym.compare \
   --control runs/control/bird.jsonl --treatment runs/treatment/bird.jsonl
 ```
 
@@ -414,53 +412,62 @@ endpoint.
 > [!WARNING]
 > Read the `health/*` counters next to the accuracy. A rate-limited or otherwise
 > broken run scores near zero and is indistinguishable from a weak model;
-> `compare_arms.py` refuses to print a headline number when more than 5% of tasks
+> `ontology_sql_eval/gym/compare.py` refuses to print a headline number when more than 5% of tasks
 > failed that way.
 
 > [!NOTE]
 > BIRD databases live under `datasets/bird/dev/<db_id>/`. A seed made before that
 > layout change reports `gold_execution_error` on every task — re-seed with
-> `scripts/seed_bird.py`, or move the per-database directories under `dev/`.
+> `scripts/seed/seed_bird.py`, or move the per-database directories under `dev/`.
 
 ## Layout
 
 ```
+main.py                     end-to-end pipeline entry point (ingest -> benchmark)
 ontology_sql_eval/          single namespace package
-  judge/
-    beaver.py               ported BEAVER ex_acc rule (reference for the Gym rule's tests)
   ingestion/                Auto Ontology-backed ingestion pipeline
     README.md               ingestion workflow guide
     ingest.py               source DB -> pgvector ingest (calls enrich_graph)
     semantic.py             compile the semantic layer over the ingested graph
     enrich_graph.py         graph metadata + custom-analysis enrichment
-  gym/                      Gym task building + execution-match scoring shared by both arms
-  bird_interact/            BIRD-Interact harness (see BIRD_INTERACT_README.md)
+  gym/                      the benchmark logic shared by both arms and main.py
+    tasks.py                build Gym task files from datasets/<name>/evaluation.json
+    ddl.py                  schema dumps for the schema-only arm's prompt
+    exec_match.py           execution-match verifier (BIRD EX, BEAVER ex_acc)
+    model_routing.py        routes Auto Ontology's model calls through Gym's model servers
+    compare.py              health-gated delta report between the two arms
+  bird_interact/            BIRD-Interact adapter server (see scripts/bird_interact/README.md)
   env.py                    .env loading
-  prompt_inputs.py          loaders for the prompt-input CSVs
+  extra_prompts.py          loaders for the extra-prompt CSVs
 resources_servers/          the two Gym arms: schema_only_sql (control), auto_ontology_sql
-main.py                     end-to-end pipeline entry point (ingest -> benchmark)
 scripts/
-  build_gym_tasks.py        build one arm's Gym task file from datasets/<name>/evaluation.json
+  build_gym_tasks.py        build one arm's Gym task file
   run_gym_arm.sh            run one arm through NeMo Gym
-  compare_arms.py           health-gated delta report between the two arms
-  build_eval_inputs.py      build both prompt-input CSVs (anchors + exemplars) in one run
-  value_index.py            value -> column index over the BIRD Dev DBs; writes value_anchors.csv
-  llm_structural_exemplars.py  LLM-predicted SQL matched against train; writes the exemplars CSV
-  seed_wwi.py               seed a local Postgres from datasets/<db>/{ddl,data}
-  seed_bird.py              download BIRD eval data and the Dev Train corpus
-  seed_fdabench.py          download FDABench-Lite tasks + SQLite DBs into datasets/fdabench/
-  seed_beaverbench.py       download BEAVER questions + MySQL dumps into datasets/beaverbench/
+  migrate_catalog.py        migrate the catalog DB to the installed Auto Ontology's schema
+  seed/                     stand up a dataset's source DBs under datasets/
+    seed_bird.py            BIRD eval data and the Dev Train corpus
+    seed_fdabench.py        FDABench-Lite tasks + SQLite DBs
+    seed_beaverbench.py     BEAVER questions + MySQL dumps
+    seed_wwi.py             a local Postgres from datasets/<db>/{ddl,data}
+  extra_prompts/            build the CSVs under inputs/extra_prompts/
+    build_eval_inputs.py    both CSVs (anchors + exemplars) in one run
+    value_index.py          value -> column index over the BIRD Dev DBs; value anchors
+    llm_structural_exemplars.py  LLM-predicted SQL matched against train; exemplars
+  bird_interact/            BIRD-Interact: README, seeding, runners, analysis, ADK patches
 datasets/
   <database_name>/          evaluation.json, metadata.json, custom_analyses.json
     ddl/                    seed DDL (schemas, sequences, tables, indexes, fkeys, views)
     data/                   seed CSV data (COPYed into the tables)
-  bird/                     README.md, evaluation.json, <db_id>/<db_id>.sqlite (11 DBs)
+  bird/                     README.md, evaluation.json, dev/<db_id>/<db_id>.sqlite (11 DBs)
   fdabench/                 README.md, evaluation.json, <db_id>/<db_id>.sqlite (15 DBs)
   beaverbench/              README.md, evaluation.json, dumps/*.sql, <db_id>/metadata.json
   wideworldimporters/       README.md, evaluation.json, custom_analyses.json, ddl/, data/
-prompt_inputs/<dataset>/    tracked eval prompt inputs (sql examples + value anchors)
+inputs/                     tracked inputs we add on top of the datasets
+  annotations/<dataset>/    descriptions + custom analyses applied at ingest
+  extra_prompts/<dataset>/  eval extra prompts (sql examples + value anchors)
+tests/                      pytest suite, one folder per area (gym/, ingestion/, bird_interact/, scripts/)
 runs/{control,treatment}/   benchmark rollouts + Gym metrics (gitignored)
-output/                     scratch output of the prompt-input scripts (contents gitignored)
+output/                     scratch output of the extra-prompt scripts (gitignored)
 ```
 
 ## Development
@@ -491,7 +498,7 @@ documented in
   ([microsoft/sql-server-samples](https://github.com/microsoft/sql-server-samples),
   Copyright (c) Microsoft Corporation). Its upstream notice is reproduced in
   [datasets/wideworldimporters/LICENSE](datasets/wideworldimporters/LICENSE).
-- [`ontology_sql_eval/judge/beaver.py`](ontology_sql_eval/judge/beaver.py) —
+- [`tests/gym/beaver_reference.py`](tests/gym/beaver_reference.py) —
   ports BEAVER's official execution-accuracy rule
   ([beaverbench/beaver](https://github.com/beaverbench/beaver),
   Copyright (c) 2024 MIT Data Systems Group).

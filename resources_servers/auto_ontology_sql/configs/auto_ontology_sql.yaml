@@ -13,15 +13,15 @@ auto_ontology_sql_resources_server:
       # Sized against the model endpoint's rate limit, not CPU. See app.py.
       max_concurrency: 3
       sql_execution_timeout_s: 30.0
-      # Question-keyed prompt inputs, off by default. Both change what the
+      # Question-keyed extra prompts, off by default. Both change what the
       # agent is told, so switching them on makes this arm no longer comparable
       # to a schema-only control that did not receive the equivalent -- the
       # delta then measures the exemplars and anchors too, not the ontology
       # alone. Enable per run with a Hydra override rather than here, so the
       # committed default stays the comparable one.
-      # sql_examples_csv: prompt_inputs/bird/predicted_structural_exemplars.csv
+      # sql_examples_csv: inputs/extra_prompts/bird/predicted_structural_exemplars.csv
       # sql_examples_k: 5
-      # value_anchors_csv: prompt_inputs/bird/value_anchors.csv
+      # value_anchors_csv: inputs/extra_prompts/bird/value_anchors.csv
       domain: coding
       verified: false
       description: >-

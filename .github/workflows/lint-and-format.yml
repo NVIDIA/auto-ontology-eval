@@ -10,8 +10,9 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - 'ontology_sql_eval/**'
-      - 'main.py'
+      - '**.py'
+      - 'pyproject.toml'
+      - '.github/workflows/lint-and-format.yml'
 
 jobs:
   lint_and_format:
@@ -29,11 +30,11 @@ jobs:
         with:
           version: '0.15.9'
           args: check
-          src: './ontology_sql_eval'
+          src: '.'
 
       - name: Ruff format check
         uses: astral-sh/ruff-action@v3
         with:
           version: '0.15.9'
           args: format --check
-          src: './ontology_sql_eval'
+          src: '.'

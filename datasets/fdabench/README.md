@@ -27,7 +27,7 @@ redistributed).
 ## Download
 
 ```bash
-uv run python scripts/seed_fdabench.py
+uv run python scripts/seed/seed_fdabench.py
 ```
 
 This fetches the HuggingFace Lite JSONLs and the required SQLite archives, then
@@ -62,7 +62,7 @@ other sources provided; at the end it reports any missing databases and how
 many questions they strand. Re-run later, or supply a local copy:
 
 ```bash
-uv run python scripts/seed_fdabench.py \
+uv run python scripts/seed/seed_fdabench.py \
   --bird-root /path/to/BIRD_train/train_databases \
   --spider2-root /path/to/spider2-localdb \
   --spider1-root /path/to/spider_data/database
@@ -71,7 +71,7 @@ uv run python scripts/seed_fdabench.py \
 Other useful flags: `--tasks-only` (write `evaluation.json` only), `--force`
 (re-download and reinstall), `--keep-archive` (keep zips under `.cache/`),
 `--no-write-env`, `--dest`.
-See [scripts/seed_fdabench.py](../../scripts/seed_fdabench.py).
+See [scripts/seed/seed_fdabench.py](../../scripts/seed/seed_fdabench.py).
 
 ## Configure
 

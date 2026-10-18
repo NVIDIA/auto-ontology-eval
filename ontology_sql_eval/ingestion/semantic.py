@@ -15,7 +15,7 @@ to compile every database in ``CONNECTION_STRINGS`` (same source as ingest)::
     uv run python -m ontology_sql_eval.ingestion.semantic                            # all CONNECTION_STRINGS
     uv run python -m ontology_sql_eval.ingestion.semantic --database-name <name>     # a single database
 
-When ``annotations/<dataset>/semantic_descriptions.csv`` exists, each database
+When ``inputs/annotations/<dataset>/semantic_descriptions.csv`` exists, each database
 is automatically finished with its saved column and attribute descriptions.
 See :mod:`ontology_sql_eval.ingestion.enrich_graph`.
 """
@@ -100,7 +100,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         dest="benchmark_name",
         default=None,
         help="e.g. bird — same value as ingest. Used to locate saved artifacts "
-        "under annotations/<benchmark>/ and beside the database. "
+        "under inputs/annotations/<benchmark>/ and beside the database. "
         "--dataset-name is a compatibility alias.",
     )
     return parser.parse_args(argv)

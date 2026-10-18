@@ -4,7 +4,9 @@
 
 """End-to-end pipeline entry point.
 
-Runs the full evaluation pipeline for a dataset, in order:
+Runs the full evaluation pipeline for a dataset, in order, after first
+migrating the Auto Ontology catalog if it is behind the installed Auto Ontology
+(``--skip-migrate`` turns that off):
 
 1. Ingest      source DB schema -> Postgres + pgvector (``CONNECTION_STRINGS``)
 2. Semantic    compile the semantic layer (``ingestion.semantic``)
@@ -28,14 +30,15 @@ restricted with ``--start-index`` / ``--end-index`` / ``--limit``::
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import os
 import subprocess
-import sys
 from pathlib import Path
 
 logger = logging.getLogger("pipeline")
+
+# Where each arm's rollouts go: runs/control/ and runs/treatment/.
+RUN_LABEL = {"schema_only": "control", "auto_ontology": "treatment"}
 
 
 def _banner(step: int, title: str) -> None:
@@ -171,19 +174,29 @@ def stage_benchmark(
     so a delta measured with them set covers those inputs **as well as** the
     ontology grounding -- which is why they are off unless asked for.
     """
+    from ontology_sql_eval.gym.compare import compare
+    from ontology_sql_eval.gym.tasks import (
+        DATASETS,
+        SERVER_FOR_ARM,
+        build_records,
+        task_file,
+        write_jsonl,
+    )
+
     _banner(3, "NeMo Gym benchmark (schema-only control vs ontology)")
     root = Path(__file__).resolve().parent
+    if database_name not in DATASETS:
+        known = ", ".join(sorted(DATASETS))
+        raise SystemExit(f"No benchmark dataset {database_name!r}; known: {known}")
 
-    for arm, server in (
-        ("schema_only", "schema_only_sql"),
-        ("auto_ontology", "auto_ontology_sql"),
-    ):
+    for arm in SERVER_FOR_ARM:
+        built = task_file(root, arm)
         # Gym's collate step writes <dataset>_metrics.json and
         # <dataset>_prepare.jsonl beside the task file and refuses to run when a
         # stale one disagrees with freshly built tasks ("Found conflicting
         # aggregate metrics"). Rebuilding the tasks without clearing these fails
         # the *next* run, not this one, which is a confusing place to land.
-        data_dir = root / "resources_servers" / server / "data"
+        data_dir = built.parent
         # Named after the task file (tasks.jsonl), not the dataset -- Gym derives
         # these from the jsonl it collates.
         for stale in (
@@ -194,41 +207,28 @@ def stage_benchmark(
             if stale.exists():
                 logger.info("Removing stale %s", stale.relative_to(root))
                 stale.unlink()
-        cmd = [
-            sys.executable,
-            "scripts/build_gym_tasks.py",
-            "--dataset",
-            database_name,
-            "--arm",
-            arm,
-        ]
-        if limit is not None:
-            cmd += ["--limit", str(limit)]
-        if start_index:
-            cmd += ["--start-index", str(start_index)]
-        if end_index is not None:
-            cmd += ["--end-index", str(end_index)]
-        logger.info("Building %s tasks: %s", arm, " ".join(cmd))
-        subprocess.run(cmd, cwd=root, check=True)
-
-        # Guard against evaluating the wrong corpus. The server config points at
-        # a fixed tasks.jsonl, so a stale build would run silently under the
-        # requested dataset's name and produce plausible, wrong numbers.
-        built = data_dir / "tasks.jsonl"
-        with built.open() as fh:
-            first = json.loads(fh.readline())
-        if first.get("dataset") != database_name:
+        count = write_jsonl(
+            build_records(
+                DATASETS[database_name],
+                root,
+                arm,
+                limit=limit,
+                start_index=start_index,
+                end_index=end_index,
+            ),
+            built,
+        )
+        logger.info("Built %d %s tasks -> %s", count, arm, built.relative_to(root))
+        if not count:
             raise SystemExit(
-                f"{built} holds dataset {first.get('dataset')!r}, expected "
-                f"{database_name!r}. Rebuild with scripts/build_gym_tasks.py."
+                f"No {database_name!r} questions in the requested range "
+                "(--start-index / --end-index / --limit)."
             )
 
     outputs = {}
     base = Path(run_dir) if run_dir else Path("runs")
-    for server, label in (
-        ("schema_only_sql", "control"),
-        ("auto_ontology_sql", "treatment"),
-    ):
+    for arm, server in SERVER_FOR_ARM.items():
+        label = RUN_LABEL[arm]
         out = base / label / f"{database_name}.jsonl"
         outputs[label] = out
         env = {**os.environ, "GYM_CONCURRENCY": str(concurrency)}
@@ -248,18 +248,9 @@ def stage_benchmark(
         subprocess.run(cmd, cwd=root, check=True, env=env)
 
     logger.info("Comparing arms")
-    subprocess.run(
-        [
-            sys.executable,
-            "scripts/compare_arms.py",
-            "--control",
-            str(outputs["control"]),
-            "--treatment",
-            str(outputs["treatment"]),
-        ],
-        cwd=root,
-        check=True,
-    )
+    status = compare(root / outputs["control"], root / outputs["treatment"])
+    if status:
+        raise SystemExit(status)
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -278,6 +269,14 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--skip-ingest", action="store_true", help="Skip the ingest stage."
+    )
+    parser.add_argument(
+        "--skip-migrate",
+        action="store_true",
+        help=(
+            "Don't migrate the Auto Ontology catalog to the installed Auto Ontology's "
+            "schema first. Use when POSTGRES_DATABASE is shared with another deployment."
+        ),
     )
     parser.add_argument(
         "--skip-semantic", action="store_true", help="Skip the semantic-compile stage."
@@ -323,26 +322,26 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "Use it to keep a long run's output, which runs/ overwrites."
         ),
     )
-    prompt_inputs = parser.add_argument_group(
-        "prompt inputs (ontology arm only)",
+    extra_prompts = parser.add_argument_group(
+        "extra prompts (ontology arm only)",
         "Question-keyed inputs attached to the ontology arm's payload. The "
         "control arm cannot be given an equivalent, so a delta measured with "
         "these set covers the inputs as well as the ontology grounding -- say "
         "so when reporting it.",
     )
-    prompt_inputs.add_argument(
+    extra_prompts.add_argument(
         "--sql-examples-csv",
         default=None,
         help="CSV of question-keyed SQL exemplars, e.g. "
-        "prompt_inputs/bird/predicted_structural_exemplars.csv",
+        "inputs/extra_prompts/bird/predicted_structural_exemplars.csv",
     )
-    prompt_inputs.add_argument(
+    extra_prompts.add_argument(
         "--sql-examples-k",
         type=int,
         default=5,
         help="Exemplars per question (default: 5). Ignored without --sql-examples-csv.",
     )
-    prompt_inputs.add_argument(
+    extra_prompts.add_argument(
         "--sql-examples-min-score",
         type=float,
         default=None,
@@ -351,11 +350,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "this. Ignored without --sql-examples-csv."
         ),
     )
-    prompt_inputs.add_argument(
+    extra_prompts.add_argument(
         "--value-anchors-csv",
         default=None,
         help="CSV of question-keyed value anchors, e.g. "
-        "prompt_inputs/bird/value_anchors.csv",
+        "inputs/extra_prompts/bird/value_anchors.csv",
     )
     return parser.parse_args(argv)
 
@@ -371,6 +370,11 @@ def main(argv: list[str] | None = None) -> None:
     from ontology_sql_eval.env import load_env
 
     load_env()
+
+    if not args.skip_migrate:
+        from ontology_sql_eval.catalog_migrations import ensure_current
+
+        ensure_current()
 
     if not args.skip_ingest:
         stage_ingest(database_name)
