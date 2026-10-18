@@ -53,6 +53,7 @@ from ontology_sql_eval.gym.exec_match import (
     timeout_for,
 )
 from ontology_sql_eval.gym.tasks import DATASETS
+from ontology_sql_eval.paths import DATASETS_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +86,7 @@ _UNUSABLE = {FailureCode.GOLD_EXECUTION_ERROR, FailureCode.GOLD_EXECUTION_TIMEOU
 
 class SchemaOnlySqlResourcesServerConfig(BaseResourcesServerConfig):
     name: str = "schema_only_sql"
-    datasets_dir: str = "data/datasets"
+    datasets_dir: str = str(DATASETS_DIR)
     max_concurrency: int = 32
     sql_execution_timeout_s: float = 30.0
     # Only needed for the Postgres-backed dataset; falls back to the env var the

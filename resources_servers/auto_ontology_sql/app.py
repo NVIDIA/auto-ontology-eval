@@ -90,6 +90,7 @@ from ontology_sql_eval.gym.exec_match import (  # noqa: E402
     timeout_for,
 )
 from ontology_sql_eval.gym.tasks import DATASETS  # noqa: E402
+from ontology_sql_eval.paths import DATASETS_DIR  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -151,7 +152,7 @@ _SUPPORTS_VALUE_ANCHORS = "value_anchors" in getattr(
 
 class AutoOntologySqlResourcesServerConfig(BaseResourcesServerConfig):
     name: str = "auto_ontology_sql"
-    datasets_dir: str = "data/datasets"
+    datasets_dir: str = str(DATASETS_DIR)
     # Sized against the *model endpoint's* rate limit, not CPU. A 60-question run at 8
     # concurrent questions against bedrock-claude-opus-4-8 came back 66% HTTP
     # 429; Auto Ontology's retry turned that into empty SQL and a plausible-looking 13.3%

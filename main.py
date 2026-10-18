@@ -35,6 +35,9 @@ from pathlib import Path
 
 logger = logging.getLogger("pipeline")
 
+# Where each arm's rollouts go: runs/control/ and runs/treatment/.
+RUN_LABEL = {"schema_only": "control", "auto_ontology": "treatment"}
+
 
 def _banner(step: int, title: str) -> None:
     sep = "=" * 70
@@ -185,7 +188,7 @@ def stage_benchmark(
         raise SystemExit(f"No benchmark dataset {database_name!r}; known: {known}")
 
     for arm in SERVER_FOR_ARM:
-        built = task_file(root, arm)  # type: ignore[arg-type]
+        built = task_file(root, arm)
         # Gym's collate step writes <dataset>_metrics.json and
         # <dataset>_prepare.jsonl beside the task file and refuses to run when a
         # stale one disagrees with freshly built tasks ("Found conflicting
@@ -206,7 +209,7 @@ def stage_benchmark(
             build_records(
                 DATASETS[database_name],
                 root,
-                arm,  # type: ignore[arg-type]
+                arm,
                 limit=limit,
                 start_index=start_index,
                 end_index=end_index,
@@ -222,10 +225,8 @@ def stage_benchmark(
 
     outputs = {}
     base = Path(run_dir) if run_dir else Path("runs")
-    for server, label in (
-        ("schema_only_sql", "control"),
-        ("auto_ontology_sql", "treatment"),
-    ):
+    for arm, server in SERVER_FOR_ARM.items():
+        label = RUN_LABEL[arm]
         out = base / label / f"{database_name}.jsonl"
         outputs[label] = out
         env = {**os.environ, "GYM_CONCURRENCY": str(concurrency)}

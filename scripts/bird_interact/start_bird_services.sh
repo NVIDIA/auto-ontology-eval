@@ -25,8 +25,12 @@ fi
 # applied and isn't already applied — services must never start unpatched,
 # since ontology_sql_eval/bird_interact/known_issues.py relies on that as an
 # invariant rather than working around it at run time.
-for p in "$PATCH_DIR"/adk_*.patch; do
-    [ -f "$p" ] || continue
+patches=("$PATCH_DIR"/adk_*.patch)
+if [ ! -f "${patches[0]}" ]; then
+    echo "FATAL: no ADK patches found in $PATCH_DIR — refusing to start services unpatched." >&2
+    exit 1
+fi
+for p in "${patches[@]}"; do
     if git -C "$ADK_DIR" apply --check "$p" 2>/dev/null; then
         git -C "$ADK_DIR" apply "$p"
         echo "Applied ADK patch: $(basename "$p")"

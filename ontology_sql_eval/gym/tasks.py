@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterator, Literal
 
+from ontology_sql_eval.paths import DATASETS_DIR
 from ontology_sql_eval.gym.ddl import (
     column_description_block,
     mysql_schema_dump,
@@ -38,7 +39,7 @@ from ontology_sql_eval.gym.ddl import (
 Arm = Literal["schema_only", "auto_ontology"]
 
 # The Gym resources server that runs each arm.
-SERVER_FOR_ARM: dict[str, str] = {
+SERVER_FOR_ARM: dict[Arm, str] = {
     "schema_only": "schema_only_sql",
     "auto_ontology": "auto_ontology_sql",
 }
@@ -83,16 +84,16 @@ class DatasetSpec:
 
     @property
     def evaluation_json(self) -> Path:
-        return Path("data", "datasets") / self.name / "evaluation.json"
+        return DATASETS_DIR / self.name / "evaluation.json"
 
     def sqlite_path(self, db_id: str) -> Path:
-        return Path("data", "datasets") / self.db_root / db_id / f"{db_id}.sqlite"
+        return DATASETS_DIR / self.db_root / db_id / f"{db_id}.sqlite"
 
     def description_dir(self, db_id: str) -> Path:
-        return Path("data", "datasets") / self.db_root / db_id / "database_description"
+        return DATASETS_DIR / self.db_root / db_id / "database_description"
 
     def mysql_dump_path(self, db_id: str) -> Path:
-        return Path("data", "datasets") / self.db_root / "dumps" / f"{db_id}.sql"
+        return DATASETS_DIR / self.db_root / "dumps" / f"{db_id}.sql"
 
 
 DATASETS: dict[str, DatasetSpec] = {
@@ -123,7 +124,7 @@ def load_questions(spec: DatasetSpec, root: Path) -> list[dict[str, Any]]:
 def _schema_for(spec: DatasetSpec, root: Path, db_id: str, descriptions: bool) -> str:
     """Build the schema text for one database, cached by the caller."""
     if spec.dialect == "postgres":
-        return postgres_schema_dump(root / "data" / "datasets" / spec.db_root / "ddl")
+        return postgres_schema_dump(root / DATASETS_DIR / spec.db_root / "ddl")
 
     if spec.dialect == "mysql":
         return mysql_schema_dump(root / spec.mysql_dump_path(db_id))

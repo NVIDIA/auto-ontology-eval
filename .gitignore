@@ -34,6 +34,13 @@ venv/
 # OS / editor
 .DS_Store
 
+# The data directories' old locations, before they moved under data/. Seeded
+# downloads left there by an unmigrated checkout are gigabytes of third-party
+# data that must not be committed; see the README's migration note.
+/datasets/
+/annotations/
+/prompt_inputs/
+
 # Datasets kept local only (not tracked on remote) — keep the folders, ignore their contents
 /data/datasets/bird/*
 /data/datasets/bird_interact/*

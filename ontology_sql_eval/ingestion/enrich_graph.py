@@ -81,14 +81,17 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from ontology_sql_eval.paths import ANNOTATIONS_DIR as ANNOTATIONS_SUBDIR
+from ontology_sql_eval.paths import DATASETS_DIR, REPO_ROOT
+
 if TYPE_CHECKING:
     from auto_ontology.utils.embedding import EmbedParams
     from auto_ontology.vdb.postgres import PostgresVDB
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_DIR = Path(__file__).resolve().parents[2] / "data" / "datasets"
-ANNOTATIONS_DIR = Path(__file__).resolve().parents[2] / "data" / "annotations"
+DEFAULT_DIR = REPO_ROOT / DATASETS_DIR
+ANNOTATIONS_DIR = REPO_ROOT / ANNOTATIONS_SUBDIR
 
 
 def _dataset_file_path(

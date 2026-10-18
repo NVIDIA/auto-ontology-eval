@@ -101,7 +101,9 @@ model.
 > for d in datasets annotations prompt_inputs; do
 >   [ -d "$d" ] && rsync -a "$d/" "data/$d/" && rm -rf "$d"
 > done
-> sed -i.bak 's#/datasets/#/data/datasets/#g' .env   # then delete .env.bak
+> # Normalise first, so a path already under data/ is not moved twice.
+> sed -i.bak -e 's#/data/datasets/#/datasets/#g' -e 's#/datasets/#/data/datasets/#g' .env
+> rm .env.bak
 > ```
 
 Each bundled dataset's README documents how to stand up its source DB and set

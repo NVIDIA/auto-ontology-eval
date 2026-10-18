@@ -48,7 +48,7 @@ def main() -> None:
         build_records(
             spec,
             root,
-            args.arm,  # type: ignore[arg-type]
+            args.arm,
             descriptions=not args.no_descriptions,
             limit=args.limit,
             start_index=args.start_index,

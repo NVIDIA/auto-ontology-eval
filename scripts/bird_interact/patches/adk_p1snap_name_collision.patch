@@ -4,7 +4,8 @@ full evidence trail. Postgres truncates identifiers over 63 bytes; for long
 base_db/task_id combos this made the phase-1 task DB and its "__p1snap" phase-2
 snapshot resolve to the identical name, so createdb always failed and phase 2
 was silently graded against phase 1's solution instead of the follow-up's.
-Applied automatically by scripts/start_services.sh — safe to re-run.
+Applied automatically by scripts/bird_interact/start_bird_services.sh in
+auto-ontology-eval (not by ADK's own scripts/start_services.sh) — safe to re-run.
 
 --- a/shared/db_utils.py
 +++ b/shared/db_utils.py
