@@ -49,19 +49,20 @@ uv sync                # creates .venv and installs pinned Git dependencies
 cp .env.example .env   # then fill in your values
 ```
 
-Then migrate the catalog database (`POSTGRES_*` in `.env`) to the schema the
-installed Auto Ontology expects:
+`main.py` keeps the catalog database (`POSTGRES_*` in `.env`) on the schema
+the installed Auto Ontology expects: before any stage, it checks the database's
+migration revision and, if it's behind, downloads Auto Ontology's migrations for
+the exact commit in `.venv` and applies them (the installed package doesn't
+include them). To run that step on its own:
 
 ```bash
 uv run python scripts/migrate_catalog.py
 ```
 
-Auto Ontology's installed package doesn't include its migration scripts, so this
-downloads them for the exact commit in `.venv` and applies them. Run it again
-after every Auto Ontology pin bump; a catalog left behind fails with errors like
-`column catalog_table.owner_id does not exist`. Migrating changes the database
-for every application using it, so give this project its own
-`POSTGRES_DATABASE`.
+Migrating changes the database for every application using it, so give this
+project its own `POSTGRES_DATABASE`. If you can't, pass `--skip-migrate`;
+`main.py` also stops, rather than downgrading, when the database was migrated
+by a newer Auto Ontology.
 
 ## Configuration
 

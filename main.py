@@ -4,7 +4,9 @@
 
 """End-to-end pipeline entry point.
 
-Runs the full evaluation pipeline for a dataset, in order:
+Runs the full evaluation pipeline for a dataset, in order, after first
+migrating the Auto Ontology catalog if it is behind the installed Auto Ontology
+(``--skip-migrate`` turns that off):
 
 1. Ingest      source DB schema -> Postgres + pgvector (``CONNECTION_STRINGS``)
 2. Semantic    compile the semantic layer (``ingestion.semantic``)
@@ -269,6 +271,14 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--skip-ingest", action="store_true", help="Skip the ingest stage."
     )
     parser.add_argument(
+        "--skip-migrate",
+        action="store_true",
+        help=(
+            "Don't migrate the Auto Ontology catalog to the installed Auto Ontology's "
+            "schema first. Use when POSTGRES_DATABASE is shared with another deployment."
+        ),
+    )
+    parser.add_argument(
         "--skip-semantic", action="store_true", help="Skip the semantic-compile stage."
     )
     parser.add_argument(
@@ -360,6 +370,11 @@ def main(argv: list[str] | None = None) -> None:
     from ontology_sql_eval.env import load_env
 
     load_env()
+
+    if not args.skip_migrate:
+        from ontology_sql_eval.catalog_migrations import ensure_current
+
+        ensure_current()
 
     if not args.skip_ingest:
         stage_ingest(database_name)
