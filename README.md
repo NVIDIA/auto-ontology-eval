@@ -91,16 +91,6 @@ model.
 > **Required to run this project.** Ingestion and the benchmark need a reachable
 > source database.
 
-> [!NOTE]
-> **Upgrading a checkout from before `annotations/` and `prompt_inputs/` moved
-> to `inputs/annotations/` and `inputs/extra_prompts/`?** Git moves the tracked
-> files. Untracked LLM response caches stay behind; move them if you want
-> `build_eval_inputs.py` to find them:
->
-> ```bash
-> mv prompt_inputs/bird/*_cache*.jsonl inputs/extra_prompts/bird/ 2>/dev/null
-> ```
-
 Each bundled dataset's README documents how to stand up its source DB and set
 `CONNECTION_STRINGS` (see [Configuration](#configuration)):
 
