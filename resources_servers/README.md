@@ -166,8 +166,7 @@ another reason to prefer it over driving the arms by hand.
 ## Environment
 
 One venv holds both `nemo_gym` and Auto Ontology's dependencies, with no overrides
-needed between them: Auto Ontology pins `openai==2.44.0` to match nemo-gym, and
-nemo-retriever no longer caps `prometheus-fastapi-instrumentator` below 8.
+needed between them: Auto Ontology pins `openai==2.44.0` to match nemo-gym.
 
 Auto Ontology's runtime dependencies are not redeclared in `pyproject.toml` — they
 arrive through the `auto-ontology-server` Git dependency. Add a package there only
@@ -194,10 +193,6 @@ Four things about Gym's CLI that are easy to lose an hour to:
    i.e. the top-level config key — not the inner `simple_agent`, which is the server
    *type*. nemo-gym 0.6.0+ validates this eagerly; 0.4.0 did not validate it at all
    and silently ignored a wrong value, so runs could appear to work with a bad name.
-
-Gym builds each server its own venv from its `requirements.txt`. If that build fails
-with `Package metadata version ... does not match ... from the wheel filename`, it is
-a race in nemo-retriever's timestamp-derived version, not a real conflict — retry.
 
 ## How this relates to the repo's other scorers
 
