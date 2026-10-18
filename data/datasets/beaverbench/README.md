@@ -1,6 +1,6 @@
 # BEAVER (BeaverBench)
 
-[← Back to main README](../../README.md)
+[← Back to main README](../../../README.md)
 
 > **Disclaimer:** Running this code will automatically download data from
 > https://huggingface.co/datasets/beaverbench/beaver-query and
@@ -26,15 +26,15 @@ Splits: `dw`, `nova`, `neutron`, `dw_real` (`dw_real` questions run against the
 
 ```bash
 # Default: dw split, 100-question sample (seed 77), download dumps, import MySQL
-uv run python scripts/seed_beaverbench.py --import-mysql
+uv run python scripts/seed/seed_beaverbench.py --import-mysql
 ```
 
 This writes:
 
 ```
-datasets/beaverbench/evaluation.json
-datasets/beaverbench/<db_id>/metadata.json
-datasets/beaverbench/dumps/<db_id>.sql
+data/datasets/beaverbench/evaluation.json
+data/datasets/beaverbench/<db_id>/metadata.json
+data/datasets/beaverbench/dumps/<db_id>.sql
 ```
 
 and (with `--import-mysql`) starts a Docker MySQL container `beaver-mysql` on
@@ -74,8 +74,8 @@ POSTGRES_DATABASE=auto_ontology
 
 Models come from NVIDIA inference. The tested setup is a single `sk-` key with
 no model pinned, so every role uses its built-in default (see
-[Configuration](../../README.md#configuration) and
-[`.env.example`](../../.env.example)):
+[Configuration](../../../README.md#configuration) and
+[`.env.example`](../../../.env.example)):
 
 ```bash
 DEFAULT_MODELS_API_KEY=sk-...
@@ -93,7 +93,7 @@ uv run python main.py --database-name beaverbench
 ```
 
 That ingests every database in `CONNECTION_STRINGS`, compiles the semantic
-layer, then runs the NeMo Gym benchmark over `datasets/beaverbench/evaluation.json`:
+layer, then runs the NeMo Gym benchmark over `data/datasets/beaverbench/evaluation.json`:
 the schema-only control and the ontology-grounded arm, with rollouts in
 `runs/control/` and `runs/treatment/` and the delta printed at the end. Re-run
 without re-ingesting, and smoke-test on a few questions first:
@@ -112,7 +112,7 @@ timeout, and every query that yields no rows (an error, a timeout, a missing
 prediction, a failed gold query) counted as an empty result. Accuracy is
 reported both with and without empty-gold questions
 (`nonempty_gold/pass@1[...]`). See
-[`resources_servers/README.md`](../../resources_servers/README.md) for details.
+[`resources_servers/README.md`](../../../resources_servers/README.md) for details.
 
 No LLM judge is involved.
 

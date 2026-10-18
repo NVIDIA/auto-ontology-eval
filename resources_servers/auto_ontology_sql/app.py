@@ -151,7 +151,7 @@ _SUPPORTS_VALUE_ANCHORS = "value_anchors" in getattr(
 
 class AutoOntologySqlResourcesServerConfig(BaseResourcesServerConfig):
     name: str = "auto_ontology_sql"
-    datasets_dir: str = "datasets"
+    datasets_dir: str = "data/datasets"
     # Sized against the *model endpoint's* rate limit, not CPU. A 60-question run at 8
     # concurrent questions against bedrock-claude-opus-4-8 came back 66% HTTP
     # 429; Auto Ontology's retry turned that into empty SQL and a plausible-looking 13.3%
@@ -324,7 +324,7 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
             if not dsns:
                 raise RuntimeError(
                     f"no mysql:// entry in CONNECTION_STRINGS for dataset {dataset!r}; "
-                    "seed it with scripts/seed_beaverbench.py --import-mysql"
+                    "seed it with scripts/seed/seed_beaverbench.py --import-mysql"
                 )
             executor: Any = MySqlExecutor(dsns, timeout_s=timeout_s)
         elif spec.dialect == "postgres":

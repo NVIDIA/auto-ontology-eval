@@ -9,7 +9,7 @@ auto_ontology_sql_resources_server:
   resources_servers:
     auto_ontology_sql:
       entrypoint: app.py
-      datasets_dir: datasets
+      datasets_dir: data/datasets
       # Sized against the model endpoint's rate limit, not CPU. See app.py.
       max_concurrency: 3
       sql_execution_timeout_s: 30.0
@@ -19,9 +19,9 @@ auto_ontology_sql_resources_server:
       # delta then measures the exemplars and anchors too, not the ontology
       # alone. Enable per run with a Hydra override rather than here, so the
       # committed default stays the comparable one.
-      # sql_examples_csv: prompt_inputs/bird/predicted_structural_exemplars.csv
+      # sql_examples_csv: data/prompt_inputs/bird/predicted_structural_exemplars.csv
       # sql_examples_k: 5
-      # value_anchors_csv: prompt_inputs/bird/value_anchors.csv
+      # value_anchors_csv: data/prompt_inputs/bird/value_anchors.csv
       domain: coding
       verified: false
       description: >-

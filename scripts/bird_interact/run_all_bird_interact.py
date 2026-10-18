@@ -19,16 +19,16 @@ Mirrors eval_bird_interact.py's per-task flow exactly, but:
 Prerequisites — the Bird services must already be running:
   :6001  user_simulator
   :6002  db_environment
-Start them with scripts/start_bird_services.sh (not ADK's own
+Start them with scripts/bird_interact/start_bird_services.sh (not ADK's own
 scripts/start_services.sh directly) — it applies our required ADK patches
 first (see known_issues.py).
 
 Usage:
-    caffeinate -i uv run python scripts/run_all_bird_interact.py
-    caffeinate -i uv run python scripts/run_all_bird_interact.py --output overnight_run_1
-    caffeinate -i uv run python scripts/run_all_bird_interact.py --limit 10 --shuffle
-    caffeinate -i uv run python scripts/run_all_bird_interact.py --difficulty challenging
-    caffeinate -i uv run python scripts/run_all_bird_interact.py --phase-timeout 1200
+    caffeinate -i uv run python scripts/bird_interact/run_all_bird_interact.py
+    caffeinate -i uv run python scripts/bird_interact/run_all_bird_interact.py --output overnight_run_1
+    caffeinate -i uv run python scripts/bird_interact/run_all_bird_interact.py --limit 10 --shuffle
+    caffeinate -i uv run python scripts/bird_interact/run_all_bird_interact.py --difficulty challenging
+    caffeinate -i uv run python scripts/bird_interact/run_all_bird_interact.py --phase-timeout 1200
 """
 
 from __future__ import annotations
@@ -46,9 +46,9 @@ from typing import Any
 
 import httpx
 
-ONTOLOGY_DIR = Path(__file__).resolve().parents[1]
+ONTOLOGY_DIR = Path(__file__).resolve().parents[2]
 DEFAULT_DATA = (
-    ONTOLOGY_DIR / "datasets" / "bird_interact" / "bird_interact_data_with_gt.jsonl"
+    ONTOLOGY_DIR / "data" / "datasets" / "bird_interact" / "bird_interact_data_with_gt.jsonl"
 )
 RESULTS_DIR = ONTOLOGY_DIR / "results"
 

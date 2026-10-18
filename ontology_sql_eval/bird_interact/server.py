@@ -473,7 +473,7 @@ async def run_session(req: RunSessionRequest):
                 raise HTTPException(status_code=502, detail=f"submit_sql error: {e}")
 
             # This ADK crash signature (see known_issues.py) should be
-            # unreachable: scripts/start_bird_services.sh mandatorily patches
+            # unreachable: scripts/bird_interact/start_bird_services.sh mandatorily patches
             # ADK's create_task_db() before ADK's services ever start, so a
             # run reaching here has an unpatched/bypassed ADK setup — a setup
             # bug worth stopping the run for, not a score to silently correct.
@@ -481,7 +481,7 @@ async def run_session(req: RunSessionRequest):
                 logger.error(
                     "[turn %d] ADK p1snap name-collision signature seen despite "
                     "the mandatory patch (see known_issues.py) — ADK services were "
-                    "likely started without scripts/start_bird_services.sh, or the "
+                    "likely started without scripts/bird_interact/start_bird_services.sh, or the "
                     "patch stopped applying after an ADK update.",
                     turn,
                 )

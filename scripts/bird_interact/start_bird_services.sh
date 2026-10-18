@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
 # Wrapper around BIRD-Interact-ADK/scripts/start_services.sh that applies
-# our documented, evidence-confirmed ADK patches (see ../patches/ and
-# ontology_sql_eval/bird_interact/known_issues.py) before launching the real
+# our documented, evidence-confirmed ADK patches (see patches/ beside this
+# script and ontology_sql_eval/bird_interact/known_issues.py) before launching the real
 # ADK services — the patching decision lives here, not inside ADK's own
 # start_services.sh, so that file stays byte-for-byte pristine upstream.
 #
 # Use this instead of calling BIRD-Interact-ADK/scripts/start_services.sh
-# directly. Resolves the ADK checkout the same way scripts/eval_bird_interact.py
-# does: $BIRD_INTERACT_ADK_DIR if set, else third_party/BIRD-Interact/BIRD-Interact-ADK.
+# directly. Resolves the ADK checkout the same way
+# scripts/bird_interact/eval_bird_interact.py does: $BIRD_INTERACT_ADK_DIR if
+# set, else third_party/BIRD-Interact/BIRD-Interact-ADK.
 set -euo pipefail
 
-ONTOLOGY_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-PATCH_DIR="$ONTOLOGY_DIR/patches"
+ONTOLOGY_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
+PATCH_DIR="$ONTOLOGY_DIR/scripts/bird_interact/patches"
 _default_adk="$ONTOLOGY_DIR/third_party/BIRD-Interact/BIRD-Interact-ADK"
 ADK_DIR="${BIRD_INTERACT_ADK_DIR:-$_default_adk}"
 

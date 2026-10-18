@@ -3,26 +3,31 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Minimal live smoke test for the BIRD-Interact three-port setup.
+"""Single-task BIRD-Interact evaluator — mirrors the real c-Interact orchestrator flow.
 
 Starts the Auto Ontology adapter on :6003 (avoiding any service already on :6000),
-drives a single task through the full pipeline (init → phase1 → phase2), then
-shuts the adapter down.
+drives a single task through the full pipeline:
+  init → phase1 [→ phase1 debug] → phase2 [→ phase2 debug]
+
+This script replicates the same debug-retry logic used by the official orchestrator:
+  - If phase N SQL is executable but wrong results → "Your SQL is not correct..."
+  - If phase N SQL throws an execution error ([exec_err_flg] in submit raw) → "Your SQL is not executable: {error}..."
 
 Prerequisites — the Bird services must already be running:
   :6001  user_simulator
   :6002  db_environment
-Start them with scripts/start_bird_services.sh (not ADK's own
+Start them with scripts/bird_interact/start_bird_services.sh (not ADK's own
 scripts/start_services.sh directly) — it applies our required ADK patches
 first (see known_issues.py).
 
 Usage:
-    python scripts/smoke_bird_interact.py
-    python scripts/smoke_bird_interact.py --data /path/to/bird_interact_data_with_gt.jsonl
-    python scripts/smoke_bird_interact.py --task-index 3
-    python scripts/smoke_bird_interact.py --db alien       # pick first task for that DB
-    python scripts/smoke_bird_interact.py --random --category query
-    python scripts/smoke_bird_interact.py --agent-port 6003
+    python scripts/bird_interact/eval_bird_interact.py
+    python scripts/bird_interact/eval_bird_interact.py --data /path/to/bird_interact_data_with_gt.jsonl
+    python scripts/bird_interact/eval_bird_interact.py --instance-id alien_1
+    python scripts/bird_interact/eval_bird_interact.py --db alien
+    python scripts/bird_interact/eval_bird_interact.py --random
+    python scripts/bird_interact/eval_bird_interact.py --random --category query --difficulty challenging
+    python scripts/bird_interact/eval_bird_interact.py --agent-port 6003
 
 Management-category tasks are not supported by this toolchain (query-category
 only — see run_all_bird_interact.py). load_task() always excludes them from
@@ -43,10 +48,29 @@ from pathlib import Path
 
 import httpx
 
-ONTOLOGY_DIR = Path(__file__).resolve().parents[1]
+ONTOLOGY_DIR = Path(__file__).resolve().parents[2]
+_default_adk = ONTOLOGY_DIR / "third_party" / "BIRD-Interact" / "BIRD-Interact-ADK"
+_ADK_DIR = Path(os.environ.get("BIRD_INTERACT_ADK_DIR", str(_default_adk)))
+
+
+def _read_adk_env() -> dict[str, str]:
+    env: dict[str, str] = {}
+    dotenv = _ADK_DIR / ".env"
+    if not dotenv.exists():
+        return env
+    for raw in dotenv.read_text().splitlines():
+        line = raw.strip()
+        if line and not line.startswith("#") and "=" in line:
+            k, _, v = line.partition("=")
+            env[k.strip()] = v.strip()
+    return env
+
+
+_DATASET = _read_adk_env().get("DATASET", "lite")
 DEFAULT_DATA = (
-    ONTOLOGY_DIR / "datasets" / "bird_interact" / "bird_interact_data_with_gt.jsonl"
+    _ADK_DIR.parent / f"bird-interact-{_DATASET}" / "bird_interact_data_with_gt.jsonl"
 )
+
 USER_SIM_URL = "http://127.0.0.1:6001"
 DB_ENV_URL = "http://127.0.0.1:6002"
 
@@ -116,6 +140,7 @@ def load_task(
     instance_id: str | None = None,
     category_filter: str | None = None,
     difficulty_filter: str | None = None,
+    output_type_filter: str | None = None,
 ) -> tuple[int, dict]:
     if not data_path.exists():
         print(f"Data file not found: {data_path}", file=sys.stderr)
@@ -172,6 +197,12 @@ def load_task(
             for i, t in pool
             if (t.get("difficulty_tier") or "").lower() == difficulty_filter.lower()
         ]
+    if output_type_filter:
+        pool = [
+            (i, t)
+            for i, t in pool
+            if (t.get("output_type") or "").lower() == output_type_filter.lower()
+        ]
     if not pool:
         parts = []
         if db_filter:
@@ -180,6 +211,8 @@ def load_task(
             parts.append(f"category={category_filter!r}")
         if difficulty_filter:
             parts.append(f"difficulty_tier={difficulty_filter!r}")
+        if output_type_filter:
+            parts.append(f"output_type={output_type_filter!r}")
         print(f"No tasks found for {', '.join(parts)}", file=sys.stderr)
         sys.exit(1)
     if random_pick:
@@ -192,6 +225,14 @@ def load_task(
         )
         sys.exit(1)
     return pool[index]
+
+
+def _build_debug_message(last_submit_raw: str) -> str:
+    """Mirror the official orchestrator's debug message construction."""
+    if "[exec_err_flg]" in last_submit_raw:
+        actual_error = last_submit_raw.split("[exec_err_flg]", 1)[1].strip()
+        return f"Your SQL is not executable: {actual_error}\nPlease fix and call submit_sql."
+    return "Your SQL is not correct. You have one more chance. Please fix and call submit_sql."
 
 
 def start_auto_ontology_adapter(port: int) -> subprocess.Popen:
@@ -218,7 +259,7 @@ def start_auto_ontology_adapter(port: int) -> subprocess.Popen:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Live smoke test for BIRD-Interact + Auto Ontology adapter"
+        description="Single-task BIRD-Interact evaluator (mirrors real orchestrator)"
     )
     parser.add_argument("--data", default=str(DEFAULT_DATA))
     parser.add_argument(
@@ -239,14 +280,21 @@ def main() -> None:
         default=None,
         choices=["query", "management"],
         type=str.lower,
-        help="Restrict selection to 'query' or 'management' tasks (case-insensitive)",
+        help="Restrict selection to 'query' or 'management' tasks",
     )
     parser.add_argument(
         "--difficulty",
         default=None,
         choices=["simple", "moderate", "challenging"],
         type=str.lower,
-        help="Restrict selection by difficulty_tier: 'simple', 'moderate', or 'challenging' (case-insensitive)",
+        help="Restrict selection by difficulty_tier",
+    )
+    parser.add_argument(
+        "--output-type",
+        default=None,
+        choices=["scalar", "table"],
+        type=str.lower,
+        help="Restrict selection by output_type ('scalar' = single-value result, 'table' = multi-row result)",
     )
     parser.add_argument(
         "--agent-port",
@@ -256,6 +304,13 @@ def main() -> None:
     )
     parser.add_argument(
         "--timeout", type=int, default=10, help="Health-check timeout per service (s)"
+    )
+    parser.add_argument(
+        "--quit-after-phase",
+        type=int,
+        default=None,
+        choices=[1, 2],
+        help="Stop cleanly after this phase (1 = skip phase 2 even if p1 passes)",
     )
     args = parser.parse_args()
 
@@ -291,14 +346,18 @@ def main() -> None:
             instance_id=args.instance_id,
             category_filter=args.category,
             difficulty_filter=args.difficulty,
+            output_type_filter=args.output_type,
         )
         task_id = task["instance_id"]
         db_name = task["selected_database"]
         amb_query = task.get("amb_user_query") or task.get("query", "")
 
-        print(f"\nTask:     {task_id}  (index {idx})")
-        print(f"Database: {db_name}")
-        print(f"Query:    {amb_query}")
+        print(f"\nTask:       {task_id}  (index {idx})")
+        print(f"Database:   {db_name}")
+        print(
+            f"Category:   {task.get('category', '?')}  |  Difficulty: {task.get('difficulty_tier', '?')}  |  Output: {task.get('output_type', '?')}"
+        )
+        print(f"Query:      {amb_query}")
 
         # ── 4. init_task on :6001 and :6002 ──────────────────────────────────
         print("\n-- init_task on :6001 and :6002 --")
@@ -310,7 +369,7 @@ def main() -> None:
         post(f"{USER_SIM_URL}/init_task", payload)
         print("  done")
 
-        # ── 5. Get schema and knowledge from :6002 (best-effort) ─────────────
+        # ── 5. Get schema and knowledge from :6002 ────────────────────────────
         print("-- fetching schema + knowledge from :6002 --")
         db_schema = post(f"{DB_ENV_URL}/schema", {"task_id": task_id}).get("schema", "")
         external_kb = post(f"{DB_ENV_URL}/knowledge", {"task_id": task_id}).get(
@@ -363,7 +422,7 @@ def main() -> None:
         resp = post(
             f"{agent_url}/run_session",
             {"task_id": task_id, "mode": "c-interact", "message": phase1_msg},
-            timeout=1800.0,
+            timeout=600.0,
         )
         state = resp.get("state", {})
         p1_pass = state.get("phase1_completed", False)
@@ -373,12 +432,35 @@ def main() -> None:
             print(f"  submit feedback: {state['_last_submit_raw'][:200]}")
         _print_trajectory(state)
 
-        # ── 9. Phase 2 ────────────────────────────────────────────────────────
+        # ── 9. Phase 1 Debug ─────────────────────────────────────────────────
+        p1_debug_ran = False
+        if not p1_pass:
+            debug_msg = _build_debug_message(state.get("_last_submit_raw", ""))
+            print("\n-- Phase 1 Debug --")
+            print(f"  prompt: {debug_msg[:120]}")
+            resp = post(
+                f"{agent_url}/run_session",
+                {"task_id": task_id, "mode": "c-interact", "message": debug_msg},
+                timeout=600.0,
+            )
+            state = resp.get("state", {})
+            p1_pass = state.get("phase1_completed", False)
+            reward = state.get("total_reward", 0.0)
+            p1_debug_ran = True
+            print(f"  phase1_completed: {p1_pass}  |  reward: {reward}")
+            if state.get("_last_submit_raw"):
+                print(f"  submit feedback: {state['_last_submit_raw'][:200]}")
+            _print_trajectory(state)
+
+        # ── 10. Phase 2 ───────────────────────────────────────────────────────
         follow_up = task.get("follow_up") or {}
         has_follow_up = bool(follow_up.get("sol_sql"))
         p2_pass = None
+        p2_debug_ran = False
 
-        if p1_pass and has_follow_up:
+        if args.quit_after_phase == 1:
+            print("\n(--quit-after-phase 1: skipping phase 2)")
+        elif p1_pass and has_follow_up:
             follow_up_query = follow_up.get("query", "")
             print("\n-- phase_transition on :6001 --")
             post(f"{USER_SIM_URL}/phase_transition", {"task_id": task_id}, timeout=30.0)
@@ -391,7 +473,7 @@ def main() -> None:
             resp = post(
                 f"{agent_url}/run_session",
                 {"task_id": task_id, "mode": "c-interact", "message": fu_msg},
-                timeout=1800.0,
+                timeout=600.0,
             )
             state = resp.get("state", {})
             p2_pass = state.get("phase2_completed", False)
@@ -401,12 +483,31 @@ def main() -> None:
                 print(f"  submit feedback: {state['_last_submit_raw'][:200]}")
             _print_trajectory(state)
 
+            # ── 11. Phase 2 Debug ─────────────────────────────────────────────
+            if not p2_pass:
+                debug_msg = _build_debug_message(state.get("_last_submit_raw", ""))
+                print("\n-- Phase 2 Debug --")
+                print(f"  prompt: {debug_msg[:120]}")
+                resp = post(
+                    f"{agent_url}/run_session",
+                    {"task_id": task_id, "mode": "c-interact", "message": debug_msg},
+                    timeout=600.0,
+                )
+                state = resp.get("state", {})
+                p2_pass = state.get("phase2_completed", False)
+                reward = state.get("total_reward", 0.0)
+                p2_debug_ran = True
+                print(f"  phase2_completed: {p2_pass}  |  reward: {reward}")
+                if state.get("_last_submit_raw"):
+                    print(f"  submit feedback: {state['_last_submit_raw'][:200]}")
+                _print_trajectory(state)
+
         elif p1_pass:
             print("\n(task has no follow_up — skipping phase 2)")
         else:
             print("\n(phase 1 failed — skipping phase 2)")
 
-        # ── 10. Cleanup ───────────────────────────────────────────────────────
+        # ── 12. Cleanup ───────────────────────────────────────────────────────
         try:
             post(f"{DB_ENV_URL}/cleanup_task", {"task_id": task_id}, timeout=30.0)
         except Exception:
@@ -420,26 +521,30 @@ def main() -> None:
         except subprocess.TimeoutExpired:
             adapter_proc.kill()
 
-    # ── 11. Summary ───────────────────────────────────────────────────────────
+    # ── 13. Summary ───────────────────────────────────────────────────────────
     print(f"\n{'=' * 50}")
-    print("Smoke test complete")
+    print("Eval complete")
     print(f"{'=' * 50}")
     print(f"Task:          {task_id}  (db: {db_name})")
-    print(f"Phase 1 pass:  {p1_pass}")
+    print(
+        f"Phase 1:       {'PASS' if p1_pass else 'FAIL'}{' (via debug)' if p1_debug_ran and p1_pass else ''}"
+    )
     if p2_pass is not None:
-        print(f"Phase 2 pass:  {p2_pass}")
-    else:
         print(
-            f"Phase 2:       {'N/A (no follow-up)' if has_follow_up is False else 'skipped (p1 failed)'}"
+            f"Phase 2:       {'PASS' if p2_pass else 'FAIL'}{' (via debug)' if p2_debug_ran and p2_pass else ''}"
         )
+    elif not has_follow_up:
+        print("Phase 2:       N/A (no follow-up)")
+    else:
+        print("Phase 2:       skipped (phase 1 failed)")
     print(f"Total reward:  {reward:.2f}")
 
     passed = p1_pass and (p2_pass is None or p2_pass or not has_follow_up)
     if passed:
-        print("\nSMOKE TEST PASSED")
+        print("\nEVAL PASSED")
         sys.exit(0)
     else:
-        print("\nSMOKE TEST: one or more phases did not complete", file=sys.stderr)
+        print("\nEVAL: one or more phases did not complete", file=sys.stderr)
         sys.exit(1)
 
 

@@ -2,16 +2,16 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Download FDABench-Lite and populate ``datasets/fdabench/``.
+"""Download FDABench-Lite and populate ``data/datasets/fdabench/``.
 
 Fetches the HuggingFace Lite task JSONLs, converts gold SQL subtasks into a
 combined ``evaluation.json``, and installs only the SQLite databases those
 tasks need::
 
-    datasets/fdabench/evaluation.json
-    datasets/fdabench/<db_id>/<db_id>.sqlite
-    datasets/fdabench/<db_id>/database_description/*.csv  # BIRD only
-    datasets/fdabench/<db_id>/metadata.json               # from those CSVs
+    data/datasets/fdabench/evaluation.json
+    data/datasets/fdabench/<db_id>/<db_id>.sqlite
+    data/datasets/fdabench/<db_id>/database_description/*.csv  # BIRD only
+    data/datasets/fdabench/<db_id>/metadata.json               # from those CSVs
 
 Dabstep tasks are skipped (no redistributable ``merchant_data.db``). Tasks
 without ``expected_SQL`` in ``gold_subtasks`` are also skipped. All remaining
@@ -25,9 +25,9 @@ Database archives (downloaded only when the matching ``--*-root`` is omitted)::
 
 Usage::
 
-    uv run python scripts/seed_fdabench.py
-    uv run python scripts/seed_fdabench.py --tasks-only
-    uv run python scripts/seed_fdabench.py --bird-root /path/to/train_databases
+    uv run python scripts/seed/seed_fdabench.py
+    uv run python scripts/seed/seed_fdabench.py --tasks-only
+    uv run python scripts/seed/seed_fdabench.py --bird-root /path/to/train_databases
 
 After seeding::
 
@@ -143,11 +143,11 @@ SKIP_DB_TYPES = frozenset({"dabstep"})
 
 
 def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[1]
+    return Path(__file__).resolve().parents[2]
 
 
 def _default_dest() -> Path:
-    return _repo_root() / "datasets" / "fdabench"
+    return _repo_root() / "data" / "datasets" / "fdabench"
 
 
 class DownloadError(RuntimeError):
@@ -989,7 +989,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Download FDABench-Lite tasks from HuggingFace and populate "
-            "datasets/fdabench/ with evaluation.json plus the required SQLite "
+            "data/datasets/fdabench/ with evaluation.json plus the required SQLite "
             "databases (BIRD train / Spider2-lite local / Spider1)."
         ),
         epilog=(
@@ -1004,7 +1004,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--dest",
         type=Path,
         default=None,
-        help="Destination directory (default: datasets/fdabench/).",
+        help="Destination directory (default: data/datasets/fdabench/).",
     )
     parser.add_argument(
         "--force",
@@ -1014,7 +1014,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--keep-archive",
         action="store_true",
-        help="Keep downloaded zip archives under datasets/fdabench/.cache/.",
+        help="Keep downloaded zip archives under data/datasets/fdabench/.cache/.",
     )
     parser.add_argument(
         "--no-write-env",

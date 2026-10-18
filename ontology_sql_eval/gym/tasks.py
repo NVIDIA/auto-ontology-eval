@@ -4,7 +4,7 @@
 
 """Convert the eval datasets into NeMo Gym task records.
 
-Our datasets are JSON *arrays* (``datasets/<name>/evaluation.json``); Gym wants
+Our datasets are JSON *arrays* (``data/datasets/<name>/evaluation.json``); Gym wants
 JSONL where each line carries the prompt under ``responses_create_params`` plus
 whatever extra fields the resources server's verify request declares. The record
 shape here deliberately mirrors Gym's own ``bird_sql`` environment
@@ -77,27 +77,27 @@ class DatasetSpec:
     name: str
     dialect: str
     # A dataset's questions and its databases can live in different
-    # directories: seed_bird.py writes evaluation.json to datasets/bird/ but the
-    # databases to datasets/bird/dev/.
+    # directories: seed_bird.py writes evaluation.json to data/datasets/bird/ but the
+    # databases to data/datasets/bird/dev/.
     db_root: str
 
     @property
     def evaluation_json(self) -> Path:
-        return Path("datasets") / self.name / "evaluation.json"
+        return Path("data", "datasets") / self.name / "evaluation.json"
 
     def sqlite_path(self, db_id: str) -> Path:
-        return Path("datasets") / self.db_root / db_id / f"{db_id}.sqlite"
+        return Path("data", "datasets") / self.db_root / db_id / f"{db_id}.sqlite"
 
     def description_dir(self, db_id: str) -> Path:
-        return Path("datasets") / self.db_root / db_id / "database_description"
+        return Path("data", "datasets") / self.db_root / db_id / "database_description"
 
     def mysql_dump_path(self, db_id: str) -> Path:
-        return Path("datasets") / self.db_root / "dumps" / f"{db_id}.sql"
+        return Path("data", "datasets") / self.db_root / "dumps" / f"{db_id}.sql"
 
 
 DATASETS: dict[str, DatasetSpec] = {
     # db_root is "bird/dev", not "bird": seed_bird.py writes evaluation.json to
-    # datasets/bird/ but the databases to datasets/bird/dev/<db_id>/. This is
+    # data/datasets/bird/ but the databases to data/datasets/bird/dev/<db_id>/. This is
     # exactly why name and db_root are separate fields.
     "bird": DatasetSpec("bird", "sqlite", "bird/dev"),
     "fdabench": DatasetSpec("fdabench", "sqlite", "fdabench"),
@@ -105,7 +105,7 @@ DATASETS: dict[str, DatasetSpec] = {
         "wideworldimporters", "postgres", "wideworldimporters"
     ),
     # BEAVER. Gold SQL is MySQL dialect and each db_id is its own physical
-    # database. Seeded by scripts/seed_beaverbench.py; not committed.
+    # database. Seeded by scripts/seed/seed_beaverbench.py; not committed.
     "beaverbench": DatasetSpec("beaverbench", "mysql", "beaverbench"),
 }
 
@@ -123,7 +123,7 @@ def load_questions(spec: DatasetSpec, root: Path) -> list[dict[str, Any]]:
 def _schema_for(spec: DatasetSpec, root: Path, db_id: str, descriptions: bool) -> str:
     """Build the schema text for one database, cached by the caller."""
     if spec.dialect == "postgres":
-        return postgres_schema_dump(root / "datasets" / spec.db_root / "ddl")
+        return postgres_schema_dump(root / "data" / "datasets" / spec.db_root / "ddl")
 
     if spec.dialect == "mysql":
         return mysql_schema_dump(root / spec.mysql_dump_path(db_id))

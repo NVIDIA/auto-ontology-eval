@@ -9,8 +9,8 @@ Joins run JSONL with the source dataset (for difficulty, ambiguity types, etc.)
 and prints a structured report. No LLM calls.
 
 Usage:
-    python scripts/analyze_bird_interact.py results/overnight_run_1.jsonl
-    python scripts/analyze_bird_interact.py results/overnight_run_1.jsonl \
+    python scripts/bird_interact/analyze_bird_interact.py results/overnight_run_1.jsonl
+    python scripts/bird_interact/analyze_bird_interact.py results/overnight_run_1.jsonl \
         --data /path/to/bird_interact_data_with_gt.jsonl
 """
 from __future__ import annotations
@@ -41,8 +41,8 @@ class _Tee:
         sys.stdout = self._real
         self._f.close()
 
-ONTOLOGY_DIR = Path(__file__).resolve().parents[1]
-DEFAULT_DATA = ONTOLOGY_DIR / "datasets" / "bird_interact" / "bird_interact_data_with_gt.jsonl"
+ONTOLOGY_DIR = Path(__file__).resolve().parents[2]
+DEFAULT_DATA = ONTOLOGY_DIR / "data" / "datasets" / "bird_interact" / "bird_interact_data_with_gt.jsonl"
 
 # Non-critical ambiguity types to exclude from the unresolved-vs-ambiguity analysis
 # (sort direction, decimal precision, null handling are noise — not real failures)

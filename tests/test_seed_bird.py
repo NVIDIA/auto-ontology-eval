@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from scripts import seed_bird
+from scripts.seed import seed_bird
 
 
 class SeedBirdTrainCorpusTest(unittest.TestCase):

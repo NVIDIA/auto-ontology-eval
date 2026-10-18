@@ -30,8 +30,8 @@ from collections import Counter
 from functools import lru_cache
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-DB_ROOT = ROOT / "datasets/bird/dev"
+ROOT = Path(__file__).resolve().parents[2]
+DB_ROOT = ROOT / "data/datasets/bird/dev"
 INDEX = ROOT / "output/value_index.sqlite"
 
 # A column holding more distinct values than this is a key or free text, not a
@@ -453,7 +453,7 @@ def _column_glosses(db: str) -> dict[tuple[str, str], str]:
     again and would only lengthen the line.
     """
     out: dict[tuple[str, str], str] = {}
-    folder = ROOT / "datasets/bird/dev" / db / "database_description"
+    folder = ROOT / "data/datasets/bird/dev" / db / "database_description"
     if not folder.is_dir():
         return out
     for path in folder.glob("*.csv"):
@@ -479,7 +479,7 @@ def _column_glosses(db: str) -> dict[tuple[str, str], str]:
 def anchors(out_path: Path, limit: int, max_contains: int, max_absent: int) -> None:
     """Write the anchors each dev question would receive, for prompt injection."""
     con = sqlite3.connect(f"file:{INDEX}?mode=ro", uri=True)
-    questions = json.loads((ROOT / "datasets/bird/evaluation.json").read_text())
+    questions = json.loads((ROOT / "data/datasets/bird/evaluation.json").read_text())
     rows, stats = [], Counter()
     for q in questions:
         db = q["db_id"]

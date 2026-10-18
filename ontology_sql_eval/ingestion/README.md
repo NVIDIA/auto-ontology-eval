@@ -7,9 +7,9 @@ text-to-SQL agent has schema and semantic context to retrieve. Set
 `CONNECTION_STRINGS` to point at the source DB, then run the pipeline.
 
 `<database_name>` comes from the connector, and metadata and custom analyses are
-read from beside that database: `datasets/<benchmark>/dev/<database_name>/` when
+read from beside that database: `data/datasets/<benchmark>/dev/<database_name>/` when
 `--benchmark-name` names a multi-database benchmark such as BIRD, otherwise
-`datasets/<database_name>/`.
+`data/datasets/<database_name>/`.
 
 > Auto Ontology is installed by `uv sync`. See
 > [Prerequisites](../../README.md#prerequisites) in the main README.
@@ -26,7 +26,7 @@ uv run python -m ontology_sql_eval.ingestion.semantic --database-name <database_
 ## Apply enrichment without re-ingesting
 
 Use the standalone enrichment command after the source schema already exists in
-the application PostgreSQL catalog. It reads `datasets/<database_name>/metadata.json`,
+the application PostgreSQL catalog. It reads `data/datasets/<database_name>/metadata.json`,
 `custom_analyses.json`, and `glossary_and_prompts.json`.
 
 ```bash
@@ -46,14 +46,14 @@ are not renamed.
 
 BIRD is downloaded with its own column annotations and no analyses at all, and a
 plain ingest plus compile reproduces exactly that. Ours are tracked in
-`annotations/<dataset>/`, since `datasets/bird/` is gitignored and replaced
+`data/annotations/<dataset>/`, since `data/datasets/bird/` is gitignored and replaced
 wholesale by the next download. Nothing has to be configured: each file is found
 by its path and preferred over the dataset's own copy, which is the fallback.
 
 | Artifact | Ours (preferred) | Fallback | Applied by |
 | --- | --- | --- | --- |
-| analyses | `annotations/<dataset>/custom_analyses/<db>.json` — one per database | `datasets/<dataset>/dev/<db>/custom_analyses.json` | `ingest` |
-| descriptions | `annotations/<dataset>/semantic_descriptions.csv` — one export covering every database | `datasets/<dataset>/dev/<db>/semantic_descriptions.csv` | `semantic` |
+| analyses | `data/annotations/<dataset>/custom_analyses/<db>.json` — one per database | `data/datasets/<dataset>/dev/<db>/custom_analyses.json` | `ingest` |
+| descriptions | `data/annotations/<dataset>/semantic_descriptions.csv` — one export covering every database | `data/datasets/<dataset>/dev/<db>/semantic_descriptions.csv` | `semantic` |
 
 The set this repo ships for BIRD covers all 11 Dev databases, so the two commands
 below are all it takes:
@@ -63,7 +63,7 @@ uv run python -m ontology_sql_eval.ingestion.ingest --benchmark-name bird
 uv run python -m ontology_sql_eval.ingestion.semantic --benchmark-name bird
 ```
 
-`--benchmark-name` is what names the `annotations/` subfolder. Omit it and every
+`--benchmark-name` is what names the `data/annotations/` subfolder. Omit it and every
 benchmark's folder is searched instead, so the file is still found rather than
 silently skipped. `--dataset-name` remains available as a compatibility alias.
 
@@ -75,7 +75,7 @@ Re-run the command after editing the export to push the edit through; this is
 cheap because the compile only visits tables that have no `Term` yet.
 
 `apply_saved_descriptions()` also takes an explicit path, for scoring one
-off-tree export without moving it into `annotations/`.
+off-tree export without moving it into `data/annotations/`.
 
 Descriptions are written to the Postgres catalog *and* to both vector
 collections, since a description the catalog holds and the index does not is

@@ -280,7 +280,7 @@ def test_run_session_treats_null_reward_as_zero():
 
 def test_run_session_fails_loud_on_known_p1snap_collision():
     """The ADK p1snap name-collision signature should be unreachable now that
-    scripts/start_bird_services.sh mandatorily patches ADK before it starts
+    scripts/bird_interact/start_bird_services.sh mandatorily patches ADK before it starts
     (see known_issues.py) — seeing it means ADK was started some other way,
     or the patch stopped applying, so the run should fail loud, not silently
     reinterpret the crash as a pass.

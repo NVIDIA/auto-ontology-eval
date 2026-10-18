@@ -2,15 +2,15 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Download BEAVER and populate ``datasets/beaverbench/``.
+"""Download BEAVER and populate ``data/datasets/beaverbench/``.
 
 Fetches questions from HuggingFace ``beaverbench/beaver-query``, optional table
 metadata from ``beaverbench/beaver-table``, and the gated MySQL dump zip from
 ``beaverbench/beaver-table`` (``beaver_db.zip``). Writes::
 
-    datasets/beaverbench/evaluation.json
-    datasets/beaverbench/<db_id>/metadata.json   # when --with-metadata
-    datasets/beaverbench/dumps/<db_id>.sql
+    data/datasets/beaverbench/evaluation.json
+    data/datasets/beaverbench/<db_id>/metadata.json   # when --with-metadata
+    data/datasets/beaverbench/dumps/<db_id>.sql
 
 Optionally imports the SQL dumps into a local MySQL (default: Docker container
 ``beaver-mysql`` on port 3306) and writes ``CONNECTION_STRINGS`` into ``.env``.
@@ -18,13 +18,13 @@ Optionally imports the SQL dumps into a local MySQL (default: Docker container
 Usage::
 
     # Questions + dumps only (default: dw, 100-question sample, seed 77)
-    uv run python scripts/seed_beaverbench.py
+    uv run python scripts/seed/seed_beaverbench.py
 
     # Full dw split, import into MySQL, update .env
-    uv run python scripts/seed_beaverbench.py --sample 0 --domains dw --import-mysql
+    uv run python scripts/seed/seed_beaverbench.py --sample 0 --domains dw --import-mysql
 
     # Tasks only (no dump download / import)
-    uv run python scripts/seed_beaverbench.py --tasks-only
+    uv run python scripts/seed/seed_beaverbench.py --tasks-only
 
 After seeding::
 
@@ -75,11 +75,11 @@ DEFAULT_MYSQL_PASSWORD = "beaver-benchmark"
 
 
 def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[1]
+    return Path(__file__).resolve().parents[2]
 
 
 def _default_dest() -> Path:
-    return _repo_root() / "datasets" / "beaverbench"
+    return _repo_root() / "data" / "datasets" / "beaverbench"
 
 
 def _parse_if_string(val: Any, default_type: type = list) -> Any:
@@ -487,7 +487,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Download BEAVER (beaverbench) questions + MySQL dumps into "
-            "datasets/beaverbench/ for ontology-sql-eval."
+            "data/datasets/beaverbench/ for ontology-sql-eval."
         )
     )
     parser.add_argument(
@@ -516,7 +516,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--dest",
         type=Path,
         default=None,
-        help="Destination directory (default: datasets/beaverbench/).",
+        help="Destination directory (default: data/datasets/beaverbench/).",
     )
     parser.add_argument(
         "--tasks-only",

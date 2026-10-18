@@ -7,7 +7,7 @@ client tools as subprocesses, but they are not installed on this machine.
 The shims implement the same interface using psycopg2.
 
 Run once before starting Bird ADK services:
-    python scripts/setup_pg_wrappers.py
+    python scripts/bird_interact/setup_pg_wrappers.py
 """
 import stat
 import sys

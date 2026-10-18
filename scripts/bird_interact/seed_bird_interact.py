@@ -8,7 +8,7 @@ Sparse-clones https://github.com/bird-bench/BIRD-Interact (ADK code + Docker
 env only — the upstream repo no longer ships task data as git paths) into
 third_party/BIRD-Interact/, downloads the requested variant's task data from
 its HuggingFace dataset repo (birdsql/bird-interact-<variant>), and prepares
-datasets/bird_interact[_full]/ for use with the Auto Ontology adapter and
+data/datasets/bird_interact[_full]/ for use with the Auto Ontology adapter and
 run_bird_interact_cinteract.py.
 
 Layout after running this script (example: --dataset lite)::
@@ -18,7 +18,7 @@ Layout after running this script (example: --dataset lite)::
         env/                    ← Docker Compose for PostgreSQL task DBs
         bird-interact-lite/     ← HF dataset snapshot (task JSONL, per-DB KB)
 
-    datasets/bird_interact/
+    data/datasets/bird_interact/
         bird_interact_data.jsonl            ← public tasks (no GT)
         bird_interact_data_with_gt.jsonl    ← combined file used by the runner
                                               (= GT copy if GT present, else public)
@@ -28,18 +28,18 @@ Layout after running this script (example: --dataset lite)::
             bird_interact_data_with_gt.jsonl  ← place emailed GT file here
 
 --dataset full uses the same layout under bird-interact-full/ and
-datasets/bird_interact_full/.
+data/datasets/bird_interact_full/.
 
 Usage::
 
-    uv run python scripts/seed_bird_interact.py --dataset lite
-    uv run python scripts/seed_bird_interact.py --dataset full
-    uv run python scripts/seed_bird_interact.py --dataset lite --force
+    uv run python scripts/bird_interact/seed_bird_interact.py --dataset lite
+    uv run python scripts/bird_interact/seed_bird_interact.py --dataset full
+    uv run python scripts/bird_interact/seed_bird_interact.py --dataset lite --force
 
 --dataset is required — there is no default variant.
 
 GT SQLs and test cases are NOT in the public repo/dataset. After running this
-script, follow the instructions in datasets/bird_interact[_full]/gt/README.md
+script, follow the instructions in data/datasets/bird_interact[_full]/gt/README.md
 (or the output printed here) to obtain them by email and re-run.
 """
 
@@ -106,20 +106,20 @@ Alternatively, get the file from the shared Google Drive.
 ## Where to place them
 
 Drop the received file directly into THIS directory
-(datasets/bird_interact{'_full' if variant == 'full' else ''}/gt/).  The seeder expects:
+(data/datasets/bird_interact{'_full' if variant == 'full' else ''}/gt/).  The seeder expects:
 
-    datasets/bird_interact{'_full' if variant == 'full' else ''}/gt/bird_interact_data_with_gt.jsonl
+    data/datasets/bird_interact{'_full' if variant == 'full' else ''}/gt/bird_interact_data_with_gt.jsonl
 
 Once the file is present, re-run the seeder to regenerate the combined data
 file and manifest:
 
-    uv run python scripts/seed_bird_interact.py --dataset {variant}
+    uv run python scripts/bird_interact/seed_bird_interact.py --dataset {variant}
 
 The seeder copies it to:
 
-    datasets/bird_interact{'_full' if variant == 'full' else ''}/bird_interact_data_with_gt.jsonl
+    data/datasets/bird_interact{'_full' if variant == 'full' else ''}/bird_interact_data_with_gt.jsonl
 
-That path is what scripts/run_bird_interact_cinteract.py reads by default.
+That path is what scripts/bird_interact/run_bird_interact_cinteract.py reads by default.
 
 ## Without GT
 
@@ -130,12 +130,12 @@ incomplete but the plumbing can be verified.
 
 
 def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[1]
+    return Path(__file__).resolve().parents[2]
 
 
 def _datasets_dir(variant: str) -> Path:
     suffix = "_full" if variant == "full" else ""
-    return _repo_root() / "datasets" / f"bird_interact{suffix}"
+    return _repo_root() / "data" / "datasets" / f"bird_interact{suffix}"
 
 
 def _gt_dir(variant: str) -> Path:
@@ -438,7 +438,7 @@ def _print_summary(variant: str, manifest: dict) -> None:
         print("  2. Place the received file at:")
         print(f"       {_gt_dir(variant) / GT_JSONL_NAME}")
         print()
-        print(f"  3. Re-run: uv run python scripts/seed_bird_interact.py --dataset {variant}")
+        print(f"  3. Re-run: uv run python scripts/bird_interact/seed_bird_interact.py --dataset {variant}")
         print("=" * 60)
         print()
 
@@ -449,11 +449,11 @@ def _print_summary(variant: str, manifest: dict) -> None:
     print()
     print("Start pg_wrappers shims (needed for :6002 db_environment scoring):")
     print()
-    print("  uv run python scripts/setup_pg_wrappers.py")
+    print("  uv run python scripts/bird_interact/setup_pg_wrappers.py")
     print()
     print("Then run the c-Interact evaluation:")
     print()
-    print(f"  python scripts/run_bird_interact_cinteract.py --data {combined}")
+    print(f"  python scripts/bird_interact/run_bird_interact_cinteract.py --data {combined}")
     print()
 
 
@@ -490,14 +490,14 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Clone BIRD-Interact ADK code and fetch the requested dataset variant "
-            "(from its HuggingFace dataset repo) into datasets/bird_interact[_full]/ "
+            "(from its HuggingFace dataset repo) into data/datasets/bird_interact[_full]/ "
             "with the public task JSONL, GT placeholder, and manifest."
         ),
         epilog=(
             "GT SQLs and test cases require emailing bird.bench25@gmail.com "
             "with subject [bird-interact-<variant> GT&Test Cases], or downloading "
             "them from the shared drive. "
-            "Place received files in datasets/bird_interact[_full]/gt/ and re-run."
+            "Place received files in data/datasets/bird_interact[_full]/gt/ and re-run."
         ),
     )
     parser.add_argument(

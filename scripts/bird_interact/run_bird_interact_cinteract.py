@@ -6,15 +6,15 @@ Starts the ontology-sql-eval adapter on :6000, then invokes the official
 Bird c-Interact orchestrator against the merged GT jsonl, and writes a
 results CSV.
 
-Run scripts/seed_bird_interact.py first to clone the upstream repo and
-prepare datasets/bird_interact/.
+Run scripts/bird_interact/seed_bird_interact.py first to clone the upstream repo and
+prepare data/datasets/bird_interact/.
 
 WARNING: the manual uvicorn bootstrap below does not go through
-scripts/start_bird_services.sh, so it does not apply our required ADK
+scripts/bird_interact/start_bird_services.sh, so it does not apply our required ADK
 patches (see known_issues.py) — notably the labor_certification_applications
 p1snap name-collision fix. Phase 2 for that DB will silently mis-grade if
 run this way. Prefer start_bird_services.sh if possible; if you must use
-this path, apply patches/adk_p1snap_name_collision.patch to the ADK checkout
+this path, apply scripts/bird_interact/patches/adk_p1snap_name_collision.patch to the ADK checkout
 manually first.
 
 Prerequisites — start separately BEFORE running this script:
@@ -29,15 +29,15 @@ Prerequisites — start separately BEFORE running this script:
     PATH="$PG_WRAPPERS:$PATH" python -m uvicorn db_environment.server:app --host 127.0.0.1 --port 6002
 
   pg_wrappers setup (one-time, run from ontology-sql-eval/):
-    python scripts/setup_pg_wrappers.py
+    python scripts/bird_interact/setup_pg_wrappers.py
 
   Bird PostgreSQL (task DBs, only needed for :6002 scoring):
     cd third_party/BIRD-Interact/env
     docker compose up -d bird_interact_postgresql
 
 Usage:
-    python scripts/run_bird_interact_cinteract.py \\
-        --data datasets/bird_interact/bird_interact_data_with_gt.jsonl \\
+    python scripts/bird_interact/run_bird_interact_cinteract.py \\
+        --data data/datasets/bird_interact/bird_interact_data_with_gt.jsonl \\
         --output results/cinteract_lite.csv \\
         [--limit N]
 """
@@ -57,17 +57,17 @@ from pathlib import Path
 
 import httpx
 
-ONTOLOGY_DIR = Path(__file__).resolve().parents[1]
+ONTOLOGY_DIR = Path(__file__).resolve().parents[2]
 _default_adk = ONTOLOGY_DIR / "third_party" / "BIRD-Interact" / "BIRD-Interact-ADK"
 BIRD_ADK_DIR = Path(os.environ.get("BIRD_INTERACT_ADK_DIR", str(_default_adk)))
 DEFAULT_DATA = (
-    ONTOLOGY_DIR / "datasets" / "bird_interact" / "bird_interact_data_with_gt.jsonl"
+    ONTOLOGY_DIR / "data" / "datasets" / "bird_interact" / "bird_interact_data_with_gt.jsonl"
 )
 
 
 def _warn_if_adk_unpatched() -> None:
     """This script's manual uvicorn bootstrap doesn't go through
-    scripts/start_bird_services.sh, so it never applies our required ADK
+    scripts/bird_interact/start_bird_services.sh, so it never applies our required ADK
     patches (see known_issues.py). Surface it loudly, first, rather than let a
     labor_certification_applications phase 2 silently mis-grade.
     """
@@ -76,10 +76,10 @@ def _warn_if_adk_unpatched() -> None:
     if not db_utils.is_file() or marker not in db_utils.read_text():
         print(
             "WARNING: ADK checkout at "
-            f"{BIRD_ADK_DIR} does not have patches/adk_p1snap_name_collision.patch "
+            f"{BIRD_ADK_DIR} does not have scripts/bird_interact/patches/adk_p1snap_name_collision.patch "
             "applied (see known_issues.py). labor_certification_applications "
             "phase 2 will silently mis-grade. Apply the patch or use "
-            "scripts/start_bird_services.sh instead of this script's manual "
+            "scripts/bird_interact/start_bird_services.sh instead of this script's manual "
             "bootstrap.",
             file=sys.stderr,
         )

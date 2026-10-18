@@ -85,7 +85,7 @@ _UNUSABLE = {FailureCode.GOLD_EXECUTION_ERROR, FailureCode.GOLD_EXECUTION_TIMEOU
 
 class SchemaOnlySqlResourcesServerConfig(BaseResourcesServerConfig):
     name: str = "schema_only_sql"
-    datasets_dir: str = "datasets"
+    datasets_dir: str = "data/datasets"
     max_concurrency: int = 32
     sql_execution_timeout_s: float = 30.0
     # Only needed for the Postgres-backed dataset; falls back to the env var the
@@ -160,7 +160,7 @@ class SchemaOnlySqlResourcesServer(SimpleResourcesServer):
             if not dsns:
                 raise RuntimeError(
                     f"no mysql:// entry in CONNECTION_STRINGS for dataset {dataset!r}; "
-                    "seed it with scripts/seed_beaverbench.py --import-mysql"
+                    "seed it with scripts/seed/seed_beaverbench.py --import-mysql"
                 )
             executor: Any = MySqlExecutor(dsns, timeout_s=timeout_s)
         elif spec.dialect == "postgres":

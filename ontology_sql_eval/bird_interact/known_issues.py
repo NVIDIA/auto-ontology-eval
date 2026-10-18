@@ -6,14 +6,14 @@ Phase 1 submission correct, silently overwriting a real pass with reward=0
 (and, as a second-order effect, causing Phase 2 to be graded against Phase
 1's solution instead of the follow-up's — see the patch for the full
 mechanism). That root cause is now fixed at the source:
-``patches/adk_p1snap_name_collision.patch``, applied automatically and
-mandatorily by ``scripts/start_bird_services.sh`` (which is the only
+``scripts/bird_interact/patches/adk_p1snap_name_collision.patch``, applied automatically and
+mandatorily by ``scripts/bird_interact/start_bird_services.sh`` (which is the only
 supported way to start ADK's services — see that script) before ADK's
 services ever start. Since that script fails hard if the patch can't be
 applied, "ADK services are running" now implies "this bug can't fire".
 
 So this signature should be unreachable in any run through
-``scripts/start_bird_services.sh``. This module exists to make that
+``scripts/bird_interact/start_bird_services.sh``. This module exists to make that
 invariant loud rather than silent if it's ever violated (e.g. a run that
 bypassed the wrapper, or an ADK version bump the patch stopped matching) —
 ``server.py`` calls ``is_p1snap_collision()`` on a `/submit` error message

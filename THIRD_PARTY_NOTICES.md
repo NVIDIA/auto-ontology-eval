@@ -52,14 +52,14 @@ to the package dependencies listed above.
 
 | | |
 |---|---|
-| **Location in this repo** | `datasets/wideworldimporters/` (`ddl/*.sql`, `data/*.csv`) |
+| **Location in this repo** | `data/datasets/wideworldimporters/` (`ddl/*.sql`, `data/*.csv`) |
 | **Upstream project** | SQL Server Samples — https://github.com/microsoft/sql-server-samples |
 | **Copyright holder** | Copyright (c) Microsoft Corporation |
 | **License** | MIT |
 
 A Postgres port of Microsoft's WideWorldImporters sample OLTP database,
 included as a public worked example. The upstream notice is reproduced in
-`datasets/wideworldimporters/LICENSE`; the DDL files carry the Microsoft
+`data/datasets/wideworldimporters/LICENSE`; the DDL files carry the Microsoft
 copyright and MIT identifier in their headers.
 
 ### 2. BEAVER benchmark evaluation logic
@@ -81,25 +81,25 @@ NVIDIA's modifications.
 ### Note on the BEAVER dataset
 
 The BEAVER **dataset** is not included in this repository.
-`scripts/seed_beaverbench.py` downloads the questions and MySQL dumps at runtime
+`scripts/seed/seed_beaverbench.py` downloads the questions and MySQL dumps at runtime
 from the gated HuggingFace datasets
 [`beaverbench/beaver-query`](https://huggingface.co/datasets/beaverbench/beaver-query)
 and [`beaverbench/beaver-table`](https://huggingface.co/datasets/beaverbench/beaver-table),
-and `datasets/beaverbench/` ships only a README and a `.gitkeep`. Its terms are
+and `data/datasets/beaverbench/` ships only a README and a `.gitkeep`. Its terms are
 set by its authors on those dataset pages.
 
 ### Note on the BIRD dataset
 
 The BIRD Mini-Dev **dataset** is not included in this repository.
-`scripts/seed_bird.py` downloads it at runtime from the official distribution,
-and `datasets/bird/` ships only a README and a `.gitkeep`. The BIRD dataset is
+`scripts/seed/seed_bird.py` downloads it at runtime from the official distribution,
+and `data/datasets/bird/` ships only a README and a `.gitkeep`. The BIRD dataset is
 distributed by its authors under CC BY-SA 4.0.
 
 ### Note on FDABench-Lite and its source databases
 
 FDABench-Lite tasks and the SQLite databases they require are **not** included
-in this repository. `scripts/seed_fdabench.py` downloads them at runtime, and
-`datasets/fdabench/` ships only a README and a `.gitkeep`.
+in this repository. `scripts/seed/seed_fdabench.py` downloads them at runtime, and
+`data/datasets/fdabench/` ships only a README and a `.gitkeep`.
 
 | Runtime download | Upstream | License (as published by authors) |
 |---|---|---|
@@ -141,7 +141,7 @@ pydantic, duckdb, fastapi, ruff.
 Also applies to the included third-party content above, under their respective
 copyrights:
 
-- SQL Server Samples (`datasets/wideworldimporters/`) — Copyright (c) Microsoft Corporation
+- SQL Server Samples (`data/datasets/wideworldimporters/`) — Copyright (c) Microsoft Corporation
 - BEAVER (`tests/beaver_reference.py`) — Copyright (c) 2024 MIT Data Systems Group
 
 ---

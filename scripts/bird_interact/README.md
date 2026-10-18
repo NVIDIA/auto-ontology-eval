@@ -8,12 +8,12 @@ ties them together and calls out the things that are easy to miss.
 
 - **c-Interact only.** a-Interact is not implemented.
 - **Query-category tasks only.** Management tasks are explicitly excluded —
-  `scripts/run_all_bird_interact.py` hardcodes a `category == "query"` filter
+  `scripts/bird_interact/run_all_bird_interact.py` hardcodes a `category == "query"` filter
   (`_load_tasks`, look for `# Hardcoded: query category only`). If you write a
   new run script, carry this filter forward or call out that it doesn't.
 - Two dataset variants are supported: **Lite** (~300 tasks / 18 DBs) and
   **Full** (600 tasks / 22 DBs).
-- See also the [BIRD-Interact entry](README.md#bird-interact) in the top-level README.md.
+- See also the [BIRD-Interact entry](../../README.md#bird-interact) in the top-level README.md.
 
 ## Pipeline flow
 
@@ -56,13 +56,13 @@ init
 ## 1. Seed the dataset
 
 ```bash
-uv run python scripts/seed_bird_interact.py --dataset lite   # or: full
+uv run python scripts/bird_interact/seed_bird_interact.py --dataset lite   # or: full
 ```
 
 This sparse-clones the upstream ADK repo (`github.com/bird-bench/BIRD-Interact`,
 ADK code + Docker `env/` only) into `third_party/BIRD-Interact/`, downloads the
 task JSONL from HuggingFace (`birdsql/bird-interact-<variant>`), and builds
-`datasets/bird_interact[_full]/` (public JSONL, combined JSONL, `manifest.json`,
+`data/datasets/bird_interact[_full]/` (public JSONL, combined JSONL, `manifest.json`,
 `gt/` placeholder). `--dataset` is required, no default. Use `--force` to
 re-download.
 
@@ -82,7 +82,7 @@ Two ways to get the GT file:
 Drop the received file at:
 
 ```
-datasets/bird_interact[_full]/gt/bird_interact_data_with_gt.jsonl
+data/datasets/bird_interact[_full]/gt/bird_interact_data_with_gt.jsonl
 ```
 
 Then re-run the seeder (step 1) to regenerate the combined data file that the
@@ -91,12 +91,12 @@ runners actually read.
 ## 3. Start the Bird services
 
 ```bash
-scripts/start_bird_services.sh
+scripts/bird_interact/start_bird_services.sh
 ```
 
 Starts ADK's `user_simulator` (`:6001`) and `db_environment` (`:6002`).
 **Always use this wrapper, never ADK's own `start_services.sh` directly** — it
-applies our required ADK patches first (`patches/adk_*.patch`) and refuses to
+applies our required ADK patches first (`scripts/bird_interact/patches/adk_*.patch`) and refuses to
 start unpatched. Without the patch, Phase 2 scoring for
 `labor_certification_applications` (FULL dataset) silently mis-grades due to a
 Postgres 63-char identifier truncation collision — see
@@ -109,7 +109,7 @@ prints the command instead of running it.
 You'll also need the Bird PostgreSQL task DBs running (Docker) and
 `pg_wrappers` shims set up for `:6002` scoring — the seeder prints the exact
 commands at the end of step 1 (`docker compose up -d ...`,
-`scripts/setup_pg_wrappers.py`).
+`scripts/bird_interact/setup_pg_wrappers.py`).
 
 ## 4. Run
 
@@ -117,10 +117,10 @@ Three run scripts, same underlying pipeline (`init → phase1 [→ debug] → ph
 
 | Script | Use for |
 | --- | --- |
-| `scripts/smoke_bird_interact.py` | One task, minimal — sanity-check the three-port setup end to end, then shuts the adapter down. |
-| `scripts/eval_bird_interact.py` | One task, full parity with the real orchestrator flow (pick by `--instance-id`, `--db`, or `--random`). |
-| `scripts/run_all_bird_interact.py` | Batch/overnight — all (or filtered) query tasks, adapter started once and reused, results written incrementally so a crash doesn't lose progress. |
-| `scripts/run_bird_interact_cinteract.py` | Runs the **official** Bird c-Interact orchestrator (not our own re-implementation) against the Auto Ontology adapter. ⚠️ Its manual uvicorn bootstrap does **not** go through `start_bird_services.sh`, so it does **not** apply the ADK patches — prefer one of the scripts above unless you specifically need the official orchestrator, and if you do use it, apply `patches/adk_p1snap_name_collision.patch` to the ADK checkout manually first (the script prints a loud warning if it detects the checkout is unpatched). |
+| `scripts/bird_interact/smoke_bird_interact.py` | One task, minimal — sanity-check the three-port setup end to end, then shuts the adapter down. |
+| `scripts/bird_interact/eval_bird_interact.py` | One task, full parity with the real orchestrator flow (pick by `--instance-id`, `--db`, or `--random`). |
+| `scripts/bird_interact/run_all_bird_interact.py` | Batch/overnight — all (or filtered) query tasks, adapter started once and reused, results written incrementally so a crash doesn't lose progress. |
+| `scripts/bird_interact/run_bird_interact_cinteract.py` | Runs the **official** Bird c-Interact orchestrator (not our own re-implementation) against the Auto Ontology adapter. ⚠️ Its manual uvicorn bootstrap does **not** go through `start_bird_services.sh`, so it does **not** apply the ADK patches — prefer one of the scripts above unless you specifically need the official orchestrator, and if you do use it, apply `scripts/bird_interact/patches/adk_p1snap_name_collision.patch` to the ADK checkout manually first (the script prints a loud warning if it detects the checkout is unpatched). |
 
 All three (except `run_bird_interact_cinteract.py`) require `:6001` and
 `:6002` already up (step 3) and start the Auto Ontology adapter themselves (default port
@@ -130,7 +130,7 @@ All three (except `run_bird_interact_cinteract.py`) require `:6001` and
 
 | Flag | Purpose |
 | --- | --- |
-| `--data` | Path to the combined GT jsonl (default: `datasets/bird_interact/bird_interact_data_with_gt.jsonl`). Point this at `bird_interact_full/...` to run Full. |
+| `--data` | Path to the combined GT jsonl (default: `data/datasets/bird_interact/bird_interact_data_with_gt.jsonl`). Point this at `bird_interact_full/...` to run Full. |
 | `--output` | Output stem → `results/<stem>/<stem>.jsonl` + `.csv` (default `cinteract_query_all`). |
 | `--limit N` | Cap number of tasks. |
 | `--difficulty {simple,moderate,challenging}` | Filter to one tier. |
@@ -145,7 +145,7 @@ All three (except `run_bird_interact_cinteract.py`) require `:6001` and
 Recommended for long runs (prevents the Mac from sleeping mid-run):
 
 ```bash
-caffeinate -i uv run python scripts/run_all_bird_interact.py --output my_run_name
+caffeinate -i uv run python scripts/bird_interact/run_all_bird_interact.py --output my_run_name
 ```
 
 ## 5. Results — where and what format
@@ -165,7 +165,7 @@ Each run writes to `results/<stem>/`:
 Then run analysis on the JSONL:
 
 ```bash
-python scripts/analyze_bird_interact.py results/<stem>/<stem>.jsonl
+python scripts/bird_interact/analyze_bird_interact.py results/<stem>/<stem>.jsonl
 ```
 
 This produces (all under `results/<stem>/`, no LLM calls, joins with the
@@ -194,13 +194,13 @@ error), each as `n/total (pct%)`:
 | `START_BIRD_SERVICES_DRY_RUN` | `start_bird_services.sh` | Set to print the command instead of running it. |
 
 General prerequisites (Postgres, `.env`, `uv sync`) are covered in the
-top-level [README.md](README.md#prerequisites) — they apply here too.
+top-level [README.md](../../README.md#prerequisites) — they apply here too.
 
 ## Known issues
 
 - **`labor_certification_applications` name-collision bug** — see
   `ontology_sql_eval/bird_interact/known_issues.py`. Fixed by
-  `patches/adk_p1snap_name_collision.patch`, applied automatically (and
+  `scripts/bird_interact/patches/adk_p1snap_name_collision.patch`, applied automatically (and
   mandatorily) by `start_bird_services.sh`. If you bypass that script (e.g.
   `run_bird_interact_cinteract.py`'s manual bootstrap), this bug can silently
   overwrite a real Phase 1 pass with `reward=0` and mis-grade Phase 2 against

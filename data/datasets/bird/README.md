@@ -1,6 +1,6 @@
 # BIRD
 
-[← Back to main README](../../README.md)
+[← Back to main README](../../../README.md)
 
 > **Disclaimer:** Running this code will automatically download data from
 > https://bird-bench.oss-cn-beijing.aliyuncs.com (the `dev` split), the BIRD
@@ -12,7 +12,7 @@
 > licensing is appropriate for your intended use.
 
 [BIRD](https://bird-bench.github.io/) is a large-scale cross-domain Text-to-SQL
-benchmark. [scripts/seed_bird.py](../../scripts/seed_bird.py) installs the full
+benchmark. [scripts/seed/seed_bird.py](../../../scripts/seed/seed_bird.py) installs the full
 official **Dev** split by default (1,534 questions over 11 SQLite databases) and
 its Train question corpus, or can install the cheaper **Mini-Dev** subset alone.
 Unlike WideWorldImporters, BIRD's source DBs are SQLite files (no
@@ -20,17 +20,17 @@ Postgres seeding step) and each question carries its own `db_id`, routing to the
 matching connector at eval time.
 
 > **Nothing you want to keep belongs in this folder.** Everything under
-> `datasets/bird/` except this README and `.gitkeep` is gitignored and replaced
+> `data/datasets/bird/` except this README and `.gitkeep` is gitignored and replaced
 > wholesale by the next download. Our own column descriptions and custom
-> analyses therefore live outside it, in `annotations/bird/`, and are picked up
+> analyses therefore live outside it, in `data/annotations/bird/`, and are picked up
 > from there automatically — see
-> [Publishing our descriptions and analyses](../../ontology_sql_eval/ingestion/README.md#publishing-our-descriptions-and-analyses).
+> [Publishing our descriptions and analyses](../../../ontology_sql_eval/ingestion/README.md#publishing-our-descriptions-and-analyses).
 
 ## Download
 
 ```bash
-uv run python scripts/seed_bird.py                     # Dev (default): 1,534 Qs, 11 DBs
-uv run python scripts/seed_bird.py --splits mini-dev    # 500-Q subset of the same 11 DBs
+uv run python scripts/seed/seed_bird.py                     # Dev (default): 1,534 Qs, 11 DBs
+uv run python scripts/seed/seed_bird.py --splits mini-dev    # 500-Q subset of the same 11 DBs
 ```
 
 | Split      | Questions | Databases installed | Role                                                                                       |
@@ -50,7 +50,7 @@ more of `mini-dev`/`dev`, default `dev`), `--force` (re-download and
 overwrite), `--keep-archive` (keep downloaded split archives and the Train JSON
 cache), `--url` (use a different/local evaluation-split zip — only valid with a
 single `--splits` value), `--dest`
-(default `datasets/bird/`), `--no-write-env` (see [Configure](#configure)),
+(default `data/datasets/bird/`), `--no-write-env` (see [Configure](#configure)),
 `--log-level`.
 
 > Passing two *evaluation* splits (`mini-dev dev`) merges both into one
@@ -61,7 +61,7 @@ single `--splits` value), `--dest`
 ## Folder layout
 
 ```
-datasets/bird/
+data/datasets/bird/
   evaluation.json                          # Mini-Dev / Dev questions for the whole dataset
   dev/<db_id>/<db_id>.sqlite               # one evaluation database per db_id
   dev/<db_id>/database_description/*.csv   # BIRD's own column annotations
@@ -69,17 +69,17 @@ datasets/bird/
   train/train.json                         # Train corpus, included with Dev
   subsets/<name>.json                      # optional hand-picked question slices (see below)
 
-annotations/bird/                          # tracked, outside the download
+data/annotations/bird/                          # tracked, outside the download
   custom_analyses/<db_id>.json             # our analyses, one file per db_id
   semantic_descriptions.csv                # our column descriptions, all 11 databases
 
-prompt_inputs/bird/                         # precomputed inputs supplied during eval
+data/prompt_inputs/bird/                         # precomputed inputs supplied during eval
   predicted_structural_exemplars.csv        # question-keyed Train SQL examples
   value_anchors.csv                         # question-keyed verified value anchors
 ```
 
 `metadata.json` is generated per database from BIRD's `database_description`
-CSVs, in the shape [`enrich_graph.apply_metadata`](../../ontology_sql_eval/ingestion/enrich_graph.py)
+CSVs, in the shape [`enrich_graph.apply_metadata`](../../../ontology_sql_eval/ingestion/enrich_graph.py)
 consumes, so column meanings and value descriptions reach the Postgres catalog
 and from there the text-to-SQL prompt. A `value_description` cell that reads
 exactly `not useful` is dropped (it's an annotator note about an opaque column)
@@ -93,7 +93,7 @@ By default the download script writes a ready-to-use `CONNECTION_STRINGS` line
 into your `.env`, replacing any existing `CONNECTION_STRINGS` entry:
 
 ```bash
-CONNECTION_STRINGS=sqlite:///<abs>/datasets/bird/dev/california_schools/california_schools.sqlite,sqlite:///<abs>/datasets/bird/dev/card_games/card_games.sqlite,...
+CONNECTION_STRINGS=sqlite:///<abs>/data/datasets/bird/dev/california_schools/california_schools.sqlite,sqlite:///<abs>/data/datasets/bird/dev/card_games/card_games.sqlite,...
 ```
 
 One comma-separated entry per evaluation `db_id` (11 for `mini-dev`/`dev`).
@@ -107,12 +107,12 @@ uv run python main.py --database-name bird
 ```
 
 This ingests every database in `CONNECTION_STRINGS`, compiles the semantic
-layer, then runs the NeMo Gym benchmark over `datasets/bird/evaluation.json`:
+layer, then runs the NeMo Gym benchmark over `data/datasets/bird/evaluation.json`:
 the schema-only control and the ontology-grounded arm, scored with BIRD's
 execution-match rule, with rollouts in `runs/control/` and `runs/treatment/` and
 the delta printed at the end. Stages can be skipped with `--skip-ingest`,
 `--skip-semantic` and `--skip-eval`. The semantic stage automatically replaces
-BIRD's shipped descriptions with the tracked set under `annotations/bird/` when
+BIRD's shipped descriptions with the tracked set under `data/annotations/bird/` when
 it is present.
 
 ### Manual (per-stage) equivalent
@@ -125,9 +125,9 @@ uv run python -m ontology_sql_eval.ingestion.semantic --benchmark-name bird
 # 2. Run the benchmark on the ingested DBs (first 10 questions, 3 at a time).
 uv run python main.py --database-name bird \
   --skip-ingest --skip-semantic --limit 10 --eval-workers 3 \
-  --sql-examples-csv prompt_inputs/bird/predicted_structural_exemplars.csv \
+  --sql-examples-csv data/prompt_inputs/bird/predicted_structural_exemplars.csv \
   --sql-examples-k 5 \
-  --value-anchors-csv prompt_inputs/bird/value_anchors.csv
+  --value-anchors-csv data/prompt_inputs/bird/value_anchors.csv
 ```
 
 Both ingestion commands walk every entry in `CONNECTION_STRINGS`, so all 11
@@ -140,7 +140,7 @@ The prompt inputs shown above are optional and go to the ontology arm only:
 - `--value-anchors-csv` loads question-keyed, precomputed database-value matches.
 
 These files provide prompt context only. They do not replace
-`datasets/bird/evaluation.json`, and the eval questions' gold SQL is not used to
+`data/datasets/bird/evaluation.json`, and the eval questions' gold SQL is not used to
 select examples or anchors. The control arm gets no equivalent, so a delta
 measured with them covers the inputs as well as the ontology grounding.
 

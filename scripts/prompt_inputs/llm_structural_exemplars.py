@@ -5,7 +5,7 @@ Run this file and nothing else. It carries the lexical retrieval helpers it
 once imported, so producing the exemplar file is one command with no prior
 step::
 
-    python scripts/llm_structural_exemplars.py predict
+    python scripts/prompt_inputs/llm_structural_exemplars.py predict
 
 which writes ``output/predicted_structural_exemplars.csv``, the file the eval
 passes as ``--sql-examples``. The retriever that used to live in
@@ -73,11 +73,11 @@ widened ``--limit`` re-costs only what it has not already asked.
 
 Usage:
     # dump one prompt and exit, no API calls
-    python scripts/llm_structural_exemplars.py rerank --limit 4 --dry-run
+    python scripts/prompt_inputs/llm_structural_exemplars.py rerank --limit 4 --dry-run
 
-    python scripts/llm_structural_exemplars.py rerank --k 5 --candidates 30
-    python scripts/llm_structural_exemplars.py predict --k 5
-    python scripts/llm_structural_exemplars.py compare   # rerank vs predict
+    python scripts/prompt_inputs/llm_structural_exemplars.py rerank --k 5 --candidates 30
+    python scripts/prompt_inputs/llm_structural_exemplars.py predict --k 5
+    python scripts/prompt_inputs/llm_structural_exemplars.py compare   # rerank vs predict
 """
 
 from __future__ import annotations
@@ -98,7 +98,7 @@ from pathlib import Path
 import pandas as pd
 from dotenv import load_dotenv
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 load_dotenv(ROOT / ".env")
 
 # --------------------------------------------------------------------------
@@ -1881,10 +1881,10 @@ def main() -> None:
 
     def shared(sub: argparse.ArgumentParser) -> None:
         sub.add_argument(
-            "--input", type=Path, default=ROOT / "datasets/bird/evaluation.json"
+            "--input", type=Path, default=ROOT / "data/datasets/bird/evaluation.json"
         )
         sub.add_argument(
-            "--train", type=Path, default=ROOT / "datasets/bird/train/train.json"
+            "--train", type=Path, default=ROOT / "data/datasets/bird/train/train.json"
         )
         sub.add_argument(
             "--candidates",
@@ -1950,7 +1950,7 @@ def main() -> None:
     predict_parser.add_argument(
         "--dev-dir",
         type=Path,
-        default=ROOT / "datasets/bird/dev",
+        default=ROOT / "data/datasets/bird/dev",
         help="Where <db_id>/<db_id>.sqlite live, for --schema.",
     )
     predict_parser.add_argument(

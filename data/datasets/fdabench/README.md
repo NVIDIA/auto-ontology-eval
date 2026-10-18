@@ -1,6 +1,6 @@
 # FDABench-Lite
 
-[← Back to main README](../../README.md)
+[← Back to main README](../../../README.md)
 
 > **Disclaimer:** Running this code will automatically download data from
 > https://huggingface.co/datasets/FDAbench2026/Fdabench-Lite,
@@ -27,17 +27,17 @@ redistributed).
 ## Download
 
 ```bash
-uv run python scripts/seed_fdabench.py
+uv run python scripts/seed/seed_fdabench.py
 ```
 
 This fetches the HuggingFace Lite JSONLs and the required SQLite archives, then
 writes:
 
 ```
-datasets/fdabench/<db_id>/<db_id>.sqlite
-datasets/fdabench/<db_id>/database_description/*.csv   # BIRD DBs only
-datasets/fdabench/<db_id>/metadata.json                # from those CSVs
-datasets/fdabench/evaluation.json
+data/datasets/fdabench/<db_id>/<db_id>.sqlite
+data/datasets/fdabench/<db_id>/database_description/*.csv   # BIRD DBs only
+data/datasets/fdabench/<db_id>/metadata.json                # from those CSVs
+data/datasets/fdabench/evaluation.json
 ```
 
 For BIRD-sourced databases, column descriptions from upstream
@@ -62,7 +62,7 @@ other sources provided; at the end it reports any missing databases and how
 many questions they strand. Re-run later, or supply a local copy:
 
 ```bash
-uv run python scripts/seed_fdabench.py \
+uv run python scripts/seed/seed_fdabench.py \
   --bird-root /path/to/BIRD_train/train_databases \
   --spider2-root /path/to/spider2-localdb \
   --spider1-root /path/to/spider_data/database
@@ -71,7 +71,7 @@ uv run python scripts/seed_fdabench.py \
 Other useful flags: `--tasks-only` (write `evaluation.json` only), `--force`
 (re-download and reinstall), `--keep-archive` (keep zips under `.cache/`),
 `--no-write-env`, `--dest`.
-See [scripts/seed_fdabench.py](../../scripts/seed_fdabench.py).
+See [scripts/seed/seed_fdabench.py](../../../scripts/seed/seed_fdabench.py).
 
 ## Configure
 
@@ -80,7 +80,7 @@ By default, the seed script writes a ready-to-use `CONNECTION_STRINGS` line
 `CONNECTION_STRINGS` entry:
 
 ```bash
-CONNECTION_STRINGS=sqlite:///<abs>/datasets/fdabench/app_store/app_store.sqlite,sqlite:///<abs>/datasets/fdabench/bank_sales_trading/bank_sales_trading.sqlite,...
+CONNECTION_STRINGS=sqlite:///<abs>/data/datasets/fdabench/app_store/app_store.sqlite,sqlite:///<abs>/data/datasets/fdabench/bank_sales_trading/bank_sales_trading.sqlite,...
 ```
 
 (all installed databases, comma-separated — one entry per `db_id`). Pass
@@ -94,7 +94,7 @@ uv run python main.py --database-name fdabench
 ```
 
 This ingests every database in `CONNECTION_STRINGS`, compiles the semantic
-layer, then runs the NeMo Gym benchmark over `datasets/fdabench/evaluation.json`:
+layer, then runs the NeMo Gym benchmark over `data/datasets/fdabench/evaluation.json`:
 the schema-only control and the ontology-grounded arm, scored by execution
 match, with rollouts in `runs/control/` and `runs/treatment/` and the delta
 printed at the end. Re-run without re-ingesting, and smoke-test on a few
@@ -113,7 +113,7 @@ uv run python main.py --database-name fdabench \
 - FDABench's MCQ / report rubric scoring is **not** ported here — scoring is
   this repo's execution match (BIRD's rule).
 - Per-database `metadata.json` lives under
-  `datasets/fdabench/<db_id>/metadata.json`. Ingestion resolves that nested
-  layout automatically (same as a top-level `datasets/<db_id>/metadata.json`).
+  `data/datasets/fdabench/<db_id>/metadata.json`. Ingestion resolves that nested
+  layout automatically (same as a top-level `data/datasets/<db_id>/metadata.json`).
 - Source datasets are downloaded at runtime and are **not** vendored in git
-  (see [THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md)).
+  (see [THIRD_PARTY_NOTICES.md](../../../THIRD_PARTY_NOTICES.md)).

@@ -1,6 +1,6 @@
 # WideWorldImporters (WWI)
 
-[← Back to main README](../../README.md)
+[← Back to main README](../../../README.md)
 
 WideWorldImporters is Microsoft's sample OLTP database, ported to Postgres and
 seeded here from pre-generated DDL + CSVs. It's the repo's bundled public
@@ -16,16 +16,16 @@ seed artifacts are already generated under this folder.
 ## Seed the local Postgres
 
 ```bash
-uv run python scripts/seed_wwi.py --database-name wideworldimporters --drop
+uv run python scripts/seed/seed_wwi.py --database-name wideworldimporters --drop
 ```
 
 This creates the database (using `POSTGRES_*` from `.env`, with
 `POSTGRES_DATABASE` as the admin connection), then applies DDL from `ddl/` and
 loads CSVs from `data/` in this folder.
 
-Flags (see [scripts/seed_wwi.py](../../scripts/seed_wwi.py)):
+Flags (see [scripts/seed/seed_wwi.py](../../../scripts/seed/seed_wwi.py)):
 
-- `--database-name <name>` — selects `datasets/<name>/` and names the target DB
+- `--database-name <name>` — selects `data/datasets/<name>/` and names the target DB
   (default `wideworldimporters`).
 - `--drop` — drop and recreate the database first (uses `WITH (FORCE)` to
   terminate any lingering sessions).
@@ -67,13 +67,13 @@ uv run python -m ontology_sql_eval.ingestion.semantic --database-name wideworldi
 uv run python main.py --database-name wideworldimporters --skip-ingest --skip-semantic
 ```
 
-See the per-workflow READMEs under [Workflows](../../README.md#workflows) for
+See the per-workflow READMEs under [Workflows](../../../README.md#workflows) for
 the details of each stage.
 
 ## Folder layout
 
 ```
-datasets/wideworldimporters/
+data/datasets/wideworldimporters/
   evaluation.json        # eval questions + expected SQL
   custom_analyses.json   # named example analyses (ingestion enrichment)
   ddl/                   # seed DDL: schemas, sequences, tables, indexes, fkeys, views

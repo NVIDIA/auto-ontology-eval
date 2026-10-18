@@ -5,7 +5,7 @@
 """Local ingest: source DB schema -> Auto Ontology catalog + pgvector embeddings.
 
 Vendored from Auto Ontology's ``dev_tools/local_ingest.py`` and retargeted so the
-enrichment step reads this repo's ``datasets/`` and ``annotations/`` files
+enrichment step reads this repo's ``data/datasets/`` and ``data/annotations/`` files
 instead of Auto Ontology's copy.
 
 Run after the Postgres catalog + pgvector services are up (see Auto Ontology's
@@ -138,7 +138,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         dest="benchmark_name",
         default=None,
         help=(
-            "Benchmark folder under datasets/ used to locate metadata and annotations "
+            "Benchmark folder under data/datasets/ used to locate metadata and annotations "
             "(for example, bird). --dataset-name is a compatibility alias."
         ),
     )

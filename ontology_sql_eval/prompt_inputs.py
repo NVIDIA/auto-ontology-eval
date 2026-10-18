@@ -2,9 +2,9 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Loaders for the question-keyed prompt inputs under ``prompt_inputs/``.
+"""Loaders for the question-keyed prompt inputs under ``data/prompt_inputs/``.
 
-Both files are built by ``scripts/build_eval_inputs.py`` and keyed by
+Both files are built by ``scripts/prompt_inputs/build_eval_inputs.py`` and keyed by
 ``question_id``: structural exemplars drawn from the BIRD Train corpus, and
 value anchors verified against the Dev databases.
 
@@ -28,7 +28,7 @@ def load_sql_examples(
 ) -> Dict[str, List[Dict[str, str]]]:
     """Map question_id to its top-*k* retrieved question/SQL exemplars.
 
-    Reads the CSV written by ``scripts/build_eval_inputs.py``, which ranks
+    Reads the CSV written by ``scripts/prompt_inputs/build_eval_inputs.py``, which ranks
     train-set examples by how closely their SQL structure matches the question.
     Keys are stringified because the CSV always yields text while the dataset
     yields ints.
@@ -45,9 +45,9 @@ def load_sql_examples(
     if not path.exists():
         raise SystemExit(
             f"SQL examples file not found: {path}\n"
-            "The repo ships one at prompt_inputs/bird/"
+            "The repo ships one at data/prompt_inputs/bird/"
             "predicted_structural_exemplars.csv; rebuild it with: "
-            "python scripts/build_eval_inputs.py --only exemplars"
+            "python scripts/prompt_inputs/build_eval_inputs.py --only exemplars"
         )
     ranked: Dict[str, List[Tuple[int, Dict[str, str]]]] = {}
     best_score: Dict[str, float] = {}
@@ -64,7 +64,7 @@ def load_sql_examples(
             raise SystemExit(
                 f"{path} is missing expected column(s): {sorted(missing)}.\n"
                 f"Found: {reader.fieldnames}\n"
-                "Regenerate it with: python scripts/build_eval_inputs.py "
+                "Regenerate it with: python scripts/prompt_inputs/build_eval_inputs.py "
                 "--only exemplars"
             )
         for record in reader:
@@ -133,15 +133,15 @@ def load_sql_examples(
 def load_value_anchors(path: Path) -> Dict[str, List[Dict[str, str]]]:
     """Map question_id to the database values looked up for its question.
 
-    Reads the CSV written by ``scripts/value_index.py anchors``. Rows of kind
+    Reads the CSV written by ``scripts/prompt_inputs/value_index.py anchors``. Rows of kind
     "absent" carry no column and record a phrase the database does not store;
     they are kept because that negative is what stops an invented literal.
     """
     if not path.exists():
         raise SystemExit(
             f"Value anchors file not found: {path}\n"
-            "The repo ships one at prompt_inputs/bird/value_anchors.csv; "
-            "rebuild it with: python scripts/build_eval_inputs.py "
+            "The repo ships one at data/prompt_inputs/bird/value_anchors.csv; "
+            "rebuild it with: python scripts/prompt_inputs/build_eval_inputs.py "
             "--only anchors"
         )
     ranked: Dict[str, List[Tuple[int, Dict[str, str]]]] = {}
