@@ -14,10 +14,16 @@ Grading is shared with the schema-only arm -- same executor, same BIRD
 set-equality rule, same failure codes -- so a difference in the number can only
 come from the SQL.
 
+Auto Ontology's own LLM calls go through two Gym model servers rather than
+straight to the endpoint (see ``ontology_sql_eval.gym.model_routing``), each
+tagged with the rollout it belongs to. With ``+observability_enabled=true`` Gym
+captures them per rollout, and ``verify`` reports the question's token totals.
+
 Three couplings with Auto Ontology this module must respect:
 
 * ``auto_ontology.retrieval.text_to_sql.main`` builds its LLM client and compiles the
-  graph *at import time*, so the environment is loaded before Auto Ontology imports.
+  graph *at import time*, so the environment is loaded -- and the endpoints
+  repointed at Gym -- before Auto Ontology imports.
 * Auto Ontology is installed from the parent project's pinned Git dependency.
 * ``stream_agent_response`` is a blocking generator, so it runs on a worker
   thread under a semaphore rather than on the event loop.
@@ -39,6 +45,15 @@ from pydantic import ConfigDict, Field
 # client while its modules are being imported.
 load_dotenv()
 
+from ontology_sql_eval.gym.model_routing import (  # noqa: E402
+    captured_usage,
+    route_through_gym,
+    tag_rollout_requests,
+)
+
+route_through_gym()
+tag_rollout_requests()
+
 from nemo_gym.base_resources_server import (  # noqa: E402
     BaseResourcesServerConfig,
     BaseVerifyRequest,
@@ -50,6 +65,7 @@ from nemo_gym.reward_profile import (  # noqa: E402
     compute_subset_metrics,
     highest_k_metrics,
 )
+from nemo_gym.rollout_correlation import current_rollout_id  # noqa: E402
 
 from auto_ontology.connectors import get_connectors  # noqa: E402
 from auto_ontology.retrieval.text_to_sql.main import stream_agent_response  # noqa: E402
@@ -71,7 +87,7 @@ from ontology_sql_eval.gym.exec_match import (  # noqa: E402
     PostgresExecutor,
     SqliteExecutor,
     execute_and_compare,
-    gold_is_runnable,
+    timeout_for,
 )
 from ontology_sql_eval.gym.tasks import DATASETS  # noqa: E402
 
@@ -195,6 +211,10 @@ class AutoOntologySqlVerifyResponse(BaseVerifyResponse):
     agent_nodes: List[str] = []
     execution_match: bool = False
     failure_reason: Optional[FailureCode] = None
+    # "empty_gold" / "nonempty_gold", or None when gold never ran. Grouped on in
+    # compute_metrics for BEAVER's second headline number, accuracy over
+    # nonempty_gold tasks only.
+    gold_result: Optional[str] = None
     policy_output_ignored: bool = True
     # How many exemplars and anchors this question's payload actually carried.
     # Recorded per rollout because a mistyped path or a stale question_id key
@@ -202,6 +222,24 @@ class AutoOntologySqlVerifyResponse(BaseVerifyResponse):
     # "with prompt inputs" while having had none.
     sql_examples_used: int = 0
     value_anchors_used: int = 0
+    # Auto Ontology's own LLM usage for this question, as Gym captured it. None
+    # rather than 0 when nothing was captured (observability off), so a run
+    # without capture reports no token metrics instead of a mean of zero.
+    agent_llm_calls: Optional[int] = None
+    agent_llm_calls_without_usage: Optional[int] = None
+    agent_input_tokens: Optional[int] = None
+    agent_cached_input_tokens: Optional[int] = None
+    agent_output_tokens: Optional[int] = None
+    agent_total_tokens: Optional[int] = None
+
+
+# The per-question token fields, surfaced in key metrics as their means.
+_TOKEN_FIELDS = (
+    "agent_llm_calls",
+    "agent_input_tokens",
+    "agent_output_tokens",
+    "agent_total_tokens",
+)
 
 
 class AutoOntologySqlResourcesServer(SimpleResourcesServer):
@@ -279,6 +317,7 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
         spec = DATASETS.get(dataset)
         if spec is None:
             raise KeyError(f"unknown dataset {dataset!r}")
+        timeout_s = timeout_for(dataset, self.config.sql_execution_timeout_s)
 
         if spec.dialect == "mysql":
             dsns = mysql_dsns_by_db(os.environ.get("CONNECTION_STRINGS", ""))
@@ -287,9 +326,7 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
                     f"no mysql:// entry in CONNECTION_STRINGS for dataset {dataset!r}; "
                     "seed it with scripts/seed_beaverbench.py --import-mysql"
                 )
-            executor: Any = MySqlExecutor(
-                dsns, timeout_s=self.config.sql_execution_timeout_s
-            )
+            executor: Any = MySqlExecutor(dsns, timeout_s=timeout_s)
         elif spec.dialect == "postgres":
             dsn = (
                 (self.config.postgres_dsn or os.environ.get("CONNECTION_STRINGS", ""))
@@ -298,13 +335,11 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
             )
             if not dsn:
                 raise RuntimeError(f"no Postgres DSN available for dataset {dataset!r}")
-            executor = PostgresExecutor(
-                dsn, timeout_s=self.config.sql_execution_timeout_s
-            )
+            executor = PostgresExecutor(dsn, timeout_s=timeout_s)
         else:
             executor = SqliteExecutor(
                 self._root / self.config.datasets_dir / spec.db_root,
-                timeout_s=self.config.sql_execution_timeout_s,
+                timeout_s=timeout_s,
             )
 
         self._executors[dataset] = executor
@@ -424,6 +459,7 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
                 **kwargs,
             )
 
+        rollout_id = current_rollout_id()
         try:
             async with self._semaphore:
                 result = await asyncio.to_thread(
@@ -437,7 +473,16 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
             logger.exception(
                 "Auto Ontology agent failed task_id=%s: %s", body.task_id, exc
             )
-            return _response(0.0, FailureCode.UNKNOWN_ERROR, agent_error=str(exc))
+            # A failed agent has usually spent tokens before failing. Recorded
+            # first: _without_prediction builds its response through _response,
+            # which reads carried at call time.
+            carried.update(await self._usage(rollout_id, body.task_id))
+            return await self._without_prediction(
+                body, _response, FailureCode.UNKNOWN_ERROR, agent_error=str(exc)
+            )
+
+        # Read by _response at call time, like the counts below.
+        carried.update(await self._usage(rollout_id, body.task_id))
 
         answer = result["answer"]
         sql = str(answer.get("sql_code") or "").strip()
@@ -453,15 +498,9 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
         # nothing on the error channel. Counting it separately is what stops an
         # outage from reading as a low score.
         if not sql:
-            # As above: a broken gold query must leave the denominator rather
-            # than be recorded as the agent producing a wrong answer.
-            gold_bad = await gold_is_runnable(
-                self._executor(body.dataset), body.db_id, body.gt_sql
-            )
-            if gold_bad:
-                return _response(0.0, _GOLD_FAILURE[gold_bad], agent_nodes=nodes)
-            return _response(
-                0.0,
+            return await self._without_prediction(
+                body,
+                _response,
                 FailureCode.NO_MODEL_OUTPUT,
                 agent_answer=str(answer.get("response") or ""),
                 agent_error=result["error"],
@@ -469,7 +508,7 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
             )
 
         try:
-            match, err = await execute_and_compare(
+            match, err, gold_result = await execute_and_compare(
                 self._executor(body.dataset), body.db_id, body.gt_sql, sql, body.dataset
             )
         except Exception as exc:
@@ -499,7 +538,74 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
             agent_error=result["error"],
             agent_nodes=nodes,
             execution_match=match,
+            gold_result=gold_result,
         )
+
+    async def _without_prediction(
+        self,
+        body: AutoOntologySqlVerifyRequest,
+        respond: Any,
+        failure: FailureCode,
+        **kwargs: Any,
+    ) -> AutoOntologySqlVerifyResponse:
+        """Score a task the agent produced no SQL for.
+
+        Gold is run even though there is nothing to compare: a task whose
+        benchmark query is broken must leave the denominator rather than be
+        recorded as the agent producing a wrong answer -- and on BEAVER, whose
+        official evaluator scores a missing prediction as an empty result, this
+        can match. ``failure`` is kept either way, so the health gate sees it.
+        """
+        try:
+            match, err, gold_result = await execute_and_compare(
+                self._executor(body.dataset),
+                body.db_id,
+                body.gt_sql,
+                None,
+                body.dataset,
+            )
+        except Exception as exc:
+            # Often the same fault that broke the agent (an unknown dataset, an
+            # unreachable database); the original failure is the one to report.
+            logger.exception("gold check failed task_id=%s: %s", body.task_id, exc)
+            return respond(0.0, failure, **kwargs)
+        if err in _GOLD_FAILURE:
+            # An empty answer over broken gold says nothing; an agent crash
+            # still does, so it keeps its own code for the health counters.
+            if failure is FailureCode.NO_MODEL_OUTPUT:
+                return respond(0.0, _GOLD_FAILURE[err], **kwargs)
+            return respond(0.0, failure, **kwargs)
+        return respond(
+            1.0 if match else 0.0,
+            failure,
+            execution_match=match,
+            gold_result=gold_result,
+            **kwargs,
+        )
+
+    async def _usage(
+        self, rollout_id: Optional[str], task_id: Optional[str]
+    ) -> Dict[str, int]:
+        """This rollout's captured token totals, logged per question. Never raises."""
+        try:
+            usage = await asyncio.to_thread(captured_usage, rollout_id)
+        except Exception:
+            logger.warning(
+                "Could not read token usage for task_id=%s", task_id, exc_info=True
+            )
+            return {}
+        if usage:
+            logger.info(
+                "task_id=%s tokens: %d in (%d cached), %d out, %d total over %d "
+                "LLM calls",
+                task_id,
+                usage["agent_input_tokens"],
+                usage["agent_cached_input_tokens"],
+                usage["agent_output_tokens"],
+                usage["agent_total_tokens"],
+                usage["agent_llm_calls"],
+            )
+        return usage
 
     @staticmethod
     def _score_fn(r: dict) -> Dict[str, float]:
@@ -513,7 +619,7 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
         metrics, *_ = compute_pass_majority_metrics(
             usable, score_fn=self._score_fn, answer_key="extracted_sql"
         )
-        for subset in ("difficulty", "dataset"):
+        for subset in ("difficulty", "dataset", "gold_result"):
             metrics.update(
                 compute_subset_metrics(usable, subset, self._score_fn, "extracted_sql")
             )
@@ -533,6 +639,12 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
             n = sum(1 for r in rollouts if r.get("failure_reason") == code.value)
             metrics[f"health/{code.value}_rate"] = n / total
             metrics[f"health/{code.value}_count"] = n
+        # On BEAVER a gold query that errors or times out is scored as an empty
+        # result rather than excluded, so these tasks stay in the denominator;
+        # this is the official evaluator's "gold SQL errors/timeouts" line.
+        metrics["health/gold_failure_scored_as_empty_count"] = sum(
+            1 for r in rollouts if r.get("gold_result") == "failed_gold"
+        )
         return metrics
 
     def get_key_metrics(self, agent_metrics: Dict[str, Any]) -> Dict[str, Any]:
@@ -541,6 +653,9 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
             for name, value in agent_metrics.items()
             if name.startswith("health/")
         }
+        for field in _TOKEN_FIELDS:
+            if f"mean/{field}" in agent_metrics:
+                key[f"mean/{field}"] = agent_metrics[f"mean/{field}"]
         key.update(
             highest_k_metrics(
                 agent_metrics, "pass@1[avg-of-{k}]", score_names=["accuracy"]
@@ -548,6 +663,16 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
         )
         key.update(
             highest_k_metrics(agent_metrics, "pass@{k}", score_names=["accuracy"])
+        )
+        # BEAVER reports accuracy both with and without empty-gold questions;
+        # this is the "without". Present for every dataset, since the split is
+        # just as informative elsewhere.
+        key.update(
+            highest_k_metrics(
+                agent_metrics,
+                "nonempty_gold/pass@1[avg-of-{k}]",
+                score_names=["accuracy"],
+            )
         )
         return key
 

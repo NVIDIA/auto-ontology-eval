@@ -310,9 +310,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--skip-eval",
         action="store_true",
         help=(
-            "Skip the benchmark stage. Named --skip-eval for compatibility: "
-            "run_beaver_shards.sh and resume_beaver_ranges.sh pass it to reach "
-            "the judge."
+            "Skip the benchmark stage, e.g. to run only the judge over an "
+            "existing eval CSV."
         ),
     )
     parser.add_argument(
@@ -432,8 +431,7 @@ def main(argv: list[str] | None = None) -> None:
 
     # The judge scores an eval CSV. The benchmark does not produce one -- it
     # writes Gym rollouts -- so the judge only runs over a CSV produced
-    # elsewhere (scripts/run_eval_shard.py, or a previous run), which is exactly
-    # how the BEAVER shard drivers use this entry point.
+    # elsewhere: by the retrieval eval (eval_chatbot), or a previous run.
     if not args.skip_judge:
         eval_csv = _eval_output_path(database_name=database_name)
         if run_benchmark:
@@ -446,7 +444,8 @@ def main(argv: list[str] | None = None) -> None:
         elif not eval_csv.exists():
             raise SystemExit(
                 f"Eval CSV not found: {eval_csv}\n"
-                "Produce one first (scripts/run_eval_shard.py), or pass --skip-judge."
+                "Produce one first (python -m ontology_sql_eval.retrieval.eval_chatbot), "
+                "or pass --skip-judge."
             )
         else:
             scored = stage_judge(eval_csv, workers=args.workers)

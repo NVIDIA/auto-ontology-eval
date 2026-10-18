@@ -48,9 +48,9 @@ from ontology_sql_eval.gym.exec_match import (
     PostgresExecutor,
     SqliteExecutor,
     execute_and_compare,
-    gold_is_runnable,
     extract_sql,
     has_sql_codeblock,
+    timeout_for,
 )
 from ontology_sql_eval.gym.tasks import DATASETS
 
@@ -127,6 +127,10 @@ class SchemaOnlySqlVerifyResponse(BaseVerifyResponse):
     had_codeblock: bool = False
     execution_match: bool = False
     failure_reason: Optional[FailureCode] = None
+    # "empty_gold" / "nonempty_gold", or None when gold never ran. Grouped on in
+    # compute_metrics for BEAVER's second headline number, accuracy over
+    # nonempty_gold tasks only.
+    gold_result: Optional[str] = None
 
 
 class SchemaOnlySqlResourcesServer(SimpleResourcesServer):
@@ -149,6 +153,7 @@ class SchemaOnlySqlResourcesServer(SimpleResourcesServer):
         spec = DATASETS.get(dataset)
         if spec is None:
             raise KeyError(f"unknown dataset {dataset!r}")
+        timeout_s = timeout_for(dataset, self.config.sql_execution_timeout_s)
 
         if spec.dialect == "mysql":
             dsns = mysql_dsns_by_db(os.environ.get("CONNECTION_STRINGS", ""))
@@ -157,9 +162,7 @@ class SchemaOnlySqlResourcesServer(SimpleResourcesServer):
                     f"no mysql:// entry in CONNECTION_STRINGS for dataset {dataset!r}; "
                     "seed it with scripts/seed_beaverbench.py --import-mysql"
                 )
-            executor: Any = MySqlExecutor(
-                dsns, timeout_s=self.config.sql_execution_timeout_s
-            )
+            executor: Any = MySqlExecutor(dsns, timeout_s=timeout_s)
         elif spec.dialect == "postgres":
             dsn = self.config.postgres_dsn or os.environ.get("CONNECTION_STRINGS", "")
             dsn = dsn.split(",")[0].strip()
@@ -167,13 +170,13 @@ class SchemaOnlySqlResourcesServer(SimpleResourcesServer):
                 raise RuntimeError(f"no Postgres DSN available for dataset {dataset!r}")
             executor = PostgresExecutor(
                 dsn,
-                timeout_s=self.config.sql_execution_timeout_s,
+                timeout_s=timeout_s,
             )
         else:
             executor = SqliteExecutor(
                 self._root / self.config.datasets_dir / spec.db_root,
                 max_concurrency=self.config.max_concurrency,
-                timeout_s=self.config.sql_execution_timeout_s,
+                timeout_s=timeout_s,
             )
 
         self._executors[dataset] = executor
@@ -227,21 +230,32 @@ class SchemaOnlySqlResourcesServer(SimpleResourcesServer):
         # never succeeded (rate limiting, timeout). Kept as its own failure code
         # so an infrastructure outage cannot be read as a low benchmark score.
         if not generated.strip():
-            # Check the gold query even though there is nothing to compare: a
-            # task whose benchmark query is broken must leave the denominator
-            # rather than be recorded as a miss.
-            gold_bad = await gold_is_runnable(
-                self._executor(body.dataset), body.db_id, body.gt_sql
+            # Gold is run even though there is nothing to compare: a task whose
+            # benchmark query is broken must leave the denominator rather than
+            # be recorded as a miss -- and on BEAVER, whose official evaluator
+            # scores a missing prediction as an empty result, this can match.
+            # It stays NO_MODEL_OUTPUT either way, so the health gate sees it.
+            match, err, gold_result = await execute_and_compare(
+                self._executor(body.dataset),
+                body.db_id,
+                body.gt_sql,
+                None,
+                body.dataset,
             )
-            if gold_bad:
-                return _response(0.0, _GOLD_FAILURE[gold_bad], execution_match=False)
-            return _response(0.0, FailureCode.NO_MODEL_OUTPUT, execution_match=False)
+            if err in _GOLD_FAILURE:
+                return _response(0.0, _GOLD_FAILURE[err], execution_match=False)
+            return _response(
+                1.0 if match else 0.0,
+                FailureCode.NO_MODEL_OUTPUT,
+                execution_match=match,
+                gold_result=gold_result,
+            )
 
         extracted = extract_sql(generated)
         had_block = has_sql_codeblock(generated)
 
         try:
-            match, err = await execute_and_compare(
+            match, err, gold_result = await execute_and_compare(
                 self._executor(body.dataset),
                 body.db_id,
                 body.gt_sql,
@@ -287,6 +301,7 @@ class SchemaOnlySqlResourcesServer(SimpleResourcesServer):
             extracted_sql=extracted,
             had_codeblock=had_block,
             execution_match=match,
+            gold_result=gold_result,
         )
 
     @staticmethod
@@ -302,7 +317,7 @@ class SchemaOnlySqlResourcesServer(SimpleResourcesServer):
         metrics, *_ = compute_pass_majority_metrics(
             usable, score_fn=self._score_fn, answer_key="extracted_sql"
         )
-        for subset in ("difficulty", "dataset"):
+        for subset in ("difficulty", "dataset", "gold_result"):
             metrics.update(
                 compute_subset_metrics(usable, subset, self._score_fn, "extracted_sql")
             )
@@ -325,6 +340,12 @@ class SchemaOnlySqlResourcesServer(SimpleResourcesServer):
             n = sum(1 for r in rollouts if r.get("failure_reason") == code.value)
             metrics[f"health/{code.value}_rate"] = n / total
             metrics[f"health/{code.value}_count"] = n
+        # On BEAVER a gold query that errors or times out is scored as an empty
+        # result rather than excluded, so these tasks stay in the denominator;
+        # this is the official evaluator's "gold SQL errors/timeouts" line.
+        metrics["health/gold_failure_scored_as_empty_count"] = sum(
+            1 for r in rollouts if r.get("gold_result") == "failed_gold"
+        )
         return metrics
 
     def get_key_metrics(self, agent_metrics: Dict[str, Any]) -> Dict[str, Any]:
@@ -342,6 +363,16 @@ class SchemaOnlySqlResourcesServer(SimpleResourcesServer):
         )
         key.update(
             highest_k_metrics(agent_metrics, "pass@{k}", score_names=["accuracy"])
+        )
+        # BEAVER reports accuracy both with and without empty-gold questions;
+        # this is the "without". Present for every dataset, since the split is
+        # just as informative elsewhere.
+        key.update(
+            highest_k_metrics(
+                agent_metrics,
+                "nonempty_gold/pass@1[avg-of-{k}]",
+                score_names=["accuracy"],
+            )
         )
         return key
 

@@ -26,6 +26,33 @@ MySQL corpus is a common case, not an exotic one. `tests/test_gym_beaver_match.p
 holds our implementation against the official evaluator in
 `ontology_sql_eval/judge/beaver.py`.
 
+BEAVER also differs in how it runs and reports, and both arms follow it there
+too:
+
+- **10-second query timeout** for `beaverbench`, whatever
+  `sql_execution_timeout_s` is set to (`QUERY_TIMEOUTS` in `exec_match.py`). A
+  query that is slower than that is counted as an empty result, as it is
+  officially.
+- **Accuracy without empty-gold questions.** Every rollout records
+  `gold_result` (`empty_gold` / `nonempty_gold`), and the metrics carry
+  `nonempty_gold/pass@1[avg-of-k]/accuracy` beside the overall number;
+  `scripts/compare_arms.py` prints a matching `nonempty gold` row. An empty
+  gold result is matched by any prediction that returns nothing -- including
+  one that errored -- so this is the more honest of the two.
+
+- **Every query that produces no rows is an empty result** -- an error, a
+  timeout, or no prediction at all (an empty model answer, an agent crash), on
+  the gold side as well as the prediction side (`ERRORS_AS_EMPTY` in
+  `exec_match.py`). So a missing prediction against empty gold scores 1.0, and a
+  task whose gold query fails stays in the denominator instead of being
+  excluded; its rollouts carry `gold_result: failed_gold` and are counted in
+  `health/gold_failure_scored_as_empty_count`. A missing prediction still keeps
+  its `no_model_output` / `unknown_error` failure code, so the health gate sees
+  an outage even where it scored.
+
+Every other dataset keeps the stricter handling: a failed prediction is a miss,
+and a failed gold query drops the task (`health/excluded_unusable_gold_count`).
+
 Neither rule involves an LLM. The LLM judge (`judge/scorer.py`) is a separate
 tool and is not used by either arm.
 
@@ -139,8 +166,7 @@ another reason to prefer it over driving the arms by hand.
 ## Environment
 
 One venv holds both `nemo_gym` and Auto Ontology's dependencies, with no overrides
-needed between them: Auto Ontology pins `openai==2.44.0` to match nemo-gym, and
-nemo-retriever no longer caps `prometheus-fastapi-instrumentator` below 8.
+needed between them: Auto Ontology pins `openai==2.44.0` to match nemo-gym.
 
 Auto Ontology's runtime dependencies are not redeclared in `pyproject.toml` — they
 arrive through the `auto-ontology-server` Git dependency. Add a package there only
@@ -167,10 +193,6 @@ Four things about Gym's CLI that are easy to lose an hour to:
    i.e. the top-level config key — not the inner `simple_agent`, which is the server
    *type*. nemo-gym 0.6.0+ validates this eagerly; 0.4.0 did not validate it at all
    and silently ignored a wrong value, so runs could appear to work with a bad name.
-
-Gym builds each server its own venv from its `requirements.txt`. If that build fails
-with `Package metadata version ... does not match ... from the wheel filename`, it is
-a race in nemo-retriever's timestamp-derived version, not a real conflict — retry.
 
 ## How this relates to the repo's other scorers
 

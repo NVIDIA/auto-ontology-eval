@@ -39,8 +39,6 @@ ported source code and a sample dataset. Both are documented in
 
 **Source dependencies:**
 
-- `nemo-retriever` — 26.8.1 from PyPI, pinned by Auto Ontology
-  ([NVIDIA/NeMo-Retriever](https://github.com/NVIDIA/NeMo-Retriever), Apache-2.0)
 - `auto_ontology` — sourced from
   [NVIDIA/auto-ontology](https://github.com/NVIDIA/auto-ontology) as a pinned
   Git dependency (Apache-2.0)

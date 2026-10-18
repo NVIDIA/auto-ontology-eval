@@ -10,8 +10,8 @@
 
 [BEAVER](https://beaverbench.github.io/) is an enterprise text-to-SQL benchmark
 sourced from private data warehouses. This repo maps it onto the same
-ingest → semantic compile → retrieval eval → LLM judge pipeline used for BIRD
-and FDABench.
+ingest → semantic compile → NeMo Gym benchmark pipeline used for BIRD and
+FDABench.
 
 Public HuggingFace data (gated — accept the terms, then `hf auth login`):
 
@@ -93,13 +93,32 @@ uv run python main.py --database-name beaverbench
 ```
 
 That ingests every database in `CONNECTION_STRINGS`, compiles the semantic
-layer, runs the agent against `datasets/beaverbench/evaluation.json`
-(→ `input/beaverbench_<model>.csv`), then LLM-judges the result
-(→ `output/beaverbench_<model>_scores.csv`).
+layer, then runs the NeMo Gym benchmark over `datasets/beaverbench/evaluation.json`:
+the schema-only control and the ontology-grounded arm, with rollouts in
+`runs/control/` and `runs/treatment/` and the delta printed at the end. Re-run
+without re-ingesting, and smoke-test on a few questions first:
+
+```bash
+uv run python main.py --database-name beaverbench \
+    --skip-ingest --skip-semantic --limit 10 --eval-workers 3
+```
+
+## Scoring
+
+Both arms are scored with BEAVER's official execution accuracy (`ex_acc`), ported
+into the Gym verifier so the numbers are comparable to the BEAVER leaderboard:
+values stringified and stripped, deduplicated row sets, a 10-second query
+timeout, and every query that yields no rows (an error, a timeout, a missing
+prediction, a failed gold query) counted as an empty result. Accuracy is
+reported both with and without empty-gold questions
+(`nonempty_gold/pass@1[...]`). See
+[`resources_servers/README.md`](../../resources_servers/README.md) for details.
+
+No LLM judge is involved.
 
 ## Notes
 
-- Scoring uses this repo's exec-match + LLM judge path, not the official BEAVER
-  coarse/fine-grained evaluators from [`beaverbench/beaver`](https://github.com/beaverbench/beaver).
+- Only `ex_acc` is ported, not the official BEAVER coarse/fine-grained
+  evaluators from [`beaverbench/beaver`](https://github.com/beaverbench/beaver).
 - Source dumps are downloaded at runtime and are **not** vendored in git.
 - Requires HuggingFace access to the gated beaverbench datasets.

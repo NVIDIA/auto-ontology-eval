@@ -9,11 +9,11 @@ readme = "README.md"
 requires-python = ">=3.13.14,<3.14"
 license = { text = "Apache-2.0" }
 dependencies = [
-    # Auto Ontology's runtime dependencies (connectors, nemo-retriever, langchain,
+    # Auto Ontology's runtime dependencies (connectors, langchain, openai,
     # pandas, fastapi, ...) come in through this package. Do not redeclare them
     # here: a second copy drifts out of sync with what Auto Ontology is tested
     # against. List only what this project needs on top of it.
-    "auto-ontology-server @ git+https://github.com/NVIDIA/auto-ontology.git@2deaca7814f5530d8be9f1847681d95a56b8f420",
+    "auto-ontology-server @ git+https://github.com/NVIDIA/auto-ontology.git@643993e758459e7bdb72642eed3549eb9d658c9e",
     # Imported directly by bird_interact/bird_interact_http.py. Also reachable
     # transitively through Auto Ontology, but not as part of its contract.
     "sqlglot>=30.12.0",
@@ -57,20 +57,13 @@ allow-direct-references = true
 # pin, the server resolves the newest Ray, and it fails to join the head's
 # cluster ("Version mismatch"). nemo-gym's own ray[default]>=2.58.0 already
 # holds the CVE floor.
-#
-# urllib3 is an override, not a constraint, because nemo-retriever 26.8.1 pins
-# urllib3==2.7.0 exactly and only an override can lift that. An override
-# replaces every other package's range, so it restates the <3 bound requests
-# and botocore declare.
-override-dependencies = [
-    "urllib3>=2.8.0,<3",  # BDSA-2026-35861, BDSA-2026-35864 (via nemo-retriever, requests, botocore)
-]
+
 # Minimum versions for transitive dependencies with known CVEs. Constraints
 # (not overrides) so each package's own upper bounds still apply.
 constraint-dependencies = [
     "anyio>=4.15.1",   # BDSA-2026-33862 (via httpx, starlette, openai, mcp)
-    "nltk>=3.10.3",    # via nemo-retriever, which requires only >=3.10.1
-    "pillow>=12.3.0",  # via matplotlib, nemo-retriever
+    "pillow>=12.3.0",  # via matplotlib
     "pyasn1>=0.6.4",   # CVE-2026-59886 (via pyjks, pyasn1-modules)
     "pyjwt>=2.15.1",   # BDSA-2026-35552 (via databricks/snowflake connectors, mcp)
+    "urllib3>=2.8.0",  # BDSA-2026-35861, BDSA-2026-35864 (via requests, botocore)
 ]

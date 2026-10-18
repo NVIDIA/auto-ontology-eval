@@ -145,6 +145,25 @@ if [[ -z "${GYM_REBUILD_VENV:-}" ]]; then
   GYM_FLAGS+=(+skip_venv_if_present=true)
 fi
 
+# Per-question token counts. With observability on, Gym's model servers record
+# every call under the rollout that made it, and each rollout row gets an
+# ng_model_call_capture block with its token totals. The directory must be
+# absolute; it sits beside the output so each arm keeps its own.
+CAPTURE_DIR="$(dirname "$OUTPUT")/model_call_capture"
+mkdir -p "$CAPTURE_DIR"
+CAPTURE_DIR="$(cd "$CAPTURE_DIR" && pwd)"
+GYM_FLAGS+=(+observability_enabled=true "+model_call_capture_dir=$CAPTURE_DIR")
+
+# The Auto Ontology arm sends its own ~19 calls a question through two Gym model
+# servers, so they are captured too. Their endpoint/model/key come from Auto
+# Ontology's own resolution, exported here for the arm's YAML; see
+# ontology_sql_eval/gym/model_routing.py. Assigned before eval so a failure
+# stops the script under `set -e`, which `eval "$(...)"` would not.
+if [[ "$SERVER" == auto_ontology_sql ]]; then
+  routing_env="$(.venv/bin/python -m ontology_sql_eval.gym.model_routing)"
+  eval "$routing_env"
+fi
+
 # --agent takes the fully-qualified server-instance name: nemo-gym 0.6.0 and
 # later reject the bare inner key ("simple_agent") that 0.4.0 accepted.
 #

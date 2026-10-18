@@ -17,10 +17,10 @@ The typical lifecycle is **ingest → semantic compile → benchmark**: you inge
 database so the agent can retrieve its schema, then run the benchmark to see how
 much that grounding is worth against a schema-only control.
 
-The judge is a separate tool, not a stage of that flow. It scores eval CSVs
-produced by the sharded runners (`scripts/run_eval_shard.py`), which is how the
-BEAVER pipeline uses it. The benchmark itself uses no LLM judge — scoring is
-deterministic execution match.
+The judge is a separate tool, not a stage of that flow. It scores eval CSVs,
+such as those the single-arm retrieval eval (`eval_chatbot`) writes. The
+benchmark itself uses no LLM judge — scoring is deterministic execution match,
+with each benchmark's official rule where it has one (BIRD, BEAVER).
 
 > [!IMPORTANT]
 > **Auto Ontology is installed automatically.**
@@ -134,10 +134,9 @@ uv run python main.py --database-name bird \
 > [!NOTE]
 > The **LLM judge** scores an eval CSV, and the benchmark writes Gym rollouts
 > rather than a CSV, so the judge is skipped whenever the benchmark runs. It
-> still runs over a CSV produced elsewhere — which is how
-> `run_beaver_shards.sh` and `resume_beaver_ranges.sh` use this entry point:
-> `--skip-eval` to reach the judge. The standalone `ontology-sql-eval` console
-> script does the same job directly.
+> still runs over a CSV produced elsewhere (by the retrieval eval, say): pass
+> `--skip-eval` to reach it. The standalone `ontology-sql-eval` console script
+> does the same job directly.
 
 Each arm writes Gym's own artifacts next to its rollouts —
 `*_aggregate_metrics.json` (pass@1 overall and per difficulty, plus `health/*`
@@ -353,8 +352,8 @@ Each workflow has its own README with purpose, run instructions, and outputs:
   (requires Auto Ontology for the ontology arm). This is `main.py`'s evaluation
   stage.
 - **[Retrieval eval](ontology_sql_eval/retrieval/README.md)** — the single-arm
-  agent runner behind `scripts/run_eval_shard.py`. No longer a `main.py` stage;
-  it produces the CSVs the judge scores (requires Auto Ontology).
+  agent runner. No longer a `main.py` stage; run it directly to produce the
+  CSVs the judge scores (requires Auto Ontology).
 - **[SQL judge](ontology_sql_eval/judge/README.md)** — standalone LLM re-scorer
   for eval CSVs (no Auto Ontology checkout required).
 
@@ -411,10 +410,9 @@ after changing a server's dependencies. See
 > `GYM_REBUILD_VENV=1 scripts/run_gym_arm.sh auto_ontology_sql /tmp/probe.jsonl`.
 > The venv is reused by default. `run_gym_arm.sh` rebuilds on its own when a
 > server venv's nemo-gym or Ray differs from `.venv`'s, but not for other
-> packages: an existing venv keeps the nemo-retriever and openai it was built
-> with. A nemo-retriever newer than 26.8.1 makes the ontology arm score several
-> points low with nothing in the rollouts to say why, and openai 2.45+ rejects
-> the inference-api gateway's responses. A venv built from scratch is already
+> packages: an existing venv keeps the Auto Ontology and openai it was built
+> with, so it misses an Auto Ontology bump, and openai 2.45+ rejects the
+> inference-api gateway's responses. A venv built from scratch is already
 > correct.
 
 Datasets: `bird`, `fdabench`, `wideworldimporters` (Postgres), `beaverbench`
