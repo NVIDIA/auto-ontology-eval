@@ -29,6 +29,7 @@ import asyncio
 import contextlib
 import re
 import sqlite3
+import time
 from enum import Enum
 from pathlib import Path
 from typing import Any, Optional, Protocol
@@ -66,6 +67,7 @@ def drop_unusable_tasks(
 
 __all__ = [
     "UNUSABLE_FAILURES",
+    "SHARED_TIMEOUT",
     "drop_unusable_tasks",
     "FailureCode",
     "SqliteExecutor",
@@ -102,6 +104,10 @@ class FailureCode(str, Enum):
     EXECUTION_TIMEOUT = "execution_timeout"
     GOLD_EXECUTION_ERROR = "gold_execution_error"
     GOLD_EXECUTION_TIMEOUT = "gold_execution_timeout"
+    # Gold failed on a dataset whose official evaluator scores that as a miss
+    # and keeps the task (BIRD; see SHARED_TIMEOUT). Unlike the two above, the
+    # task stays in the denominator.
+    GOLD_FAILURE_SCORED = "gold_failure_scored"
     UNKNOWN_ERROR = "unknown_error"
 
 
@@ -202,6 +208,17 @@ ERRORS_AS_EMPTY = {"beaverbench"}
 # only reproducible with the leaderboard's timeout.
 QUERY_TIMEOUTS = {"beaverbench": 10.0}
 
+# Datasets scored the way BIRD's evaluation_ex.py scores them: the prediction and
+# then the gold query run under ONE time limit, and any failure -- the gold
+# query's included -- scores 0 with the task kept in the denominator. Elsewhere
+# each query gets the full limit and a failed gold query excludes the task.
+#
+# On BIRD Mini-Dev this decides two questions. 701's gold query takes ~157s, so
+# it can never be answered; officially it still counts. 518's takes ~26s on an
+# idle machine, leaving the prediction a few seconds: it passes or times out
+# depending on machine speed and load, as it does officially.
+SHARED_TIMEOUT = {"bird"}
+
 
 def timeout_for(dataset: str, default: float) -> float:
     """Return the query timeout, in seconds, a dataset should be executed with."""
@@ -229,8 +246,11 @@ class Executor(Protocol):
     query apart from a broken one.
     """
 
+    #: The limit a query gets when :meth:`execute` is not given one.
+    timeout_s: float
+
     async def execute(
-        self, db_id: str, sql: str
+        self, db_id: str, sql: str, *, timeout_s: Optional[float] = None
     ) -> tuple[Optional[ResultSet], str]: ...
 
 
@@ -254,18 +274,20 @@ class SqliteExecutor:
         timeout_s: float = 30.0,
     ) -> None:
         self._db_root = db_root
-        self._timeout_s = timeout_s
+        self.timeout_s = timeout_s
         self._semaphore = asyncio.Semaphore(max_concurrency)
 
     def db_path(self, db_id: str) -> Path:
         return self._db_root / db_id / f"{db_id}.sqlite"
 
-    async def execute(self, db_id: str, sql: str) -> tuple[Optional[ResultSet], str]:
+    async def execute(
+        self, db_id: str, sql: str, *, timeout_s: Optional[float] = None
+    ) -> tuple[Optional[ResultSet], str]:
         async with self._semaphore:
             try:
                 return await asyncio.wait_for(
                     asyncio.to_thread(_run_sqlite, self.db_path(db_id), sql),
-                    timeout=self._timeout_s,
+                    timeout=self.timeout_s if timeout_s is None else timeout_s,
                 )
             except asyncio.TimeoutError:
                 return None, "timeout"
@@ -323,10 +345,12 @@ class MySqlExecutor:
         timeout_s: float = 30.0,
     ) -> None:
         self._dsn_for_db = dsn_for_db
-        self._timeout_s = timeout_s
+        self.timeout_s = timeout_s
         self._semaphore = asyncio.Semaphore(max_concurrency)
 
-    async def execute(self, db_id: str, sql: str) -> tuple[Optional[ResultSet], str]:
+    async def execute(
+        self, db_id: str, sql: str, *, timeout_s: Optional[float] = None
+    ) -> tuple[Optional[ResultSet], str]:
         dsn = self._dsn_for_db.get(db_id)
         if dsn is None:
             return None, "error"
@@ -334,7 +358,7 @@ class MySqlExecutor:
             try:
                 return await asyncio.wait_for(
                     asyncio.to_thread(_run_mysql, dsn, sql),
-                    timeout=self._timeout_s,
+                    timeout=self.timeout_s if timeout_s is None else timeout_s,
                 )
             except asyncio.TimeoutError:
                 return None, "timeout"
@@ -356,15 +380,17 @@ class PostgresExecutor:
         timeout_s: float = 30.0,
     ) -> None:
         self._dsn = dsn
-        self._timeout_s = timeout_s
+        self.timeout_s = timeout_s
         self._semaphore = asyncio.Semaphore(max_concurrency)
 
-    async def execute(self, db_id: str, sql: str) -> tuple[Optional[ResultSet], str]:
+    async def execute(
+        self, db_id: str, sql: str, *, timeout_s: Optional[float] = None
+    ) -> tuple[Optional[ResultSet], str]:
         async with self._semaphore:
             try:
                 return await asyncio.wait_for(
                     asyncio.to_thread(_run_postgres, self._dsn, sql),
-                    timeout=self._timeout_s,
+                    timeout=self.timeout_s if timeout_s is None else timeout_s,
                 )
             except asyncio.TimeoutError:
                 return None, "timeout"
@@ -390,6 +416,11 @@ async def execute_and_compare(
     :func:`gold_result_tag` when gold ran, ``"failed_gold"`` when it failed and
     was scored as empty, and ``None`` when the task is excluded.
     """
+    if dataset in SHARED_TIMEOUT:
+        return await _execute_and_compare_shared_timeout(
+            executor, db_id, gold_sql, pred_sql, dataset
+        )
+
     errors_as_empty = dataset in ERRORS_AS_EMPTY
     gold_rows, gold_status = await executor.execute(db_id, gold_sql)
     if gold_rows is None:
@@ -408,4 +439,42 @@ async def execute_and_compare(
             return matcher_for(dataset)(gold_rows, []), None, gold_result
         return False, f"pred_sql_{pred_status or 'error'}", gold_result
 
+    return matcher_for(dataset)(gold_rows, pred_rows), None, gold_result
+
+
+async def _execute_and_compare_shared_timeout(
+    executor: Executor,
+    db_id: str,
+    gold_sql: str,
+    pred_sql: Optional[str],
+    dataset: str,
+) -> tuple[bool, Optional[str], Optional[str]]:
+    """BIRD's ``evaluation_ex.py``: prediction, then gold, under one time limit.
+
+    The official ``execute_model`` wraps both queries in a single
+    ``func_timeout(meta_time_out, ...)`` and scores every exception and timeout
+    0, with the task kept. A failed gold query returns ``gold_sql_scored``
+    rather than a ``gold_sql_*`` tag that excludes the task. Gold still runs
+    after a failed prediction, with whatever time is left, so the rollout
+    carries its ``gold_result``; the score is 0 either way.
+    """
+    budget = executor.timeout_s
+    start = time.monotonic()
+    if pred_sql is None:
+        pred_rows, pred_status = None, "missing"
+    else:
+        pred_rows, pred_status = await executor.execute(
+            db_id, pred_sql, timeout_s=budget
+        )
+
+    remaining = budget - (time.monotonic() - start)
+    gold_rows: Optional[ResultSet] = None
+    if remaining > 0:
+        gold_rows, _ = await executor.execute(db_id, gold_sql, timeout_s=remaining)
+    gold_result = "failed_gold" if gold_rows is None else gold_result_tag(gold_rows)
+
+    if pred_rows is None:
+        return False, f"pred_sql_{pred_status or 'error'}", gold_result
+    if gold_rows is None:
+        return False, "gold_sql_scored", gold_result
     return matcher_for(dataset)(gold_rows, pred_rows), None, gold_result

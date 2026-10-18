@@ -46,12 +46,28 @@ too:
   `exec_match.py`). So a missing prediction against empty gold scores 1.0, and a
   task whose gold query fails stays in the denominator instead of being
   excluded; its rollouts carry `gold_result: failed_gold` and are counted in
-  `health/gold_failure_scored_as_empty_count`. A missing prediction still keeps
+  `health/gold_failure_scored_count`. A missing prediction still keeps
   its `no_model_output` / `unknown_error` failure code, so the health gate sees
   an outage even where it scored.
 
+BIRD follows its official evaluator (`evaluation_ex.py`) in how it runs, too
+(`SHARED_TIMEOUT` in `exec_match.py`):
+
+- **One 30-second limit for the prediction and the gold query together**,
+  prediction first, as the official `func_timeout` wraps both. Each query does
+  not get its own 30 seconds.
+- **A gold query that errors or times out scores 0 and stays in the
+  denominator.** Its rollouts carry `failure_reason: gold_failure_scored` and
+  `gold_result: failed_gold`, and count in `health/gold_failure_scored_count`.
+
+On Mini-Dev this decides two questions. 701's gold query takes about 157 s, so no
+prediction can be scored correct; it still counts. 518's takes about 26 s on an
+idle machine, leaving the prediction a few seconds, so whether it can pass
+depends on machine speed and load, as it does under the official evaluator.
+
 Every other dataset keeps the stricter handling: a failed prediction is a miss,
-and a failed gold query drops the task (`health/excluded_unusable_gold_count`).
+each query gets the full limit, and a failed gold query drops the task
+(`health/excluded_unusable_gold_count`).
 
 Neither rule involves an LLM.
 
