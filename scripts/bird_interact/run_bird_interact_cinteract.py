@@ -61,7 +61,11 @@ ONTOLOGY_DIR = Path(__file__).resolve().parents[2]
 _default_adk = ONTOLOGY_DIR / "third_party" / "BIRD-Interact" / "BIRD-Interact-ADK"
 BIRD_ADK_DIR = Path(os.environ.get("BIRD_INTERACT_ADK_DIR", str(_default_adk)))
 DEFAULT_DATA = (
-    ONTOLOGY_DIR / "data" / "datasets" / "bird_interact" / "bird_interact_data_with_gt.jsonl"
+    ONTOLOGY_DIR
+    / "data"
+    / "datasets"
+    / "bird_interact"
+    / "bird_interact_data_with_gt.jsonl"
 )
 
 

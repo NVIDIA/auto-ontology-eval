@@ -13,6 +13,7 @@ Usage:
     python scripts/bird_interact/analyze_bird_interact.py results/overnight_run_1.jsonl \
         --data /path/to/bird_interact_data_with_gt.jsonl
 """
+
 from __future__ import annotations
 
 import argparse
@@ -24,6 +25,7 @@ from pathlib import Path
 
 class _Tee:
     """Write to both the real stdout and a file simultaneously."""
+
     def __init__(self, file_path: Path) -> None:
         self._real = sys.stdout
         self._f = open(file_path, "w")
@@ -41,19 +43,27 @@ class _Tee:
         sys.stdout = self._real
         self._f.close()
 
+
 ONTOLOGY_DIR = Path(__file__).resolve().parents[2]
-DEFAULT_DATA = ONTOLOGY_DIR / "data" / "datasets" / "bird_interact" / "bird_interact_data_with_gt.jsonl"
+DEFAULT_DATA = (
+    ONTOLOGY_DIR
+    / "data"
+    / "datasets"
+    / "bird_interact"
+    / "bird_interact_data_with_gt.jsonl"
+)
 
 # Non-critical ambiguity types to exclude from the unresolved-vs-ambiguity analysis
 # (sort direction, decimal precision, null handling are noise — not real failures)
 _DIFFICULTY_NORM = {
-    "easy":       "Simple",
-    "simple":     "Simple",
-    "medium":     "Moderate",
-    "moderate":   "Moderate",
-    "hard":       "Challenging",
+    "easy": "Simple",
+    "simple": "Simple",
+    "medium": "Moderate",
+    "moderate": "Moderate",
+    "hard": "Challenging",
     "challenging": "Challenging",
 }
+
 
 def _norm_diff(raw: str | None) -> str:
     return _DIFFICULTY_NORM.get((raw or "").lower(), "Unknown")
@@ -76,16 +86,21 @@ def _diff_label(task: dict | None, dataset_label: str) -> str:
 
 
 def _diff_order(dataset_label: str) -> list[str]:
-    return ["High Level", "Normal", "Unknown"] if dataset_label == "full" \
+    return (
+        ["High Level", "Normal", "Unknown"]
+        if dataset_label == "full"
         else ["Simple", "Moderate", "Challenging", "Unknown"]
+    )
 
 
-_NOISE_AMBIGUITY_TYPES = frozenset({
-    "sort_ambiguity",
-    "decimal_ambiguity",
-    "null_ambiguity",
-    "order_ambiguity",
-})
+_NOISE_AMBIGUITY_TYPES = frozenset(
+    {
+        "sort_ambiguity",
+        "decimal_ambiguity",
+        "null_ambiguity",
+        "order_ambiguity",
+    }
+)
 
 
 def _load_jsonl(path: Path) -> list[dict]:
@@ -99,8 +114,10 @@ def _infer_dataset_label(records: list[dict], data_path: Path) -> str:
     if len(labels) == 1:
         return labels.pop()
     if len(labels) > 1:
-        print(f"Warning: mixed datasets in results ({sorted(labels)}) — treating as 'mixed'",
-              file=sys.stderr)
+        print(
+            f"Warning: mixed datasets in results ({sorted(labels)}) — treating as 'mixed'",
+            file=sys.stderr,
+        )
         return "mixed"
     return "full" if "full" in str(data_path).lower() else "lite"
 
@@ -135,7 +152,9 @@ def _abbrev_dbs(dbs: list[str]) -> dict[str, str]:
     short: dict[str, str] = {}
     for db in dbs:
         parts = db.split("_")
-        candidate = "".join(p[0] for p in parts).upper() if len(parts) > 1 else db[:2].upper()
+        candidate = (
+            "".join(p[0] for p in parts).upper() if len(parts) > 1 else db[:2].upper()
+        )
         n = len(candidate) + 1
         while candidate in used:
             candidate = db[:n].upper()
@@ -157,6 +176,7 @@ def _make_charts(
     """Generate two chart PNGs: results (3 charts) and diagnostics (4 charts)."""
     try:
         import matplotlib
+
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
     except ImportError:
@@ -169,18 +189,32 @@ def _make_charts(
 
     # ── Shared colour palette ─────────────────────────────────────────────────
     # Pass/outcome scale  (green → yellow → red)
-    C_PASS_BOTH  = "#4caf50"   # green   — passed both phases
-    C_PASS_P1    = "#ffc107"   # amber   — passed phase 1 only
-    C_FAIL       = "#f44336"   # red     — failed
+    C_PASS_BOTH = "#4caf50"  # green   — passed both phases
+    C_PASS_P1 = "#ffc107"  # amber   — passed phase 1 only
+    C_FAIL = "#f44336"  # red     — failed
     # Score scale  (0.0 → 1.0 : red → orange → yellow → lime → yellow-green → green)
-    C_SCORE = {0.0: "#f44336", 0.5: "#ff9800", 0.7: "#ffeb3b", 0.8: "#cddc39", 0.9: "#8bc34a", 1.0: "#4caf50"}
+    C_SCORE = {
+        0.0: "#f44336",
+        0.5: "#ff9800",
+        0.7: "#ffeb3b",
+        0.8: "#cddc39",
+        0.9: "#8bc34a",
+        1.0: "#4caf50",
+    }
     # Difficulty scale  (Simple pink → Moderate purple → Challenging dark-blue)
-    C_DIFF = {"Simple": "#f06292", "Moderate": "#9c27b0", "Challenging": "#1565c0", "Unknown": "#9e9e9e", "All": "#9e9e9e",
-              "Normal": "#f06292", "High Level": "#1565c0"}
+    C_DIFF = {
+        "Simple": "#f06292",
+        "Moderate": "#9c27b0",
+        "Challenging": "#1565c0",
+        "Unknown": "#9e9e9e",
+        "All": "#9e9e9e",
+        "Normal": "#f06292",
+        "High Level": "#1565c0",
+    }
     # Timing components  (clarification dark-grey / SQL gen mid-grey / debug steel-blue)
     C_CLARIFY = "#424242"
-    C_SQLGEN  = "#9e9e9e"
-    C_DEBUG   = "#1976d2"
+    C_SQLGEN = "#9e9e9e"
+    C_DEBUG = "#1976d2"
 
     # Ambiguity type palette — teal/cyan family, distinct from all existing palettes
     C_AMB = ["#00897b", "#26a69a", "#4db6ac", "#80cbc4", "#b2dfdb", "#e0f2f1"]
@@ -190,8 +224,14 @@ def _make_charts(
     # ══════════════════════════════════════════════════════════════════════════
     path1 = out_path
     fig1, axes1 = plt.subplots(2, 2, figsize=(14, 10))
-    fig1.suptitle(f"BIRD-Interact Run Analysis — Results [{dataset_label.upper()}]", fontsize=13, fontweight="bold")
-    fig1.subplots_adjust(hspace=0.45, wspace=0.38, left=0.08, right=0.97, top=0.92, bottom=0.1)
+    fig1.suptitle(
+        f"BIRD-Interact Run Analysis — Results [{dataset_label.upper()}]",
+        fontsize=13,
+        fontweight="bold",
+    )
+    fig1.subplots_adjust(
+        hspace=0.45, wspace=0.38, left=0.08, right=0.97, top=0.92, bottom=0.1
+    )
 
     # Chart A: Outcome per DB
     ax = axes1[0, 0]
@@ -210,13 +250,19 @@ def _make_charts(
             db_stats[db]["failed"] += 1
     dbs = sorted(db_stats)
     db_short = _abbrev_dbs(dbs)
-    both    = [db_stats[d]["both"]    for d in dbs]
+    both = [db_stats[d]["both"] for d in dbs]
     p1_only = [db_stats[d]["p1_only"] for d in dbs]
-    failed  = [db_stats[d]["failed"]  for d in dbs]
+    failed = [db_stats[d]["failed"] for d in dbs]
     xi = range(len(dbs))
-    ax.bar(xi, both,    label="Pass (both phases)", color=C_PASS_BOTH)
+    ax.bar(xi, both, label="Pass (both phases)", color=C_PASS_BOTH)
     ax.bar(xi, p1_only, bottom=both, label="Pass (P1 only)", color=C_PASS_P1)
-    ax.bar(xi, failed,  bottom=[a+b for a,b in zip(both, p1_only)], label="Fail", color=C_FAIL)
+    ax.bar(
+        xi,
+        failed,
+        bottom=[a + b for a, b in zip(both, p1_only)],
+        label="Fail",
+        color=C_FAIL,
+    )
     ax.set_xticks(list(xi))
     ax.set_xticklabels([db_short[d] for d in dbs], rotation=45, ha="right", fontsize=7)
     ax.set_title("Outcome per DB")
@@ -226,14 +272,25 @@ def _make_charts(
 
     # Chart B: Score distribution
     ax = axes1[0, 1]
-    score_keys   = [0.0, 0.5, 0.7, 0.8, 0.9, 1.0]
+    score_keys = [0.0, 0.5, 0.7, 0.8, 0.9, 1.0]
     score_labels = ["0.0", "0.5", "0.7", "0.8", "0.9", "1.0"]
     score_counts = [score_buckets.get(k, 0) for k in score_keys]
-    bars = ax.bar(score_labels, score_counts, color=[C_SCORE[k] for k in score_keys], edgecolor="white")
+    bars = ax.bar(
+        score_labels,
+        score_counts,
+        color=[C_SCORE[k] for k in score_keys],
+        edgecolor="white",
+    )
     for bar, cnt in zip(bars, score_counts):
         if cnt > 0:
-            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.05,
-                    str(cnt), ha="center", va="bottom", fontsize=9)
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                bar.get_height() + 0.05,
+                str(cnt),
+                ha="center",
+                va="bottom",
+                fontsize=9,
+            )
     ax.set_xlabel("Score")
     ax.set_ylabel("Tasks")
     ax.set_ylim(0, max(score_counts or [1]) * 1.2)
@@ -249,18 +306,35 @@ def _make_charts(
             all_vals = [v for vals in followup_stats[ft].values() for v in vals]
             rates.append(sum(all_vals) / len(all_vals) * 100 if all_vals else 0)
             counts.append(len(all_vals))
-        bar_colors_fu = C_AMB[:len(fu_types)] if len(fu_types) <= len(C_AMB) else C_AMB * 2
-        bars = ax.bar(fu_types, rates, color=bar_colors_fu[:len(fu_types)], edgecolor="white")
+        bar_colors_fu = (
+            C_AMB[: len(fu_types)] if len(fu_types) <= len(C_AMB) else C_AMB * 2
+        )
+        bars = ax.bar(
+            fu_types, rates, color=bar_colors_fu[: len(fu_types)], edgecolor="white"
+        )
         for bar, rate, n in zip(bars, rates, counts):
-            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 1.5,
-                    f"{rate:.0f}%\n(n={n})", ha="center", va="bottom", fontsize=8)
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                bar.get_height() + 1.5,
+                f"{rate:.0f}%\n(n={n})",
+                ha="center",
+                va="bottom",
+                fontsize=8,
+            )
         ax.set_ylabel("P2 pass rate (%)")
         ax.set_ylim(0, 110)
         ax.set_title("P2 Pass Rate by Follow-up Type")
         ax.set_xticks(list(range(len(fu_types))))
         ax.set_xticklabels(fu_types, rotation=20, ha="right", fontsize=8)
     else:
-        ax.text(0.5, 0.5, "no follow-up data", ha="center", va="center", transform=ax.transAxes)
+        ax.text(
+            0.5,
+            0.5,
+            "no follow-up data",
+            ha="center",
+            va="center",
+            transform=ax.transAxes,
+        )
         ax.set_title("P2 Pass Rate by Follow-up Type")
 
     # Chart D: Critical ambiguity type × P1 pass rate
@@ -279,10 +353,14 @@ def _make_charts(
             group = []
             for r in ok:
                 task = dataset.get(r["instance_id"]) or {}
-                crit = task.get("user_query_ambiguity", {}).get("critical_ambiguity", [])
+                crit = task.get("user_query_ambiguity", {}).get(
+                    "critical_ambiguity", []
+                )
                 types_in_task = {
-                    a.get("type", "") for a in crit
-                    if a.get("type", "") and a.get("type", "") not in _NOISE_AMBIGUITY_TYPES
+                    a.get("type", "")
+                    for a in crit
+                    if a.get("type", "")
+                    and a.get("type", "") not in _NOISE_AMBIGUITY_TYPES
                 }
                 if not types_in_task:
                     continue
@@ -293,28 +371,44 @@ def _make_charts(
                     if types_in_task <= allowed and target_type in types_in_task:
                         group.append(r)
             if group:
-                rate = sum(1 for r in group if r.get("phase1_passed")) / len(group) * 100
+                rate = (
+                    sum(1 for r in group if r.get("phase1_passed")) / len(group) * 100
+                )
                 # Shorten label: remove "_ambiguity" suffix
                 label = target_type.replace("_ambiguity", "").replace("_", " ")
                 amb_type_stats.append((label, len(group), rate))
         if amb_type_stats:
             labels_a = [s[0] for s in amb_type_stats]
-            ns_a     = [s[1] for s in amb_type_stats]
-            rates_a  = [s[2] for s in amb_type_stats]
-            bar_colors = C_AMB[:len(labels_a)] if len(labels_a) <= len(C_AMB) else C_AMB * 2
-            bars = ax.bar(labels_a, rates_a, color=bar_colors[:len(labels_a)], edgecolor="white")
+            ns_a = [s[1] for s in amb_type_stats]
+            rates_a = [s[2] for s in amb_type_stats]
+            bar_colors = (
+                C_AMB[: len(labels_a)] if len(labels_a) <= len(C_AMB) else C_AMB * 2
+            )
+            bars = ax.bar(
+                labels_a, rates_a, color=bar_colors[: len(labels_a)], edgecolor="white"
+            )
             for bar, rate, n in zip(bars, rates_a, ns_a):
-                ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 1.5,
-                        f"{rate:.0f}%\n(n={n})", ha="center", va="bottom", fontsize=8)
+                ax.text(
+                    bar.get_x() + bar.get_width() / 2,
+                    bar.get_height() + 1.5,
+                    f"{rate:.0f}%\n(n={n})",
+                    ha="center",
+                    va="bottom",
+                    fontsize=8,
+                )
             ax.set_ylabel("P1 pass rate (%)")
             ax.set_ylim(0, max(rates_a or [100]) * 1.25)
             ax.set_title("P1 Pass Rate by\nCritical Ambiguity Type")
             ax.set_xticklabels(labels_a, rotation=20, ha="right", fontsize=8)
         else:
-            ax.text(0.5, 0.5, "no data", ha="center", va="center", transform=ax.transAxes)
+            ax.text(
+                0.5, 0.5, "no data", ha="center", va="center", transform=ax.transAxes
+            )
             ax.set_title("P1 Pass Rate by Critical Ambiguity Type")
     else:
-        ax.text(0.5, 0.5, "no dataset", ha="center", va="center", transform=ax.transAxes)
+        ax.text(
+            0.5, 0.5, "no dataset", ha="center", va="center", transform=ax.transAxes
+        )
         ax.set_title("P1 Pass Rate by Critical Ambiguity Type")
 
     fig1.savefig(path1, dpi=150, bbox_inches="tight")
@@ -324,10 +418,18 @@ def _make_charts(
     # ══════════════════════════════════════════════════════════════════════════
     # PNG 2 — Diagnostics  (4 charts: turns, regression, timing, unresolved)
     # ══════════════════════════════════════════════════════════════════════════
-    path2 = out_path.with_name(out_path.stem.replace("_charts", "_charts_diag") + ".png")
+    path2 = out_path.with_name(
+        out_path.stem.replace("_charts", "_charts_diag") + ".png"
+    )
     fig2, axes2 = plt.subplots(2, 2, figsize=(14, 10))
-    fig2.suptitle(f"BIRD-Interact Run Analysis — Diagnostics [{dataset_label.upper()}]", fontsize=13, fontweight="bold")
-    fig2.subplots_adjust(hspace=0.45, wspace=0.38, left=0.08, right=0.95, top=0.92, bottom=0.1)
+    fig2.suptitle(
+        f"BIRD-Interact Run Analysis — Diagnostics [{dataset_label.upper()}]",
+        fontsize=13,
+        fontweight="bold",
+    )
+    fig2.subplots_adjust(
+        hspace=0.45, wspace=0.38, left=0.08, right=0.95, top=0.92, bottom=0.1
+    )
 
     # Chart D: Turns-spare histogram stacked by difficulty
     ax = axes2[0, 0]
@@ -336,7 +438,11 @@ def _make_charts(
         if r.get("turns_used") is None or not r.get("max_turn"):
             continue
         spare = r["max_turn"] - r["turns_used"]
-        diff = _diff_label(dataset.get(r["instance_id"]), dataset_label) if dataset else "Unknown"
+        diff = (
+            _diff_label(dataset.get(r["instance_id"]), dataset_label)
+            if dataset
+            else "Unknown"
+        )
         spare_by_diff[diff].append(spare)
     all_spares = [s for vals in spare_by_diff.values() for s in vals]
     if all_spares:
@@ -347,8 +453,15 @@ def _make_charts(
             if not vals:
                 continue
             counts = [vals.count(b) for b in bins]
-            ax.bar(bins, counts, bottom=bottoms, label=diff,
-                   color=C_DIFF[diff], edgecolor="white", width=0.8)
+            ax.bar(
+                bins,
+                counts,
+                bottom=bottoms,
+                label=diff,
+                color=C_DIFF[diff],
+                edgecolor="white",
+                width=0.8,
+            )
             bottoms = [b + c for b, c in zip(bottoms, counts)]
         ax.axvline(-0.5, color="#333", linewidth=1.5, linestyle="--", label="hit max →")
         ax.set_xlabel("Turns spare (max_turn − turns_used)")
@@ -375,13 +488,17 @@ def _make_charts(
         max_total = max(p[0] for p in p1_times)
         width = (max_total - min_total) / N_BUCKETS if max_total > min_total else 1.0
         bucket_clarify: list[float] = [0.0] * N_BUCKETS
-        bucket_sqlgen:  list[float] = [0.0] * N_BUCKETS
-        bucket_counts:  list[int]   = [0] * N_BUCKETS
+        bucket_sqlgen: list[float] = [0.0] * N_BUCKETS
+        bucket_counts: list[int] = [0] * N_BUCKETS
         for total, c, s in p1_times:
-            bi = min(int((total - min_total) // width), N_BUCKETS - 1) if width > 0 else 0
+            bi = (
+                min(int((total - min_total) // width), N_BUCKETS - 1)
+                if width > 0
+                else 0
+            )
             bucket_counts[bi] += 1
             bucket_clarify[bi] += c
-            bucket_sqlgen[bi]  += s
+            bucket_sqlgen[bi] += s
         n_all = len(p1_times)
         pct_per_bucket = [cnt / n_all * 100 for cnt in bucket_counts]
         clarify_pct, sqlgen_pct = [], []
@@ -393,32 +510,63 @@ def _make_charts(
             else:
                 clarify_pct.append(0.0)
                 sqlgen_pct.append(0.0)
-        labels_rt = [f"{min_total + i*width:.0f}-{min_total + (i+1)*width:.0f}" for i in range(N_BUCKETS)]
+        labels_rt = [
+            f"{min_total + i * width:.0f}-{min_total + (i + 1) * width:.0f}"
+            for i in range(N_BUCKETS)
+        ]
         xi = list(range(N_BUCKETS))
         bar_w = 0.38
         offsets = [-bar_w / 2, bar_w / 2]
-        ax.bar([x + offsets[0] for x in xi], clarify_pct, width=bar_w, label="Clarification", color=C_CLARIFY)
-        ax.bar([x + offsets[1] for x in xi], sqlgen_pct, width=bar_w, label="SQL gen", color=C_SQLGEN)
+        ax.bar(
+            [x + offsets[0] for x in xi],
+            clarify_pct,
+            width=bar_w,
+            label="Clarification",
+            color=C_CLARIFY,
+        )
+        ax.bar(
+            [x + offsets[1] for x in xi],
+            sqlgen_pct,
+            width=bar_w,
+            label="SQL gen",
+            color=C_SQLGEN,
+        )
         for i in range(N_BUCKETS):
             if bucket_counts[i] > 0:
                 top = max(clarify_pct[i], sqlgen_pct[i])
-                ax.text(i, top + 1, f"n={bucket_counts[i]}", ha="center", va="bottom", fontsize=7)
+                ax.text(
+                    i,
+                    top + 1,
+                    f"n={bucket_counts[i]}",
+                    ha="center",
+                    va="bottom",
+                    fontsize=7,
+                )
         ax.set_xticks(xi)
         ax.set_xticklabels(labels_rt, rotation=45, ha="right", fontsize=7)
         ax.set_xlabel("P1 runtime (s)")
         ax.set_ylabel("Tasks (%)")
         ax.set_ylim(0, max(clarify_pct + sqlgen_pct or [10]) * 1.3)
-        ax.set_title("P1 Runtime Distribution\n(side-by-side: clarify vs SQL-gen share)")
+        ax.set_title(
+            "P1 Runtime Distribution\n(side-by-side: clarify vs SQL-gen share)"
+        )
         ax.legend(fontsize=7)
     else:
-        ax.text(0.5, 0.5, "no P1 timing data", ha="center", va="center", transform=ax.transAxes)
+        ax.text(
+            0.5,
+            0.5,
+            "no P1 timing data",
+            ha="center",
+            va="center",
+            transform=ax.transAxes,
+        )
         ax.set_title("P1 Runtime Distribution")
 
     # Chart F: Timing breakdown stacked bar per difficulty
     ax = axes2[1, 0]
     diff_clarify: dict[str, list[float]] = defaultdict(list)
-    diff_sqlgen:  dict[str, list[float]] = defaultdict(list)
-    diff_debug:   dict[str, list[float]] = defaultdict(list)
+    diff_sqlgen: dict[str, list[float]] = defaultdict(list)
+    diff_debug: dict[str, list[float]] = defaultdict(list)
     for r in ok:
         t = r.get("timing") or {}
         c = t.get("phase1_clarification_secs") or 0
@@ -426,19 +574,29 @@ def _make_charts(
         d = t.get("phase1_debug_total_secs") or 0
         if c + s <= 0:
             continue
-        diff = _diff_label(dataset.get(r["instance_id"]), dataset_label) if dataset else "All"
+        diff = (
+            _diff_label(dataset.get(r["instance_id"]), dataset_label)
+            if dataset
+            else "All"
+        )
         diff_clarify[diff].append(c)
         diff_sqlgen[diff].append(s)
         diff_debug[diff].append(d)
     diff_labels = [k for k in _diff_order(dataset_label) + ["All"] if k in diff_clarify]
     if diff_labels:
         avg_c = [sum(diff_clarify[d]) / len(diff_clarify[d]) for d in diff_labels]
-        avg_s = [sum(diff_sqlgen[d])  / len(diff_sqlgen[d])  for d in diff_labels]
-        avg_d = [sum(diff_debug[d])   / len(diff_debug[d])   for d in diff_labels]
+        avg_s = [sum(diff_sqlgen[d]) / len(diff_sqlgen[d]) for d in diff_labels]
+        avg_d = [sum(diff_debug[d]) / len(diff_debug[d]) for d in diff_labels]
         xi = range(len(diff_labels))
         ax.bar(xi, avg_c, label="Clarification", color=C_CLARIFY)
         ax.bar(xi, avg_s, bottom=avg_c, label="SQL gen", color=C_SQLGEN)
-        ax.bar(xi, avg_d, bottom=[c+s for c,s in zip(avg_c, avg_s)], label="Debug", color=C_DEBUG)
+        ax.bar(
+            xi,
+            avg_d,
+            bottom=[c + s for c, s in zip(avg_c, avg_s)],
+            label="Debug",
+            color=C_DEBUG,
+        )
         ax.set_xticks(list(xi))
         ax.set_xticklabels(diff_labels, fontsize=8)
         for tick, diff in zip(ax.get_xticklabels(), diff_labels):
@@ -463,13 +621,19 @@ def _make_charts(
             rates_ur.append(sum(vals) / len(vals) * 100)
     if labels_ur:
         ur_colors = [C_PASS_BOTH, C_PASS_P1, C_FAIL]
-        bars = ax.bar(labels_ur, rates_ur, color=ur_colors[:len(labels_ur)])
+        bars = ax.bar(labels_ur, rates_ur, color=ur_colors[: len(labels_ur)])
         ax.set_ylabel("P1 pass rate (%)")
         ax.set_title("Unresolved Entities at End\nvs P1 Pass Rate")
         ax.set_ylim(0, max(rates_ur or [100]) * 1.2)
         for bar, rate in zip(bars, rates_ur):
-            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 2,
-                    f"{rate:.0f}%", ha="center", va="bottom", fontsize=9)
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                bar.get_height() + 2,
+                f"{rate:.0f}%",
+                ha="center",
+                va="bottom",
+                fontsize=9,
+            )
 
     fig2.savefig(path2, dpi=150, bbox_inches="tight")
     plt.close(fig2)
@@ -477,10 +641,15 @@ def _make_charts(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Analyze overnight BIRD-Interact run results")
+    parser = argparse.ArgumentParser(
+        description="Analyze overnight BIRD-Interact run results"
+    )
     parser.add_argument("results", help="Path to results JSONL file")
-    parser.add_argument("--data", default=str(DEFAULT_DATA),
-                        help="Path to source dataset JSONL for difficulty/ambiguity join")
+    parser.add_argument(
+        "--data",
+        default=str(DEFAULT_DATA),
+        help="Path to source dataset JSONL for difficulty/ambiguity join",
+    )
     args = parser.parse_args()
 
     results_path = Path(args.results)
@@ -523,29 +692,36 @@ def main() -> None:
         for row in _load_jsonl(dataset_path):
             dataset[row["instance_id"]] = row
     else:
-        print(f"Warning: dataset not found at {dataset_path} — difficulty/ambiguity analysis unavailable",
-              file=sys.stderr)
+        print(
+            f"Warning: dataset not found at {dataset_path} — difficulty/ambiguity analysis unavailable",
+            file=sys.stderr,
+        )
 
     # Separate error records
-    errors  = [r for r in records if r.get("error")]
-    ok      = [r for r in records if not r.get("error")]
+    errors = [r for r in records if r.get("error")]
+    ok = [r for r in records if not r.get("error")]
 
     dataset_label = _infer_dataset_label(records, dataset_path)
 
     print("=" * 70)
     print(f"BIRD-Interact Run Analysis: {results_path.name}")
-    print(f"Dataset: {dataset_label.upper()}" + (f"  ({len(dataset)} total tasks)" if dataset else ""))
+    print(
+        f"Dataset: {dataset_label.upper()}"
+        + (f"  ({len(dataset)} total tasks)" if dataset else "")
+    )
     print("=" * 70)
 
     # ── 1. Overview ───────────────────────────────────────────────────────────
-    total      = len(records)
-    n_errors   = len(errors)
-    n_p1_pass  = sum(1 for r in ok if r.get("phase1_passed"))
-    n_has_p2   = sum(1 for r in ok if r.get("phase2_passed") is not None)
-    n_p2_pass  = sum(1 for r in ok if r.get("phase2_passed"))
+    total = len(records)
+    n_errors = len(errors)
+    n_p1_pass = sum(1 for r in ok if r.get("phase1_passed"))
+    n_has_p2 = sum(1 for r in ok if r.get("phase2_passed") is not None)
+    n_p2_pass = sum(1 for r in ok if r.get("phase2_passed"))
     n_full_pass = sum(
-        1 for r in ok
-        if r.get("phase1_passed") and (r.get("phase2_passed") is None or r.get("phase2_passed"))
+        1
+        for r in ok
+        if r.get("phase1_passed")
+        and (r.get("phase2_passed") is None or r.get("phase2_passed"))
     )
     # Leaderboard-style SR metrics (denominator = len(ok) throughout; a task with
     # no follow-up auto-passes the follow-up metrics as long as P1 passed — same
@@ -554,8 +730,10 @@ def main() -> None:
         1 for r in ok if r.get("phase1_passed") and not r.get("phase1_debug_ran")
     )
     n_followup_pass_no_debug = sum(
-        1 for r in ok
-        if r.get("phase1_passed") and (
+        1
+        for r in ok
+        if r.get("phase1_passed")
+        and (
             r.get("phase2_passed") is None
             or (r.get("phase2_passed") and not r.get("phase2_debug_ran"))
         )
@@ -563,22 +741,37 @@ def main() -> None:
 
     sum_rewards = sum(r.get("total_reward", 0) for r in ok)
     # Count query-only tasks in the full dataset (for denominator excluding management)
-    n_query_in_dataset = sum(
-        1 for row in dataset.values()
-        if (row.get("category") or "").lower() == "query"
-    ) if dataset else len(ok)
+    n_query_in_dataset = (
+        sum(
+            1
+            for row in dataset.values()
+            if (row.get("category") or "").lower() == "query"
+        )
+        if dataset
+        else len(ok)
+    )
     print("\n── Overview ──────────────────────────────────────────────────────────")
     print(f"Total tasks:       {total}  (errors: {n_errors}  valid: {len(ok)})")
     print(f"Phase 1 pass:      {n_p1_pass}/{len(ok)}  ({_pct(n_p1_pass, len(ok))})")
-    print(f"Phase 2 pass:      {n_p2_pass}/{n_has_p2}  ({_pct(n_p2_pass, n_has_p2)})  [of tasks with follow-up that reached p2]")
+    print(
+        f"Phase 2 pass:      {n_p2_pass}/{n_has_p2}  ({_pct(n_p2_pass, n_has_p2)})  [of tasks with follow-up that reached p2]"
+    )
     print(f"Full pass (p1+p2): {n_full_pass}/{len(ok)}  ({_pct(n_full_pass, len(ok))})")
     print(f"Avg score:         {sum_rewards / max(len(ok), 1):.3f}")
     print("\n── Leaderboard-style SR ──────────────────────────────────────────────")
-    print(f"  P1 SR (no debug):         {n_p1_pass_no_debug}/{len(ok)}  ({_pct2(n_p1_pass_no_debug, len(ok))})")
-    print(f"  P1 SR (+debug):           {n_p1_pass}/{len(ok)}  ({_pct2(n_p1_pass, len(ok))})")
-    print(f"  Follow-up SR (no debug):  {n_followup_pass_no_debug}/{len(ok)}  ({_pct2(n_followup_pass_no_debug, len(ok))})")
-    print(f"  Follow-up SR (+debug):    {n_full_pass}/{len(ok)}  ({_pct2(n_full_pass, len(ok))})")
-    n_completed_naturally = len(ok)   # tasks that ran without error/timeout
+    print(
+        f"  P1 SR (no debug):         {n_p1_pass_no_debug}/{len(ok)}  ({_pct2(n_p1_pass_no_debug, len(ok))})"
+    )
+    print(
+        f"  P1 SR (+debug):           {n_p1_pass}/{len(ok)}  ({_pct2(n_p1_pass, len(ok))})"
+    )
+    print(
+        f"  Follow-up SR (no debug):  {n_followup_pass_no_debug}/{len(ok)}  ({_pct2(n_followup_pass_no_debug, len(ok))})"
+    )
+    print(
+        f"  Follow-up SR (+debug):    {n_full_pass}/{len(ok)}  ({_pct2(n_full_pass, len(ok))})"
+    )
+    n_completed_naturally = len(ok)  # tasks that ran without error/timeout
     n_not_natural = total - n_completed_naturally  # errors + timeouts
     # Full benchmark size (incl. management) — use the actual joined dataset
     # size when available (this is dataset-correct for both lite [300] and
@@ -593,11 +786,13 @@ def main() -> None:
     task_times: list[float] = []
     for r in records:
         t = r.get("timing") or {}
-        total_t = (t.get("phase1_clarification_secs") or 0) + \
-                  (t.get("phase1_sql_gen_secs") or 0) + \
-                  (t.get("phase1_debug_total_secs") or 0) + \
-                  (t.get("phase2_sql_gen_secs") or 0) + \
-                  (t.get("phase2_debug_total_secs") or 0)
+        total_t = (
+            (t.get("phase1_clarification_secs") or 0)
+            + (t.get("phase1_sql_gen_secs") or 0)
+            + (t.get("phase1_debug_total_secs") or 0)
+            + (t.get("phase2_sql_gen_secs") or 0)
+            + (t.get("phase2_debug_total_secs") or 0)
+        )
         if total_t > 0:
             task_times.append(total_t)
     # Fall back to wall-clock span if timing fields sparse
@@ -610,10 +805,16 @@ def main() -> None:
     if task_times:
         total_task_secs = sum(task_times)
         avg_task_secs = total_task_secs / len(task_times)
-        print(f"  Sum of task times:   {total_task_secs / 60:.1f} min  ({total_task_secs:.0f}s)")
-        print(f"  Avg time per task:   {avg_task_secs / 60:.1f} min  ({avg_task_secs:.0f}s)  [n={len(task_times)}]")
+        print(
+            f"  Sum of task times:   {total_task_secs / 60:.1f} min  ({total_task_secs:.0f}s)"
+        )
+        print(
+            f"  Avg time per task:   {avg_task_secs / 60:.1f} min  ({avg_task_secs:.0f}s)  [n={len(task_times)}]"
+        )
     if wall_span is not None:
-        print(f"  Wall-clock span:     {wall_span / 3600:.2f}h  ({wall_span:.0f}s)  [first→last task start]")
+        print(
+            f"  Wall-clock span:     {wall_span / 3600:.2f}h  ({wall_span:.0f}s)  [first→last task start]"
+        )
 
     pct_vs_ran = sum_rewards / max(n_completed_naturally, 1) * 100
     # Scaled to reflect management tasks (fixed 410/600 query-task ratio) without
@@ -621,10 +822,16 @@ def main() -> None:
     pct_vs_full = pct_vs_ran * 410 / 600
     print("\n── Score (BIRD-Interact SR) ───────────────────────────────────────────")
     print(f"  vs tasks ran        ({n_completed_naturally} tasks):   {pct_vs_ran:.2f}%")
-    print(f"  vs full benchmark   (~{estimated_full_benchmark} tasks, incl. management):  {pct_vs_full:.2f}%")
+    print(
+        f"  vs full benchmark   (~{estimated_full_benchmark} tasks, incl. management):  {pct_vs_full:.2f}%"
+    )
     print("\n── Task Completion ───────────────────────────────────────────────────")
-    print(f"  Completed naturally: {n_completed_naturally}/{total}  ({_pct(n_completed_naturally, total)})")
-    print(f"  Did NOT complete:    {n_not_natural}/{total}  ({_pct(n_not_natural, total)})  ← errors + timeouts")
+    print(
+        f"  Completed naturally: {n_completed_naturally}/{total}  ({_pct(n_completed_naturally, total)})"
+    )
+    print(
+        f"  Did NOT complete:    {n_not_natural}/{total}  ({_pct(n_not_natural, total)})  ← errors + timeouts"
+    )
 
     # ── Score distribution ────────────────────────────────────────────────────
     print("\n── Score Distribution ────────────────────────────────────────────────")
@@ -644,7 +851,9 @@ def main() -> None:
 
     # ── 2. Pass rate by difficulty ────────────────────────────────────────────
     if dataset:
-        print("\n── Pass Rate by Difficulty ───────────────────────────────────────────")
+        print(
+            "\n── Pass Rate by Difficulty ───────────────────────────────────────────"
+        )
         by_diff: dict[str, list[dict]] = defaultdict(list)
         for r in ok:
             diff = _diff_label(dataset.get(r["instance_id"]), dataset_label)
@@ -655,35 +864,54 @@ def main() -> None:
                 continue
             p1 = sum(1 for r in bucket if r.get("phase1_passed"))
             full = sum(
-                1 for r in bucket
-                if r.get("phase1_passed") and (r.get("phase2_passed") is None or r.get("phase2_passed"))
+                1
+                for r in bucket
+                if r.get("phase1_passed")
+                and (r.get("phase2_passed") is None or r.get("phase2_passed"))
             )
-            print(f"  {diff:<12}  n={len(bucket):>3}  p1={_pct(p1, len(bucket)):>6}  full={_pct(full, len(bucket)):>6}")
+            print(
+                f"  {diff:<12}  n={len(bucket):>3}  p1={_pct(p1, len(bucket)):>6}  full={_pct(full, len(bucket)):>6}"
+            )
 
     # ── 3. Turn budget usage ──────────────────────────────────────────────────
     print("\n── Turn Budget Usage ─────────────────────────────────────────────────")
-    turn_pairs = [(r["turns_used"], r["max_turn"]) for r in ok
-                  if r.get("turns_used") is not None and r.get("max_turn")]
+    turn_pairs = [
+        (r["turns_used"], r["max_turn"])
+        for r in ok
+        if r.get("turns_used") is not None and r.get("max_turn")
+    ]
     if turn_pairs:
         gaps = [mt - tu for tu, mt in turn_pairs]
         at_max = sum(1 for g in gaps if g == 0)
-        print(f"  Avg turns used:   {sum(tu for tu, _ in turn_pairs) / len(turn_pairs):.1f}")
-        print(f"  Avg max_turn:     {sum(mt for _, mt in turn_pairs) / len(turn_pairs):.1f}")
+        print(
+            f"  Avg turns used:   {sum(tu for tu, _ in turn_pairs) / len(turn_pairs):.1f}"
+        )
+        print(
+            f"  Avg max_turn:     {sum(mt for _, mt in turn_pairs) / len(turn_pairs):.1f}"
+        )
         print(f"  Avg turns spare:  {sum(gaps) / len(gaps):.1f}")
-        print(f"  Hit max turns:    {at_max}/{len(turn_pairs)}  ({_pct(at_max, len(turn_pairs))})")
+        print(
+            f"  Hit max turns:    {at_max}/{len(turn_pairs)}  ({_pct(at_max, len(turn_pairs))})"
+        )
         # Distribution of turns_spare
         spare_dist: dict[int, int] = defaultdict(int)
         for g in gaps:
             spare_dist[g] += 1
-        print(f"  Spare-turns distribution: { {k: spare_dist[k] for k in sorted(spare_dist)} }")
+        print(
+            f"  Spare-turns distribution: { {k: spare_dist[k] for k in sorted(spare_dist)} }"
+        )
 
     # ── Zero-turn proceed ─────────────────────────────────────────────────────
     zero_turn = [r for r in ok if r.get("turns_used") == 0]
     if zero_turn:
         zt_pass = sum(1 for r in zero_turn if r.get("phase1_passed"))
         zt_fail = len(zero_turn) - zt_pass
-        print("\n── Clarify Proceeded with 0 Turns ────────────────────────────────────")
-        print(f"  Tasks: {len(zero_turn)}  →  P1 pass: {zt_pass}  ({_pct(zt_pass, len(zero_turn))})  |  P1 fail: {zt_fail}  ({_pct(zt_fail, len(zero_turn))})")
+        print(
+            "\n── Clarify Proceeded with 0 Turns ────────────────────────────────────"
+        )
+        print(
+            f"  Tasks: {len(zero_turn)}  →  P1 pass: {zt_pass}  ({_pct(zt_pass, len(zero_turn))})  |  P1 fail: {zt_fail}  ({_pct(zt_fail, len(zero_turn))})"
+        )
         print(f"  Instance IDs: {', '.join(r['instance_id'] for r in zero_turn)}")
 
     # ── 4. Ambiguity coverage comparison ─────────────────────────────────────
@@ -704,14 +932,23 @@ def main() -> None:
         # Our total initial entities = all entities extracted on turn 0 from the original
         # ambiguous query (before any VDB/KB resolution), stored in initial_extracted_entities.
         # Falls back to extracted_entities (SQL gen) if not yet populated (old runs).
-        A = list(set(r.get("initial_extracted_entities") or r.get("extracted_entities") or []))
+        A = list(
+            set(
+                r.get("initial_extracted_entities") or r.get("extracted_entities") or []
+            )
+        )
 
         task = dataset.get(r["instance_id"]) if dataset else None
         if task:
-            critical  = task.get("user_query_ambiguity", {}).get("critical_ambiguity", [])
+            critical = task.get("user_query_ambiguity", {}).get(
+                "critical_ambiguity", []
+            )
             knowledge = task.get("knowledge_ambiguity", [])
-            B = [a["term"] for a in (critical + knowledge)
-                 if a.get("type", "") not in _NOISE_AMBIGUITY_TYPES]
+            B = [
+                a["term"]
+                for a in (critical + knowledge)
+                if a.get("type", "") not in _NOISE_AMBIGUITY_TYPES
+            ]
         else:
             B = []
 
@@ -720,44 +957,70 @@ def main() -> None:
         list1 = [a for a in A if not any(_fuzzy_match(a, b) for b in B)]
         list2 = [b for b in B if not any(_fuzzy_match(b, a) for a in A)]
 
-        per_instance_coverage.append({
-            "instance_id": r["instance_id"],
-            "our_identified_ambiguities": x,
-            "dataset_meaningful_ambiguities": y,
-            "over_under_identification": x - y,
-            "we_flagged_not_in_dataset": list1,
-            "dataset_missed_by_us": list2,
-        })
+        per_instance_coverage.append(
+            {
+                "instance_id": r["instance_id"],
+                "our_identified_ambiguities": x,
+                "dataset_meaningful_ambiguities": y,
+                "over_under_identification": x - y,
+                "we_flagged_not_in_dataset": list1,
+                "dataset_missed_by_us": list2,
+            }
+        )
         x_minus_y_vals.append(x - y)
         list1_lens.append(len(list1))
         list2_lens.append(len(list2))
 
     if dataset:
-        print("\n── Ambiguity Coverage ────────────────────────────────────────────────")
-        print("  (fuzzy string match — approximate; we may flag noise terms the dataset excludes)")
+        print(
+            "\n── Ambiguity Coverage ────────────────────────────────────────────────"
+        )
+        print(
+            "  (fuzzy string match — approximate; we may flag noise terms the dataset excludes)"
+        )
         n = len(x_minus_y_vals)
         if n:
-            print(f"  Avg terms we identified:         {sum(r['our_identified_ambiguities'] for r in per_instance_coverage) / n:.2f}")
-            print(f"  Avg terms dataset expects:       {sum(r['dataset_meaningful_ambiguities'] for r in per_instance_coverage) / n:.2f}")
-            print(f"  Avg over/under-identification:   {sum(x_minus_y_vals) / n:+.2f}  (+ = we flagged more, - = we missed some)")
+            print(
+                f"  Avg terms we identified:         {sum(r['our_identified_ambiguities'] for r in per_instance_coverage) / n:.2f}"
+            )
+            print(
+                f"  Avg terms dataset expects:       {sum(r['dataset_meaningful_ambiguities'] for r in per_instance_coverage) / n:.2f}"
+            )
+            print(
+                f"  Avg over/under-identification:   {sum(x_minus_y_vals) / n:+.2f}  (+ = we flagged more, - = we missed some)"
+            )
             print(f"  Avg we flagged not in dataset:   {sum(list1_lens) / n:.2f}")
             print(f"  Avg dataset terms we missed:     {sum(list2_lens) / n:.2f}")
 
     # ── Unresolved at end × turn budget ──────────────────────────────────────
     print("\n── Unresolved Entities at End × Turn Budget ──────────────────────────")
-    has_unresolved   = [r for r in ok if r.get("unresolved_entities_end")]
-    no_unresolved    = [r for r in ok if not r.get("unresolved_entities_end")]
-    ur_hit_max  = [r for r in has_unresolved
-                   if r.get("turns_used") is not None and r.get("max_turn")
-                   and r["turns_used"] >= r["max_turn"]]
-    ur_spare    = [r for r in has_unresolved
-                   if r.get("turns_used") is not None and r.get("max_turn")
-                   and r["turns_used"] < r["max_turn"]]
-    ur_hit_p1   = sum(1 for r in has_unresolved if r.get("phase1_passed"))
-    no_ur_p1    = sum(1 for r in no_unresolved  if r.get("phase1_passed"))
-    print(f"  Tasks with unresolved entities at end: {len(has_unresolved)}/{len(ok)}  ({_pct(len(has_unresolved), len(ok))})")
-    print(f"    Of those — hit max_turn:  {len(ur_hit_max)}  ({_pct(len(ur_hit_max), len(has_unresolved))})")
-    print(f"    Of those — turns spare:   {len(ur_spare)}  ({_pct(len(ur_spare), len(has_unresolved))})")
+    has_unresolved = [r for r in ok if r.get("unresolved_entities_end")]
+    no_unresolved = [r for r in ok if not r.get("unresolved_entities_end")]
+    ur_hit_max = [
+        r
+        for r in has_unresolved
+        if r.get("turns_used") is not None
+        and r.get("max_turn")
+        and r["turns_used"] >= r["max_turn"]
+    ]
+    ur_spare = [
+        r
+        for r in has_unresolved
+        if r.get("turns_used") is not None
+        and r.get("max_turn")
+        and r["turns_used"] < r["max_turn"]
+    ]
+    ur_hit_p1 = sum(1 for r in has_unresolved if r.get("phase1_passed"))
+    no_ur_p1 = sum(1 for r in no_unresolved if r.get("phase1_passed"))
+    print(
+        f"  Tasks with unresolved entities at end: {len(has_unresolved)}/{len(ok)}  ({_pct(len(has_unresolved), len(ok))})"
+    )
+    print(
+        f"    Of those — hit max_turn:  {len(ur_hit_max)}  ({_pct(len(ur_hit_max), len(has_unresolved))})"
+    )
+    print(
+        f"    Of those — turns spare:   {len(ur_spare)}  ({_pct(len(ur_spare), len(has_unresolved))})"
+    )
     print(f"    P1 pass rate (unresolved): {_pct(ur_hit_p1, len(has_unresolved))}")
     print(f"  Tasks with no unresolved:  {len(no_unresolved)}/{len(ok)}")
     print(f"    P1 pass rate (no unresolved): {_pct(no_ur_p1, len(no_unresolved))}")
@@ -768,27 +1031,47 @@ def main() -> None:
     # P2 failed first try = same logic, scoped to tasks that reached P2
     print("\n── Debug Rescue Rate ─────────────────────────────────────────────────")
 
-    p1_passed_first_try = [r for r in ok if r.get("phase1_passed") and not r.get("phase1_debug_ran")]
-    p1_failed_first_try = [r for r in ok if not r.get("phase1_passed") or r.get("phase1_debug_ran")]
+    p1_passed_first_try = [
+        r for r in ok if r.get("phase1_passed") and not r.get("phase1_debug_ran")
+    ]
+    p1_failed_first_try = [
+        r for r in ok if not r.get("phase1_passed") or r.get("phase1_debug_ran")
+    ]
     # Of those that failed first try, how many had debug triggered (i.e. at least submitted SQL)?
-    p1_debug_ran  = [r for r in p1_failed_first_try if r.get("phase1_debug_ran")]
+    p1_debug_ran = [r for r in p1_failed_first_try if r.get("phase1_debug_ran")]
     p1_debug_pass = [r for r in p1_debug_ran if r.get("phase1_passed")]
 
     p2_tasks = [r for r in ok if r.get("phase2_passed") is not None]
-    p2_passed_first_try = [r for r in p2_tasks if r.get("phase2_passed") and not r.get("phase2_debug_ran")]
-    p2_failed_first_try = [r for r in p2_tasks if not r.get("phase2_passed") or r.get("phase2_debug_ran")]
-    p2_debug_ran  = [r for r in p2_failed_first_try if r.get("phase2_debug_ran")]
+    p2_passed_first_try = [
+        r for r in p2_tasks if r.get("phase2_passed") and not r.get("phase2_debug_ran")
+    ]
+    p2_failed_first_try = [
+        r for r in p2_tasks if not r.get("phase2_passed") or r.get("phase2_debug_ran")
+    ]
+    p2_debug_ran = [r for r in p2_failed_first_try if r.get("phase2_debug_ran")]
     p2_debug_pass = [r for r in p2_debug_ran if r.get("phase2_passed")]
 
     print(f"  Phase 1  (n={len(ok)}):")
-    print(f"    Passed first try:  {len(p1_passed_first_try)}/{len(ok)}  ({_pct(len(p1_passed_first_try), len(ok))})")
-    print(f"    Failed first try:  {len(p1_failed_first_try)}/{len(ok)}  ({_pct(len(p1_failed_first_try), len(ok))})")
-    print(f"      → Debug rescued: {len(p1_debug_pass)}/{len(p1_failed_first_try)}  ({_pct(len(p1_debug_pass), len(p1_failed_first_try))})  [of failed-first-try]")
+    print(
+        f"    Passed first try:  {len(p1_passed_first_try)}/{len(ok)}  ({_pct(len(p1_passed_first_try), len(ok))})"
+    )
+    print(
+        f"    Failed first try:  {len(p1_failed_first_try)}/{len(ok)}  ({_pct(len(p1_failed_first_try), len(ok))})"
+    )
+    print(
+        f"      → Debug rescued: {len(p1_debug_pass)}/{len(p1_failed_first_try)}  ({_pct(len(p1_debug_pass), len(p1_failed_first_try))})  [of failed-first-try]"
+    )
     if p2_tasks:
         print(f"  Phase 2  (n={len(p2_tasks)} tasks that reached P2):")
-        print(f"    Passed first try:  {len(p2_passed_first_try)}/{len(p2_tasks)}  ({_pct(len(p2_passed_first_try), len(p2_tasks))})")
-        print(f"    Failed first try:  {len(p2_failed_first_try)}/{len(p2_tasks)}  ({_pct(len(p2_failed_first_try), len(p2_tasks))})")
-        print(f"      → Debug rescued: {len(p2_debug_pass)}/{len(p2_failed_first_try)}  ({_pct(len(p2_debug_pass), len(p2_failed_first_try))})  [of failed-first-try]")
+        print(
+            f"    Passed first try:  {len(p2_passed_first_try)}/{len(p2_tasks)}  ({_pct(len(p2_passed_first_try), len(p2_tasks))})"
+        )
+        print(
+            f"    Failed first try:  {len(p2_failed_first_try)}/{len(p2_tasks)}  ({_pct(len(p2_failed_first_try), len(p2_tasks))})"
+        )
+        print(
+            f"      → Debug rescued: {len(p2_debug_pass)}/{len(p2_failed_first_try)}  ({_pct(len(p2_debug_pass), len(p2_failed_first_try))})  [of failed-first-try]"
+        )
 
     # Exec errors (anomaly — should be rare)
     exec_errs = [r for r in ok if r.get("exec_error_p1") or r.get("exec_error_p2")]
@@ -800,17 +1083,25 @@ def main() -> None:
 
     # ── 6. Timing by difficulty ────────────────────────────────────────────────
     if dataset:
-        print("\n── Timing by Difficulty ──────────────────────────────────────────────")
+        print(
+            "\n── Timing by Difficulty ──────────────────────────────────────────────"
+        )
         diff_p1_times: dict[str, list[float]] = defaultdict(list)
         diff_total_times: dict[str, list[float]] = defaultdict(list)
         for r in ok:
             t = r.get("timing") or {}
             diff = _diff_label(dataset.get(r["instance_id"]), dataset_label)
-            p1_t = (t.get("phase1_clarification_secs") or 0) + (t.get("phase1_sql_gen_secs") or 0)
+            p1_t = (t.get("phase1_clarification_secs") or 0) + (
+                t.get("phase1_sql_gen_secs") or 0
+            )
             if p1_t > 0:
                 diff_p1_times[diff].append(p1_t)
-            total_t = p1_t + (t.get("phase1_debug_total_secs") or 0) + \
-                      (t.get("phase2_sql_gen_secs") or 0) + (t.get("phase2_debug_total_secs") or 0)
+            total_t = (
+                p1_t
+                + (t.get("phase1_debug_total_secs") or 0)
+                + (t.get("phase2_sql_gen_secs") or 0)
+                + (t.get("phase2_debug_total_secs") or 0)
+            )
             if total_t > 0:
                 diff_total_times[diff].append(total_t)
 
@@ -819,13 +1110,17 @@ def main() -> None:
             total_vals = diff_total_times.get(diff, [])
             if not p1_vals:
                 continue
-            print(f"  {diff:<12}  avg_p1={_fmt_t_avg(p1_vals):>7}  avg_total={_fmt_t_avg(total_vals):>7}")
+            print(
+                f"  {diff:<12}  avg_p1={_fmt_t_avg(p1_vals):>7}  avg_total={_fmt_t_avg(total_vals):>7}"
+            )
 
     # ── Slow P1 tasks (>120s) ──────────────────────────────────────────────────
     # Flag a task when EITHER individual component (clarify or sqlgen) exceeds
     # the threshold on its own — not the combined total.
     SLOW_THRESHOLD = 180.0
-    slow_tasks: list[tuple[str, float, float, float, str]] = []  # (id, total, clarify, sqlgen, tag)
+    slow_tasks: list[
+        tuple[str, float, float, float, str]
+    ] = []  # (id, total, clarify, sqlgen, tag)
     for r in ok:
         t = r.get("timing") or {}
         c = t.get("phase1_clarification_secs") or 0
@@ -843,13 +1138,19 @@ def main() -> None:
         slow_tasks.append((r["instance_id"], c + s, c, s, tag))
     if slow_tasks:
         slow_tasks.sort(key=lambda x: x[1], reverse=True)
-        print(f"\n── Slow P1 Tasks (>{SLOW_THRESHOLD:.0f}s) ────────────────────────────────────────")
-        print(f"  {len(slow_tasks)} task(s) exceeded {SLOW_THRESHOLD:.0f}s in phase 1 "
-              f"(clarify={_fmt_t(sum(x[2] for x in slow_tasks) / len(slow_tasks))} avg, "
-              f"sqlgen={_fmt_t(sum(x[3] for x in slow_tasks) / len(slow_tasks))} avg):")
+        print(
+            f"\n── Slow P1 Tasks (>{SLOW_THRESHOLD:.0f}s) ────────────────────────────────────────"
+        )
+        print(
+            f"  {len(slow_tasks)} task(s) exceeded {SLOW_THRESHOLD:.0f}s in phase 1 "
+            f"(clarify={_fmt_t(sum(x[2] for x in slow_tasks) / len(slow_tasks))} avg, "
+            f"sqlgen={_fmt_t(sum(x[3] for x in slow_tasks) / len(slow_tasks))} avg):"
+        )
         for instance_id, total, c, s, tag in slow_tasks:
-            print(f"    {instance_id:<40}  {total:>6.1f}s  "
-                  f"(clarify={c:.1f}s, sqlgen={s:.1f}s)  ({tag})")
+            print(
+                f"    {instance_id:<40}  {total:>6.1f}s  "
+                f"(clarify={c:.1f}s, sqlgen={s:.1f}s)  ({tag})"
+            )
 
     # ── 7. Per-database stats ──────────────────────────────────────────────────
     print("\n── Per-Database Stats ────────────────────────────────────────────────")
@@ -858,18 +1159,26 @@ def main() -> None:
         db_records[r["database"]].append(r)
     db_short = _abbrev_dbs(sorted(db_records))
     for db, recs in sorted(db_records.items()):
-        p1_first  = sum(1 for r in recs if r.get("phase1_passed") and not r.get("phase1_debug_ran"))
-        p1_total  = sum(1 for r in recs if r.get("phase1_passed"))
+        p1_first = sum(
+            1 for r in recs if r.get("phase1_passed") and not r.get("phase1_debug_ran")
+        )
+        p1_total = sum(1 for r in recs if r.get("phase1_passed"))
         avg_score = sum(r.get("total_reward", 0) for r in recs) / len(recs)
         times = []
         for r in recs:
             t = r.get("timing") or {}
-            total_t = (t.get("phase1_clarification_secs") or 0) + (t.get("phase1_sql_gen_secs") or 0) + \
-                      (t.get("phase1_debug_total_secs") or 0) + (t.get("phase2_sql_gen_secs") or 0) + \
-                      (t.get("phase2_debug_total_secs") or 0)
+            total_t = (
+                (t.get("phase1_clarification_secs") or 0)
+                + (t.get("phase1_sql_gen_secs") or 0)
+                + (t.get("phase1_debug_total_secs") or 0)
+                + (t.get("phase2_sql_gen_secs") or 0)
+                + (t.get("phase2_debug_total_secs") or 0)
+            )
             if total_t > 0:
                 times.append(total_t)
-        print(f"  {db_short[db]:<5} {db:<20}  n={len(recs):>3}  p1_1st={_pct(p1_first, len(recs)):>6}  p1_final={_pct(p1_total, len(recs)):>6}  avg_score={avg_score:.2f}  avg_time={_fmt_t_avg(times):>7}")
+        print(
+            f"  {db_short[db]:<5} {db:<20}  n={len(recs):>3}  p1_1st={_pct(p1_first, len(recs)):>6}  p1_final={_pct(p1_total, len(recs)):>6}  avg_score={avg_score:.2f}  avg_time={_fmt_t_avg(times):>7}"
+        )
 
     # ── 8. Performance regression over time ────────────────────────────────────
     print("\n── Performance Regression Over Time ──────────────────────────────────")
@@ -882,9 +1191,9 @@ def main() -> None:
         q = len(timestamped) // 4
         quarters = [
             timestamped[:q],
-            timestamped[q:2*q],
-            timestamped[2*q:3*q],
-            timestamped[3*q:],
+            timestamped[q : 2 * q],
+            timestamped[2 * q : 3 * q],
+            timestamped[3 * q :],
         ]
         print(f"  {'Quarter':<10}  {'n':>4}  {'p1_pass':>8}  {'avg_p1_time':>12}")
         for i, bucket in enumerate(quarters, 1):
@@ -892,41 +1201,61 @@ def main() -> None:
             times = []
             for r in bucket:
                 t = r.get("timing") or {}
-                p1_t = (t.get("phase1_clarification_secs") or 0) + (t.get("phase1_sql_gen_secs") or 0)
+                p1_t = (t.get("phase1_clarification_secs") or 0) + (
+                    t.get("phase1_sql_gen_secs") or 0
+                )
                 if p1_t > 0:
                     times.append(p1_t)
-            print(f"  Q{i:<9}  {len(bucket):>4}  {_pct(p1, len(bucket)):>8}  {_fmt_t_avg(times):>12}")
+            print(
+                f"  Q{i:<9}  {len(bucket):>4}  {_pct(p1, len(bucket)):>8}  {_fmt_t_avg(times):>12}"
+            )
         # Wall-clock span of the run
         t_first = timestamped[0]["task_start_timestamp"]
-        t_last  = timestamped[-1]["task_start_timestamp"]
+        t_last = timestamped[-1]["task_start_timestamp"]
         print(f"  Total run span: {(t_last - t_first) / 3600:.2f}h")
     else:
         print("  (need ≥4 tasks with timestamps for regression analysis)")
 
     # ── Stuck phrases ─────────────────────────────────────────────────────────
-    STUCK_PHRASES = ["out of scope", "not certain", "uncertain", "cannot answer",
-                     "can't answer", "unable to answer", "not able to answer"]
+    STUCK_PHRASES = [
+        "out of scope",
+        "not certain",
+        "uncertain",
+        "cannot answer",
+        "can't answer",
+        "unable to answer",
+        "not able to answer",
+    ]
     stuck_per_task: list[int] = []
     for r in ok:
         history = r.get("dialogue_history") or []
         user_turns = [t["content"].lower() for t in history if t.get("role") == "user"]
         stuck_count = sum(
-            1 for content in user_turns
+            1
+            for content in user_turns
             if any(phrase in content for phrase in STUCK_PHRASES)
         )
         stuck_per_task.append(stuck_count)
-    n_with_stuck     = sum(1 for c in stuck_per_task if c > 0)
+    n_with_stuck = sum(1 for c in stuck_per_task if c > 0)
     n_with_multi_stuck = sum(1 for c in stuck_per_task if c > 1)
-    total_stuck      = sum(stuck_per_task)
+    total_stuck = sum(stuck_per_task)
     print("\n── Stuck Phrase Responses ────────────────────────────────────────────")
-    print(f"  Tasks with ≥1 stuck answer:   {n_with_stuck}/{len(ok)}  ({_pct(n_with_stuck, len(ok))})")
-    print(f"  Tasks with >1 stuck answer:   {n_with_multi_stuck}/{len(ok)}  ({_pct(n_with_multi_stuck, len(ok))})")
-    print(f"  Avg stuck answers per task:   {total_stuck / max(len(ok), 1):.2f}  (ratio: {total_stuck}/{len(ok)})")
+    print(
+        f"  Tasks with ≥1 stuck answer:   {n_with_stuck}/{len(ok)}  ({_pct(n_with_stuck, len(ok))})"
+    )
+    print(
+        f"  Tasks with >1 stuck answer:   {n_with_multi_stuck}/{len(ok)}  ({_pct(n_with_multi_stuck, len(ok))})"
+    )
+    print(
+        f"  Avg stuck answers per task:   {total_stuck / max(len(ok), 1):.2f}  (ratio: {total_stuck}/{len(ok)})"
+    )
 
     # ── Follow-up type pass rate ───────────────────────────────────────────────
     # For each follow-up type: given p1 passed and has follow-up, what % pass p2?
     # Broken down by difficulty tier of the FOLLOW-UP question.
-    followup_stats: dict[str, dict[str, list[bool]]] = defaultdict(lambda: defaultdict(list))
+    followup_stats: dict[str, dict[str, list[bool]]] = defaultdict(
+        lambda: defaultdict(list)
+    )
     if dataset:
         for r in ok:
             if r.get("phase2_passed") is None:
@@ -937,10 +1266,16 @@ def main() -> None:
             # lite's follow_up carries its own difficulty_tier (more precise than the
             # parent task's); full's follow_up has no difficulty/high_level flag at
             # all, so fall back to the parent task's high_level label there.
-            fu_diff = _diff_label(fu, dataset_label) if dataset_label != "full" else _diff_label(task, dataset_label)
+            fu_diff = (
+                _diff_label(fu, dataset_label)
+                if dataset_label != "full"
+                else _diff_label(task, dataset_label)
+            )
             followup_stats[fu_type][fu_diff].append(bool(r.get("phase2_passed")))
         if followup_stats:
-            print("\n── Follow-up Type P2 Pass Rate (given P1 passed) ────────────────────")
+            print(
+                "\n── Follow-up Type P2 Pass Rate (given P1 passed) ────────────────────"
+            )
             for fu_type in sorted(followup_stats):
                 by_diff = followup_stats[fu_type]
                 parts = []
@@ -976,10 +1311,14 @@ def main() -> None:
             group = []
             for r in ok:
                 task = dataset.get(r["instance_id"]) or {}
-                crit = task.get("user_query_ambiguity", {}).get("critical_ambiguity", [])
+                crit = task.get("user_query_ambiguity", {}).get(
+                    "critical_ambiguity", []
+                )
                 types_in_task = {
-                    a.get("type", "") for a in crit
-                    if a.get("type", "") and a.get("type", "") not in _NOISE_AMBIGUITY_TYPES
+                    a.get("type", "")
+                    for a in crit
+                    if a.get("type", "")
+                    and a.get("type", "") not in _NOISE_AMBIGUITY_TYPES
                 }
                 if not types_in_task:
                     continue
@@ -994,15 +1333,21 @@ def main() -> None:
             type_groups[target_type] = group
 
         if any(type_groups.values()):
-            print("\n── Critical Ambiguity Type × Pass Rate ───────────────────────────────")
-            print("  (knowledge_linking: pure only; others: allow knowledge_linking alongside)")
+            print(
+                "\n── Critical Ambiguity Type × Pass Rate ───────────────────────────────"
+            )
+            print(
+                "  (knowledge_linking: pure only; others: allow knowledge_linking alongside)"
+            )
             print(f"  {'Type':<35}  {'n':>4}  {'p1_pass':>8}  {'avg_score':>10}")
             for t, group in type_groups.items():
                 if not group:
                     continue
                 p1 = sum(1 for r in group if r.get("phase1_passed"))
                 avg_s = sum(r.get("total_reward", 0) for r in group) / len(group)
-                print(f"  {t:<35}  {len(group):>4}  {_pct(p1, len(group)):>8}  {avg_s:>10.3f}")
+                print(
+                    f"  {t:<35}  {len(group):>4}  {_pct(p1, len(group)):>8}  {avg_s:>10.3f}"
+                )
 
         # knowledge_ambiguity count vs pass rate
         kb_deleted_groups: dict[str, list[dict]] = {"0": [], "1": [], "2+": []}
@@ -1011,18 +1356,24 @@ def main() -> None:
             n_del = len(task.get("knowledge_ambiguity", []))
             key = "0" if n_del == 0 else ("1" if n_del == 1 else "2+")
             kb_deleted_groups[key].append(r)
-        print("\n── Deleted KB Entries (knowledge_ambiguity count) × Pass Rate ────────")
+        print(
+            "\n── Deleted KB Entries (knowledge_ambiguity count) × Pass Rate ────────"
+        )
         for key in ["0", "1", "2+"]:
             group = kb_deleted_groups[key]
             if not group:
                 continue
             p1 = sum(1 for r in group if r.get("phase1_passed"))
             avg_s = sum(r.get("total_reward", 0) for r in group) / len(group)
-            print(f"  {key} deleted KB entries:  n={len(group):>3}  p1_pass={_pct(p1, len(group)):>6}  avg_score={avg_s:.3f}")
+            print(
+                f"  {key} deleted KB entries:  n={len(group):>3}  p1_pass={_pct(p1, len(group)):>6}  avg_score={avg_s:.3f}"
+            )
 
     # ── 9. Errors ─────────────────────────────────────────────────────────────
     if errors:
-        print("\n── Errors / Timeouts ─────────────────────────────────────────────────")
+        print(
+            "\n── Errors / Timeouts ─────────────────────────────────────────────────"
+        )
         err_types: dict[str, int] = defaultdict(int)
         for r in errors:
             err = r.get("error", "unknown")
@@ -1047,12 +1398,18 @@ def main() -> None:
         "p1_sr_no_debug_pct": round(n_p1_pass_no_debug / max(len(ok), 1) * 100, 2),
         "p1_sr_with_debug_pct": round(n_p1_pass / max(len(ok), 1) * 100, 2),
         "followup_pass_no_debug": n_followup_pass_no_debug,
-        "followup_sr_no_debug_pct": round(n_followup_pass_no_debug / max(len(ok), 1) * 100, 2),
+        "followup_sr_no_debug_pct": round(
+            n_followup_pass_no_debug / max(len(ok), 1) * 100, 2
+        ),
         "followup_sr_with_debug_pct": round(n_full_pass / max(len(ok), 1) * 100, 2),
         "sum_rewards": round(sum_rewards, 4),
         "avg_reward": round(sum_rewards / max(len(ok), 1), 4),
-        "score_vs_completed_naturally_pct": round(sum_rewards / max(n_completed_naturally, 1) * 100, 2),
-        "score_vs_query_tasks_pct": round(sum_rewards / max(n_query_in_dataset, 1) * 100, 2),
+        "score_vs_completed_naturally_pct": round(
+            sum_rewards / max(n_completed_naturally, 1) * 100, 2
+        ),
+        "score_vs_query_tasks_pct": round(
+            sum_rewards / max(n_query_in_dataset, 1) * 100, 2
+        ),
         "score_vs_full_benchmark_pct": round(pct_vs_full, 2),
         "n_query_in_dataset": n_query_in_dataset,
         "n_completed_naturally": n_completed_naturally,
@@ -1065,25 +1422,36 @@ def main() -> None:
         "unresolved_hit_max_turn": len(ur_hit_max),
         "unresolved_spare_turns": len(ur_spare),
         "errors": [
-            {"instance_id": r["instance_id"], "error": r.get("error")}
-            for r in errors
+            {"instance_id": r["instance_id"], "error": r.get("error")} for r in errors
         ],
     }
     analysis_out.write_text(json.dumps(analysis_data, indent=2))
 
     # ── Instance index ────────────────────────────────────────────────────────
-    instances_out = _write_instances_file(results_path, ok, errors, dataset, dataset_label)
+    instances_out = _write_instances_file(
+        results_path, ok, errors, dataset, dataset_label
+    )
 
     # ── Charts ────────────────────────────────────────────────────────────────
     charts_out = results_path.with_name(results_path.stem + "_charts.png")
-    _make_charts(ok, timestamped, dataset, score_buckets, followup_stats, charts_out, dataset_label)
+    _make_charts(
+        ok,
+        timestamped,
+        dataset,
+        score_buckets,
+        followup_stats,
+        charts_out,
+        dataset_label,
+    )
 
     print(f"\n{'=' * 70}")
     print("Done.")
     print(f"  Results:  {results_path}")
     print(f"  Analysis: {analysis_out}")
     print(f"  Instances: {instances_out}")
-    charts_diag = charts_out.with_name(charts_out.stem.replace("_charts", "_charts_diag") + ".png")
+    charts_diag = charts_out.with_name(
+        charts_out.stem.replace("_charts", "_charts_diag") + ".png"
+    )
     if charts_out.exists():
         print(f"  Charts (results):     {charts_out}")
     if charts_diag.exists():
@@ -1136,7 +1504,9 @@ def _write_instances_file(
         non_kl = types - {KNOWLEDGE_LINKING}
         if len(non_kl) == 1:
             return next(iter(non_kl))
-        return "mixed_types"  # spans multiple non-KL types — excluded from per-type lists
+        return (
+            "mixed_types"  # spans multiple non-KL types — excluded from per-type lists
+        )
 
     def _diff(r: dict) -> str:
         return _diff_label(dataset.get(r["instance_id"]), dataset_label)
@@ -1145,7 +1515,9 @@ def _write_instances_file(
         task = dataset.get(r["instance_id"]) or {}
         return (task.get("follow_up") or {}).get("type", "unknown")
 
-    def _section(lines: list[str], title: str, records: list[dict], *, extra: str = "") -> None:
+    def _section(
+        lines: list[str], title: str, records: list[dict], *, extra: str = ""
+    ) -> None:
         tag = f" [{extra}]" if extra else ""
         lines.append(f"  {title}{tag}:")
         if not records:
@@ -1154,10 +1526,16 @@ def _write_instances_file(
             lines.append("    " + ", ".join(r["instance_id"] for r in records))
 
     # ── outcome buckets ───────────────────────────────────────────────────────
-    p1_fail     = [r for r in ok if not r.get("phase1_passed")]
-    p1p_p2f     = [r for r in ok if r.get("phase1_passed") and r.get("phase2_passed") is False]
-    full_pass   = [r for r in ok if r.get("phase1_passed")
-                   and (r.get("phase2_passed") is None or r.get("phase2_passed"))]
+    p1_fail = [r for r in ok if not r.get("phase1_passed")]
+    p1p_p2f = [
+        r for r in ok if r.get("phase1_passed") and r.get("phase2_passed") is False
+    ]
+    full_pass = [
+        r
+        for r in ok
+        if r.get("phase1_passed")
+        and (r.get("phase2_passed") is None or r.get("phase2_passed"))
+    ]
 
     # ── collect all non-noise ambiguity types in run ──────────────────────────
     all_amb_types: set[str] = set()
@@ -1205,14 +1583,22 @@ def _write_instances_file(
         lines.append("")
 
         # Turn budget (hit max)
-        hit_max = [r for r in bucket
-                   if r.get("turns_used") is not None and r.get("max_turn")
-                   and r["turns_used"] >= r["max_turn"]]
+        hit_max = [
+            r
+            for r in bucket
+            if r.get("turns_used") is not None
+            and r.get("max_turn")
+            and r["turns_used"] >= r["max_turn"]
+        ]
         lines.append("  Hit Turn Budget (turns_used == max_turn):")
         if hit_max:
-            lines.append("    " + ", ".join(
-                f"{r['instance_id']} ({r['turns_used']}/{r['max_turn']})" for r in hit_max
-            ))
+            lines.append(
+                "    "
+                + ", ".join(
+                    f"{r['instance_id']} ({r['turns_used']}/{r['max_turn']})"
+                    for r in hit_max
+                )
+            )
         else:
             lines.append("    —")
         lines.append("")
@@ -1228,7 +1614,11 @@ def _write_instances_file(
 
         # Debug rescue (only for p2 section — p1 debug rescue is a p1 outcome)
         if bucket_label.startswith("P1 PASS + P2"):
-            rescued = [r for r in bucket if r.get("phase2_debug_ran") and r.get("phase2_passed")]
+            rescued = [
+                r
+                for r in bucket
+                if r.get("phase2_debug_ran") and r.get("phase2_passed")
+            ]
             lines.append("  Debug Rescue (p2_debug rescued p2):")
             _section(lines, "  rescued", rescued)
             lines.append("")
@@ -1257,7 +1647,9 @@ def _write_instances_file(
 
     # ── harness errors (not in any outcome bucket) ────────────────────────────
     lines.append("═" * 70)
-    lines.append(f"  HARNESS ERRORS (n={len(errors)})  — excluded from all buckets above")
+    lines.append(
+        f"  HARNESS ERRORS (n={len(errors)})  — excluded from all buckets above"
+    )
     lines.append("═" * 70)
     lines.append("")
     if errors:

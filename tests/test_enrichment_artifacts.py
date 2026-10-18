@@ -95,7 +95,9 @@ class EnrichmentArtifactResolutionTest(unittest.TestCase):
 
         custom_analyses_module = types.ModuleType("auto_ontology.dal.custom_analyses")
         custom_analyses_module.embed_custom_analyses = embed
-        service_module = types.ModuleType("auto_ontology.server.custom_analyses.service")
+        service_module = types.ModuleType(
+            "auto_ontology.server.custom_analyses.service"
+        )
 
         class AnalysisConflict(Exception):
             pass

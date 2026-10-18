@@ -9,6 +9,7 @@ The shims implement the same interface using psycopg2.
 Run once before starting Bird ADK services:
     python scripts/bird_interact/setup_pg_wrappers.py
 """
+
 import stat
 import sys
 import textwrap
@@ -28,7 +29,9 @@ def make_wrapper(name: str, body: str) -> None:
 def main() -> None:
     WRAPPERS_DIR.mkdir(parents=True, exist_ok=True)
 
-    make_wrapper("psql", """
+    make_wrapper(
+        "psql",
+        """
         import sys, os, psycopg2
         args = sys.argv[1:]
         host, port, user, dbname, cmd = "127.0.0.1", "5432", "root", "postgres", ""
@@ -48,9 +51,12 @@ def main() -> None:
         try: print(cur.fetchall())
         except Exception: pass
         conn.close()
-    """)
+    """,
+    )
 
-    make_wrapper("createdb", """
+    make_wrapper(
+        "createdb",
+        """
         import sys, os, psycopg2
         args = sys.argv[1:]
         host, port, user, template, dbname = "127.0.0.1", "5432", "root", None, None
@@ -71,9 +77,12 @@ def main() -> None:
             sql += f' TEMPLATE "{template}"'
         cur.execute(sql)
         conn.close()
-    """)
+    """,
+    )
 
-    make_wrapper("dropdb", """
+    make_wrapper(
+        "dropdb",
+        """
         import sys, os, psycopg2
         args = sys.argv[1:]
         host, port, user, dbname, if_exists = "127.0.0.1", "5432", "root", None, False
@@ -92,7 +101,8 @@ def main() -> None:
         ie = "IF EXISTS " if if_exists else ""
         cur.execute(f'DROP DATABASE {ie}"{dbname}"')
         conn.close()
-    """)
+    """,
+    )
 
     print("\nDone. Add to PATH before starting Bird services:")
     print(f"  export PATH={WRAPPERS_DIR}:$PATH")

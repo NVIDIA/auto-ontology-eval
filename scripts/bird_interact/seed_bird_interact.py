@@ -106,9 +106,9 @@ Alternatively, get the file from the shared Google Drive.
 ## Where to place them
 
 Drop the received file directly into THIS directory
-(data/datasets/bird_interact{'_full' if variant == 'full' else ''}/gt/).  The seeder expects:
+(data/datasets/bird_interact{"_full" if variant == "full" else ""}/gt/).  The seeder expects:
 
-    data/datasets/bird_interact{'_full' if variant == 'full' else ''}/gt/bird_interact_data_with_gt.jsonl
+    data/datasets/bird_interact{"_full" if variant == "full" else ""}/gt/bird_interact_data_with_gt.jsonl
 
 Once the file is present, re-run the seeder to regenerate the combined data
 file and manifest:
@@ -117,7 +117,7 @@ file and manifest:
 
 The seeder copies it to:
 
-    data/datasets/bird_interact{'_full' if variant == 'full' else ''}/bird_interact_data_with_gt.jsonl
+    data/datasets/bird_interact{"_full" if variant == "full" else ""}/bird_interact_data_with_gt.jsonl
 
 That path is what scripts/bird_interact/run_bird_interact_cinteract.py reads by default.
 
@@ -197,15 +197,20 @@ def _bootstrap_upstream(ref: str = DEFAULT_UPSTREAM_REF) -> str:
         _run(["git", "pull", "--ff-only", "origin", ref], cwd=upstream)
     else:
         logger.info("Cloning %s (sparse) into %s", UPSTREAM_REPO, upstream)
-        _run([
-            "git", "clone",
-            "--depth", "1",
-            "--filter=blob:none",
-            "--sparse",
-            "--branch", ref,
-            UPSTREAM_REPO,
-            str(upstream),
-        ])
+        _run(
+            [
+                "git",
+                "clone",
+                "--depth",
+                "1",
+                "--filter=blob:none",
+                "--sparse",
+                "--branch",
+                ref,
+                UPSTREAM_REPO,
+                str(upstream),
+            ]
+        )
         _run(["git", "sparse-checkout", "set", *_SPARSE_PATHS], cwd=upstream)
 
     commit = _current_ref(upstream)
@@ -300,13 +305,19 @@ def _combine_public_with_gt(public_path: Path, gt_path: Path, output_path: Path)
             gt_entry = gt_data.get(instance_id)
             if gt_entry is not None:
                 public_entry["sol_sql"] = gt_entry.get("sol_sql", [])
-                public_entry["external_knowledge"] = gt_entry.get("external_knowledge", [])
+                public_entry["external_knowledge"] = gt_entry.get(
+                    "external_knowledge", []
+                )
                 public_entry["test_cases"] = gt_entry.get("test_cases", [])
                 if isinstance(gt_entry.get("follow_up"), dict):
                     follow_up = public_entry.setdefault("follow_up", {})
                     follow_up["sol_sql"] = gt_entry["follow_up"].get("sol_sql", [])
-                    follow_up["external_knowledge"] = gt_entry["follow_up"].get("external_knowledge", [])
-                    follow_up["test_cases"] = gt_entry["follow_up"].get("test_cases", [])
+                    follow_up["external_knowledge"] = gt_entry["follow_up"].get(
+                        "external_knowledge", []
+                    )
+                    follow_up["test_cases"] = gt_entry["follow_up"].get(
+                        "test_cases", []
+                    )
                 combined += 1
             else:
                 missing.append(instance_id)
@@ -315,12 +326,15 @@ def _combine_public_with_gt(public_path: Path, gt_path: Path, output_path: Path)
     if missing:
         logger.warning(
             "%d instance(s) had no matching GT entry (first few: %s)",
-            len(missing), missing[:5],
+            len(missing),
+            missing[:5],
         )
     return combined
 
 
-def _build_datasets(variant: str, *, upstream_commit: str | None = None, force: bool = False) -> dict:
+def _build_datasets(
+    variant: str, *, upstream_commit: str | None = None, force: bool = False
+) -> dict:
     dest = _datasets_dir(variant)
     dest.mkdir(parents=True, exist_ok=True)
     _ensure_gt_readme(variant)
@@ -345,15 +359,19 @@ def _build_datasets(variant: str, *, upstream_commit: str | None = None, force: 
     # selected_database is what BIRD-Interact actually ships (and what every
     # runner reads); the rest are tolerated aliases from sibling BIRD datasets.
     _DB_KEYS = ("selected_database", "db_name", "db_id", "database")
-    db_names: list[str] = sorted({
-        name for row in rows
-        if (name := next((str(row[k]) for k in _DB_KEYS if row.get(k)), ""))
-    })
+    db_names: list[str] = sorted(
+        {
+            name
+            for row in rows
+            if (name := next((str(row[k]) for k in _DB_KEYS if row.get(k)), ""))
+        }
+    )
     if rows and not db_names:
         logger.warning(
             "No database name found on any of the %d rows (looked for: %s) — "
             "the manifest's databases list will be empty.",
-            len(rows), ", ".join(_DB_KEYS),
+            len(rows),
+            ", ".join(_DB_KEYS),
         )
 
     # --- combined JSONL (public + GT merged if available, else public as development fallback) ---
@@ -365,7 +383,9 @@ def _build_datasets(variant: str, *, upstream_commit: str | None = None, force: 
         n_combined = _combine_public_with_gt(public_dest, gt_src, combined_dest)
         logger.info(
             "GT detected — merged %d/%d instances into %s",
-            n_combined, task_count, combined_dest,
+            n_combined,
+            task_count,
+            combined_dest,
         )
     else:
         shutil.copy2(public_dest, combined_dest)
@@ -407,7 +427,10 @@ def _build_datasets(variant: str, *, upstream_commit: str | None = None, force: 
     )
     logger.info(
         "Manifest: %s (%d tasks, %d databases, gt_available=%s)",
-        manifest_path, task_count, len(db_names), gt_available,
+        manifest_path,
+        task_count,
+        len(db_names),
+        gt_available,
     )
     return manifest
 
@@ -415,7 +438,11 @@ def _build_datasets(variant: str, *, upstream_commit: str | None = None, force: 
 def _print_summary(variant: str, manifest: dict) -> None:
     combined = _repo_root() / manifest["paths"]["combined_jsonl"]
     env_dir = _repo_root() / manifest["paths"]["env_dir"]
-    docker_service = "bird_interact_postgresql_full" if variant == "full" else "bird_interact_postgresql"
+    docker_service = (
+        "bird_interact_postgresql_full"
+        if variant == "full"
+        else "bird_interact_postgresql"
+    )
 
     logger.info("=" * 60)
     logger.info("BIRD-Interact %s seed complete.", variant)
@@ -438,7 +465,9 @@ def _print_summary(variant: str, manifest: dict) -> None:
         print("  2. Place the received file at:")
         print(f"       {_gt_dir(variant) / GT_JSONL_NAME}")
         print()
-        print(f"  3. Re-run: uv run python scripts/bird_interact/seed_bird_interact.py --dataset {variant}")
+        print(
+            f"  3. Re-run: uv run python scripts/bird_interact/seed_bird_interact.py --dataset {variant}"
+        )
         print("=" * 60)
         print()
 
@@ -453,7 +482,9 @@ def _print_summary(variant: str, manifest: dict) -> None:
     print()
     print("Then run the c-Interact evaluation:")
     print()
-    print(f"  python scripts/bird_interact/run_bird_interact_cinteract.py --data {combined}")
+    print(
+        f"  python scripts/bird_interact/run_bird_interact_cinteract.py --data {combined}"
+    )
     print()
 
 

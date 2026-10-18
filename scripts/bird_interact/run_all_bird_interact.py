@@ -48,7 +48,11 @@ import httpx
 
 ONTOLOGY_DIR = Path(__file__).resolve().parents[2]
 DEFAULT_DATA = (
-    ONTOLOGY_DIR / "data" / "datasets" / "bird_interact" / "bird_interact_data_with_gt.jsonl"
+    ONTOLOGY_DIR
+    / "data"
+    / "datasets"
+    / "bird_interact"
+    / "bird_interact_data_with_gt.jsonl"
 )
 RESULTS_DIR = ONTOLOGY_DIR / "results"
 

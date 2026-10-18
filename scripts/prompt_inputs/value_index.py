@@ -43,11 +43,59 @@ MAX_DISTINCT = 60_000
 MAX_VALUE_LEN = 80
 
 STOPWORDS = {
-    "a", "all", "an", "and", "any", "are", "as", "at", "be", "by", "did", "do", "does",
-    "for", "from", "give", "had", "has", "have", "how", "in", "is", "it", "its", "list",
-    "many", "me", "much", "name", "of", "on", "or", "please", "show", "state", "tell",
-    "that", "the", "their", "there", "they", "this", "to", "was", "were", "what", "when",
-    "which", "who", "whose", "with", "you", "your",
+    "a",
+    "all",
+    "an",
+    "and",
+    "any",
+    "are",
+    "as",
+    "at",
+    "be",
+    "by",
+    "did",
+    "do",
+    "does",
+    "for",
+    "from",
+    "give",
+    "had",
+    "has",
+    "have",
+    "how",
+    "in",
+    "is",
+    "it",
+    "its",
+    "list",
+    "many",
+    "me",
+    "much",
+    "name",
+    "of",
+    "on",
+    "or",
+    "please",
+    "show",
+    "state",
+    "tell",
+    "that",
+    "the",
+    "their",
+    "there",
+    "they",
+    "this",
+    "to",
+    "was",
+    "were",
+    "what",
+    "when",
+    "which",
+    "who",
+    "whose",
+    "with",
+    "you",
+    "your",
 }
 
 
@@ -88,13 +136,20 @@ def singular(phrase: str) -> str:
     "Continuation School". Questions name a category in the plural far more
     often than a column stores it that way."""
     words = phrase.split()
-    if words and len(words[-1]) > 3 and words[-1].endswith("s") and not words[-1].endswith("ss"):
+    if (
+        words
+        and len(words[-1]) > 3
+        and words[-1].endswith("s")
+        and not words[-1].endswith("ss")
+    ):
         words[-1] = words[-1][:-1]
     return " ".join(words)
 
 
 def databases() -> list[str]:
-    return sorted(p.name for p in DB_ROOT.iterdir() if (p / f"{p.name}.sqlite").is_file())
+    return sorted(
+        p.name for p in DB_ROOT.iterdir() if (p / f"{p.name}.sqlite").is_file()
+    )
 
 
 def build(verbose: bool = True) -> None:
@@ -127,7 +182,10 @@ def build(verbose: bool = True) -> None:
         path = DB_ROOT / db / f"{db}.sqlite"
         src = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=60)
         src.text_factory = lambda b: b.decode("utf-8", "replace")
-        tables = [r[0] for r in src.execute("SELECT name FROM sqlite_master WHERE type='table'")]
+        tables = [
+            r[0]
+            for r in src.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        ]
         rows: list[tuple] = []
         word_rows: list[tuple] = []
         alias_rows: list[tuple] = []
@@ -144,11 +202,15 @@ def build(verbose: bool = True) -> None:
                 except Exception:
                     continue
                 if n == 0:
-                    out.execute("INSERT INTO skipped VALUES (?,?,?,?,?)", (db, tbl, col, "empty", 0))
+                    out.execute(
+                        "INSERT INTO skipped VALUES (?,?,?,?,?)",
+                        (db, tbl, col, "empty", 0),
+                    )
                     continue
                 if n > MAX_DISTINCT:
                     out.execute(
-                        "INSERT INTO skipped VALUES (?,?,?,?,?)", (db, tbl, col, "high-cardinality", n)
+                        "INSERT INTO skipped VALUES (?,?,?,?,?)",
+                        (db, tbl, col, "high-cardinality", n),
                     )
                     totals["columns skipped"] += 1
                     continue
@@ -253,7 +315,9 @@ def names_an_identifier(text: str, phrase: str, tbl: str, col: str) -> bool:
         before = low[max(0, m.start() - 28) : m.start()].rstrip()
         if _ID_CUE.search(before):
             return True
-        if re.search(rf"\b({re.escape(tbl.lower())}|{re.escape(stem)})\w*\W{{0,3}}$", before):
+        if re.search(
+            rf"\b({re.escape(tbl.lower())}|{re.escape(stem)})\w*\W{{0,3}}$", before
+        ):
             return True
     return False
 
@@ -341,9 +405,7 @@ def lookup(
     exact = [
         h
         for h in exact
-        if h[4] > 1
-        or h[0] not in strong
-        or names_an_identifier(text, h[0], h[1], h[2])
+        if h[4] > 1 or h[0] not in strong or names_an_identifier(text, h[0], h[1], h[2])
     ]
     return (exact + partial)[:limit]
 
@@ -358,13 +420,16 @@ def validate(targets_path: Path, limit: int) -> None:
         db, want_col, want_val = t["db"], t["gold_column"].lower(), t["gold_value"]
         # Gold's filter may be `LIKE '%Riverside%'`, so a column whose values
         # merely contain the phrase counts as holding it.
-        in_index = con.execute(
-            "SELECT tbl, col FROM value_column WHERE db = ? AND value_norm = ?",
-            (db, norm(want_val)),
-        ).fetchall() + con.execute(
-            "SELECT tbl, col FROM word_column WHERE db = ? AND word = ?",
-            (db, norm(want_val)),
-        ).fetchall()
+        in_index = (
+            con.execute(
+                "SELECT tbl, col FROM value_column WHERE db = ? AND value_norm = ?",
+                (db, norm(want_val)),
+            ).fetchall()
+            + con.execute(
+                "SELECT tbl, col FROM word_column WHERE db = ? AND word = ?",
+                (db, norm(want_val)),
+            ).fetchall()
+        )
         if not in_index:
             cov["value not in index at all"] += 1
             misses.append((t, "value absent"))
@@ -381,7 +446,8 @@ def validate(targets_path: Path, limit: int) -> None:
         # A word posting counts as a hit too: pointing at gold's column with a
         # value containing the phrase is what a LIKE filter needs.
         if any(
-            c.lower() == want_col and (norm(v) == norm(want_val) or norm(want_val) in norm(v))
+            c.lower() == want_col
+            and (norm(v) == norm(want_val) or norm(want_val) in norm(v))
             for _, _, c, v, _, _ in anchors
         ):
             cov["  ...and reachable from the question text"] += 1
@@ -391,16 +457,24 @@ def validate(targets_path: Path, limit: int) -> None:
 
     n = len(targets)
     print(f"validation over {n} filter-linking failures\n")
-    for label in ("gold column+value present in index", "value indexed, but not under gold's column",
-                  "value not in index at all", "  ...and reachable from the question text",
-                  "  ...but question text does not surface it"):
+    for label in (
+        "gold column+value present in index",
+        "value indexed, but not under gold's column",
+        "value not in index at all",
+        "  ...and reachable from the question text",
+        "  ...but question text does not surface it",
+    ):
         if label in cov:
-            print(f"  {cov[label]:>3} ({100*cov[label]/n:4.1f}%)  {label}")
+            print(f"  {cov[label]:>3} ({100 * cov[label] / n:4.1f}%)  {label}")
     if noise:
-        print(f"\n  anchors offered per question: mean {sum(noise)/len(noise):.1f}, max {max(noise)}")
+        print(
+            f"\n  anchors offered per question: mean {sum(noise) / len(noise):.1f}, max {max(noise)}"
+        )
     print("\n  sample misses:")
     for t, why in misses[:6]:
-        print(f"    q{t['question_id']} [{t['db']}] {why}: gold {t['gold_column']} = {t['gold_value']!r}")
+        print(
+            f"    q{t['question_id']} [{t['db']}] {why}: gold {t['gold_column']} = {t['gold_value']!r}"
+        )
         print(f"      question: {t['question'][:110]}")
 
 
@@ -435,7 +509,8 @@ def _schema_words(con: sqlite3.Connection, db: str) -> frozenset[str]:
     words: set[str] = set()
     for (name,) in con.execute(
         "SELECT DISTINCT tbl FROM value_column WHERE db = ? "
-        "UNION SELECT DISTINCT col FROM value_column WHERE db = ?", (db, db)
+        "UNION SELECT DISTINCT col FROM value_column WHERE db = ?",
+        (db, db),
     ):
         words.add(norm(name))
         words.update(re.findall(r"[a-z0-9]+", norm(name)))
@@ -510,9 +585,15 @@ def anchors(out_path: Path, limit: int, max_contains: int, max_absent: int) -> N
                 stats["glossed anchors"] += 1
             rows.append(
                 {
-                    "question_id": q["question_id"], "rank": rank, "kind": kind,
-                    "phrase": phrase, "tbl": tbl, "col": col,
-                    "stored_value": raw, "n_rows": n, "description": gloss,
+                    "question_id": q["question_id"],
+                    "rank": rank,
+                    "kind": kind,
+                    "phrase": phrase,
+                    "tbl": tbl,
+                    "col": col,
+                    "stored_value": raw,
+                    "n_rows": n,
+                    "description": gloss,
                 }
             )
         stats["anchors"] += len(hits)
@@ -535,7 +616,8 @@ def anchors(out_path: Path, limit: int, max_contains: int, max_absent: int) -> N
             if key in schema or all(w in schema for w in re.findall(r"[a-z0-9]+", key)):
                 continue
             if con.execute(
-                "SELECT 1 FROM value_column WHERE db = ? AND value_norm = ? LIMIT 1", (db, key)
+                "SELECT 1 FROM value_column WHERE db = ? AND value_norm = ? LIMIT 1",
+                (db, key),
             ).fetchone():
                 continue
             absent.append(phrase)
@@ -544,9 +626,15 @@ def anchors(out_path: Path, limit: int, max_contains: int, max_absent: int) -> N
                 break
             rows.append(
                 {
-                    "question_id": q["question_id"], "rank": rank, "kind": "absent",
-                    "phrase": phrase, "tbl": "", "col": "", "stored_value": "",
-                    "n_rows": 0, "description": "",
+                    "question_id": q["question_id"],
+                    "rank": rank,
+                    "kind": "absent",
+                    "phrase": phrase,
+                    "tbl": "",
+                    "col": "",
+                    "stored_value": "",
+                    "n_rows": 0,
+                    "description": "",
                 }
             )
             stats["absent notes"] += 1
@@ -557,7 +645,7 @@ def anchors(out_path: Path, limit: int, max_contains: int, max_absent: int) -> N
     print(
         f"{stats['anchors']:,} anchors and {stats['absent notes']:,} 'not stored' notes "
         f"over {len(questions)} questions -> {out_path}\n"
-        f"  mean {stats['anchors']/len(questions):.1f} anchors per question\n"
+        f"  mean {stats['anchors'] / len(questions):.1f} anchors per question\n"
         f"  {stats['glossed anchors']:,} carry a documented column name, "
         f"attached only where one phrase matched several columns of one table"
     )
@@ -568,7 +656,9 @@ def main() -> None:
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("build")
     v = sub.add_parser("validate")
-    v.add_argument("--targets", type=Path, default=ROOT / "output/value_link_targets.json")
+    v.add_argument(
+        "--targets", type=Path, default=ROOT / "output/value_link_targets.json"
+    )
     v.add_argument("--limit", type=int, default=8)
     a = sub.add_parser("anchors")
     a.add_argument("--out", type=Path, default=ROOT / "output/value_anchors.csv")
