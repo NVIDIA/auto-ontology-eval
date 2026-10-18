@@ -162,7 +162,7 @@ wheels = [
 [[package]]
 name = "apache-ossie-nvidia-auto-ontology"
 version = "0.1.0.dev0"
-source = { git = "https://github.com/apache/ossie.git?subdirectory=converters%2Fnvidia&rev=b9375dbff4abafc9f2b1ddae8871371e7cd5a241#b9375dbff4abafc9f2b1ddae8871371e7cd5a241" }
+source = { git = "https://github.com/apache/ossie.git?subdirectory=converters%2Fnvidia&rev=ef91cb61092c60f4b918016a81cfdbe483e113bc#ef91cb61092c60f4b918016a81cfdbe483e113bc" }
 dependencies = [
     { name = "pyyaml" },
     { name = "sqlglot" },
@@ -217,7 +217,7 @@ wheels = [
 [[package]]
 name = "auto-ontology-server"
 version = "1.1.0"
-source = { git = "https://github.com/NVIDIA/auto-ontology.git?rev=dba6b762cc32c7c7f277719c21deb7c37fb7b8a5#dba6b762cc32c7c7f277719c21deb7c37fb7b8a5" }
+source = { git = "https://github.com/NVIDIA/auto-ontology.git?rev=643993e758459e7bdb72642eed3549eb9d658c9e#643993e758459e7bdb72642eed3549eb9d658c9e" }
 dependencies = [
     { name = "alembic" },
     { name = "apache-ossie-nvidia-auto-ontology" },
@@ -1864,7 +1864,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "auto-ontology-server", git = "https://github.com/NVIDIA/auto-ontology.git?rev=dba6b762cc32c7c7f277719c21deb7c37fb7b8a5" },
+    { name = "auto-ontology-server", git = "https://github.com/NVIDIA/auto-ontology.git?rev=643993e758459e7bdb72642eed3549eb9d658c9e" },
     { name = "datasets", specifier = ">=5.0.1" },
     { name = "func-timeout", specifier = ">=4.3.5" },
     { name = "huggingface-hub", specifier = ">=1.28.0" },
