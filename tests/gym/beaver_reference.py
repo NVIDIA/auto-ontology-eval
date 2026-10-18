@@ -19,7 +19,7 @@ Ports the execution and comparison logic of the official BEAVER evaluator:
 - Score 1 iff the *sets* of result rows match (row order and duplicates
   ignored, column names ignored, column count must match).
 
-Only ``tests/test_gym_beaver_match.py`` imports it, which is why it lives
+Only ``tests/gym/test_beaver_match.py`` imports it, which is why it lives
 under ``tests/``. The benchmark scores with ``ontology_sql_eval.gym.exec_match``,
 which carries its own pandas-free copy of the rule for the control arm's venv;
 the test checks the two agree.

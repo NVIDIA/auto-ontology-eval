@@ -22,9 +22,9 @@ differently and we want numbers that are comparable to each one's own leaderboar
 
 They genuinely disagree. BEAVER treats `1` and `"1"` as equal and strips
 whitespace, but **not** `Decimal("150.250")` and `Decimal("150.25")` -- which on a
-MySQL corpus is a common case, not an exotic one. `tests/test_gym_beaver_match.py`
+MySQL corpus is a common case, not an exotic one. `tests/gym/test_beaver_match.py`
 holds our implementation against the official evaluator, ported in
-`tests/beaver_reference.py`.
+`tests/gym/beaver_reference.py`.
 
 BEAVER also differs in how it runs and reports, and both arms follow it there
 too:

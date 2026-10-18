@@ -481,7 +481,7 @@ data/
     wideworldimporters/     README.md, evaluation.json, custom_analyses.json, ddl/, data/
   annotations/<dataset>/    tracked descriptions + custom analyses applied at ingest
   prompt_inputs/<dataset>/  tracked eval prompt inputs (sql examples + value anchors)
-tests/                      pytest suite; beaver_reference.py is the BEAVER ex_acc port
+tests/                      pytest suite, one folder per area (gym/, ingestion/, bird_interact/, scripts/)
 runs/{control,treatment}/   benchmark rollouts + Gym metrics (gitignored)
 output/                     scratch output of the prompt-input scripts (gitignored)
 ```
@@ -514,7 +514,7 @@ documented in
   ([microsoft/sql-server-samples](https://github.com/microsoft/sql-server-samples),
   Copyright (c) Microsoft Corporation). Its upstream notice is reproduced in
   [data/datasets/wideworldimporters/LICENSE](data/datasets/wideworldimporters/LICENSE).
-- [`tests/beaver_reference.py`](tests/beaver_reference.py) —
+- [`tests/gym/beaver_reference.py`](tests/gym/beaver_reference.py) —
   ports BEAVER's official execution-accuracy rule
   ([beaverbench/beaver](https://github.com/beaverbench/beaver),
   Copyright (c) 2024 MIT Data Systems Group).

@@ -14,11 +14,11 @@ from __future__ import annotations
 
 import os
 import sys
-from pathlib import Path
 
 import pytest
 import yaml
 
+from ontology_sql_eval.paths import REPO_ROOT
 from ontology_sql_eval.gym import model_routing
 from ontology_sql_eval.gym.model_routing import (
     GYM_MODEL_SERVERS,
@@ -33,8 +33,7 @@ _ROLES_AND_FIELDS = [
 ]
 
 _CONFIG = (
-    Path(__file__).resolve().parent.parent
-    / "resources_servers/auto_ontology_sql/configs/auto_ontology_sql.yaml"
+    REPO_ROOT / "resources_servers/auto_ontology_sql/configs/auto_ontology_sql.yaml"
 )
 
 

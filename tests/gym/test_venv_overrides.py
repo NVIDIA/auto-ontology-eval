@@ -19,11 +19,12 @@ from __future__ import annotations
 
 import re
 import tomllib
-from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[1]
+from ontology_sql_eval.paths import REPO_ROOT
+
+ROOT = REPO_ROOT
 
 
 def _uv_names(key: str) -> set[str]:

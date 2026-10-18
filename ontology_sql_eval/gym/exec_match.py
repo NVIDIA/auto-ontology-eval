@@ -155,8 +155,8 @@ def beaver_result_match(gold: ResultSet, pred: ResultSet) -> bool:
     equal ``Decimal("150.25")``. On a MySQL corpus, where every numeric comes
     back as ``Decimal``, that last case is common rather than exotic.
 
-    Kept in step with ``tests/beaver_reference.py``, a port of the official
-    evaluator, by ``tests/test_gym_beaver_match.py`` rather than by importing
+    Kept in step with ``tests/gym/beaver_reference.py``, a port of the official
+    evaluator, by ``tests/gym/test_beaver_match.py`` rather than by importing
     it -- that port pulls in pandas, which the control arm's venv deliberately
     does not have.
     """

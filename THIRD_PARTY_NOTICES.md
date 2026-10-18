@@ -66,7 +66,7 @@ copyright and MIT identifier in their headers.
 
 | | |
 |---|---|
-| **Location in this repo** | `tests/beaver_reference.py` |
+| **Location in this repo** | `tests/gym/beaver_reference.py` |
 | **Upstream project** | BEAVER — https://github.com/beaverbench/beaver |
 | **Copyright holder** | Copyright (c) 2024 MIT Data Systems Group |
 | **License** | MIT |
@@ -142,7 +142,7 @@ Also applies to the included third-party content above, under their respective
 copyrights:
 
 - SQL Server Samples (`data/datasets/wideworldimporters/`) — Copyright (c) Microsoft Corporation
-- BEAVER (`tests/beaver_reference.py`) — Copyright (c) 2024 MIT Data Systems Group
+- BEAVER (`tests/gym/beaver_reference.py`) — Copyright (c) 2024 MIT Data Systems Group
 
 ---
 

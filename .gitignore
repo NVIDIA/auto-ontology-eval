@@ -23,10 +23,6 @@ venv/
 /output/*
 !/output/.gitkeep
 
-# Per-run eval instrumentation bundles — keep the folder, ignore the runs
-/logs/*
-!/logs/.gitkeep
-
 # Eval prompt inputs are tracked; the LLM response caches written beside them
 # (including the timestamped copies a rebuild archives) are not.
 /data/prompt_inputs/**/*_cache*.jsonl
