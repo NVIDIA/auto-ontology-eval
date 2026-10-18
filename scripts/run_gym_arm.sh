@@ -45,6 +45,14 @@ set +a
 # Set after .env is sourced, so a PYTHONPATH there cannot drop the root.
 export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
 
+# Ray, which Gym starts every server under, treats a `uv run` anywhere among a
+# process's ancestors as "this is a uv project" and then refuses to start any
+# server whose working directory does not contain that project's pyproject.toml.
+# Gym's legacy_agent environment server runs from site-packages, so the
+# documented `uv run python main.py` died before the first question. Each server
+# already has its own venv, so there is nothing for Ray to replicate.
+export RAY_ENABLE_UV_RUN_RUNTIME_ENV=0
+
 
 # GYM_API_KEY overrides the key for *both* consumers, and must be applied after
 # sourcing .env (which would otherwise clobber it). The Auto Ontology arm runs the agent

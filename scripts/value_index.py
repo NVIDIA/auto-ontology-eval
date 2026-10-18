@@ -26,7 +26,6 @@ import csv
 import json
 import re
 import sqlite3
-import sys
 from collections import Counter
 from functools import lru_cache
 from pathlib import Path
