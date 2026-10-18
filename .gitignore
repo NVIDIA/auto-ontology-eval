@@ -23,9 +23,6 @@ venv/
 /output/*
 !/output/.gitkeep
 
-# Legacy evaluator CSV inputs and results.
-/input/
-
 # Extra prompts are tracked; the LLM response caches written beside them
 # (including the timestamped copies a rebuild archives) are not.
 /inputs/extra_prompts/**/*_cache*.jsonl
