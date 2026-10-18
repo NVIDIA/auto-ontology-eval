@@ -633,7 +633,7 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
             FailureCode.GOLD_EXECUTION_TIMEOUT,
             # Without this, an arm that errors on every task (a db_id the
             # connectors do not know, say) reports 0% with every health
-            # counter green, and compare_arms.py publishes it.
+            # counter green, and gym/compare.py publishes it.
             FailureCode.UNKNOWN_ERROR,
         ):
             n = sum(1 for r in rollouts if r.get("failure_reason") == code.value)

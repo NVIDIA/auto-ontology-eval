@@ -23,8 +23,8 @@ differently and we want numbers that are comparable to each one's own leaderboar
 They genuinely disagree. BEAVER treats `1` and `"1"` as equal and strips
 whitespace, but **not** `Decimal("150.250")` and `Decimal("150.25")` -- which on a
 MySQL corpus is a common case, not an exotic one. `tests/test_gym_beaver_match.py`
-holds our implementation against the official evaluator in
-`ontology_sql_eval/judge/beaver.py`.
+holds our implementation against the official evaluator, ported in
+`tests/beaver_reference.py`.
 
 BEAVER also differs in how it runs and reports, and both arms follow it there
 too:
@@ -36,7 +36,7 @@ too:
 - **Accuracy without empty-gold questions.** Every rollout records
   `gold_result` (`empty_gold` / `nonempty_gold`), and the metrics carry
   `nonempty_gold/pass@1[avg-of-k]/accuracy` beside the overall number;
-  `scripts/compare_arms.py` prints a matching `nonempty gold` row. An empty
+  `ontology_sql_eval/gym/compare.py` prints a matching `nonempty gold` row. An empty
   gold result is matched by any prediction that returns nothing -- including
   one that errored -- so this is the more honest of the two.
 
@@ -315,7 +315,7 @@ is sugar for an override you can interpolate instead.
 ## Comparing arms
 
 ```bash
-python scripts/compare_arms.py --control <control_rollouts> --treatment <auto_ontology_rollouts>
+python -m ontology_sql_eval.gym.compare --control <control_rollouts> --treatment <auto_ontology_rollouts>
 ```
 
 Reports accuracy overall and by difficulty, the delta, and which individual
@@ -333,7 +333,7 @@ Hence two deliberate features:
 
 - `FailureCode.NO_MODEL_OUTPUT` is distinct from "wrong SQL", and both servers
   report `health/*` counters alongside accuracy.
-- `compare_arms.py` **refuses** to print a headline number when either arm is above
+- `gym/compare.py` **refuses** to print a headline number when either arm is above
   5% broken-run failures (`no_model_output` or `unknown_error`), unless
   `--ignore-health` is passed. Tasks whose *gold* query never ran are excluded
   from the denominator entirely rather than counted as misses.

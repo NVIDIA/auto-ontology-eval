@@ -378,7 +378,7 @@ scripts/run_gym_arm.sh schema_only_sql   runs/control/bird.jsonl
 scripts/run_gym_arm.sh auto_ontology_sql runs/treatment/bird.jsonl --max-output-tokens 16
 
 # 3. compare
-uv run python scripts/compare_arms.py \
+uv run python -m ontology_sql_eval.gym.compare \
   --control runs/control/bird.jsonl --treatment runs/treatment/bird.jsonl
 ```
 
@@ -414,7 +414,7 @@ endpoint.
 > [!WARNING]
 > Read the `health/*` counters next to the accuracy. A rate-limited or otherwise
 > broken run scores near zero and is indistinguishable from a weak model;
-> `compare_arms.py` refuses to print a headline number when more than 5% of tasks
+> `ontology_sql_eval/gym/compare.py` refuses to print a headline number when more than 5% of tasks
 > failed that way.
 
 > [!NOTE]
@@ -426,14 +426,17 @@ endpoint.
 
 ```
 ontology_sql_eval/          single namespace package
-  judge/
-    beaver.py               ported BEAVER ex_acc rule (reference for the Gym rule's tests)
   ingestion/                Auto Ontology-backed ingestion pipeline
     README.md               ingestion workflow guide
     ingest.py               source DB -> pgvector ingest (calls enrich_graph)
     semantic.py             compile the semantic layer over the ingested graph
     enrich_graph.py         graph metadata + custom-analysis enrichment
-  gym/                      Gym task building + execution-match scoring shared by both arms
+  gym/                      the benchmark logic shared by both arms and main.py
+    tasks.py                build Gym task files from datasets/<name>/evaluation.json
+    ddl.py                  schema dumps for the schema-only arm's prompt
+    exec_match.py           execution-match verifier (BIRD EX, BEAVER ex_acc)
+    model_routing.py        routes Auto Ontology's model calls through Gym's model servers
+    compare.py              health-gated delta report between the two arms
   bird_interact/            BIRD-Interact harness (see BIRD_INTERACT_README.md)
   env.py                    .env loading
   prompt_inputs.py          loaders for the prompt-input CSVs
@@ -442,7 +445,6 @@ main.py                     end-to-end pipeline entry point (ingest -> benchmark
 scripts/
   build_gym_tasks.py        build one arm's Gym task file from datasets/<name>/evaluation.json
   run_gym_arm.sh            run one arm through NeMo Gym
-  compare_arms.py           health-gated delta report between the two arms
   build_eval_inputs.py      build both prompt-input CSVs (anchors + exemplars) in one run
   value_index.py            value -> column index over the BIRD Dev DBs; writes value_anchors.csv
   llm_structural_exemplars.py  LLM-predicted SQL matched against train; writes the exemplars CSV
@@ -460,6 +462,7 @@ datasets/
   wideworldimporters/       README.md, evaluation.json, custom_analyses.json, ddl/, data/
 prompt_inputs/<dataset>/    tracked eval prompt inputs (sql examples + value anchors)
 runs/{control,treatment}/   benchmark rollouts + Gym metrics (gitignored)
+tests/                      pytest suite; beaver_reference.py ports BEAVER's ex_acc rule as the verifier's reference
 output/                     scratch output of the prompt-input scripts (contents gitignored)
 ```
 
@@ -491,7 +494,7 @@ documented in
   ([microsoft/sql-server-samples](https://github.com/microsoft/sql-server-samples),
   Copyright (c) Microsoft Corporation). Its upstream notice is reproduced in
   [datasets/wideworldimporters/LICENSE](datasets/wideworldimporters/LICENSE).
-- [`ontology_sql_eval/judge/beaver.py`](ontology_sql_eval/judge/beaver.py) —
+- [`tests/beaver_reference.py`](tests/beaver_reference.py) —
   ports BEAVER's official execution-accuracy rule
   ([beaverbench/beaver](https://github.com/beaverbench/beaver),
   Copyright (c) 2024 MIT Data Systems Group).

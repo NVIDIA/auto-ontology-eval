@@ -37,6 +37,23 @@ from ontology_sql_eval.gym.ddl import (
 
 Arm = Literal["schema_only", "auto_ontology"]
 
+# The Gym resources server that runs each arm.
+SERVER_FOR_ARM: dict[str, str] = {
+    "schema_only": "schema_only_sql",
+    "auto_ontology": "auto_ontology_sql",
+}
+
+
+def task_file(root: Path, arm: Arm) -> Path:
+    """Where an arm's tasks go: the file its resources server's config loads.
+
+    A fixed name, not ``<dataset>.jsonl``: Gym loads whatever the server config
+    points at, and a per-dataset filename meant the config had to name one
+    dataset up front -- so every other dataset silently ran that one.
+    """
+    return root / "resources_servers" / SERVER_FOR_ARM[arm] / "data" / "tasks.jsonl"
+
+
 # The first sentence is upstream bird_sql's prompt verbatim. The projection rule
 # is added to match what Auto Ontology receives via shorten_answer=True, which appends
 # "Return exactly the requested output fields and NO others" to its own prompt.
@@ -173,7 +190,7 @@ def build_records(
         # question_id is an int on BIRD/WWI but a string like "FDA0002" on
         # FDABench, so the joinable key is always rendered as text.
         #
-        # Never fall back to the list index: task_id is what compare_arms.py
+        # Never fall back to the list index: task_id is what gym/compare.py
         # joins the two arms on, and an index shifts under --limit or any
         # reordering of evaluation.json, silently pairing a control question
         # with a *different* treatment question. A content hash is stable

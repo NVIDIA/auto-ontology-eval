@@ -4,7 +4,7 @@
 
 """Compare two arms' Gym rollouts and report the ontology delta.
 
-    python scripts/compare_arms.py \
+    python -m ontology_sql_eval.gym.compare \
         --control  runs/control/bird.jsonl \
         --treatment runs/treatment/bird.jsonl
 
@@ -28,6 +28,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from ontology_sql_eval.gym.exec_match import UNUSABLE_FAILURES
+
 HEALTH_THRESHOLD = 0.05
 
 
@@ -45,15 +47,12 @@ def load(path: Path) -> dict[str, dict[str, Any]]:
     return out
 
 
-# Mirrors ontology_sql_eval.gym.exec_match.UNUSABLE_FAILURES. A task whose gold
-# query never ran says nothing about either arm, so it must not sit in the
-# denominator -- the resources servers already exclude it from pass@k, and this
-# report has to agree with them or the two disagree on the same run.
-UNUSABLE_GOLD = ("gold_execution_error", "gold_execution_timeout")
-
-
 def usable(rec: dict[str, Any]) -> bool:
-    return rec.get("failure_reason") not in UNUSABLE_GOLD
+    # A task whose gold query never ran says nothing about either arm, so it
+    # must not sit in the denominator -- the resources servers already exclude
+    # it from pass@k (UNUSABLE_FAILURES), and this report has to agree with them
+    # or the two disagree on the same run.
+    return rec.get("failure_reason") not in UNUSABLE_FAILURES
 
 
 def correct(rec: dict[str, Any]) -> bool:
@@ -84,30 +83,24 @@ def _rate(rows: list[dict[str, Any]]) -> str:
     return f"{n}/{len(rows)} ({n / len(rows):.1%})"
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--control", required=True, type=Path, help="schema-only rollouts")
-    ap.add_argument(
-        "--treatment", required=True, type=Path, help="Auto Ontology rollouts"
-    )
-    ap.add_argument("--control-name", default="schema-only")
-    ap.add_argument("--treatment-name", default="auto-ontology")
-    ap.add_argument(
-        "--ignore-health",
-        action="store_true",
-        help="report even if a run looks rate-limited (do not use for published numbers)",
-    )
-    args = ap.parse_args()
-
-    control, treatment = load(args.control), load(args.treatment)
+def compare(
+    control_path: Path,
+    treatment_path: Path,
+    *,
+    control_name: str = "schema-only",
+    treatment_name: str = "auto-ontology",
+    ignore_health: bool = False,
+) -> int:
+    """Print the report. Returns 0, or 1 when refused on health, 2 when no task overlaps."""
+    control, treatment = load(control_path), load(treatment_path)
     common = sorted(set(control) & set(treatment))
     if not common:
         print("no overlapping task_ids between the two files", file=sys.stderr)
         return 2
 
     print(
-        f"{args.control_name}: {len(control)} tasks   "
-        f"{args.treatment_name}: {len(treatment)} tasks   common: {len(common)}"
+        f"{control_name}: {len(control)} tasks   "
+        f"{treatment_name}: {len(treatment)} tasks   common: {len(common)}"
     )
     only = set(control) ^ set(treatment)
     if only:
@@ -116,7 +109,7 @@ def main() -> int:
     # Health gate first: a number computed over a rate-limited run is worse than
     # no number, because it looks publishable.
     unhealthy = False
-    for name, data in ((args.control_name, control), (args.treatment_name, treatment)):
+    for name, data in ((control_name, control), (treatment_name, treatment)):
         rate, breakdown = broken_rate([data[k] for k in common])
         flag = ""
         if rate > HEALTH_THRESHOLD:
@@ -124,7 +117,7 @@ def main() -> int:
             flag = "  <-- ABOVE THRESHOLD"
         detail = ", ".join(f"{k}={v}" for k, v in breakdown.items()) or "none"
         print(f"  {name}: broken-run failures {rate:.1%} ({detail}){flag}")
-    if unhealthy and not args.ignore_health:
+    if unhealthy and not ignore_health:
         print(
             f"\nRefusing to report: >{HEALTH_THRESHOLD:.0%} of tasks failed in a way "
             "that reflects a broken run (no output, or an unknown error) rather "
@@ -151,7 +144,7 @@ def main() -> int:
                 k for k in common if control[k].get("difficulty") == label
             ]
 
-    print(f"\n{'':<14}{args.control_name:>20}{args.treatment_name:>20}{'delta':>10}")
+    print(f"\n{'':<14}{control_name:>20}{treatment_name:>20}{'delta':>10}")
     for label, keys in buckets.items():
         # A task is scored only when BOTH arms had a runnable gold query, so the
         # two columns always share a denominator.
@@ -178,6 +171,29 @@ def main() -> int:
                 f"{str(rec.get('question', ''))[:56]}"
             )
     return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--control", required=True, type=Path, help="schema-only rollouts")
+    ap.add_argument(
+        "--treatment", required=True, type=Path, help="Auto Ontology rollouts"
+    )
+    ap.add_argument("--control-name", default="schema-only")
+    ap.add_argument("--treatment-name", default="auto-ontology")
+    ap.add_argument(
+        "--ignore-health",
+        action="store_true",
+        help="report even if a run looks rate-limited (do not use for published numbers)",
+    )
+    args = ap.parse_args(argv)
+    return compare(
+        args.control,
+        args.treatment,
+        control_name=args.control_name,
+        treatment_name=args.treatment_name,
+        ignore_health=args.ignore_health,
+    )
 
 
 if __name__ == "__main__":

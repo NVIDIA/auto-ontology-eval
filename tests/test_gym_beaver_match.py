@@ -5,8 +5,8 @@
 """The Gym verifier's BEAVER rule must agree with the official BEAVER evaluator.
 
 ``ontology_sql_eval.gym.exec_match.beaver_result_match`` reimplements the rule on
-raw rows instead of importing ``judge.beaver.compare_results``, because that
-module pulls in pandas and the schema-only server's venv deliberately does not
+raw rows instead of importing ``tests.beaver_reference.compare_results``, because
+that port pulls in pandas and the schema-only server's venv deliberately does not
 have it. This test is what stops the two drifting apart.
 """
 
@@ -25,7 +25,7 @@ from ontology_sql_eval.gym.exec_match import (
     result_sets_match,
     timeout_for,
 )
-from ontology_sql_eval.judge.beaver import compare_results
+from tests.beaver_reference import compare_results
 
 CASES = [
     ("identical", [(1, "a")], [(1, "a")]),
