@@ -66,7 +66,9 @@ def main() -> None:
 
     url, commit = installed_commit()
     migrations = fetch_migrations(url, commit)
-    print(f"Applying Auto Ontology {commit[:12]} migrations from {migrations}", flush=True)
+    print(
+        f"Applying Auto Ontology {commit[:12]} migrations from {migrations}", flush=True
+    )
     command.upgrade(Config(str(migrations / "alembic.ini")), "head")
     command.current(Config(str(migrations / "alembic.ini")))
 
