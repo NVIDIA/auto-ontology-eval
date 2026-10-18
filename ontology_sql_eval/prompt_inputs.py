@@ -8,10 +8,7 @@ Both files are built by ``scripts/build_eval_inputs.py`` and keyed by
 ``question_id``: structural exemplars drawn from the BIRD Train corpus, and
 value anchors verified against the Dev databases.
 
-They live here rather than in :mod:`ontology_sql_eval.retrieval.eval_chatbot`
-because two callers need them and importing that module is not an option for
-the second one -- it loads the environment and builds an LLM client at import
-time. The NeMo Gym resources server imports from here instead.
+The NeMo Gym Auto Ontology resources server loads them from here.
 """
 
 from __future__ import annotations

@@ -53,9 +53,8 @@ CONNECTION_STRINGS=postgresql://postgres:<password>@localhost:5432/wideworldimpo
 uv run python main.py --database-name wideworldimporters
 ```
 
-Individual stages can be skipped with `--skip-ingest`, `--skip-semantic`,
-`--skip-eval`, `--skip-judge` (e.g. to re-judge an existing eval CSV:
-`--skip-ingest --skip-semantic --skip-eval`).
+Individual stages can be skipped with `--skip-ingest`, `--skip-semantic` and
+`--skip-eval` (the NeMo Gym benchmark).
 
 ### Manual (per-stage) equivalent
 
@@ -64,12 +63,8 @@ Individual stages can be skipped with `--skip-ingest`, `--skip-semantic`,
 uv run python -m ontology_sql_eval.ingestion.ingest
 uv run python -m ontology_sql_eval.ingestion.semantic --database-name wideworldimporters
 
-# 2. Run the agent against the eval set -> input/wideworldimporters_<model>.csv
-uv run python -m ontology_sql_eval.retrieval.eval_chatbot \
-    --database-name wideworldimporters
-
-# 3. Re-score every CSV in input/ with the LLM judge -> output/<name>_scores.csv
-uv run ontology-sql-eval
+# 2. Run the benchmark (schema-only control vs ontology arm).
+uv run python main.py --database-name wideworldimporters --skip-ingest --skip-semantic
 ```
 
 See the per-workflow READMEs under [Workflows](../../README.md#workflows) for

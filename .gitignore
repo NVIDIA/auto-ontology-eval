@@ -19,10 +19,8 @@ venv/
 # Gym 0.7+ serializes server venv setup with a lock file beside each .venv.
 .venv.setup.lock
 
-# Judge working I/O dirs — keep the folders, ignore their contents
-/input/*
+# Scratch output of the prompt-input scripts — keep the folder, ignore its contents
 /output/*
-!/input/.gitkeep
 !/output/.gitkeep
 
 # Per-run eval instrumentation bundles — keep the folder, ignore the runs

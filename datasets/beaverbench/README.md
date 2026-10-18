@@ -72,13 +72,13 @@ POSTGRES_PASSWORD=...      # match the deployed Auto Ontology service
 POSTGRES_DATABASE=auto_ontology
 ```
 
-Agent / judge / embed models should use NVIDIA inference (see
-[`.env.example`](../../.env.example)). Example:
+Models come from NVIDIA inference. The tested setup is a single `sk-` key with
+no model pinned, so every role uses its built-in default (see
+[Configuration](../../README.md#configuration) and
+[`.env.example`](../../.env.example)):
 
 ```bash
-DEFAULT_MODELS_API_KEY=nvapi-...
-DEFAULT_MODELS_ENDPOINT=https://integrate.api.nvidia.com/v1
-DEFAULT_MODELS_MODEL=nvidia/nemotron-3-nano-30b-a3b
+DEFAULT_MODELS_API_KEY=sk-...
 ```
 
 ## Run the full pipeline
