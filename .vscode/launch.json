@@ -92,7 +92,7 @@
       "justMyCode": false
     },
     {
-      "name": "Benchmark (BIRD, 1 question)",
+      "name": "Benchmark (BIRD)",
       "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/main.py",
@@ -101,8 +101,15 @@
         "bird",
         "--skip-ingest",
         "--skip-semantic",
-        "--limit",
-        "1"
+        "--reuse-control",
+        "--eval-workers",
+        "10",
+        "--sql-examples-csv",
+        "output/predicted_structural_exemplars.csv",
+        "--sql-examples-k",
+        "5",
+        "--value-anchors-csv",
+        "output/value_anchors.csv"
       ],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",

@@ -28,6 +28,7 @@ restricted with ``--start-index`` / ``--end-index`` / ``--limit``::
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
 import os
@@ -143,6 +144,55 @@ def _ontology_arm_overrides(
     return overrides
 
 
+def _jsonl_task_ids(path: Path) -> set[str] | None:
+    """Return task IDs from a complete JSONL file, or None when unusable."""
+    if not path.is_file():
+        return None
+    task_ids: set[str] = set()
+    try:
+        with path.open() as fh:
+            for line in fh:
+                if not line.strip():
+                    continue
+                record = json.loads(line)
+                task_id = record.get("task_id")
+                if task_id is None:
+                    task_id = record.get("id")
+                if task_id is None:
+                    return None
+                task_ids.add(str(task_id))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return task_ids or None
+
+
+def _control_can_be_reused(control_output: Path, control_tasks: Path) -> bool:
+    """Reuse control only when it matches the currently built task corpus."""
+    output_ids = _jsonl_task_ids(control_output)
+    task_ids = _jsonl_task_ids(control_tasks)
+    if output_ids is None or output_ids != task_ids:
+        return False
+
+    digest = hashlib.sha256(control_tasks.read_bytes()).hexdigest()
+    manifest = control_output.with_suffix(control_output.suffix + ".tasks.sha256")
+    if manifest.is_file():
+        return manifest.read_text().strip() == digest
+
+    # Adopt a legacy output once when its IDs match exactly. From then on the
+    # task-content digest catches changed questions, schemas, evidence, or prompts
+    # even when their IDs remain unchanged.
+    manifest.parent.mkdir(parents=True, exist_ok=True)
+    manifest.write_text(digest + "\n")
+    return True
+
+
+def _record_control_tasks(control_output: Path, control_tasks: Path) -> None:
+    digest = hashlib.sha256(control_tasks.read_bytes()).hexdigest()
+    manifest = control_output.with_suffix(control_output.suffix + ".tasks.sha256")
+    manifest.parent.mkdir(parents=True, exist_ok=True)
+    manifest.write_text(digest + "\n")
+
+
 def stage_benchmark(
     *,
     database_name: str,
@@ -155,6 +205,7 @@ def stage_benchmark(
     sql_examples_k: int = 5,
     sql_examples_min_score: float | None = None,
     value_anchors_csv: str | None = None,
+    reuse_control: bool = False,
 ) -> None:
     """Run the NeMo Gym benchmark: both arms over the dataset, then compare.
 
@@ -231,6 +282,20 @@ def stage_benchmark(
     ):
         out = base / label / f"{database_name}.jsonl"
         outputs[label] = out
+        if label == "control" and reuse_control:
+            control_tasks = (
+                root / "resources_servers" / "schema_only_sql" / "data" / "tasks.jsonl"
+            )
+            if _control_can_be_reused(out, control_tasks):
+                logger.info(
+                    "Reusing control arm output with matching task IDs: %s", out
+                )
+                continue
+            if out.exists():
+                logger.info(
+                    "Existing control output does not match current tasks; rerunning: %s",
+                    out,
+                )
         env = {**os.environ, "GYM_CONCURRENCY": str(concurrency)}
         cmd = ["./scripts/run_gym_arm.sh", server, str(out)]
         # The treatment arm ignores the policy model's output, so its call is
@@ -246,6 +311,15 @@ def stage_benchmark(
             )
         logger.info("Running %s arm: %s", label, " ".join(cmd))
         subprocess.run(cmd, cwd=root, check=True, env=env)
+        if label == "control":
+            _record_control_tasks(
+                out,
+                root
+                / "resources_servers"
+                / "schema_only_sql"
+                / "data"
+                / "tasks.jsonl",
+            )
 
     logger.info("Comparing arms")
     subprocess.run(
@@ -323,6 +397,14 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "Use it to keep a long run's output, which runs/ overwrites."
         ),
     )
+    parser.add_argument(
+        "--reuse-control",
+        action="store_true",
+        help=(
+            "Reuse an existing schema-only control output when its task IDs exactly "
+            "match the current task set. Run the control when no matching output exists."
+        ),
+    )
     prompt_inputs = parser.add_argument_group(
         "prompt inputs (ontology arm only)",
         "Question-keyed inputs attached to the ontology arm's payload. The "
@@ -390,6 +472,7 @@ def main(argv: list[str] | None = None) -> None:
             sql_examples_k=args.sql_examples_k,
             sql_examples_min_score=args.sql_examples_min_score,
             value_anchors_csv=args.value_anchors_csv,
+            reuse_control=args.reuse_control,
         )
 
 
