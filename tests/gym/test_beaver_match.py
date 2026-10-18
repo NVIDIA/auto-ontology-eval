@@ -139,7 +139,7 @@ SCORING_CASES = [
         ([(1,)], ""),
         (False, None, "failed_gold"),
     ),
-    # Every other dataset, BIRD aside (test_gym_bird_official.py), keeps the
+    # Every other dataset, BIRD aside (tests/gym/test_bird_official.py), keeps the
     # stricter handling.
     (
         "fdabench failed pred",
