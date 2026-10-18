@@ -41,6 +41,7 @@ import random
 import subprocess
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
@@ -488,6 +489,12 @@ def main() -> None:
         help="Health-check timeout per Bird service (default: 10s)",
     )
     parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="Number of tasks to run concurrently (default: 1)",
+    )
+    parser.add_argument(
         "--overwrite",
         action="store_true",
         help="Overwrite existing output files instead of failing",
@@ -590,9 +597,16 @@ def main() -> None:
             agent_url, f"Auto Ontology adapter :{args.agent_port}", timeout=60
         ):
             sys.exit(1)
-        print(f"\nRunning {len(tasks)} tasks  (phase-timeout={args.phase_timeout}s)\n")
+        workers = max(1, args.workers)
+        print(
+            f"\nRunning {len(tasks)} tasks with {workers} worker(s) "
+            f"(phase-timeout={args.phase_timeout}s)\n"
+        )
 
-        for i, task in enumerate(tasks, 1):
+        def execute_task(
+            indexed_task: tuple[int, dict],
+        ) -> tuple[int, dict, int, dict[str, Any]]:
+            i, task = indexed_task
             task_id = task["instance_id"]
             db_name = task["selected_database"]
             n_critical = len(
@@ -648,7 +662,6 @@ def main() -> None:
                     },
                     "error": err_msg,
                 }
-                n_error += 1
                 # Best-effort cleanup
                 try:
                     post(
@@ -692,13 +705,18 @@ def main() -> None:
                     },
                     "error": err_msg,
                 }
-                n_error += 1
                 try:
                     post(
                         f"{DB_ENV_URL}/cleanup_task", {"task_id": task_id}, timeout=10.0
                     )
                 except Exception:
                     pass
+
+            return i, task, max_turn, record
+
+        def emit_result(result: tuple[int, dict, int, dict[str, Any]]) -> None:
+            nonlocal csv_is_new, n_pass, n_fail, n_error, sum_reward
+            _i, _task, max_turn, record = result
 
             # Write results immediately (safe on crash)
             _append_jsonl(record, jsonl_path)
@@ -707,6 +725,7 @@ def main() -> None:
 
             # Terminal summary
             if record["error"]:
+                n_error += 1
                 print(f"  ERROR: {record['error']}  (skipped)")
             else:
                 p1 = "PASS" if record["phase1_passed"] else "FAIL"
@@ -753,6 +772,21 @@ def main() -> None:
                     n_fail += 1
 
             print()
+
+        indexed_tasks = list(enumerate(tasks, 1))
+        if workers == 1:
+            for indexed_task in indexed_tasks:
+                emit_result(execute_task(indexed_task))
+        else:
+            with ThreadPoolExecutor(
+                max_workers=workers, thread_name_prefix="bird-interact"
+            ) as pool:
+                futures = [
+                    pool.submit(execute_task, indexed_task)
+                    for indexed_task in indexed_tasks
+                ]
+                for future in as_completed(futures):
+                    emit_result(future.result())
 
     finally:
         print("\nStopping Auto Ontology adapter...")
