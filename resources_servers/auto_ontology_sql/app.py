@@ -522,6 +522,10 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
             failure = FailureCode.GOLD_EXECUTION_TIMEOUT
         elif err == "gold_sql_error":
             failure = FailureCode.GOLD_EXECUTION_ERROR
+        elif err == "gold_sql_scored":
+            # BIRD: gold failed, and the official evaluator scores that as a
+            # miss rather than dropping the task (see SHARED_TIMEOUT).
+            failure = FailureCode.GOLD_FAILURE_SCORED
         elif err == "pred_sql_timeout":
             failure = FailureCode.EXECUTION_TIMEOUT
         elif err == "pred_sql_error":
@@ -640,10 +644,10 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
             n = sum(1 for r in rollouts if r.get("failure_reason") == code.value)
             metrics[f"health/{code.value}_rate"] = n / total
             metrics[f"health/{code.value}_count"] = n
-        # On BEAVER a gold query that errors or times out is scored as an empty
-        # result rather than excluded, so these tasks stay in the denominator;
-        # this is the official evaluator's "gold SQL errors/timeouts" line.
-        metrics["health/gold_failure_scored_as_empty_count"] = sum(
+        # Tasks whose gold query errored or timed out but stayed in the
+        # denominator, as their official evaluator has it: BEAVER scores them as
+        # an empty result, BIRD as a miss (see ERRORS_AS_EMPTY, SHARED_TIMEOUT).
+        metrics["health/gold_failure_scored_count"] = sum(
             1 for r in rollouts if r.get("gold_result") == "failed_gold"
         )
         return metrics

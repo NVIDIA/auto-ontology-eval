@@ -139,25 +139,32 @@ SCORING_CASES = [
         ([(1,)], ""),
         (False, None, "failed_gold"),
     ),
-    # Every other dataset keeps the stricter handling.
+    # Every other dataset, BIRD aside (test_gym_bird_official.py), keeps the
+    # stricter handling.
     (
-        "bird failed pred",
-        "bird",
+        "fdabench failed pred",
+        "fdabench",
         ([], ""),
         (None, "timeout"),
         (False, "pred_sql_timeout", "empty_gold"),
     ),
-    ("bird no pred", "bird", ([], ""), None, (False, "pred_sql_missing", "empty_gold")),
     (
-        "bird failed gold",
-        "bird",
+        "fdabench no pred",
+        "fdabench",
+        ([], ""),
+        None,
+        (False, "pred_sql_missing", "empty_gold"),
+    ),
+    (
+        "fdabench failed gold",
+        "fdabench",
         (None, "timeout"),
         ([], ""),
         (False, "gold_sql_timeout", None),
     ),
     (
-        "bird failed gold, no pred",
-        "bird",
+        "fdabench failed gold, no pred",
+        "fdabench",
         (None, "error"),
         None,
         (False, "gold_sql_error", None),
