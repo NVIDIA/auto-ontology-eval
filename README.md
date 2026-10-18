@@ -39,9 +39,8 @@ else from PyPI; versions are pinned in
 
 For ingestion and the benchmark you also need a live **Postgres** service
 (it holds both Auto Ontology's catalog and the pgvector collections), plus a
-reachable source DB. Auto Ontology's catalog schema must be migrated first:
-follow the deployment and migration instructions in the
-[Auto Ontology repository](https://github.com/NVIDIA/auto-ontology).
+reachable source DB. The catalog's schema has to be migrated before first use,
+and again whenever the Auto Ontology pin changes; see [Setup](#setup).
 
 ## Setup
 
@@ -49,6 +48,29 @@ follow the deployment and migration instructions in the
 uv sync                # creates .venv and installs pinned Git dependencies
 cp .env.example .env   # then fill in your values
 ```
+
+Then bring the catalog's schema up to the Auto Ontology revision pinned in
+`pyproject.toml`. The migrations are Alembic scripts in the Auto Ontology repo,
+not in the installed package, so fetch them at that revision and apply them with
+this project's `.venv` to the database that `POSTGRES_*` in `.env` points at:
+
+```bash
+REV=$(sed -n 's/.*auto-ontology.git@\([0-9a-f]*\)".*/\1/p' pyproject.toml)
+MIGRATIONS=../auto-ontology-migrations
+[ -d "$MIGRATIONS" ] || git clone --filter=blob:none --no-checkout \
+  https://github.com/NVIDIA/auto-ontology.git "$MIGRATIONS"
+git -C "$MIGRATIONS" sparse-checkout set --no-cone /alembic/ /alembic.ini
+git -C "$MIGRATIONS" fetch -q origin && git -C "$MIGRATIONS" checkout -q "$REV"
+(set -a; . ./.env; set +a; .venv/bin/alembic -c "$MIGRATIONS/alembic.ini" upgrade head)
+```
+
+Run it again after every Auto Ontology pin bump. A catalog behind the pin fails
+at the first query that touches a newer table or column, with
+`UndefinedTable` or `UndefinedColumn` (for example,
+`column catalog_table.owner_id does not exist`). Upgrading changes the database
+for every application using it, so give this project its own `POSTGRES_DATABASE`
+rather than sharing one with a deployment pinned to another Auto Ontology
+revision.
 
 ## Configuration
 
