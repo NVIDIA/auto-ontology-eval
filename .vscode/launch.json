@@ -70,17 +70,6 @@
       "justMyCode": false
     },
     {
-      "name": "Judge (score CSVs)",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "ontology_sql_eval.judge.main",
-      "console": "integratedTerminal",
-      "cwd": "${workspaceFolder}",
-      "python": "${workspaceFolder}/.venv/bin/python",
-      "envFile": "${workspaceFolder}/.env",
-      "justMyCode": false
-    },
-    {
       "name": "Ingest",
       "type": "debugpy",
       "request": "launch",

@@ -53,8 +53,7 @@ too:
 Every other dataset keeps the stricter handling: a failed prediction is a miss,
 and a failed gold query drops the task (`health/excluded_unusable_gold_count`).
 
-Neither rule involves an LLM. The LLM judge (`judge/scorer.py`) is a separate
-tool and is not used by either arm.
+Neither rule involves an LLM.
 
 ## Layout
 
@@ -194,14 +193,10 @@ Four things about Gym's CLI that are easy to lose an hour to:
    *type*. nemo-gym 0.6.0+ validates this eagerly; 0.4.0 did not validate it at all
    and silently ignored a wrong value, so runs could appear to work with a bad name.
 
-## How this relates to the repo's other scorers
+## Scoring
 
-Two scorers live in this repo, and only one is used by the benchmark.
-
-| Scorer | What it measures | Used by |
-|---|---|---|
-| **Gym verifier** (`ontology_sql_eval/gym/exec_match.py`) | Execution match, binary reward | both benchmark arms |
-| **LLM judge** (`ontology_sql_eval/judge/scorer.py`) | Logic / semantic rubric | standalone CLI (`ontology-sql-eval`), over an eval CSV |
+Both arms are scored by one verifier, `ontology_sql_eval/gym/exec_match.py`:
+execution match, binary reward.
 
 **The Gym verifier's EX is BIRD's official EX**, `set(gold_rows) ==
 set(pred_rows)`, taken from NeMo Gym's `bird_sql`, which mirrors BIRD's own
@@ -210,9 +205,8 @@ evaluator: row order and duplicate rows are ignored, extra columns fail.
 **VES is not computed.** BIRD's Valid Efficiency Score is a runtime ratio over
 EX-passing questions; the benchmark measures correctness only.
 
-**The LLM judge is used by neither arm.** Scoring here is deterministic by
-design, and NeMo Gym's own guidance is to prefer a deterministic verifier where
-one exists. The judge stays available as a separate re-scoring pass over CSVs.
+**No LLM judge is involved.** Scoring is deterministic by design, and NeMo
+Gym's own guidance is to prefer a deterministic verifier where one exists.
 
 ## Dataset coverage
 

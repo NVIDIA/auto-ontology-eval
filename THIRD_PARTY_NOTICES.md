@@ -72,8 +72,7 @@ copyright and MIT identifier in their headers.
 | **License** | MIT |
 
 `beaver.py` ports the execution and comparison logic of BEAVER's official
-execution-accuracy (`ex_acc`) evaluator, from `eval/utils/ex_acc.py` and
-`eval/evaluate_ex_acc.py`. The file carries the upstream copyright and license
+execution-accuracy (`ex_acc`) evaluator, from `eval/utils/ex_acc.py`. The file carries the upstream copyright and license
 identifier in its header, followed by the NVIDIA copyright block covering
 NVIDIA's modifications.
 

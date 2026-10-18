@@ -1,0 +1,262 @@
+row_index,question_id,difficulty,question,expected_sql,returned_sql,sql_text_similarity,sql_exec_match,expected_sql_error,returned_sql_error,expected_sql_result,expected_answer_raw,returned_answer,answer_text_similarity,answer_numbers_match,runtime_seconds,agent_seconds,scoring_seconds,http_calls,agent_nodes,slowest_node,slowest_node_seconds,worker,error
+0,28,challenging,"Consider the average difference between K-12 enrollment and 15-17 enrollment of schools that are locally funded, list the names and DOC type of schools which has a difference above this average.","SELECT T2.School, T2.DOC FROM frpm AS T1 INNER JOIN schools AS T2 ON T1.CDSCode = T2.CDSCode WHERE T2.FundingType = 'Locally funded' AND (T1.`Enrollment (K-12)` - T1.`Enrollment (Ages 5-17)`) > (SELECT AVG(T3.`Enrollment (K-12)` - T3.`Enrollment (Ages 5-17)`) FROM frpm AS T3 INNER JOIN schools AS T4 ON T3.CDSCode = T4.CDSCode WHERE T4.FundingType = 'Locally funded')","SELECT s.School, s.DOCType
+FROM frpm AS f
+JOIN schools AS s ON f.CDSCode = s.CDSCode
+WHERE s.FundingType = 'Locally funded'
+AND (f.`Enrollment (K-12)` - f.`Enrollment (Ages 5-17)`) > (
+  SELECT AVG(f2.`Enrollment (K-12)` - f2.`Enrollment (Ages 5-17)`)
+  FROM frpm AS f2
+  JOIN schools AS s2 ON f2.CDSCode = s2.CDSCode
+  WHERE s2.FundingType = 'Locally funded'
+)",0.3717,0,,,"School,DOC
+Mountain Oaks,00
+Castle Rock,00
+Charter Community School Home Study Academy,00
+Clovis Online Charter,54
+Washington Elementary,52
+West Park Charter Academy,52
+Mattole Valley Charter (#159),54
+YouthBuild Charter School of California,00
+The Education Corps,00
+College Bridge Academy,00
+Kern Workforce 2000 Academy,56
+Kings River-Hardwick Elementary,52
+Soledad Enrichment Action Charter High,00
+Chatsworth Charter High,54
+Grover Cleveland Charter High,54
+Sylmar Charter High,54
+Taft Charter High,54
+Calahan Community Charter,54
+Carpenter Community Charter,54
+YES Academy,54
+Pomelo Community Charter,54
+Serrania Avenue Charter For Enriched Studies,54
+Westwood Charter Elementary,54
+Wilbur Charter For Enriched Academics,54
+Marlton,54
+School of Extended Educational Options,54
+Madera County Independent Academy,00
+Pioneer Technical Center,00
+Monterey County Home Charter,00
+Forest Charter,00
+Union Hill Elementary,52
+Come Back Kids,00
+George Washington Charter,54
+Elk Grove Charter,54
+Visions In Education,54
+San Juan Choices Charter,54
+Natomas Charter,54
+Riverside Preparatory,52
+Delta Home Charter,52
+Delta Charter Online,52
+Delta Charter,52
+Stockton High,54
+Grizzly ChalleNGe Charter,00
+Arundel Elementary,52
+Fammatre Elementary,52
+Castlemont Elementary,52
+Lynhaven Elementary,52
+Rosemary Elementary,52
+Pacific Coast Charter,54
+Fairmont Charter Elementary,54
+Gateway to College Academy,56
+Stanislaus Alternative Charter,00
+Denair Charter Academy,54
+Summit Charter Academy,52
+Visalia Charter Independent Study,54
+Butterfield Charter High,54
+Yuba County Career Preparatory Charter,00
+",,"['[{""School"":""Mountain Oaks"",""DOCType"":""County Office of Education (COE)""},{""School"":""Castle Rock"",""DOCType"":""County Office of Education (COE)""},{""School"":""Charter Community School Home Study Academy"",""DOCType"":""County Office of Education (COE)""},{""School"":""Clovis Online Charter"",""DOCType"":""Unified School District""},{""School"":""Washington Elementary"",""DOCType"":""Elementary School District""},{""School"":""West Park Charter Academy"",""DOCType"":""Elementary School District""},{""School"":""Mattole Valley Charter (#159)"",""DOCType"":""Unified School District""},{""School"":""YouthBuild Charter School of California"",""DOCType"":""County Office of Education (COE)""},{""School"":""The Education Corps"",""DOCType"":""County Office of Education (COE)""},{""School"":""College Bridge Academy"",""DOCType"":""County Office of Education (COE)""},{""School"":""Kern Workforce 2000 Academy"",""DOCType"":""High School District""},{""School"":""Kings River-Hardwick Elementary"",""DOCType"":""Elementary School District""},{""School"":""Soledad Enrichment Action Charter High"",""DOCType"":""County Office of Education (COE)""},{""School"":""Chatsworth Charter High"",""DOCType"":""Unified School District""},{""School"":""Grover Cleveland Charter High"",""DOCType"":""Unified School District""},{""School"":""Sylmar Charter High"",""DOCType"":""Unified School District""},{""School"":""Taft Charter High"",""DOCType"":""Unified School District""},{""School"":""Calahan Community Charter"",""DOCType"":""Unified School District""},{""School"":""Carpenter Community Charter"",""DOCType"":""Unified School District""},{""School"":""YES Academy"",""DOCType"":""Unified School District""},{""School"":""Pomelo Community Charter"",""DOCType"":""Unified School District""},{""School"":""Serrania Avenue Charter For Enriched Studies"",""DOCType"":""Unified School District""},{""School"":""Westwood Charter Elementary"",""DOCType"":""Unified School District""},{""School"":""Wilbur Charter For Enriched Academics"",""DOCType"":""Unified School District""},{""School"":""Marlton"",""DOCType"":""Unified School District""},{""School"":""School of Extended Educational Options"",""DOCType"":""Unified School District""},{""School"":""Madera County Independent Academy"",""DOCType"":""County Office of Education (COE)""},{""School"":""Pioneer Technical Center"",""DOCType"":""County Office of Education (COE)""},{""School"":""Monterey County Home Charter"",""DOCType"":""County Office of Education (COE)""},{""School"":""Forest Charter"",""DOCType"":""County Office of Education (COE)""},{""School"":""Union Hill Elementary"",""DOCType"":""Elementary School District""},{""School"":""Come Back Kids"",""DOCType"":""County Office of Education (COE)""},{""School"":""George Washington Charter"",""DOCType"":""Unified School District""},{""School"":""Elk Grove Charter"",""DOCType"":""Unified School District""},{""School"":""Visions In Education"",""DOCType"":""Unified School District""},{""School"":""San Juan Choices Charter"",""DOCType"":""Unified School District""},{""School"":""Natomas Charter"",""DOCType"":""Unified School District""},{""School"":""Riverside Preparatory"",""DOCType"":""Elementary School District""},{""School"":""Delta Home Charter"",""DOCType"":""Elementary School District""},{""School"":""Delta Charter Online"",""DOCType"":""Elementary School District""},{""School"":""Delta Charter"",""DOCType"":""Elementary School District""},{""School"":""Stockton High"",""DOCType"":""Unified School District""},{""School"":""Grizzly ChalleNGe Charter"",""DOCType"":""County Office of Education (COE)""},{""School"":""Arundel Elementary"",""DOCType"":""Elementary School District""},{""School"":""Fammatre Elementary"",""DOCType"":""Elementary School District""},{""School"":""Castlemont Elementary"",""DOCType"":""Elementary School District""},{""School"":""Lynhaven Elementary"",""DOCType"":""Elementary School District""},{""School"":""Rosemary Elementary"",""DOCType"":""Elementary School District""},{""School"":""Pacific Coast Charter"",""DOCType"":""Unified School District""},{""School"":""Fairmont Charter Elementary"",""DOCType"":""Unified School District""},{""School"":""Gateway to College Academy"",""DOCType"":""High School District""},{""School"":""Stanislaus Alternative Charter"",""DOCType"":""County Office of Education (COE)""},{""School"":""Denair Charter Academy"",""DOCType"":""Unified School District""},{""School"":""Summit Charter Academy"",""DOCType"":""Elementary School District""},{""School"":""Visalia Charter Independent Study"",""DOCType"":""Unified School District""},{""School"":""Butterfield Charter High"",""DOCType"":""Unified School District""},{""School"":""Yuba County Career Preparatory Charter"",""DOCType"":""County Office of Education (COE)""}]']",0.0,0,25.57,25.56,0.02,6,22,construct_sql_from_candidates,9.896,evalq_0,
+1,228,moderate,How much of the hydrogen in molecule TR206 is accounted for? Please provide your answer as a percentage with four decimal places.,"SELECT ROUND(CAST(COUNT(CASE WHEN T.element = 'h' THEN T.atom_id ELSE NULL END) AS REAL) * 100 / COUNT(T.atom_id),4) FROM atom AS T WHERE T.molecule_id = 'TR206'","SELECT ROUND(CAST(SUM(CASE WHEN element = 'h' THEN 1 ELSE 0 END) AS REAL) / COUNT(atom_id) * 100, 4) AS percent
+FROM atom
+WHERE molecule_id = 'TR206'",0.8194,1,,,"""ROUND(CAST(COUNT(CASE WHEN T.element = 'h' THEN T.atom_id ELSE NULL END) AS REAL) * 100 / COUNT(T.atom_id),4)""
+45.4545
+",,"['[{""percent"":45.4545}]']",0.0,0,24.57,24.56,0.02,6,22,construct_sql_from_candidates,6.388,evalq_1,
+2,358,simple,"What is the border color of card ""Ancestor's Chosen""?",SELECT DISTINCT borderColor FROM cards WHERE name = 'Ancestor''s Chosen',SELECT borderColor FROM cards WHERE name = 'Ancestor''s Chosen',0.9333,0,,,"borderColor
+black
+",,"['[{""borderColor"":""black""},{""borderColor"":""black""},{""borderColor"":""black""},{""borderColor"":""black""}]']",1.0,1,22.46,22.43,0.03,6,22,prepare_candidates,6.915,evalq_1,
+3,567,simple,"For the user with the display name of ""Tiago Pasqualini"", how many posts did he/she own?",SELECT COUNT(T1.Id) FROM users AS T1 INNER JOIN posts AS T2 ON T1.Id = T2.OwnerUserId WHERE T1.DisplayName = 'Tiago Pasqualini',"SELECT COUNT(*) AS post_count
+FROM posts AS p
+JOIN users AS u ON p.OwnerUserId = u.Id
+WHERE u.DisplayName = 'Tiago Pasqualini'",0.6719,1,,,"COUNT(T1.Id)
+2
+",,"['[{""post_count"":2}]']",0.0,0,24.25,24.17,0.08,6,22,prepare_candidates,8.11,evalq_0,
+4,824,moderate,Identify superheroes who can control wind and list their names in alphabetical order.,SELECT T1.superhero_name FROM superhero AS T1 INNER JOIN hero_power AS T2 ON T1.id = T2.hero_id INNER JOIN superpower AS T3 ON T2.power_id = T3.id WHERE T3.power_name = 'Wind Control' ORDER BY T1.superhero_name,"SELECT s.superhero_name
+FROM superhero AS s
+JOIN hero_power AS hp ON s.id = hp.hero_id
+JOIN superpower AS sp ON hp.power_id = sp.id
+WHERE sp.power_name = 'Wind Control'
+ORDER BY s.superhero_name ASC;",0.8725,1,,,"superhero_name
+Crystal
+Red Tornado
+Tempest
+",,"['[{""superhero_name"":""Crystal""},{""superhero_name"":""Red Tornado""},{""superhero_name"":""Tempest""}]']",1.0,1,18.43,18.42,0.01,6,22,construct_sql_from_candidates,5.227,evalq_1,
+5,861,simple,What is his number of the driver who finished 0:01:54 in the Q3 of qualifying race No.903?,SELECT T2.number FROM qualifying AS T1 INNER JOIN drivers AS T2 ON T2.driverId = T1.driverId WHERE T1.raceId = 903 AND T1.q3 LIKE '1:54%',SELECT number FROM qualifying WHERE raceId = 903 AND q3 LIKE '1:54%',0.6634,0,,,"number
+3
+5
+",,"['[{""number"":3},{""number"":1}]']",0.0,0,20.79,20.79,0.0,6,22,construct_sql_from_candidates,5.675,evalq_0,
+6,1036,challenging,List the long name of teams with above-average build-up play passing in 2012.,"SELECT DISTINCT t4.team_long_name FROM Team_Attributes AS t3 INNER JOIN Team AS t4 ON t3.team_api_id = t4.team_api_id WHERE SUBSTR(t3.`date`, 1, 4) = '2012' AND t3.buildUpPlayPassing > ( SELECT CAST(SUM(t2.buildUpPlayPassing) AS REAL) / COUNT(t1.id) FROM Team AS t1 INNER JOIN Team_Attributes AS t2 ON t1.team_api_id = t2.team_api_id WHERE STRFTIME('%Y',t2.`date`) = '2012')","SELECT t.team_long_name
+FROM Team_Attributes AS ta
+JOIN Team AS t ON ta.team_fifa_api_id = t.team_fifa_api_id
+WHERE strftime('%Y', ta.date) = '2012'
+  AND ta.buildUpPlayPassing > (
+    SELECT SUM(ta2.buildUpPlayPassing) * 1.0 / COUNT(ta2.buildUpPlayPassing)
+    FROM Team_Attributes AS ta2
+    JOIN Team AS t2 ON ta2.team_fifa_api_id = t2.team_fifa_api_id
+    WHERE strftime('%Y', ta2.date) = '2012'
+      AND ta2.buildUpPlayPassing IS NOT NULL
+  )",0.5779,0,,,"team_long_name
+Aberdeen
+AC Ajaccio
+Milan
+UD Almería
+Angers SCO
+Aston Villa
+Atalanta
+Athletic Club de Bilbao
+Atlético Madrid
+FC Augsburg
+Bari
+Bayer 04 Leverkusen
+Beerschot AC
+Birmingham City
+Blackburn Rovers
+Blackpool
+Bologna
+Bolton Wanderers
+Borussia Mönchengladbach
+Stade Brestois 29
+SM Caen
+Cagliari
+Cardiff City
+Catania
+RC Celta de Vigo
+Celtic
+KSV Cercle Brugge
+Chievo Verona
+Club Brugge KV
+Córdoba CF
+Cracovia
+Dundee United
+Dunfermline Athletic
+Eintracht Braunschweig
+Elche CF
+Empoli
+Everton
+Excelsior
+1. FC Köln
+FC Porto
+FC Utrecht
+Fiorentina
+SC Freiburg
+KRC Genk
+Genoa
+GKS Bełchatów
+Grasshopper Club Zürich
+Hannover 96
+Heart of Midlothian
+Hércules Club de Fútbol
+TSG 1899 Hoffenheim
+Inter
+Inverness Caledonian Thistle
+Jagiellonia Białystok
+1. FC Kaiserslautern
+Kilmarnock
+Korona Kielce
+KV Mechelen
+Lazio
+Le Havre AC
+Lecce
+Lech Poznań
+Lechia Gdańsk
+Legia Warszawa
+Levante UD
+Lierse SK
+Liverpool
+Livorno
+Widzew Łódź
+Sporting Lokeren
+Olympique Lyonnais
+1. FSV Mainz 05
+RCD Mallorca
+Manchester City
+Manchester United
+Olympique de Marseille
+Middlesbrough
+RAEC Mons
+Motherwell
+FC Nantes
+Newcastle United
+OGC Nice
+Norwich City
+Novara
+CA Osasuna
+Oud-Heverlee Leuven
+SC Paderborn 07
+Pescara
+Podbeskidzie Bielsko-Biała
+Portsmouth
+Queens Park Rangers
+RC Recreativo
+Reggio Calabria
+Siena
+Roda JC Kerkrade
+Ruch Chorzów
+AS Saint-Étienne
+Sassuolo
+SC Bastia
+SC Heerenveen
+Servette FC
+Sevilla FC
+Śląsk Wrocław
+Southampton
+Sporting CP
+Napoli
+St. Mirren
+FC St. Pauli
+St. Johnstone FC
+Sint-Truidense VV
+Standard de Liège
+Stoke City
+Sunderland
+Torino
+Toulouse FC
+ES Troyes AC
+Valenciennes FC
+Real Valladolid
+Hellas Verona
+VVV-Venlo
+Watford
+West Ham United
+KVC Westerlo
+VfL Wolfsburg
+Wolverhampton Wanderers
+Neuchâtel Xamax
+BSC Young Boys
+SV Zulte-Waregem
+",,"['[{""team_long_name"":""Aberdeen""},{""team_long_name"":""AC Ajaccio""},{""team_long_name"":""Milan""},{""team_long_name"":""UD Almer\\u00eda""},{""team_long_name"":""Angers SCO""},{""team_long_name"":""Aston Villa""},{""team_long_name"":""Atalanta""},{""team_long_name"":""Athletic Club de Bilbao""},{""team_long_name"":""Atl\\u00e9tico Madrid""},{""team_long_name"":""FC Augsburg""},{""team_long_name"":""Bari""},{""team_long_name"":""Bayer 04 Leverkusen""},{""team_long_name"":""Beerschot AC""},{""team_long_name"":""Birmingham City""},{""team_long_name"":""Blackburn Rovers""},{""team_long_name"":""Blackpool""},{""team_long_name"":""Bologna""},{""team_long_name"":""Bolton Wanderers""},{""team_long_name"":""Borussia M\\u00f6nchengladbach""},{""team_long_name"":""Stade Brestois 29""},{""team_long_name"":""SM Caen""},{""team_long_name"":""Cagliari""},{""team_long_name"":""Cardiff City""},{""team_long_name"":""Catania""},{""team_long_name"":""RC Celta de Vigo""},{""team_long_name"":""Celtic""},{""team_long_name"":""KSV Cercle Brugge""},{""team_long_name"":""Chievo Verona""},{""team_long_name"":""Club Brugge KV""},{""team_long_name"":""C\\u00f3rdoba CF""},{""team_long_name"":""Cracovia""},{""team_long_name"":""Dundee United""},{""team_long_name"":""Dunfermline Athletic""},{""team_long_name"":""Eintracht Braunschweig""},{""team_long_name"":""Elche CF""},{""team_long_name"":""Empoli""},{""team_long_name"":""Everton""},{""team_long_name"":""Excelsior""},{""team_long_name"":""1. FC K\\u00f6ln""},{""team_long_name"":""FC Porto""},{""team_long_name"":""FC Utrecht""},{""team_long_name"":""Fiorentina""},{""team_long_name"":""SC Freiburg""},{""team_long_name"":""KRC Genk""},{""team_long_name"":""Genoa""},{""team_long_name"":""GKS Be\\u0142chat\\u00f3w""},{""team_long_name"":""Grasshopper Club Z\\u00fcrich""},{""team_long_name"":""Hannover 96""},{""team_long_name"":""Heart of Midlothian""},{""team_long_name"":""H\\u00e9rcules Club de F\\u00fatbol""},{""team_long_name"":""TSG 1899 Hoffenheim""},{""team_long_name"":""Inter""},{""team_long_name"":""Inverness Caledonian Thistle""},{""team_long_name"":""Jagiellonia Bia\\u0142ystok""},{""team_long_name"":""1. FC Kaiserslautern""},{""team_long_name"":""Kilmarnock""},{""team_long_name"":""Korona Kielce""},{""team_long_name"":""KV Mechelen""},{""team_long_name"":""Lazio""},{""team_long_name"":""Le Havre AC""},{""team_long_name"":""Lecce""},{""team_long_name"":""Lech Pozna\\u0144""},{""team_long_name"":""Lechia Gda\\u0144sk""},{""team_long_name"":""Legia Warszawa""},{""team_long_name"":""Levante UD""},{""team_long_name"":""Lierse SK""},{""team_long_name"":""Liverpool""},{""team_long_name"":""Livorno""},{""team_long_name"":""Widzew \\u0141\\u00f3d\\u017a""},{""team_long_name"":""Widzew \\u0141\\u00f3d\\u017a""},{""team_long_name"":""Sporting Lokeren""},{""team_long_name"":""Olympique Lyonnais""},{""team_long_name"":""1. FSV Mainz 05""},{""team_long_name"":""RCD Mallorca""},{""team_long_name"":""Manchester City""},{""team_long_name"":""Manchester United""},{""team_long_name"":""Olympique de Marseille""},{""team_long_name"":""Middlesbrough""},{""team_long_name"":""RAEC Mons""},{""team_long_name"":""Motherwell""},{""team_long_name"":""FC Nantes""},{""team_long_name"":""Newcastle United""},{""team_long_name"":""OGC Nice""},{""team_long_name"":""Norwich City""},{""team_long_name"":""Novara""},{""team_long_name"":""CA Osasuna""},{""team_long_name"":""Oud-Heverlee Leuven""},{""team_long_name"":""SC Paderborn 07""},{""team_long_name"":""Pescara""},{""team_long_name"":""Podbeskidzie Bielsko-Bia\\u0142a""},{""team_long_name"":""Portsmouth""},{""team_long_name"":""Queens Park Rangers""},{""team_long_name"":""RC Recreativo""},{""team_long_name"":""Reggio Calabria""},{""team_long_name"":""Siena""},{""team_long_name"":""Roda JC Kerkrade""},{""team_long_name"":""Ruch Chorz\\u00f3w""},{""team_long_name"":""AS Saint-\\u00c9tienne""},{""team_long_name"":""Sassuolo""},{""team_long_name"":""SC Bastia""},{""team_long_name"":""SC Heerenveen""},{""team_long_name"":""Servette FC""},{""team_long_name"":""Sevilla FC""},{""team_long_name"":""\\u015al\\u0105sk Wroc\\u0142aw""},{""team_long_name"":""Southampton""},{""team_long_name"":""Sporting CP""},{""team_long_name"":""Napoli""},{""team_long_name"":""St. Mirren""},{""team_long_name"":""FC St. Pauli""},{""team_long_name"":""St. Johnstone FC""},{""team_long_name"":""Sint-Truidense VV""},{""team_long_name"":""Standard de Li\\u00e8ge""},{""team_long_name"":""Stoke City""},{""team_long_name"":""Sunderland""},{""team_long_name"":""Torino""},{""team_long_name"":""Toulouse FC""},{""team_long_name"":""ES Troyes AC""},{""team_long_name"":""Valenciennes FC""},{""team_long_name"":""Real Valladolid""},{""team_long_name"":""Hellas Verona""},{""team_long_name"":""VVV-Venlo""},{""team_long_name"":""Watford""},{""team_long_name"":""West Ham United""},{""team_long_name"":""KVC Westerlo""},{""team_long_name"":""Widzew \\u0141\\u00f3d\\u017a""},{""team_long_name"":""Widzew \\u0141\\u00f3d\\u017a""},{""team_long_name"":""VfL Wolfsburg""},{""team_long_name"":""Wolverhampton Wanderers""},{""team_long_name"":""Neuch\\u00e2tel Xamax""},{""team_long_name"":""BSC Young Boys""},{""team_long_name"":""SV Zulte-Waregem""}]']",0.0,0,22.91,22.9,0.01,6,22,construct_sql_from_candidates,8.981,evalq_1,
+7,1267,moderate,"Among the patients with normal anti-SM, how many of them does not have thrombosis?","SELECT COUNT(T1.ID) FROM Examination AS T1 INNER JOIN Laboratory AS T2 ON T1.ID = T2.ID WHERE T2.SM IN ('negative','0') AND T1.Thrombosis = 0","SELECT COUNT(DISTINCT L.ID)
+FROM Laboratory AS L
+JOIN Examination AS E ON L.ID = E.ID
+WHERE L.SM IN ('-', '+-') AND E.Thrombosis = 0",0.6886,0,,,"COUNT(T1.ID)
+7
+",,"['[{""COUNT(DISTINCT L.ID)"":0}]']",0.0,0,42.91,42.91,0.0,9,30,reconstruct_sql,14.939,evalq_0,
+8,1339,challenging,Calculate the total average cost that Elijah Allen spent in the events on September and October.,"SELECT AVG(T2.cost) FROM member AS T1 INNER JOIN expense AS T2 ON T1.member_id = T2.link_to_member WHERE T1.last_name = 'Allen' AND T1.first_name = 'Elijah' AND (SUBSTR(T2.expense_date, 6, 2) = '09' OR SUBSTR(T2.expense_date, 6, 2) = '10')","SELECT AVG(e.cost) AS average_cost
+FROM expense AS e
+JOIN member AS m ON e.link_to_member = m.member_id
+WHERE m.first_name = 'Elijah' AND m.last_name = 'Allen'
+AND (substr(e.expense_date, 6, 2) = '09' OR substr(e.expense_date, 6, 2) = '10')",0.6555,1,,,"AVG(T2.cost)
+74.0775
+",,"['[{""average_cost"":74.0775}]']",0.0,0,22.29,22.29,0.0,6,22,construct_sql_from_candidates,7.767,evalq_1,
+9,1533,moderate,For all the people who paid more than 29.00 per unit of product id No.5. Give their consumption status in the August of 2012.,SELECT T2.Consumption FROM transactions_1k AS T1 INNER JOIN yearmonth AS T2 ON T1.CustomerID = T2.CustomerID WHERE T1.Price / T1.Amount > 29.00 AND T1.ProductID = 5 AND T2.Date = '201208',SELECT ym.Consumption FROM yearmonth AS ym INNER JOIN transactions_1k AS t ON ym.CustomerID = t.CustomerID WHERE t.ProductID = 5 AND t.Price / t.Amount > 29.00 AND ym.Date = '201208',0.6992,1,,,"Consumption
+1903.2
+88265.39
+1129.2
+126157.7
+126157.7
+58.19
+1142.95
+8878.07
+69331.72
+45937.22
+",,"['[{""Consumption"":1903.2},{""Consumption"":88265.39},{""Consumption"":1129.2},{""Consumption"":126157.7},{""Consumption"":126157.7},{""Consumption"":58.19},{""Consumption"":1142.95},{""Consumption"":8878.07},{""Consumption"":69331.72},{""Consumption"":45937.22}]']",0.0,0,26.17,26.16,0.0,6,22,construct_sql_from_candidates,8.083,evalq_1,

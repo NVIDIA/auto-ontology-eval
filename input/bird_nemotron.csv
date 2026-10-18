@@ -1,0 +1,566 @@
+row_index,question_id,difficulty,question,expected_sql,returned_sql,sql_text_similarity,sql_exec_match,expected_sql_error,returned_sql_error,expected_sql_result,expected_answer_raw,returned_answer,answer_text_similarity,answer_numbers_match,runtime_seconds,error
+0,1471,simple,What is the ratio of customers who pay in EUR against customers who pay in CZK?,"SELECT CAST(SUM(IIF(Currency = 'EUR', 1, 0)) AS FLOAT) / SUM(IIF(Currency = 'CZK', 1, 0)) AS ratio FROM customers",SELECT CAST(COUNT(CASE WHEN Currency = 'EUR' THEN 1 END) AS REAL) / COUNT(CASE WHEN Currency = 'CZK' THEN 1 END) AS ratio FROM customers,0.6988,1,,,"ratio
+0.06572769953051644
+",,"['[{""ratio"":0.0657276995}]']",0.0,0,30.78,
+1,1472,moderate,"In 2012, who had the least consumption in LAM?","SELECT T1.CustomerID FROM customers AS T1 INNER JOIN yearmonth AS T2 ON T1.CustomerID = T2.CustomerID WHERE T1.Segment = 'LAM' AND SUBSTR(T2.Date, 1, 4) = '2012' GROUP BY T1.CustomerID ORDER BY SUM(T2.Consumption) ASC LIMIT 1","SELECT y.CustomerID
+FROM yearmonth AS y
+JOIN customers AS c ON y.CustomerID = c.CustomerID
+WHERE c.Segment = 'LAM' AND SUBSTR(y.Date, 1, 4) = '2012'
+GROUP BY y.CustomerID
+ORDER BY SUM(y.Consumption) ASC
+LIMIT 1;",0.5609,1,,,"CustomerID
+47273
+",,"['[{""CustomerID"":47273}]']",0.0,0,33.92,
+2,1473,moderate,What was the average monthly consumption of customers in SME for the year 2013?,"SELECT AVG(T2.Consumption) / 12 FROM customers AS T1 INNER JOIN yearmonth AS T2 ON T1.CustomerID = T2.CustomerID WHERE SUBSTR(T2.Date, 1, 4) = '2013' AND T1.Segment = 'SME'","SELECT AVG(y.Consumption) / 12 AS avg_monthly_consumption
+FROM yearmonth AS y
+JOIN customers AS c ON y.CustomerID = c.CustomerID
+WHERE c.Segment = 'SME' AND y.Date BETWEEN '201301' AND '201312'",0.5479,1,,,"AVG(T2.Consumption) / 12
+459.9562642870894
+",,"['[{""avg_monthly_consumption"":459.9562642871}]']",0.0,0,31.19,
+3,1476,challenging,What was the difference in gas consumption between CZK-paying customers and EUR-paying customers in 2012?,"SELECT SUM(IIF(T1.Currency = 'CZK', T2.Consumption, 0)) - SUM(IIF(T1.Currency = 'EUR', T2.Consumption, 0)) FROM customers AS T1 INNER JOIN yearmonth AS T2 ON T1.CustomerID = T2.CustomerID WHERE SUBSTR(T2.Date, 1, 4) = '2012'","SELECT SUM(CASE WHEN c.Currency = 'CZK' THEN y.Consumption ELSE 0 END) - SUM(CASE WHEN c.Currency = 'EUR' THEN y.Consumption ELSE 0 END) AS ConsumptionDifference
+FROM yearmonth AS y
+JOIN customers AS c ON y.CustomerID = c.CustomerID
+WHERE y.Date BETWEEN '201201' AND '201212'",0.1964,1,,,"""SUM(IIF(T1.Currency = 'CZK', T2.Consumption, 0)) - SUM(IIF(T1.Currency = 'EUR', T2.Consumption, 0))""
+402524570.17
+",,"['[{""ConsumptionDifference"":402524570.1700000167}]']",0.0,0,32.83,
+4,1479,moderate,Which year recorded the most consumption of gas paid in CZK?,"SELECT SUBSTR(T2.Date, 1, 4) FROM customers AS T1 INNER JOIN yearmonth AS T2 ON T1.CustomerID = T2.CustomerID WHERE T1.Currency = 'CZK' GROUP BY SUBSTR(T2.Date, 1, 4) ORDER BY SUM(T2.Consumption) DESC LIMIT 1","SELECT SUBSTR(y.Date, 1, 4) AS Year
+FROM yearmonth AS y
+JOIN customers AS c ON y.CustomerID = c.CustomerID
+WHERE c.Currency = 'CZK'
+GROUP BY SUBSTR(y.Date, 1, 4)
+ORDER BY SUM(y.Consumption) DESC
+LIMIT 1;",0.761,1,,,"""SUBSTR(T2.Date, 1, 4)""
+2013
+",,"['[{""Year"":""2013""}]']",0.0,0,38.06,
+5,1480,moderate,What was the gas consumption peak month for SME customers in 2013?,"SELECT SUBSTR(T2.Date, 5, 2) FROM customers AS T1 INNER JOIN yearmonth AS T2 ON T1.CustomerID = T2.CustomerID WHERE SUBSTR(T2.Date, 1, 4) = '2013' AND T1.Segment = 'SME' GROUP BY SUBSTR(T2.Date, 5, 2) ORDER BY SUM(T2.Consumption) DESC LIMIT 1","SELECT y.Date
+FROM yearmonth AS y
+JOIN customers AS c ON y.CustomerID = c.CustomerID
+WHERE c.Segment = 'SME'
+  AND y.Date BETWEEN '201301' AND '201312'
+GROUP BY y.Date
+ORDER BY SUM(y.Consumption) DESC
+LIMIT 1;",0.3705,0,,,"""SUBSTR(T2.Date, 5, 2)""
+04
+",,"['[{""Date"":""201304""}]']",0.0,0,26.98,
+6,1481,challenging,"What is the difference in the annual average consumption of the customers with the least amount of consumption paid in CZK for 2013 between SME and LAM, LAM and KAM, and KAM and SME?","SELECT CAST(SUM(IIF(T1.Segment = 'SME', T2.Consumption, 0)) AS REAL) / COUNT(T1.CustomerID) - CAST(SUM(IIF(T1.Segment = 'LAM', T2.Consumption, 0)) AS REAL) / COUNT(T1.CustomerID) , CAST(SUM(IIF(T1.Segment = 'LAM', T2.Consumption, 0)) AS REAL) / COUNT(T1.CustomerID) - CAST(SUM(IIF(T1.Segment = 'KAM', T2.Consumption, 0)) AS REAL) / COUNT(T1.CustomerID) , CAST(SUM(IIF(T1.Segment = 'KAM', T2.Consumption, 0)) AS REAL) / COUNT(T1.CustomerID) - CAST(SUM(IIF(T1.Segment = 'SME', T2.Consumption, 0)) AS REAL) / COUNT(T1.CustomerID) FROM customers AS T1 INNER JOIN yearmonth AS T2 ON T1.CustomerID = T2.CustomerID WHERE T1.Currency = 'CZK' AND T2.Consumption = ( SELECT MIN(Consumption) FROM yearmonth ) AND T2.Date BETWEEN 201301 AND 201312","WITH cust_totals AS (
+  SELECT c.CustomerID, c.Segment, SUM(y.Consumption) AS total_consumption
+  FROM yearmonth AS y
+  JOIN customers AS c ON y.CustomerID = c.CustomerID
+  WHERE c.Currency = 'CZK'
+    AND SUBSTR(y.Date, 1, 4) = '2013'
+  GROUP BY c.CustomerID, c.Segment
+),
+seg_min AS (
+  SELECT Segment, MIN(total_consumption) AS min_consumption
+  FROM cust_totals
+  GROUP BY Segment
+),
+seg_avg AS (
+  SELECT ct.Segment,
+         SUM(ct.total_consumption) / COUNT(ct.CustomerID) AS annual_avg
+  FROM cust_totals AS ct
+  JOIN seg_min AS sm ON ct.Segment = sm.Segment AND ct.total_consumption = sm.min_consumption
+  GROUP BY ct.Segment
+)
+SELECT
+  (SELECT annual_avg FROM seg_avg WHERE Segment = 'SME') - (SELECT annual_avg FROM seg_avg WHERE Segment = 'LAM') AS SME_minus_LAM,
+  (SELECT annual_avg FROM seg_avg WHERE Segment = 'LAM') - (SELECT annual_avg FROM seg_avg WHERE Segment = 'KAM') AS LAM_minus_KAM,
+  (SELECT annual_avg FROM seg_avg WHERE Segment = 'KAM') - (SELECT annual_avg FROM seg_avg WHERE Segment = 'SME') AS KAM_minus_SME;",0.0682,0,,,"""CAST(SUM(IIF(T1.Segment = 'SME', T2.Consumption, 0)) AS REAL) / COUNT(T1.CustomerID) - CAST(SUM(IIF(T1.Segment = 'LAM', T2.Consumption, 0)) AS REAL) / COUNT(T1.CustomerID)"",""CAST(SUM(IIF(T1.Segment = 'LAM', T2.Consumption, 0)) AS REAL) / COUNT(T1.CustomerID) - CAST(SUM(IIF(T1.Segment = 'KAM', T2.Consumption, 0)) AS REAL) / COUNT(T1.CustomerID)"",""CAST(SUM(IIF(T1.Segment = 'KAM', T2.Consumption, 0)) AS REAL) / COUNT(T1.CustomerID) - CAST(SUM(IIF(T1.Segment = 'SME', T2.Consumption, 0)) AS REAL) / COUNT(T1.CustomerID)""
+0.0,582092.86,-582092.86
+",,"['[{""SME_minus_LAM"":-14009.34,""LAM_minus_KAM"":6046.62,""KAM_minus_SME"":7962.72}]']",0.0,0,40.08,
+7,1482,challenging,"Which of the three segments—SME, LAM and KAM—has the biggest and lowest percentage increases in consumption paid in EUR between 2012 and 2013?","SELECT CAST((SUM(IIF(T1.Segment = 'SME' AND T2.Date LIKE '2013%', T2.Consumption, 0)) - SUM(IIF(T1.Segment = 'SME' AND T2.Date LIKE '2012%', T2.Consumption, 0))) AS FLOAT) * 100 / SUM(IIF(T1.Segment = 'SME' AND T2.Date LIKE '2012%', T2.Consumption, 0)), CAST(SUM(IIF(T1.Segment = 'LAM' AND T2.Date LIKE '2013%', T2.Consumption, 0)) - SUM(IIF(T1.Segment = 'LAM' AND T2.Date LIKE '2012%', T2.Consumption, 0)) AS FLOAT) * 100 / SUM(IIF(T1.Segment = 'LAM' AND T2.Date LIKE '2012%', T2.Consumption, 0)) , CAST(SUM(IIF(T1.Segment = 'KAM' AND T2.Date LIKE '2013%', T2.Consumption, 0)) - SUM(IIF(T1.Segment = 'KAM' AND T2.Date LIKE '2012%', T2.Consumption, 0)) AS FLOAT) * 100 / SUM(IIF(T1.Segment = 'KAM' AND T2.Date LIKE '2012%', T2.Consumption, 0)) FROM customers AS T1 INNER JOIN yearmonth AS T2 ON T1.CustomerID = T2.CustomerID","SELECT c.Segment,
+       (SUM(CASE WHEN SUBSTR(ym.Date, 1, 4) = '2013' THEN ym.Consumption ELSE 0 END)
+        - SUM(CASE WHEN SUBSTR(ym.Date, 1, 4) = '2012' THEN ym.Consumption ELSE 0 END))
+       / SUM(CASE WHEN SUBSTR(ym.Date, 1, 4) = '2013' THEN ym.Consumption ELSE 0 END) * 100 AS PercentageIncrease
+FROM yearmonth AS ym
+JOIN customers AS c ON ym.CustomerID = c.CustomerID
+WHERE c.Currency = 'EUR'
+  AND c.Segment IN ('SME', 'LAM', 'KAM')
+  AND SUBSTR(ym.Date, 1, 4) IN ('2012', '2013')
+GROUP BY c.Segment
+ORDER BY PercentageIncrease DESC;",0.0567,0,,,"""CAST((SUM(IIF(T1.Segment = 'SME' AND T2.Date LIKE '2013%', T2.Consumption, 0)) - SUM(IIF(T1.Segment = 'SME' AND T2.Date LIKE '2012%', T2.Consumption, 0))) AS FLOAT) * 100 / SUM(IIF(T1.Segment = 'SME' AND T2.Date LIKE '2012%', T2.Consumption, 0))"",""CAST(SUM(IIF(T1.Segment = 'LAM' AND T2.Date LIKE '2013%', T2.Consumption, 0)) - SUM(IIF(T1.Segment = 'LAM' AND T2.Date LIKE '2012%', T2.Consumption, 0)) AS FLOAT) * 100 / SUM(IIF(T1.Segment = 'LAM' AND T2.Date LIKE '2012%', T2.Consumption, 0))"",""CAST(SUM(IIF(T1.Segment = 'KAM' AND T2.Date LIKE '2013%', T2.Consumption, 0)) - SUM(IIF(T1.Segment = 'KAM' AND T2.Date LIKE '2012%', T2.Consumption, 0)) AS FLOAT) * 100 / SUM(IIF(T1.Segment = 'KAM' AND T2.Date LIKE '2012%', T2.Consumption, 0))""
+545.4018999790969,681.5824574939339,708.1124062978664
+",,"['[{""Segment"":""SME"",""PercentageIncrease"":88.0198496147},{""Segment"":""KAM"",""PercentageIncrease"":84.6908792304},{""Segment"":""LAM"",""PercentageIncrease"":84.3708287817}]']",0.0,0,37.72,
+8,1483,simple,How much did customer 6 consume in total between August and November 2013?,SELECT SUM(Consumption) FROM yearmonth WHERE CustomerID = 6 AND Date BETWEEN '201308' AND '201311',"SELECT SUM(Consumption) AS total_consumption
+FROM yearmonth
+WHERE CustomerID = 6
+  AND Date BETWEEN '201308' AND '201311'",0.9032,1,,,"SUM(Consumption)
+1224.96
+",,"['[{""total_consumption"":1224.96}]']",0.0,0,29.97,
+9,1484,simple,"How many more ""discount"" gas stations does the Czech Republic have compared to Slovakia?","SELECT SUM(IIF(Country = 'CZE', 1, 0)) - SUM(IIF(Country = 'SVK', 1, 0)) FROM gasstations WHERE Segment = 'Discount'","SELECT SUM(CASE WHEN Country = 'CZE' AND Segment = 'Discount' THEN 1 ELSE 0 END) - SUM(CASE WHEN Country = 'SVK' AND Segment = 'Discount' THEN 1 ELSE 0 END) AS discount_difference
+FROM gasstations",0.3141,1,,,"""SUM(IIF(Country = 'CZE', 1, 0)) - SUM(IIF(Country = 'SVK', 1, 0))""
+176
+",,"['[{""discount_difference"":176}]']",0.0,0,26.7,
+10,1486,simple,"Is it true that more SMEs pay in Czech koruna than in euros? If so, how many more?",SELECT SUM(Currency = 'CZK') - SUM(Currency = 'EUR') FROM customers WHERE Segment = 'SME',SELECT SUM(CASE WHEN Currency = 'CZK' THEN 1 ELSE 0 END) - SUM(CASE WHEN Currency = 'EUR' THEN 1 ELSE 0 END) AS difference FROM customers WHERE Segment = 'SME',0.7177,1,,,"SUM(Currency = 'CZK') - SUM(Currency = 'EUR')
+23505
+",,"['[{""difference"":23505}]']",0.0,0,27.46,
+11,1490,moderate,How many percent of LAM customer consumed more than 46.73?,"SELECT CAST(SUM(IIF(T2.Consumption > 46.73, 1, 0)) AS FLOAT) * 100 / COUNT(T1.CustomerID) FROM customers AS T1 INNER JOIN yearmonth AS T2 ON T1.CustomerID = T2.CustomerID WHERE T1.Segment = 'LAM'","SELECT CAST(SUM(CASE WHEN ym.Consumption > 46.73 THEN 1 ELSE 0 END) AS REAL) * 100 / COUNT(ym.CustomerID) AS percentage
+FROM customers AS c
+JOIN yearmonth AS ym ON c.CustomerID = ym.CustomerID
+WHERE c.Segment = 'LAM'",0.7543,1,,,"""CAST(SUM(IIF(T2.Consumption > 46.73, 1, 0)) AS FLOAT) * 100 / COUNT(T1.CustomerID)""
+98.5267932135058
+",,"['[{""percentage"":98.5267932135}]']",0.0,0,30.46,
+12,1493,simple,"In February 2012, what percentage of customers consumed more than 528.3?","SELECT CAST(SUM(IIF(Consumption > 528.3, 1, 0)) AS FLOAT) * 100 / COUNT(CustomerID) FROM yearmonth WHERE Date = '201202'","SELECT CAST(SUM(CASE WHEN Consumption > 528.3 THEN 1 ELSE 0 END) AS REAL) * 100 / COUNT(CustomerID) AS percentage
+FROM yearmonth
+WHERE Date = '201202'",0.8074,1,,,"""CAST(SUM(IIF(Consumption > 528.3, 1, 0)) AS FLOAT) * 100 / COUNT(CustomerID)""
+66.62300807683911
+",,"['[{""percentage"":66.6230080768}]']",0.0,0,33.83,
+13,1498,simple,What is the highest monthly consumption in the year 2012?,"SELECT SUM(Consumption) FROM yearmonth WHERE SUBSTR(Date, 1, 4) = '2012' GROUP BY SUBSTR(Date, 5, 2) ORDER BY SUM(Consumption) DESC LIMIT 1","SELECT MAX(Consumption) AS highest_consumption
+FROM yearmonth
+WHERE SUBSTR(Date, 1, 4) = '2012'",0.5983,0,,,"SUM(Consumption)
+51787161.74
+",,"['[{""highest_consumption"":445279.69}]']",0.0,0,27.99,
+14,1500,simple,"Please list the product description of the products consumed in September, 2013.",SELECT T3.Description FROM transactions_1k AS T1 INNER JOIN yearmonth AS T2 ON T1.CustomerID = T2.CustomerID INNER JOIN products AS T3 ON T1.ProductID = T3.ProductID WHERE T2.Date = '201309',"SELECT DISTINCT p.Description
+FROM yearmonth AS ym
+JOIN transactions_1k AS t ON ym.CustomerID = t.CustomerID
+JOIN products AS p ON t.ProductID = p.ProductID
+WHERE ym.Date = '201309'",0.7817,0,,,"Description
+Nafta
+Nafta
+Provoz.nápl.
+Natural
+Nafta
+Natural
+Natural
+Nemrz.kapal.
+Nafta
+Nafta
+Nafta
+Nafta
+Natural
+Natural
+""Oleje,tuky""
+Nafta
+Nafta
+Nafta
+Nafta
+Nafta
+Nafta
+Natural
+Natural
+Nafta
+Nafta
+Provoz.nápl.
+Nafta
+Nafta
+Diesel +
+Nafta
+Nafta
+Natural
+Nafta
+Nafta
+Natural
+Nafta
+Natural
+Nafta
+Nafta
+Nafta
+Nafta
+Nafta
+LPG
+Nafta
+Nafta
+Nafta
+Mytí vozidel
+Natural
+Nafta
+Nafta
+Nafta
+Nafta
+Nafta
+Provoz.nápl.
+Nafta
+Nafta
+Nafta
+Diesel +
+Nafta
+Nafta
+Nafta
+Nafta
+Nafta
+Natural
+Natural
+Nafta
+Nafta
+Nafta
+Nafta
+Natural
+Natural
+Nafta
+Nafta
+Nafta
+Nafta
+Nafta
+Nafta
+Mytí vozidel
+Mytí vozidel
+Nafta
+Mytí vozidel
+Nemrz.kapal.
+Autokosmet.
+Nafta
+Nafta
+Nafta
+Nafta
+Natural
+Nafta
+Natural
+Potraviny
+Diesel +
+Nafta
+Nafta
+Nafta
+Natural
+Nafta
+Natural
+Nafta
+Nafta
+Nafta
+Nafta
+Nafta
+Nafta
+Nafta
+Nafta
+Natural
+Natural
+Natural
+Nafta
+Natural
+Natural
+Natural
+Nafta
+Nafta
+Nafta
+Nafta
+Nafta
+Natural
+Nafta
+Natural
+Natural
+Natural
+Natural
+Nafta
+Natural
+Nafta
+Natural
+Nafta
+Nafta
+Natural
+Natural
+Natural
+Natural
+Natural
+Nafta
+Nafta
+Natural
+Nafta
+Natural
+Nafta
+Mytí vozidel
+Nafta
+Provoz.nápl.
+Natural
+Natural
+Natural
+Nafta
+Nafta
+Nafta
+Nafta
+Nafta
+Natural
+Nafta
+Nafta
+Nafta
+Nafta
+Nafta
+Natural
+Nafta
+Natural
+Natural
+Nafta
+Natural
+Nafta
+Nafta
+Nafta
+Diesel +
+Mytí vozidel
+Natural
+Nafta Plus
+Nafta
+Provoz.nápl.
+Nafta
+Natural
+Nafta
+Nafta Plus
+Natural
+Nafta
+Nemrz.kapal.
+Nafta
+Nafta
+Natural
+Nafta
+Nafta
+Nafta
+Nafta
+Nafta
+Nafta
+Natural
+Nafta
+Natural
+Natural
+Nafta
+Nafta
+Nafta
+Provoz.nápl.
+Nafta
+Diesel +
+Natural
+",,"['[{""Description"":""Nafta""},{""Description"":""Provoz.n\\u00e1pl.""},{""Description"":""Natural""},{""Description"":""Nemrz.kapal.""},{""Description"":""Oleje,tuky""},{""Description"":""Diesel +""},{""Description"":""LPG""},{""Description"":""Myt\\u00ed vozidel""},{""Description"":""Autokosmet.""},{""Description"":""Potraviny""},{""Description"":""Nafta Plus""},{""Description"":""Diesel""},{""Description"":""Nat.Super""},{""Description"":""Prev.n\\u00e1plne""},{""Description"":""Diesel aditiv""},{""Description"":""Um\\u00fdvanie voz""},{""Description"":""Autokozmetik""},{""Description"":""Natural Spec""},{""Description"":""Zpr.nakupu""},{""Description"":""Autopr\\u00edslu\\u0161.""},{""Description"":""Natural +""},{""Description"":""Dalnic.popl.""},{""Description"":""Knihy,nov.""},{""Description"":""Zbo\\u017e\\u00ed nesp.""},{""Description"":""Obcerstven\\u00ed""},{""Description"":""Additivum""},{""Description"":""Natural Plus""}]']",0.0,0,45.23,
+15,1501,moderate,"Please list the countries of the gas stations with transactions taken place in June, 2013.",SELECT DISTINCT T2.Country FROM transactions_1k AS T1 INNER JOIN gasstations AS T2 ON T1.GasStationID = T2.GasStationID INNER JOIN yearmonth AS T3 ON T1.CustomerID = T3.CustomerID WHERE T3.Date = '201306',"SELECT DISTINCT g.Country
+FROM transactions_1k AS t
+JOIN gasstations AS g ON t.GasStationID = g.GasStationID
+WHERE strftime('%Y%m', t.Date) = '201306'",0.7288,0,,,"Country
+CZE
+SVK
+",,['[]'],1.0,1,32.18,
+16,1505,simple,"Among the customers who paid in euro, how many of them have a monthly consumption of over 1000?",SELECT COUNT(*) FROM yearmonth AS T1 INNER JOIN customers AS T2 ON T1.CustomerID = T2.CustomerID WHERE T2.Currency = 'EUR' AND T1.Consumption > 1000.00,"SELECT COUNT(DISTINCT c.CustomerID) AS customer_count
+FROM customers AS c
+JOIN yearmonth AS y ON c.CustomerID = y.CustomerID
+WHERE c.Currency = 'EUR' AND y.Consumption > 1000",0.6769,0,,,"COUNT(*)
+2730
+",,"['[{""customer_count"":391}]']",0.0,0,30.03,
+17,1506,moderate,Please list the product descriptions of the transactions taken place in the gas stations in the Czech Republic.,SELECT DISTINCT T3.Description FROM transactions_1k AS T1 INNER JOIN gasstations AS T2 ON T1.GasStationID = T2.GasStationID INNER JOIN products AS T3 ON T1.ProductID = T3.ProductID WHERE T2.Country = 'CZE',"SELECT p.Description
+FROM transactions_1k AS t
+JOIN gasstations AS g ON t.GasStationID = g.GasStationID
+JOIN products AS p ON t.ProductID = p.ProductID
+WHERE g.Country = 'CZE'",0.8895,0,,,"Description
+Nafta
+Provoz.nápl.
+Natural
+Nemrz.kapal.
+""Oleje,tuky""
+Diesel +
+LPG
+Mytí vozidel
+Autokosmet.
+Potraviny
+Nafta Plus
+Natural Spec
+Zpr.nakupu
+Autoprísluš.
+Natural +
+Dalnic.popl.
+""Knihy,nov.""
+Zboží nesp.
+Obcerstvení
+Additivum
+Natural Plus
+",,"['[{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Provoz.n\\u00e1pl.""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Natural""},{""Description"":""Nemrz.kapal.""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Natural""},{""Description"":""Oleje,tuky""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Provoz.n\\u00e1pl.""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Diesel +""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""LPG""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Myt\\u00ed vozidel""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Provoz.n\\u00e1pl.""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Diesel +""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Myt\\u00ed vozidel""},{""Description"":""Myt\\u00ed vozidel""},{""Description"":""Nafta""},{""Description"":""Myt\\u00ed vozidel""},{""Description"":""Nemrz.kapal.""},{""Description"":""Autokosmet.""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Potraviny""},{""Description"":""Diesel +""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Natural""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Natural""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Natural""},{""Description"":""Natural""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Natural""},{""Description"":""Natural""},{""Description"":""Natural""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Myt\\u00ed vozidel""},{""Description"":""Nafta""},{""Description"":""Provoz.n\\u00e1pl.""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Natural""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Diesel +""},{""Description"":""Myt\\u00ed vozidel""},{""Description"":""Natural""},{""Description"":""Nafta Plus""},{""Description"":""Nafta""},{""Description"":""Provoz.n\\u00e1pl.""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Nafta Plus""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Nemrz.kapal.""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Provoz.n\\u00e1pl.""},{""Description"":""Nafta""},{""Description"":""Diesel +""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Provoz.n\\u00e1pl.""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Myt\\u00ed vozidel""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Natural""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Myt\\u00ed vozidel""},{""Description"":""Provoz.n\\u00e1pl.""},{""Description"":""Myt\\u00ed vozidel""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Myt\\u00ed vozidel""},{""Description"":""Autokosmet.""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Myt\\u00ed vozidel""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Myt\\u00ed vozidel""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Myt\\u00ed vozidel""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Natural Spec""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Myt\\u00ed vozidel""},{""Description"":""Myt\\u00ed vozidel""},{""Description"":""Provoz.n\\u00e1pl.""},{""Description"":""Zpr.nakupu""},{""Description"":""Diesel +""},{""Description"":""Nafta""},{""Description"":""Diesel +""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Provoz.n\\u00e1pl.""},{""Description"":""Autopr\\u00edslu\\u0161.""},{""Description"":""Nafta""},{""Description"":""Provoz.n\\u00e1pl.""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Natural""},{""Description"":""Diesel +""},{""Description"":""Natural""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Nafta""},{""Description"":""Na",0.0,0,32.58,
+18,1507,simple,Please list the disparate time of the transactions taken place in the gas stations from chain no. 11.,SELECT DISTINCT T1.Time FROM transactions_1k AS T1 INNER JOIN gasstations AS T2 ON T1.GasStationID = T2.GasStationID WHERE T2.ChainID = 11,"SELECT DISTINCT t.Time
+FROM transactions_1k AS t
+JOIN gasstations AS g ON t.GasStationID = g.GasStationID
+WHERE g.ChainID = 11;",0.9318,1,,,"Time
+14:29:00
+11:55:00
+",,"['[{""Time"":""14:29:00""},{""Time"":""11:55:00""}]']",0.0,0,27.82,
+19,1509,moderate,"Among the transactions made in the gas stations in the Czech Republic, how many of them are taken place after 2012/1/1?","SELECT COUNT(T1.TransactionID) FROM transactions_1k AS T1 INNER JOIN gasstations AS T2 ON T1.GasStationID = T2.GasStationID WHERE T2.Country = 'CZE' AND STRFTIME('%Y', T1.Date) >= '2012'","SELECT COUNT(*) AS transaction_count
+FROM transactions_1k AS t
+JOIN gasstations AS g ON t.GasStationID = g.GasStationID
+WHERE g.Country = 'CZE' AND t.Date > '2012-01-01'",0.8338,1,,,"COUNT(T1.TransactionID)
+933
+",,"['[{""transaction_count"":933}]']",0.0,0,24.18,
+20,1514,simple,What kind of currency did the customer paid at 16:25:00 in 2012/8/24?,SELECT DISTINCT T3.Currency FROM transactions_1k AS T1 INNER JOIN gasstations AS T2 ON T1.GasStationID = T2.GasStationID INNER JOIN customers AS T3 ON T1.CustomerID = T3.CustomerID WHERE T1.Date = '2012-08-24' AND T1.Time = '16:25:00',"SELECT c.Currency
+FROM transactions_1k AS t
+JOIN customers AS c ON t.CustomerID = c.CustomerID
+WHERE t.Date = '2012-08-24' AND t.Time = '16:25:00'",0.7579,0,,,"Currency
+CZK
+",,"['[{""Currency"":""CZK""},{""Currency"":""CZK""},{""Currency"":""CZK""}]']",1.0,1,34.33,
+21,1515,simple,What segment did the customer have at 2012/8/23 21:20:00?,SELECT T2.Segment FROM transactions_1k AS T1 INNER JOIN customers AS T2 ON T1.CustomerID = T2.CustomerID WHERE T1.date = '2012-08-23' AND T1.time = '21:20:00',"SELECT c.Segment
+FROM transactions_1k AS t
+JOIN customers AS c ON t.CustomerID = c.CustomerID
+WHERE t.Date = '2012-08-23' AND t.Time = '21:20:00'",0.9373,1,,,"Segment
+KAM
+",,"['[{""Segment"":""KAM""}]']",1.0,1,31.49,
+22,1521,moderate,"For all the transactions happened during 8:00-9:00 in 2012/8/26, how many happened in CZE?",SELECT COUNT(T1.TransactionID) FROM transactions_1k AS T1 INNER JOIN gasstations AS T2 ON T1.GasStationID = T2.GasStationID WHERE T1.Date = '2012-08-26' AND T1.Time BETWEEN '08:00:00' AND '09:00:00' AND T2.Country = 'CZE',"SELECT COUNT(*) AS transaction_count
+FROM transactions_1k AS t
+JOIN gasstations AS g ON t.GasStationID = g.GasStationID
+WHERE t.Date = '2012-08-26'
+  AND t.Time BETWEEN '08:00:00' AND '09:00:00'
+  AND g.Country = 'CZE'",0.846,1,,,"COUNT(T1.TransactionID)
+14
+",,"['[{""transaction_count"":14}]']",0.0,0,68.76,
+23,1524,simple,What's the nationality of the customer who spent 548.4 in 2012/8/24?,SELECT T2.Country FROM transactions_1k AS T1 INNER JOIN gasstations AS T2 ON T1.GasStationID = T2.GasStationID WHERE T1.Date = '2012-08-24' AND T1.Price  = 548.4,SELECT DISTINCT c.Currency FROM transactions_1k AS t JOIN customers AS c ON t.CustomerID = c.CustomerID WHERE t.Date = '2012-08-24' AND t.Price = 548.4,0.7781,0,,,"Country
+CZE
+",,"['[{""Currency"":""CZK""}]']",1.0,1,41.61,
+24,1525,simple,What is the percentage of the customers who used EUR in 2012/8/25?,"SELECT CAST(SUM(IIF(T2.Currency = 'EUR', 1, 0)) AS FLOAT) * 100 / COUNT(T1.CustomerID) FROM transactions_1k AS T1 INNER JOIN customers AS T2 ON T1.CustomerID = T2.CustomerID WHERE T1.Date = '2012-08-25'",SELECT CAST(SUM(CASE WHEN Currency = 'EUR' THEN 1 ELSE 0 END) AS REAL) * 100 / COUNT(CustomerID) AS percentage FROM customers,0.5138,0,,,"""CAST(SUM(IIF(T2.Currency = 'EUR', 1, 0)) AS FLOAT) * 100 / COUNT(T1.CustomerID)""
+1.6470588235294117
+",,"['[{""percentage"":6.1674008811}]']",0.0,0,34.01,
+25,1526,challenging,"For the customer who paid 634.8 in 2012/8/25, what was the consumption decrease rate from Year 2012 to 2013?","SELECT CAST(SUM(IIF(SUBSTRING(Date, 1, 4) = '2012', Consumption, 0)) - SUM(IIF(SUBSTRING(Date, 1, 4) = '2013', Consumption, 0)) AS FLOAT) / SUM(IIF(SUBSTRING(Date, 1, 4) = '2012', Consumption, 0)) FROM yearmonth WHERE CustomerID = ( SELECT T1.CustomerID FROM transactions_1k AS T1 INNER JOIN gasstations AS T2 ON T1.GasStationID = T2.GasStationID WHERE T1.Date = '2012-08-25' AND T1.Price  = 1513.12 )","SELECT (SUM(CASE WHEN substr(Date, 1, 4) = '2012' THEN Consumption ELSE 0 END) - SUM(CASE WHEN substr(Date, 1, 4) = '2013' THEN Consumption ELSE 0 END)) / SUM(CASE WHEN substr(Date, 1, 4) = '2012' THEN Consumption ELSE 0 END) AS consumption_decrease_rate
+FROM yearmonth
+WHERE CustomerID = (SELECT CustomerID FROM yearmonth WHERE Date = '201208' AND Consumption = 634.8)",0.0286,1,,,"""CAST(SUM(IIF(SUBSTRING(Date, 1, 4) = '2012', Consumption, 0)) - SUM(IIF(SUBSTRING(Date, 1, 4) = '2013', Consumption, 0)) AS FLOAT) / SUM(IIF(SUBSTRING(Date, 1, 4) = '2012', Consumption, 0))""
+""""
+",,"['[{""consumption_decrease_rate"":null}]']",1.0,1,38.41,
+26,1528,simple,"What is the percentage of ""premium"" against the overall segment in Country = ""SVK""?","SELECT CAST(SUM(IIF(Country = 'SVK' AND Segment = 'Premium', 1, 0)) AS FLOAT) * 100 / SUM(IIF(Country = 'SVK', 1, 0)) FROM gasstations","SELECT 100.0 * SUM(CASE WHEN Segment = 'premium' THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0) AS premium_percentage FROM gasstations WHERE Country = 'SVK'",0.5,0,,,"""CAST(SUM(IIF(Country = 'SVK' AND Segment = 'Premium', 1, 0)) AS FLOAT) * 100 / SUM(IIF(Country = 'SVK', 1, 0))""
+35.68181818181818
+",,"['[{""premium_percentage"":0.0}]']",0.0,0,50.18,
+27,1529,moderate,"What is the amount spent by customer ""38508"" at the gas stations? How much had the customer spent in January 2012?","SELECT SUM(T1.Price ) , SUM(IIF(T3.Date = '201201', T1.Price, 0)) FROM transactions_1k AS T1 INNER JOIN gasstations AS T2 ON T1.GasStationID = T2.GasStationID INNER JOIN yearmonth AS T3 ON T1.CustomerID = T3.CustomerID WHERE T1.CustomerID = '38508'","SELECT SUM(t.Amount * t.Price) AS total_spent, (SELECT ym.Consumption FROM yearmonth AS ym WHERE ym.CustomerID = 38508 AND ym.Date = '201201') AS spent_jan_2012 FROM transactions_1k AS t WHERE t.CustomerID = 38508",0.256,0,,,"SUM(T1.Price ),""SUM(IIF(T3.Date = '201201', T1.Price, 0))""
+68740.2,3437.01
+",,"['[{""total_spent"":88612.38,""spent_jan_2012"":67156.94}]']",0.0,0,58.0,
+28,1531,moderate,Who is the top spending customer and how much is the average price per single item purchased by this customer? What currency was being used?,"SELECT T2.CustomerID, SUM(T2.Price / T2.Amount), T1.Currency FROM customers AS T1 INNER JOIN transactions_1k AS T2 ON T1.CustomerID = T2.CustomerID WHERE T2.CustomerID = ( SELECT CustomerID FROM yearmonth ORDER BY Consumption DESC LIMIT 1 ) GROUP BY T2.CustomerID, T1.Currency","SELECT t.CustomerID, SUM(t.Price) / SUM(t.Amount) AS avg_price_per_item, c.Currency
+FROM transactions_1k AS t
+JOIN customers AS c ON t.CustomerID = c.CustomerID
+GROUP BY t.CustomerID, c.Currency
+ORDER BY SUM(t.Price) DESC
+LIMIT 1",0.297,0,,,"CustomerID,SUM(T2.Price / T2.Amount),Currency
+12459,203.8560787354258,CZK
+",,"['[{""CustomerID"":19182,""avg_price_per_item"":24.2775774648,""Currency"":""CZK""}]']",0.0,0,39.19,
+29,1533,moderate,For all the people who paid more than 29.00 per unit of product id No.5. Give their consumption status in the August of 2012.,SELECT T2.Consumption FROM transactions_1k AS T1 INNER JOIN yearmonth AS T2 ON T1.CustomerID = T2.CustomerID WHERE T1.Price / T1.Amount > 29.00 AND T1.ProductID = 5 AND T2.Date = '201208',"SELECT ym.CustomerID, ym.Consumption
+FROM yearmonth AS ym
+JOIN (
+  SELECT DISTINCT CustomerID
+  FROM transactions_1k
+  WHERE ProductID = 5 AND Price / Amount > 29.00
+) AS t ON ym.CustomerID = t.CustomerID
+WHERE ym.Date = '201208'",0.4439,0,,,"Consumption
+1903.2
+88265.39
+1129.2
+126157.7
+126157.7
+58.19
+1142.95
+8878.07
+69331.72
+45937.22
+",,"['[{""CustomerID"":5443,""Consumption"":88265.39},{""CustomerID"":6768,""Consumption"":126157.7},{""CustomerID"":7626,""Consumption"":45937.22},{""CustomerID"":18831,""Consumption"":1903.2},{""CustomerID"":20447,""Consumption"":58.19},{""CustomerID"":23861,""Consumption"":8878.07},{""CustomerID"":24700,""Consumption"":69331.72},{""CustomerID"":45868,""Consumption"":1142.95},{""CustomerID"":46933,""Consumption"":1129.2}]']",0.0,0,40.32,
+30,1312,simple,What's Angela Sanders's major?,SELECT T2.major_name FROM member AS T1 INNER JOIN major AS T2 ON T1.link_to_major = T2.major_id WHERE T1.first_name = 'Angela' AND T1.last_name = 'Sanders',"SELECT mj.major_name
+FROM member AS m
+JOIN major AS mj ON m.link_to_major = mj.major_id
+WHERE m.first_name = 'Angela' AND m.last_name = 'Sanders';",0.9,1,,,"major_name
+Business
+",,"['[{""major_name"":""Business""}]']",1.0,1,26.82,
+31,1317,moderate,"Among the students from the Student_Club who attended the event ""Women's Soccer"", how many of them want a T-shirt that's in medium size?",SELECT COUNT(T1.event_id) FROM event AS T1 INNER JOIN attendance AS T2 ON T1.event_id = T2.link_to_event INNER JOIN member AS T3 ON T2.link_to_member = T3.member_id WHERE T1.event_name = 'Women''s Soccer' AND T3.t_shirt_size = 'Medium',"SELECT COUNT(*) AS medium_shirt_count
+FROM attendance AS a
+JOIN event AS e ON a.link_to_event = e.event_id
+JOIN member AS m ON a.link_to_member = m.member_id
+WHERE e.event_name = 'Women''s Soccer'
+AND m.t_shirt_size = 'Medium'",0.6594,1,,,"COUNT(T1.event_id)
+7
+",,"['[{""medium_shirt_count"":7}]']",0.0,0,25.69,
+32,1322,moderate,"Among the events attended by more than 10 members of the Student_Club, how many of them are meetings?",SELECT COUNT(DISTINCT T1.event_id) FROM event AS T1 INNER JOIN attendance AS T2 ON T1.event_id = T2.link_to_event WHERE T1.type = 'Meeting' GROUP BY T1.event_id HAVING COUNT(T2.link_to_event) > 10,"SELECT COUNT(*) AS meeting_count
+FROM (
+  SELECT a.link_to_event
+  FROM attendance AS a
+  JOIN event AS e ON a.link_to_event = e.event_id
+  WHERE e.type = 'Meeting'
+  GROUP BY a.link_to_event
+  HAVING COUNT(a.link_to_member) > 10
+) AS sub",0.3649,0,,,"COUNT(DISTINCT T1.event_id)
+1
+1
+1
+1
+",,"['[{""meeting_count"":4}]']",0.0,0,40.85,
+33,1323,moderate,List all the names of events that had an attendance of over 20 students but were not fundraisers.,SELECT T1.event_name FROM event AS T1 INNER JOIN attendance AS T2 ON T1.event_id = T2.link_to_event GROUP BY T1.event_id HAVING COUNT(T2.link_to_event) > 20 EXCEPT SELECT T1.event_name FROM event AS T1  WHERE T1.type = 'Fundraiser',"SELECT e.event_name
+FROM event AS e
+JOIN attendance AS a ON a.link_to_event = e.event_id
+WHERE e.type <> 'Fundraiser'
+GROUP BY e.event_id, e.event_name
+HAVING COUNT(a.link_to_event) > 20",0.601,1,,,"event_name
+November Meeting
+November Speaker
+October Meeting
+October Speaker
+Registration
+September Meeting
+September Speaker
+Yearly Kickoff
+",,"['[{""event_name"":""October Speaker""},{""event_name"":""September Speaker""},{""event_name"":""Registration""},{""event_name"":""October Meeting""},{""event_name"":""November Speaker""},{""event_name"":""November Meeting""},{""event_name"":""Yearly Kickoff""},{""event_name"":""September Meeting""}]']",1.0,1,22.63,
+34,1331,simple,What is the amount of the funds that the Vice President received?,SELECT T2.amount FROM member AS T1 INNER JOIN income AS T2 ON T1.member_id = T2.link_to_member WHERE T1.position = 'Vice President',"SELECT i.amount
+FROM income AS i
+JOIN member AS m ON i.link_to_member = m.member_id
+WHERE m.position = 'Vice President'",0.688,1,,,"amount
+50
+",,"['[{""amount"":50}]']",0.0,0,27.45,
+35,1334,simple,List the full name of the Student_Club members that grew up in Illinois state.,"SELECT T1.first_name, T1.last_name FROM member AS T1 INNER JOIN zip_code AS T2 ON T1.zip = T2.zip_code WHERE T2.state = 'Illinois'","SELECT m.first_name, m.last_name
+FROM member AS m
+JOIN zip_code AS z ON m.zip = z.zip_code
+WHERE z.state = 'Illinois'",0.8907,1,,,"first_name,last_name
+Trent,Smith
+Tyler,Hewitt
+Annabella,Warren
+",,"['[{""first_name"":""Trent"",""last_name"":""Smith""},{""first_name"":""Tyler"",""last_name"":""Hewitt""},{""first_name"":""Annabella"",""last_name"":""Warren""}]']",1.0,1,41.07,
+36,1338,moderate,"Was each expense in October Meeting on October 8, 2019 approved?",SELECT T3.approved FROM event AS T1 INNER JOIN budget AS T2 ON T1.event_id = T2.link_to_event INNER JOIN expense AS T3 ON T2.budget_id = T3.link_to_budget WHERE T1.event_name = 'October Meeting' AND T1.event_date LIKE '2019-10-08%',"SELECT ex.expense_id, ex.expense_description, ex.approved
+FROM expense AS ex
+JOIN budget AS b ON ex.link_to_budget = b.budget_id
+JOIN event AS ev ON b.link_to_event = ev.event_id
+WHERE ev.event_name = 'October Meeting' AND ev.event_date LIKE '2019-10-08%'",0.5432,0,,,"approved
+true
+true
+true
+",,"['[{""expense_id"":""recJnyr7Z1CjAlHgA"",""expense_description"":""Posters"",""approved"":""true""},{""expense_id"":""recTUt9QxJ0Sp3H3m"",""expense_description"":""Water, chips, cookies"",""approved"":""true""},{""expense_id"":""receRmFWtS9xJdkL2"",""expense_description"":""Pizza"",""approved"":""true""}]']",0.0,0,26.49,
+37,1339,challenging,Calculate the total average cost that Elijah Allen spent in the events on September and October.,"SELECT AVG(T2.cost) FROM member AS T1 INNER JOIN expense AS T2 ON T1.member_id = T2.link_to_member WHERE T1.last_name = 'Allen' AND T1.first_name = 'Elijah' AND (SUBSTR(T2.expense_date, 6, 2) = '09' OR SUBSTR(T2.expense_date, 6, 2) = '10')","SELECT AVG(e.cost) AS average_cost
+FROM expense AS e
+JOIN member AS m ON e.link_to_member = m.member_id
+WHERE m.first_name = 'Elijah' AND m.last_name = 'Allen'
+AND (CAST(substr(e.expense_date, 6, 2) AS INTEGER) = 9 OR CAST(substr(e.expense_date, 6, 2) AS INTEGER) = 10)",0.5394,1,,,"AVG(T2.cost)
+74.0775
+",,"['[{""average_cost"":74.0775}]']",0.0,0,43.38,
+38,1340,moderate,Calculate the difference of the total amount spent in all events by the Student_Club in year 2019 and 2020.,"SELECT SUM(CASE WHEN SUBSTR(T1.event_date, 1, 4) = '2019' THEN T2.spent ELSE 0 END) - SUM(CASE WHEN SUBSTR(T1.event_date, 1, 4) = '2020' THEN T2.spent ELSE 0 END) AS num FROM event AS T1 INNER JOIN budget AS T2 ON T1.event_id = T2.link_to_event","SELECT SUM(CASE WHEN SUBSTR(e.event_date, 1, 4) = '2019' THEN b.spent ELSE 0 END) - SUM(CASE WHEN SUBSTR(e.event_date, 1, 4) = '2020' THEN b.spent ELSE 0 END) AS difference
+FROM budget AS b
+JOIN event AS e ON b.link_to_event = e.event_id",0.3534,1,,,"num
+2086.05
+",,"['[{""difference"":2086.05}]']",0.0,0,28.32,
+39,1344,simple,What was the notes of the fundraising on 2019/9/14?,SELECT notes FROM income WHERE source = 'Fundraising' AND date_received = '2019-09-14',SELECT notes FROM income WHERE source = 'Fundraising' AND date_received = '2019-09-14';,1.0,1,,,"notes
+Secured donations to help pay for speaker gifts.
+",,"['[{""notes"":""Secured donations to help pay for speaker gifts.""}]']",1.0,1,28.01,
+40,1346,simple,"Tell the phone number of ""Carlo Jacobs"".",SELECT phone FROM member WHERE first_name = 'Carlo' AND last_name = 'Jacobs',SELECT phone FROM member WHERE first_name = 'Carlo' AND last_name = 'Jacobs',1.0,1,,,"phone
+928-555-2577
+",,"['[{""phone"":""928-555-2577""}]']",0.0,0,65.75,
+41,1350,moderate,"What is the status of the event which bought ""Post Cards, Posters"" on 2019/8/20?","SELECT T1.event_status FROM budget AS T1 INNER JOIN expense AS T2 ON T1.budget_id = T2.link_to_budget WHERE T2.expense_description = 'Post Cards, Posters' AND T2.expense_date = '2019-08-20'","SELECT b.event_status FROM expense AS e JOIN budget AS b ON e.link_to_budget = b.budget_id WHERE e.expense_description = 'Post Cards, Posters' AND e.expense_date = '2019-08-20'",0.811,1,,,"event_status
+Closed
+",,"['[{""event_status"":""Closed""}]']",1.0,1,100.31,
+42,1351,simple,What was Brent Thomason's major?,SELECT T2.major_name FROM member AS T1 INNER JOIN major AS T2 ON T1.link_to_major = T2.major_id WHERE T1.first_name = 'Brent' AND T1.last_name = 'Thomason',"SELECT ma.major_name
+FROM member AS m
+JOIN major AS ma ON m.link_to_major = ma.major_id
+WHERE m.first_name = 'Brent' AND m.last_name = 'Thomason'",0.9,1,,,"major_name
+Business Education
+",,"['[{""major_name"":""Business Education""}]']",1.0,1,38.0,
+43,1352,moderate,"For all the club members from ""Business"" major, how many of them wear medium size t-shirt?",SELECT COUNT(T1.member_id) FROM member AS T1 INNER JOIN major AS T2 ON T1.link_to_major = T2.major_id WHERE T2.major_name = 'Business' AND T1.t_shirt_size = 'Medium',"SELECT COUNT(*) AS member_count
+FROM member AS m
+JOIN major AS mj ON m.link_to_major = mj.major_id
+WHERE mj.major_name = 'Business' AND m.t_shirt_size = 'Medium'",0.865,1,,,"COUNT(T1.member_id)
+1
+",,"['[{""member_count"":1}]']",0.0,0,35.97,
+44,1356,simple,Which department was the President of the club in?,SELECT T2.department FROM member AS T1 INNER JOIN major AS T2 ON T1.link_to_major = T2.major_id WHERE T1.position = 'President',"SELECT ma.department
+FROM member AS m
+JOIN major AS ma ON m.link_to_major = ma.major_id
+WHERE m.position = 'President'",0.8898,1,,,"department
+Liberal Arts Program
+",,"['[{""department"":""Liberal Arts Program""}]']",1.0,1,33.29,
+45,1357,simple,State the date Connor Hilton paid his/her dues.,SELECT T2.date_received FROM member AS T1 INNER JOIN income AS T2 ON T1.member_id = T2.link_to_member WHERE T1.first_name = 'Connor' AND T1.last_name = 'Hilton' AND T2.source = 'Dues',SELECT i.date_received FROM income AS i JOIN member AS m ON i.link_to_member = m.member_id WHERE m.first_name = 'Connor' AND m.last_name = 'Hilton' AND i.source = 'Dues',0.7614,1,,,"date_received
+2019-10-02
+2019-09-12
+",,"['[{""date_received"":""2019-10-02""},{""date_received"":""2019-09-12""}]']",0.0,0,33.25,
+46,1359,challenging,"How many times was the budget in Advertisement for ""Yearly Kickoff"" meeting more than ""October Meeting""?",SELECT CAST(SUM(CASE WHEN T2.event_name = 'Yearly Kickoff' THEN T1.amount ELSE 0 END) AS REAL) / SUM(CASE WHEN T2.event_name = 'October Meeting' THEN T1.amount ELSE 0 END) FROM budget AS T1 INNER JOIN event AS T2 ON T1.link_to_event = T2.event_id WHERE T1.category = 'Advertisement' AND T2.type = 'Meeting',"SELECT CAST(SUM(CASE WHEN e.event_name = 'Yearly Kickoff' THEN b.amount ELSE 0 END) AS REAL) / SUM(CASE WHEN e.event_name = 'October Meeting' THEN b.amount ELSE 0 END) AS times_more
+FROM budget AS b
+JOIN event AS e ON b.link_to_event = e.event_id
+WHERE b.category = 'Advertisement'",0.8654,1,,,"CAST(SUM(CASE WHEN T2.event_name = 'Yearly Kickoff' THEN T1.amount ELSE 0 END) AS REAL) / SUM(CASE WHEN T2.event_name = 'October Meeting' THEN T1.amount ELSE 0 END)
+2.727272727272727
+",,"['[{""times_more"":2.7272727273}]']",0.0,0,41.51,
+47,1361,simple,What is the total cost of the pizzas for all the events?,SELECT SUM(cost) FROM expense WHERE expense_description = 'Pizza',"SELECT SUM(cost) AS total_pizza_cost
+FROM expense
+WHERE expense_description = 'Pizza'",0.8667,1,,,"SUM(cost)
+600.11
+",,"['[{""total_pizza_cost"":600.11}]']",0.0,0,39.55,
+48,1362,simple,"How many cities are there in Orange County, Virginia?",SELECT COUNT(city) FROM zip_code WHERE county = 'Orange County' AND state = 'Virginia',"SELECT COUNT(DISTINCT city) AS city_count
+FROM zip_code
+WHERE county = 'Orange County' AND state = 'Virginia'",0.8821,1,,,"COUNT(city)
+7
+",,"['[{""city_count"":7}]']",0.0,0,34.9,
+49,1368,simple,"What does the person with the phone number ""809-555-3360"" major in?",SELECT T2.major_name FROM member AS T1 INNER JOIN major AS T2 ON T1.link_to_major = T2.major_id WHERE T1.phone = '809-555-3360',"SELECT m2.major_name
+FROM member AS m
+JOIN major AS m2 ON m.link_to_major = m2.major_id
+WHERE m.phone = '809-555-3360'",0.9143,1,,,"major_name
+Agricultural Education
+",,"['[{""major_name"":""Agricultural Education""}]']",1.0,1,32.98,

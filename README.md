@@ -1,7 +1,7 @@
 # Ontology SQL Eval
 
 A Text-to-SQL evaluation toolkit for benchmarking a text-to-SQL agent against a
-dataset and scoring the results. It bundles three workflows in one project:
+dataset and scoring the results. It bundles two workflows in one project:
 
 1. **ingestion** — extract a source database's schema into Auto Ontology's
    Postgres + pgvector stores, compile the semantic layer, and enrich the graph
@@ -9,18 +9,12 @@ dataset and scoring the results. It bundles three workflows in one project:
 2. **NeMo Gym benchmark** — run an evaluation set through two arms, a
    schema-only LLM control and the ontology-grounded agent, scored by one
    deterministic verifier and reported as a single delta.
-3. **sql judge** — a standalone, LLM-powered re-scorer for Text-to-SQL
-   evaluation CSVs (works on its own, no database or Auto Ontology install
-   required).
 
 The typical lifecycle is **ingest → semantic compile → benchmark**: you ingest a
 database so the agent can retrieve its schema, then run the benchmark to see how
-much that grounding is worth against a schema-only control.
-
-The judge is a separate tool, not a stage of that flow: it scores eval CSVs
-you supply. The benchmark itself uses no LLM judge — scoring is deterministic
-execution match, with each benchmark's official rule where it has one (BIRD,
-BEAVER).
+much that grounding is worth against a schema-only control. No LLM judge is
+involved: scoring is deterministic execution match, with each benchmark's
+official rule where it has one (BIRD, BEAVER).
 
 > [!IMPORTANT]
 > **Auto Ontology is installed automatically.**
@@ -31,13 +25,13 @@ BEAVER).
 
 ## Prerequisites
 
-| Requirement                                                                  | Ingestion  |   Benchmark    | Judge |
-| ---------------------------------------------------------------------------- | :--------: | :------------: | :---: |
-| [uv](https://docs.astral.sh/uv/) + Python 3.13 (≥3.13.14; uv installs it)   |    yes     |      yes       |  yes  |
-| Network access to GitHub (`NVIDIA/auto-ontology`) and PyPI                   |    yes     |      yes       |  yes  |
-| Postgres (catalog + pgvector) service                                        |    yes     |      yes       |  no   |
-| Reachable source database                                                    |    yes     |      yes       |  no   |
-| LLM API key                                                                  | embed only |      yes       |  yes  |
+| Requirement                                                                  | Ingestion  |   Benchmark    |
+| ---------------------------------------------------------------------------- | :--------: | :------------: |
+| [uv](https://docs.astral.sh/uv/) + Python 3.13 (≥3.13.14; uv installs it)   |    yes     |      yes       |
+| Network access to GitHub (`NVIDIA/auto-ontology`) and PyPI                   |    yes     |      yes       |
+| Postgres (catalog + pgvector) service                                        |    yes     |      yes       |
+| Reachable source database                                                    |    yes     |      yes       |
+| LLM API key                                                                  | embed only |      yes       |
 
 `uv sync` installs Auto Ontology from its pinned GitHub revision and everything
 else from PyPI; versions are pinned in
@@ -69,14 +63,13 @@ cp .env.example .env   # then fill in your values
 > | Agent (ontology arm) and control arm | `aws/anthropic/bedrock-claude-opus-4-8` |
 > | Agent's non-reasoning calls | `aws/anthropic/bedrock-claude-sonnet-5-5` |
 > | Embeddings | `nvidia/nvidia/nemotron-3-embed-1b` |
-> | Judge | `nvidia/nvidia/Nemotron-3-Nano-30B-A3B` |
 >
 > The agent and embedding defaults come from the pinned Auto Ontology revision,
 > so they can change when it is bumped. An `nvapi-` key selects Nemotron
 > defaults on integrate.api.nvidia.com instead.
 >
 > **Use only models that support structured output.** Other models may fail at
-> runtime or produce invalid scores.
+> runtime.
 
 All settings are read from `.env` (see [.env.example](.env.example) for the full
 list). Variables are grouped by the workflow that uses them:
@@ -86,7 +79,6 @@ list). Variables are grouped by the workflow that uses them:
 | `DEFAULT_MODELS_API_KEY`, `DEFAULT_MODELS_ENDPOINT`, `DEFAULT_MODELS_MODEL` | shared default | Default credentials/model for every model-backed workflow. The key is **required** by the benchmark: both arms authenticate with it. |
 | `REASONING_API_KEY`, `REASONING_ENDPOINT`, `REASONING_MODEL` | ontology arm  | LLM the Auto Ontology agent generates SQL with (falls back to `DEFAULT_MODELS_*`). |
 | `GYM_MODEL`, `GYM_MODEL_URL`                          | control arm   | Model the schema-only control answers with (default `aws/anthropic/bedrock-claude-opus-4-8` at `https://inference-api.nvidia.com/v1`). Optional. |
-| `JUDGE_API_KEY`, `JUDGE_BASE_URL`, `JUDGE_MODEL_NAME` | judge         | LLM that the judge scores with (falls back to `DEFAULT_MODELS_*`, then the legacy `NVIDIA_API_KEY` / `BASE_URL` / `MODEL_NAME`, then a built-in default for the key prefix). |
 | `EMBED_API_KEY`, `EMBED_ENDPOINT`, `EMBED_MODEL`      | ingest + benchmark | Embedding endpoint (must be identical for ingest and query).     |
 | `POSTGRES_*`                                          | ingest + benchmark | Store connection — Auto Ontology's catalog and pgvector collections. |
 | `CONNECTION_STRINGS`                                  | ingest + benchmark | Source DB to extract schema from / execute SQL against.          |
@@ -97,7 +89,7 @@ model.
 ## Seed the local source DB (required)
 
 > **Required to run this project.** Ingestion and the benchmark need a reachable
-> source database. Only the standalone judge can run without a source DB.
+> source database.
 
 Each bundled dataset's README documents how to stand up its source DB and set
 `CONNECTION_STRINGS` (see [Configuration](#configuration)):
@@ -137,10 +129,6 @@ uv run python main.py --database-name bird \
 
 `--eval-workers` is per-arm concurrency; size it against the model endpoint's
 **rate limit**, not CPU.
-
-> [!NOTE]
-> The **LLM judge** is not part of `main.py`: it scores eval CSVs, and the
-> benchmark writes Gym rollouts. Run it on its own with `uv run ontology-sql-eval`.
 
 Each arm writes Gym's own artifacts next to its rollouts —
 `*_aggregate_metrics.json` (pass@1 overall and per difficulty, plus `health/*`
@@ -348,8 +336,6 @@ Each workflow has its own README with purpose, run instructions, and outputs:
   vs the ontology-grounded agent, one deterministic verifier, one delta
   (requires Auto Ontology for the ontology arm). This is `main.py`'s evaluation
   stage.
-- **[SQL judge](ontology_sql_eval/judge/README.md)** — standalone LLM re-scorer
-  for eval CSVs (no Auto Ontology checkout required).
 
 ### NeMo Gym benchmark
 
@@ -440,14 +426,8 @@ endpoint.
 
 ```
 ontology_sql_eval/          single namespace package
-  judge/                    standalone LLM scorer (no Auto Ontology dependency)
-    README.md               judge workflow guide
-    config.py               resolves JUDGE_* settings from .env
-    scorer.py               per-row LLM scoring call
-    runner.py               batch/directory orchestration
-    models.py               Pydantic score model + scoring prompt
-    main.py                 CLI entry point (ontology-sql-eval)
-    beaver.py               ported BEAVER ex_acc evaluator (reference for the Gym rule's tests)
+  judge/
+    beaver.py               ported BEAVER ex_acc rule (reference for the Gym rule's tests)
   ingestion/                Auto Ontology-backed ingestion pipeline
     README.md               ingestion workflow guide
     ingest.py               source DB -> pgvector ingest (calls enrich_graph)
@@ -480,14 +460,13 @@ datasets/
   wideworldimporters/       README.md, evaluation.json, custom_analyses.json, ddl/, data/
 prompt_inputs/<dataset>/    tracked eval prompt inputs (sql examples + value anchors)
 runs/{control,treatment}/   benchmark rollouts + Gym metrics (gitignored)
-input/                      judge input CSVs to score (contents gitignored)
-output/                     judge scored CSVs (<name>_scores.csv; contents gitignored)
+output/                     scratch output of the prompt-input scripts (contents gitignored)
 ```
 
 ## Development
 
 VS Code launch configurations (Run full pipeline, Benchmark (BIRD, 1 question),
-Judge, Ingest, Semantic compile, and Seed local WWI / BIRD / FDABench / BEAVER)
+Ingest, Semantic compile, and Seed local WWI / BIRD / FDABench / BEAVER)
 are provided in [.vscode/launch.json](.vscode/launch.json); they load `.env`
 automatically. The type checker uses the project's `.venv`, as
 configured in [pyrightconfig.json](pyrightconfig.json).
@@ -513,7 +492,7 @@ documented in
   Copyright (c) Microsoft Corporation). Its upstream notice is reproduced in
   [datasets/wideworldimporters/LICENSE](datasets/wideworldimporters/LICENSE).
 - [`ontology_sql_eval/judge/beaver.py`](ontology_sql_eval/judge/beaver.py) —
-  ports BEAVER's official execution-accuracy evaluator
+  ports BEAVER's official execution-accuracy rule
   ([beaverbench/beaver](https://github.com/beaverbench/beaver),
   Copyright (c) 2024 MIT Data Systems Group).
 

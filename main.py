@@ -23,9 +23,6 @@ restricted with ``--start-index`` / ``--end-index`` / ``--limit``::
 
     uv run python main.py --database-name bird \
         --skip-ingest --skip-semantic --limit 10 --eval-workers 2
-
-The LLM judge is not a stage: it scores eval CSVs, and the benchmark writes Gym
-rollouts. Run it on its own with ``uv run ontology-sql-eval``.
 """
 
 from __future__ import annotations

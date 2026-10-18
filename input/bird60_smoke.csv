@@ -1,0 +1,60 @@
+row_index,question_id,difficulty,question,expected_sql,returned_sql,sql_text_similarity,sql_exec_match,expected_sql_error,returned_sql_error,expected_sql_result,expected_answer_raw,returned_answer,answer_text_similarity,answer_numbers_match,runtime_seconds,agent_seconds,scoring_seconds,http_calls,agent_nodes,slowest_node,slowest_node_seconds,worker,error
+0,28,challenging,"Consider the average difference between K-12 enrollment and 15-17 enrollment of schools that are locally funded, list the names and DOC type of schools which has a difference above this average.","SELECT T2.School, T2.DOC FROM frpm AS T1 INNER JOIN schools AS T2 ON T1.CDSCode = T2.CDSCode WHERE T2.FundingType = 'Locally funded' AND (T1.`Enrollment (K-12)` - T1.`Enrollment (Ages 5-17)`) > (SELECT AVG(T3.`Enrollment (K-12)` - T3.`Enrollment (Ages 5-17)`) FROM frpm AS T3 INNER JOIN schools AS T4 ON T3.CDSCode = T4.CDSCode WHERE T4.FundingType = 'Locally funded')","SELECT s.""School"", s.""DOCType"" FROM frpm AS f JOIN schools AS s ON f.""CDSCode"" = s.""CDSCode"" WHERE f.""Charter Funding Type"" = 'Locally funded' AND (f.""Enrollment (K-12)"" - f.""Enrollment (Ages 5-17)"") > (SELECT AVG(f2.""Enrollment (K-12)"" - f2.""Enrollment (Ages 5-17)"") FROM frpm AS f2 WHERE f2.""Charter Funding Type"" = 'Locally funded')",0.276,0,,,"School,DOC
+Mountain Oaks,00
+Castle Rock,00
+Charter Community School Home Study Academy,00
+Clovis Online Charter,54
+Washington Elementary,52
+West Park Charter Academy,52
+Mattole Valley Charter (#159),54
+YouthBuild Charter School of California,00
+The Education Corps,00
+College Bridge Academy,00
+Kern Workforce 2000 Academy,56
+Kings River-Hardwick Elementary,52
+Soledad Enrichment Action Charter High,00
+Chatsworth Charter High,54
+Grover Cleveland Charter High,54
+Sylmar Charter High,54
+Taft Charter High,54
+Calahan Community Charter,54
+Carpenter Community Charter,54
+YES Academy,54
+Pomelo Community Charter,54
+Serrania Avenue Charter For Enriched Studies,54
+Westwood Charter Elementary,54
+Wilbur Charter For Enriched Academics,54
+Marlton,54
+School of Extended Educational Options,54
+Madera County Independent Academy,00
+Pioneer Technical Center,00
+Monterey County Home Charter,00
+Forest Charter,00
+Union Hill Elementary,52
+Come Back Kids,00
+George Washington Charter,54
+Elk Grove Charter,54
+Visions In Education,54
+San Juan Choices Charter,54
+Natomas Charter,54
+Riverside Preparatory,52
+Delta Home Charter,52
+Delta Charter Online,52
+Delta Charter,52
+Stockton High,54
+Grizzly ChalleNGe Charter,00
+Arundel Elementary,52
+Fammatre Elementary,52
+Castlemont Elementary,52
+Lynhaven Elementary,52
+Rosemary Elementary,52
+Pacific Coast Charter,54
+Fairmont Charter Elementary,54
+Gateway to College Academy,56
+Stanislaus Alternative Charter,00
+Denair Charter Academy,54
+Summit Charter Academy,52
+Visalia Charter Independent Study,54
+Butterfield Charter High,54
+Yuba County Career Preparatory Charter,00
+",,"['[{""School"":""Mountain Oaks"",""DOCType"":""County Office of Education (COE)""},{""School"":""Castle Rock"",""DOCType"":""County Office of Education (COE)""},{""School"":""Charter Community School Home Study Academy"",""DOCType"":""County Office of Education (COE)""},{""School"":""Clovis Online Charter"",""DOCType"":""Unified School District""},{""School"":""Washington Elementary"",""DOCType"":""Elementary School District""},{""School"":""West Park Charter Academy"",""DOCType"":""Elementary School District""},{""School"":""Mattole Valley Charter (#159)"",""DOCType"":""Unified School District""},{""School"":""YouthBuild Charter School of California"",""DOCType"":""County Office of Education (COE)""},{""School"":""The Education Corps"",""DOCType"":""County Office of Education (COE)""},{""School"":""College Bridge Academy"",""DOCType"":""County Office of Education (COE)""},{""School"":""Kern Workforce 2000 Academy"",""DOCType"":""High School District""},{""School"":""Soledad Enrichment Action Charter High"",""DOCType"":""County Office of Education (COE)""},{""School"":""Chatsworth Charter High"",""DOCType"":""Unified School District""},{""School"":""Grover Cleveland Charter High"",""DOCType"":""Unified School District""},{""School"":""Taft Charter High"",""DOCType"":""Unified School District""},{""School"":""Calahan Community Charter"",""DOCType"":""Unified School District""},{""School"":""Pomelo Community Charter"",""DOCType"":""Unified School District""},{""School"":""Serrania Avenue Charter For Enriched Studies"",""DOCType"":""Unified School District""},{""School"":""Westwood Charter Elementary"",""DOCType"":""Unified School District""},{""School"":""School of Extended Educational Options"",""DOCType"":""Unified School District""},{""School"":""Madera County Independent Academy"",""DOCType"":""County Office of Education (COE)""},{""School"":""Pioneer Technical Center"",""DOCType"":""County Office of Education (COE)""},{""School"":""Monterey County Home Charter"",""DOCType"":""County Office of Education (COE)""},{""School"":""Forest Charter"",""DOCType"":""County Office of Education (COE)""},{""School"":""Union Hill Elementary"",""DOCType"":""Elementary School District""},{""School"":""Come Back Kids"",""DOCType"":""County Office of Education (COE)""},{""School"":""George Washington Charter"",""DOCType"":""Unified School District""},{""School"":""Elk Grove Charter"",""DOCType"":""Unified School District""},{""School"":""Visions In Education"",""DOCType"":""Unified School District""},{""School"":""San Juan Choices Charter"",""DOCType"":""Unified School District""},{""School"":""Natomas Charter"",""DOCType"":""Unified School District""},{""School"":""Riverside Preparatory"",""DOCType"":""Elementary School District""},{""School"":""San Diego Virtual"",""DOCType"":""Unified School District""},{""School"":""Delta Charter Online"",""DOCType"":""Elementary School District""},{""School"":""Delta Charter"",""DOCType"":""Elementary School District""},{""School"":""Stockton High"",""DOCType"":""Unified School District""},{""School"":""Grizzly ChalleNGe Charter"",""DOCType"":""County Office of Education (COE)""},{""School"":""Arundel Elementary"",""DOCType"":""Elementary School District""},{""School"":""Fammatre Elementary"",""DOCType"":""Elementary School District""},{""School"":""Castlemont Elementary"",""DOCType"":""Elementary School District""},{""School"":""Rosemary Elementary"",""DOCType"":""Elementary School District""},{""School"":""Fairmont Charter Elementary"",""DOCType"":""Unified School District""},{""School"":""Gateway to College Academy"",""DOCType"":""High School District""},{""School"":""Stanislaus Alternative Charter"",""DOCType"":""County Office of Education (COE)""},{""School"":""Denair Charter Academy"",""DOCType"":""Unified School District""},{""School"":""Summit Charter Academy"",""DOCType"":""Elementary School District""},{""School"":""Visalia Charter Independent Study"",""DOCType"":""Unified School District""},{""School"":""Butterfield Charter High"",""DOCType"":""Unified School District""},{""School"":""Yuba County Career Preparatory Charter"",""DOCType"":""County Office of Education (COE)""}]']",0.0,0,59.6,59.56,0.04,6,12,construct_sql_from_candidates,19.488,MainThread,
