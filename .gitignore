@@ -23,9 +23,8 @@ venv/
 /output/*
 !/output/.gitkeep
 
-# Local benchmark result files.
-/input/bird_nemotron_BBB.csv
-/input/bird_interact_full_2.csv
+# Legacy evaluator CSV inputs and results.
+/input/
 
 # Extra prompts are tracked; the LLM response caches written beside them
 # (including the timestamped copies a rebuild archives) are not.
