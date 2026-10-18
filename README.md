@@ -49,28 +49,19 @@ uv sync                # creates .venv and installs pinned Git dependencies
 cp .env.example .env   # then fill in your values
 ```
 
-Then bring the catalog's schema up to the Auto Ontology revision pinned in
-`pyproject.toml`. The migrations are Alembic scripts in the Auto Ontology repo,
-not in the installed package, so fetch them at that revision and apply them with
-this project's `.venv` to the database that `POSTGRES_*` in `.env` points at:
+Then migrate the catalog database (`POSTGRES_*` in `.env`) to the schema the
+installed Auto Ontology expects:
 
 ```bash
-REV=$(sed -n 's/.*auto-ontology.git@\([0-9a-f]*\)".*/\1/p' pyproject.toml)
-MIGRATIONS=../auto-ontology-migrations
-[ -d "$MIGRATIONS" ] || git clone --filter=blob:none --no-checkout \
-  https://github.com/NVIDIA/auto-ontology.git "$MIGRATIONS"
-git -C "$MIGRATIONS" sparse-checkout set --no-cone /alembic/ /alembic.ini
-git -C "$MIGRATIONS" fetch -q origin && git -C "$MIGRATIONS" checkout -q "$REV"
-(set -a; . ./.env; set +a; .venv/bin/alembic -c "$MIGRATIONS/alembic.ini" upgrade head)
+uv run python scripts/migrate_catalog.py
 ```
 
-Run it again after every Auto Ontology pin bump. A catalog behind the pin fails
-at the first query that touches a newer table or column, with
-`UndefinedTable` or `UndefinedColumn` (for example,
-`column catalog_table.owner_id does not exist`). Upgrading changes the database
-for every application using it, so give this project its own `POSTGRES_DATABASE`
-rather than sharing one with a deployment pinned to another Auto Ontology
-revision.
+Auto Ontology's installed package doesn't include its migration scripts, so this
+downloads them for the exact commit in `.venv` and applies them. Run it again
+after every Auto Ontology pin bump; a catalog left behind fails with errors like
+`column catalog_table.owner_id does not exist`. Migrating changes the database
+for every application using it, so give this project its own
+`POSTGRES_DATABASE`.
 
 ## Configuration
 
@@ -467,6 +458,7 @@ resources_servers/          the two Gym arms: schema_only_sql (control), auto_on
 scripts/
   build_gym_tasks.py        build one arm's Gym task file
   run_gym_arm.sh            run one arm through NeMo Gym
+  migrate_catalog.py        migrate the catalog DB to the installed Auto Ontology's schema
   seed/                     stand up a dataset's source DBs under datasets/
     seed_bird.py            BIRD eval data and the Dev Train corpus
     seed_fdabench.py        FDABench-Lite tasks + SQLite DBs

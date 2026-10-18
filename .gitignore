@@ -27,6 +27,9 @@ venv/
 # (including the timestamped copies a rebuild archives) are not.
 /inputs/extra_prompts/**/*_cache*.jsonl
 
+# Downloaded by scripts/migrate_catalog.py, and Gym's uv cache
+/cache/
+
 # OS / editor
 .DS_Store
 
