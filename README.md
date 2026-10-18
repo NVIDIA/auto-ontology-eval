@@ -39,8 +39,7 @@ else from PyPI; versions are pinned in
 
 For ingestion and the benchmark you also need a live **Postgres** service
 (it holds both Auto Ontology's catalog and the pgvector collections), plus a
-reachable source DB. The catalog's schema has to be migrated before first use,
-and again whenever the Auto Ontology pin changes; see [Setup](#setup).
+reachable source DB.
 
 ## Setup
 
@@ -48,21 +47,6 @@ and again whenever the Auto Ontology pin changes; see [Setup](#setup).
 uv sync                # creates .venv and installs pinned Git dependencies
 cp .env.example .env   # then fill in your values
 ```
-
-`main.py` keeps the catalog database (`POSTGRES_*` in `.env`) on the schema
-the installed Auto Ontology expects: before any stage, it checks the database's
-migration revision and, if it's behind, downloads Auto Ontology's migrations for
-the exact commit in `.venv` and applies them (the installed package doesn't
-include them). To run that step on its own:
-
-```bash
-uv run python scripts/migrate_catalog.py
-```
-
-Migrating changes the database for every application using it, so give this
-project its own `POSTGRES_DATABASE`. If you can't, pass `--skip-migrate`;
-`main.py` also stops, rather than downgrading, when the database was migrated
-by a newer Auto Ontology.
 
 ## Configuration
 
