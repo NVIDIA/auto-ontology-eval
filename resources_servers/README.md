@@ -255,7 +255,7 @@ only creates ways to lose); the second enables the `validate_sql_values` node,
 which checks filter literals against the database. Omitting them is not visible
 in the rollouts, only in the node trace, and cost about two points.
 
-### Prompt inputs are off by default
+### Extra prompts are off by default
 
 `sql_examples_csv` and `value_anchors_csv` attach the question-keyed exemplars
 and value anchors from `inputs/extra_prompts/` to the agent's payload. They are
@@ -286,7 +286,7 @@ The control arm cannot receive the equivalent, so **a delta measured with these
 on covers the exemplars and anchors as well as the ontology grounding** — say so
 when reporting it. Each rollout records `sql_examples_used` and
 `value_anchors_used` so a run can prove what it actually received rather than
-what it was configured to receive; the server also logs a `Prompt inputs:`
+what it was configured to receive; the server also logs a `Extra prompts:`
 summary at startup.
 
 The control's first sentence is upstream `bird_sql`'s prompt verbatim; the

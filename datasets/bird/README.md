@@ -133,7 +133,7 @@ uv run python main.py --database-name bird \
 Both ingestion commands walk every entry in `CONNECTION_STRINGS`, so all 11
 databases are handled in one invocation each.
 
-The prompt inputs shown above are optional and go to the ontology arm only:
+The extra prompts shown above are optional and go to the ontology arm only:
 
 - `--sql-examples-csv` loads question-keyed structural examples generated from
   the BIRD Train corpus; `--sql-examples-k 5` supplies at most five to the agent.

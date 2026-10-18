@@ -157,7 +157,7 @@ For concrete, copy-pasteable walkthroughs, see the per-dataset READMEs:
 [BEAVER](datasets/beaverbench/README.md). See the per-workflow READMEs under
 [Workflows](#workflows) for the details of each stage.
 
-## Prompt inputs: SQL examples and value anchors
+## Extra prompts: SQL examples and value anchors
 
 Two optional CSVs can be injected into the ontology arm's SQL-generation
 prompt. Both are keyed by `question_id` and both are built from BIRD Dev:
@@ -168,11 +168,11 @@ prompt. Both are keyed by `question_id` and both are built from BIRD Dev:
 | `inputs/extra_prompts/bird/value_anchors.csv`                  | `--value-anchors-csv` | Which column stores a phrase from the question, and its exact stored spelling — so filters match real values. |
 
 Generated copies of both are committed, so a run can reuse them without
-regenerating. To rebuild them, [`scripts/prompt_inputs/build_eval_inputs.py`](scripts/prompt_inputs/build_eval_inputs.py)
+regenerating. To rebuild them, [`scripts/extra_prompts/build_eval_inputs.py`](scripts/extra_prompts/build_eval_inputs.py)
 runs every step in order and writes both files:
 
 ```bash
-uv run python scripts/prompt_inputs/build_eval_inputs.py
+uv run python scripts/extra_prompts/build_eval_inputs.py
 ```
 
 It needs the BIRD **Dev** split *and* its Train corpus on disk
@@ -360,7 +360,7 @@ uv run python main.py --database-name bird --skip-ingest --skip-semantic \
 ```
 
 Add `--sql-examples-csv` / `--value-anchors-csv` to give the ontology arm the
-question-keyed prompt inputs — the full form, which is what the reported BIRD
+question-keyed extra prompts — the full form, which is what the reported BIRD
 delta was measured with:
 
 ```bash
@@ -450,7 +450,7 @@ ontology_sql_eval/          single namespace package
     compare.py              health-gated delta report between the two arms
   bird_interact/            BIRD-Interact adapter server (see scripts/bird_interact/README.md)
   env.py                    .env loading
-  prompt_inputs.py          loaders for the prompt-input CSVs
+  extra_prompts.py          loaders for the extra-prompt CSVs
 resources_servers/          the two Gym arms: schema_only_sql (control), auto_ontology_sql
 scripts/
   build_gym_tasks.py        build one arm's Gym task file
@@ -460,7 +460,7 @@ scripts/
     seed_fdabench.py        FDABench-Lite tasks + SQLite DBs
     seed_beaverbench.py     BEAVER questions + MySQL dumps
     seed_wwi.py             a local Postgres from datasets/<db>/{ddl,data}
-  prompt_inputs/            build the CSVs under inputs/extra_prompts/
+  extra_prompts/            build the CSVs under inputs/extra_prompts/
     build_eval_inputs.py    both CSVs (anchors + exemplars) in one run
     value_index.py          value -> column index over the BIRD Dev DBs; value anchors
     llm_structural_exemplars.py  LLM-predicted SQL matched against train; exemplars
@@ -475,10 +475,10 @@ datasets/
   wideworldimporters/       README.md, evaluation.json, custom_analyses.json, ddl/, data/
 inputs/                     tracked inputs we add on top of the datasets
   annotations/<dataset>/    descriptions + custom analyses applied at ingest
-  extra_prompts/<dataset>/  eval prompt inputs (sql examples + value anchors)
+  extra_prompts/<dataset>/  eval extra prompts (sql examples + value anchors)
 tests/                      pytest suite, one folder per area (gym/, ingestion/, bird_interact/, scripts/)
 runs/{control,treatment}/   benchmark rollouts + Gym metrics (gitignored)
-output/                     scratch output of the prompt-input scripts (gitignored)
+output/                     scratch output of the extra-prompt scripts (gitignored)
 ```
 
 ## Development

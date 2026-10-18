@@ -19,11 +19,11 @@ venv/
 # Gym 0.7+ serializes server venv setup with a lock file beside each .venv.
 .venv.setup.lock
 
-# Scratch output of the prompt-input scripts — keep the folder, ignore its contents
+# Scratch output of the extra-prompt scripts — keep the folder, ignore its contents
 /output/*
 !/output/.gitkeep
 
-# Eval prompt inputs are tracked; the LLM response caches written beside them
+# Extra prompts are tracked; the LLM response caches written beside them
 # (including the timestamped copies a rebuild archives) are not.
 /inputs/extra_prompts/**/*_cache*.jsonl
 

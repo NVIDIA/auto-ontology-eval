@@ -28,8 +28,8 @@ from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-VALUE_INDEX = ROOT / "scripts/prompt_inputs/value_index.py"
-EXEMPLARS = ROOT / "scripts/prompt_inputs/llm_structural_exemplars.py"
+VALUE_INDEX = ROOT / "scripts/extra_prompts/value_index.py"
+EXEMPLARS = ROOT / "scripts/extra_prompts/llm_structural_exemplars.py"
 # Not output/, whose contents are gitignored: these two files are eval inputs
 # and are committed, so a run can be reproduced without regenerating them.
 OUT_DIR = ROOT / "inputs/extra_prompts/bird"

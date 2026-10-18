@@ -312,26 +312,26 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "Use it to keep a long run's output, which runs/ overwrites."
         ),
     )
-    prompt_inputs = parser.add_argument_group(
-        "prompt inputs (ontology arm only)",
+    extra_prompts = parser.add_argument_group(
+        "extra prompts (ontology arm only)",
         "Question-keyed inputs attached to the ontology arm's payload. The "
         "control arm cannot be given an equivalent, so a delta measured with "
         "these set covers the inputs as well as the ontology grounding -- say "
         "so when reporting it.",
     )
-    prompt_inputs.add_argument(
+    extra_prompts.add_argument(
         "--sql-examples-csv",
         default=None,
         help="CSV of question-keyed SQL exemplars, e.g. "
         "inputs/extra_prompts/bird/predicted_structural_exemplars.csv",
     )
-    prompt_inputs.add_argument(
+    extra_prompts.add_argument(
         "--sql-examples-k",
         type=int,
         default=5,
         help="Exemplars per question (default: 5). Ignored without --sql-examples-csv.",
     )
-    prompt_inputs.add_argument(
+    extra_prompts.add_argument(
         "--sql-examples-min-score",
         type=float,
         default=None,
@@ -340,7 +340,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "this. Ignored without --sql-examples-csv."
         ),
     )
-    prompt_inputs.add_argument(
+    extra_prompts.add_argument(
         "--value-anchors-csv",
         default=None,
         help="CSV of question-keyed value anchors, e.g. "

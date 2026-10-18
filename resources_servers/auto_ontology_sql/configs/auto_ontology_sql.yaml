@@ -13,7 +13,7 @@ auto_ontology_sql_resources_server:
       # Sized against the model endpoint's rate limit, not CPU. See app.py.
       max_concurrency: 3
       sql_execution_timeout_s: 30.0
-      # Question-keyed prompt inputs, off by default. Both change what the
+      # Question-keyed extra prompts, off by default. Both change what the
       # agent is told, so switching them on makes this arm no longer comparable
       # to a schema-only control that did not receive the equivalent -- the
       # delta then measures the exemplars and anchors too, not the ontology

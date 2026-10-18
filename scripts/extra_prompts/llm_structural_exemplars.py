@@ -5,7 +5,7 @@ Run this file and nothing else. It carries the lexical retrieval helpers it
 once imported, so producing the exemplar file is one command with no prior
 step::
 
-    python scripts/prompt_inputs/llm_structural_exemplars.py predict
+    python scripts/extra_prompts/llm_structural_exemplars.py predict
 
 which writes ``output/predicted_structural_exemplars.csv``, the file the eval
 passes as ``--sql-examples``. The retriever that used to live in
@@ -73,11 +73,11 @@ widened ``--limit`` re-costs only what it has not already asked.
 
 Usage:
     # dump one prompt and exit, no API calls
-    python scripts/prompt_inputs/llm_structural_exemplars.py rerank --limit 4 --dry-run
+    python scripts/extra_prompts/llm_structural_exemplars.py rerank --limit 4 --dry-run
 
-    python scripts/prompt_inputs/llm_structural_exemplars.py rerank --k 5 --candidates 30
-    python scripts/prompt_inputs/llm_structural_exemplars.py predict --k 5
-    python scripts/prompt_inputs/llm_structural_exemplars.py compare   # rerank vs predict
+    python scripts/extra_prompts/llm_structural_exemplars.py rerank --k 5 --candidates 30
+    python scripts/extra_prompts/llm_structural_exemplars.py predict --k 5
+    python scripts/extra_prompts/llm_structural_exemplars.py compare   # rerank vs predict
 """
 
 from __future__ import annotations
