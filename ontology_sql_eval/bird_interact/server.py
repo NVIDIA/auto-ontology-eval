@@ -306,6 +306,7 @@ async def init_session(req: InitSessionRequest):
         connectors=connectors,
         max_clarify_turns=max_turn,
         external_kb_children_map=external_kb_children_map,
+        skip_evidence_refinement=True,
     )
 
     sess = AdapterSession(
