@@ -17,6 +17,10 @@ Refuses to report a headline number when either side's ``no_model_output`` rate
 is above a threshold. A rate-limited run scores near zero and looks exactly like
 a weak model; this is the guard that keeps an outage from being published as a
 benchmark result.
+
+Also refuses while any question Gym dispatched has no rollout row: it failed
+(run_gym_arm.sh records failures in a sidecar and keeps going) or never ran.
+Re-run that arm with ``--resume`` to finish them.
 """
 
 from __future__ import annotations
@@ -43,6 +47,26 @@ def load(path: Path) -> dict[str, dict[str, Any]]:
             key = rec.get("task_id") or str(rec.get("id"))
             out[key] = rec
     return out
+
+
+def unfinished(path: Path, done: dict[str, dict[str, Any]]) -> set[str]:
+    """Task ids Gym dispatched for the run at *path* that have no rollout row.
+
+    Read from Gym's ``<stem>_materialized_inputs.jsonl``. Such a question either
+    failed -- its attempts are in ``<stem>_failures.jsonl`` -- or never ran.
+    Comparing only the arms' rollouts would miss a question both arms lost.
+    """
+    materialized = path.with_name(path.stem + "_materialized_inputs.jsonl")
+    if not materialized.exists():
+        return set()
+    dispatched = set()
+    with materialized.open() as fh:
+        for line in fh:
+            line = line.strip()
+            if line:
+                rec = json.loads(line)
+                dispatched.add(rec.get("task_id") or str(rec.get("id")))
+    return dispatched - set(done)
 
 
 # Mirrors ontology_sql_eval.gym.exec_match.UNUSABLE_FAILURES. A task whose gold
@@ -116,6 +140,17 @@ def main() -> int:
     # Health gate first: a number computed over a rate-limited run is worse than
     # no number, because it looks publishable.
     unhealthy = False
+    for name, path, data in (
+        (args.control_name, args.control, control),
+        (args.treatment_name, args.treatment, treatment),
+    ):
+        missing = unfinished(path, data)
+        if missing:
+            unhealthy = True
+            print(
+                f"  {name}: {len(missing)} question(s) with no result (failed or never "
+                f"ran; see {path.stem}_failures.jsonl)  <-- re-run with --resume"
+            )
     for name, data in ((args.control_name, control), (args.treatment_name, treatment)):
         rate, breakdown = broken_rate([data[k] for k in common])
         flag = ""
@@ -126,10 +161,11 @@ def main() -> int:
         print(f"  {name}: broken-run failures {rate:.1%} ({detail}){flag}")
     if unhealthy and not args.ignore_health:
         print(
-            f"\nRefusing to report: >{HEALTH_THRESHOLD:.0%} of tasks failed in a way "
-            "that reflects a broken run (no output, or an unknown error) rather "
-            "than a low score.\n"
-            "Re-run at lower concurrency, or pass --ignore-health to override.",
+            "\nRefusing to report: questions have no result, or more than "
+            f"{HEALTH_THRESHOLD:.0%} failed in a way that reflects a broken run (no "
+            "output, or an unknown error) rather than a low score.\n"
+            "Re-run with --resume to finish missing questions, or at lower "
+            "concurrency; pass --ignore-health to override.",
             file=sys.stderr,
         )
         return 1

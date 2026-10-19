@@ -13,7 +13,7 @@ dependencies = [
     # pandas, fastapi, ...) come in through this package. Do not redeclare them
     # here: a second copy drifts out of sync with what Auto Ontology is tested
     # against. List only what this project needs on top of it.
-    "auto-ontology-server @ git+https://github.com/NVIDIA/auto-ontology.git@2deaca7814f5530d8be9f1847681d95a56b8f420",
+    "auto-ontology-server @ git+https://github.com/NVIDIA/auto-ontology.git@80aa73e2f197e3b23fdf3e37bb09663d3a696905",
     # Imported directly by bird_interact/bird_interact_http.py. Also reachable
     # transitively through Auto Ontology, but not as part of its contract.
     "sqlglot>=30.12.0",

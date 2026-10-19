@@ -103,6 +103,44 @@ uv run python main.py --database-name beaverbench \
     --skip-ingest --skip-semantic --limit 10 --eval-workers 3
 ```
 
+### Long runs
+
+A full run takes a day or more. Run each arm with `scripts/run_gym_arm.sh` so it
+can be resumed:
+
+```bash
+GYM_CONCURRENCY=5 scripts/run_gym_arm.sh auto_ontology_sql runs/treatment/beaverbench.jsonl \
+    +auto_ontology_sql_resources_server.resources_servers.auto_ontology_sql.max_concurrency=5
+```
+
+- A question whose run fails, for example on a burst of rate limits, is
+  recorded in `runs/treatment/beaverbench_failures.jsonl` and the run goes on.
+- To finish it, run the same command again with `--resume`. Questions already
+  done are kept; failed and unfinished ones are retried, up to
+  `NEMO_GYM_MAX_ROLLOUT_ATTEMPTS` (default 3) attempts each.
+- Until then Gym's metrics count each failed question as a miss, and
+  `scripts/compare_arms.py` refuses to report while any question has no result.
+  A published number should come from a run with none left.
+
+Auto Ontology retries rate limits and server errors for about a minute before a
+step gives up (`LLM_TRANSIENT_RETRIES`, `LLM_RETRY_MAX_BACKOFF_S`). Set
+`LLM_INVOKE_TIMEOUT_S=300`: a reasoning call with a 32k-token cap can take over
+the default 120 s on a slow endpoint, and a timeout discards its answer.
+
+With `nvidia/nvidia/nemotron-3.5-lightning` for both roles, use:
+
+```bash
+NON_REASONING_THINKING=off
+NON_REASONING_MAX_TOKENS=4096
+REASONING_MAX_TOKENS=32768
+LLM_INVOKE_TIMEOUT_S=300
+```
+
+The model often keeps generating after a complete answer, and its thinking can
+use up the whole cap. A low non-reasoning cap makes a runaway cost seconds, and
+a reasoning call that runs out of tokens while thinking is retried with
+thinking off (`LLM_THINKING_FALLBACK`).
+
 ## Scoring
 
 Both arms are scored with BEAVER's official execution accuracy (`ex_acc`), ported
