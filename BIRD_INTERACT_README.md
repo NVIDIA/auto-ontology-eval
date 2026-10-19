@@ -205,6 +205,18 @@ top-level [README.md](README.md#prerequisites) — they apply here too.
   `run_bird_interact_cinteract.py`'s manual bootstrap), this bug can silently
   overwrite a real Phase 1 pass with `reward=0` and mis-grade Phase 2 against
   Phase 1's solution instead of the follow-up's.
+- **numeric `Decimal` vs `float` scoring** — the ADK checker strips `ROUND`
+  from both pred and gold SQL, executes them, then rounds Python values to 2
+  decimal places and compares with `==`. psycopg2 returns `numeric` as
+  `Decimal` and `float4`/`float8` as `float`, so `Decimal('0.01') != 0.01`
+  even when the numbers match. Fixed by
+  `patches/adk_numeric_type_compare.patch` (applied by
+  `start_bird_services.sh`): after rounding, int/float/`Decimal` are the same
+  `Decimal` type. Spec:
+  `tests/bird_interact/test_numeric_type_compare.py`. Do not rewrite agent SQL
+  with `ROUND(CAST(.. AS DECIMAL), 2)` — that changes column type and can fail
+  a first submit when gold itself is float. Restart `:6002` after applying so
+  the running judge loads the patch.
 
 ## Work process and solution method
 
