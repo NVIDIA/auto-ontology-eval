@@ -95,12 +95,10 @@ GYM_FLAGS=('+policy_api_key=${oc.env:DEFAULT_MODELS_API_KEY}')
 #
 # The packages whose mismatch breaks a run are checked here rather than left to
 # memory. A server venv on a different nemo-gym runs old Gym code under the new
-# head; a different ray cannot join the head's cluster; a newer nemo-retriever
-# silently retrieves no tables. OpenAI is deliberately excluded: Auto Ontology
-# needs the parent's newer client while nemo-gym pins 2.44.0 in its HTTP-isolated
-# server venvs; allow_openai_version_skew above makes that split explicit. Only
-# the venvs Gym uses for this run are checked, at the <type>/<name>/.venv paths
-# it keeps them under --search-dir.
+# head; a different ray cannot join the head's cluster; openai 2.45+ rejects the
+# inference-api gateway's responses; a newer nemo-retriever silently retrieves
+# no tables. Only the venvs Gym uses for this run are checked, at the
+# <type>/<name>/.venv paths it keeps them under --search-dir.
 CHECKED_DISTS=(nemo-gym ray openai nemo-retriever)
 dist_versions() {  # <venv>: a "name version" line per CHECKED_DISTS entry it has
   "$1/bin/python" - "${CHECKED_DISTS[@]}" <<'PY'
