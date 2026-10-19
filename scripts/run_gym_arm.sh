@@ -81,10 +81,7 @@ fi
 # Single-quoted so the shell leaves ${...} alone; OmegaConf resolves it from the
 # environment when the config is read. DEFAULT_MODELS_API_KEY is exported above,
 # so Gym's child processes inherit it either way.
-GYM_FLAGS=(
-  '+policy_api_key=${oc.env:DEFAULT_MODELS_API_KEY}'
-  '+allow_openai_version_skew=true'
-)
+GYM_FLAGS=('+policy_api_key=${oc.env:DEFAULT_MODELS_API_KEY}')
 
 # Reuse the server venv Gym already built. Rebuilding costs minutes and can trip
 # a race in nemo-retriever's timestamp-derived version ("Package metadata
@@ -104,7 +101,7 @@ GYM_FLAGS=(
 # server venvs; allow_openai_version_skew above makes that split explicit. Only
 # the venvs Gym uses for this run are checked, at the <type>/<name>/.venv paths
 # it keeps them under --search-dir.
-CHECKED_DISTS=(nemo-gym ray nemo-retriever)
+CHECKED_DISTS=(nemo-gym ray openai nemo-retriever)
 dist_versions() {  # <venv>: a "name version" line per CHECKED_DISTS entry it has
   "$1/bin/python" - "${CHECKED_DISTS[@]}" <<'PY'
 import sys
