@@ -105,13 +105,33 @@ uv run python main.py --database-name beaverbench \
 
 ### Long runs
 
-A full run takes a day or more. Run each arm with `scripts/run_gym_arm.sh` so it
-can be resumed:
+A full run takes a day or more. Ingest and compile with `main.py`, then build
+the tasks and run each arm with `scripts/run_gym_arm.sh` so it can be resumed:
 
 ```bash
+uv run python main.py --database-name beaverbench --skip-eval --skip-judge
+
+# Gym caches metrics beside the task file; a rebuild with a different question
+# count must clear them first.
+rm -f resources_servers/{schema_only_sql,auto_ontology_sql}/data/tasks_{metrics,metrics_conflict}.json \
+      resources_servers/{schema_only_sql,auto_ontology_sql}/data/tasks_prepare.jsonl
+uv run python scripts/build_gym_tasks.py --dataset beaverbench --arm schema_only
+uv run python scripts/build_gym_tasks.py --dataset beaverbench --arm auto_ontology
+
+GYM_CONCURRENCY=5 scripts/run_gym_arm.sh schema_only_sql runs/control/beaverbench.jsonl
 GYM_CONCURRENCY=5 scripts/run_gym_arm.sh auto_ontology_sql runs/treatment/beaverbench.jsonl \
+    --max-output-tokens 16 \
     +auto_ontology_sql_resources_server.resources_servers.auto_ontology_sql.max_concurrency=5
 ```
+
+The ontology arm ignores the policy model's answer, so `--max-output-tokens 16`
+keeps that call from competing for the rate limit, and `max_concurrency` lifts
+the arm's own limit, which is 3 by default.
+
+After the Auto Ontology pin changes (a pull and `uv sync`), set
+`GYM_REBUILD_VENV=1` for the next run of the ontology arm. The script rebuilds a
+server venv on its own only when nemo-gym, ray, openai or nemo-retriever
+differ, so it would otherwise keep running the old Auto Ontology.
 
 - A question whose run fails, for example on a burst of rate limits, is
   recorded in `runs/treatment/beaverbench_failures.jsonl` and the run goes on.
