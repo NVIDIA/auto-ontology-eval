@@ -83,9 +83,7 @@ fi
 # so Gym's child processes inherit it either way.
 GYM_FLAGS=('+policy_api_key=${oc.env:DEFAULT_MODELS_API_KEY}')
 
-# Reuse the server venv Gym already built. Rebuilding costs minutes and can trip
-# a race in nemo-retriever's timestamp-derived version ("Package metadata
-# version ... does not match ... from the wheel filename").
+# Reuse the server venv Gym already built. Rebuilding costs minutes.
 #
 # Set GYM_REBUILD_VENV=1 after editing a server's requirements.txt or the root
 # pyproject's [tool.uv] overrides, which uv applies there too. Skipping is safe
@@ -96,10 +94,14 @@ GYM_FLAGS=('+policy_api_key=${oc.env:DEFAULT_MODELS_API_KEY}')
 # The packages whose mismatch breaks a run are checked here rather than left to
 # memory. A server venv on a different nemo-gym runs old Gym code under the new
 # head; a different ray cannot join the head's cluster; openai 2.45+ rejects the
-# inference-api gateway's responses; a newer nemo-retriever silently retrieves
-# no tables. Only the venvs Gym uses for this run are checked, at the
-# <type>/<name>/.venv paths it keeps them under --search-dir.
-CHECKED_DISTS=(nemo-gym ray openai nemo-retriever)
+# inference-api gateway's responses. Only the venvs Gym uses for this run are
+# checked, at the <type>/<name>/.venv paths it keeps them under --search-dir.
+#
+# A package listed here that a venv has and .venv does not counts as a
+# mismatch, and a rebuild never uninstalls it, so a dependency that is dropped
+# from the project must be dropped from this list too: otherwise every run
+# rebuilds that server's venv. nemo-retriever did exactly that after it went.
+CHECKED_DISTS=(nemo-gym ray openai)
 dist_versions() {  # <venv>: a "name version" line per CHECKED_DISTS entry it has
   "$1/bin/python" - "${CHECKED_DISTS[@]}" <<'PY'
 import sys
