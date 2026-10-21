@@ -307,6 +307,9 @@ async def init_session(req: InitSessionRequest):
         max_clarify_turns=max_turn,
         external_kb_children_map=external_kb_children_map,
         skip_evidence_refinement=True,
+        # BIRD-Interact answers are graded by a result checker, so enable cast
+        # rewriting / numeric type flip on the debug attempt.
+        numeric_type_alignment=True,
     )
 
     sess = AdapterSession(
