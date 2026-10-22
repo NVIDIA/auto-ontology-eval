@@ -1,0 +1,3 @@
+First snippet: {first_paragraph} \n
+                       Second snippet: {second_paragraph}
+                    

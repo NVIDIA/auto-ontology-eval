@@ -30,6 +30,12 @@ venv/
 # Downloaded by scripts/migrate_catalog.py, and Gym's uv cache
 /cache/
 
+# Working area: cloned sources read for comparison, and the extraction drafts
+# build_graph.py --cache-draft writes. Both are regenerable and large, and a
+# cached draft is a snapshot of one prompt's output -- committing it would
+# invite a reader to treat it as the current behaviour.
+/.scratch/
+
 # OS / editor
 .DS_Store
 
@@ -79,3 +85,15 @@ runs/
 # Hydra's default per-run dir. Holds only the resolved config snapshot, which
 # records every override verbatim -- including policy_api_key.
 outputs/
+
+# Benchmark corpora, fetched by conversation/beam_benchmark/download_data.py.
+# Regenerable from the Hugging Face Hub and large -- 13 MB for the smallest
+# scale and 344 MB for the largest -- so the download script is the thing
+# worth reviewing, not its output.
+/conversation/data/
+
+# Run output: rollouts, scores and reports from the BEAM arms. Regenerable,
+# and a results file committed by hand is a result nobody can reproduce. The
+# directory itself is kept so a run has somewhere to land.
+/conversation/beam_benchmark/results/*
+!/conversation/beam_benchmark/results/.gitkeep
