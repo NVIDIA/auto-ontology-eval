@@ -187,7 +187,12 @@ def build_records(
             schema = schema_cache[db_id]
 
         question = q["question"]
-        evidence = (q.get("evidence") or "").strip()
+        # Experiment branch, not for merging: BEAVER's leaderboard is its
+        # Setting 0, the question alone. The seeder puts each question's
+        # domain-knowledge annotation in "evidence", so it is dropped here.
+        evidence = (
+            "" if spec.name == "beaverbench" else (q.get("evidence") or "").strip()
+        )
         # question_id is an int on BIRD/WWI but a string like "FDA0002" on
         # FDABench, so the joinable key is always rendered as text.
         #
