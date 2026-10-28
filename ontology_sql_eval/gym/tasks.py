@@ -136,6 +136,26 @@ def _schema_for(spec: DatasetSpec, root: Path, db_id: str, descriptions: bool) -
     return f"{dump}\n\n{block}" if block else dump
 
 
+def _gold_tables_hint(gold_sql: str) -> str:
+    """The base tables the gold query reads, as a hint, in the order it names them.
+
+    Experiment only: a diagnostic of how much a right table choice is worth.
+    CTE names are not tables, so they are left out.
+    """
+    import sqlglot
+    from sqlglot import exp
+
+    tree = sqlglot.parse_one(gold_sql, read="mysql")
+    # Upper-cased, because a gold query can spell one table two ways.
+    seen = {cte.alias_or_name.upper() for cte in tree.find_all(exp.CTE)}
+    tables: list[str] = []
+    for table in tree.find_all(exp.Table):
+        if table.name and table.name.upper() not in seen:
+            seen.add(table.name.upper())
+            tables.append(table.name)
+    return "The SQL must use exactly these tables: " + ", ".join(tables) + "."
+
+
 def _user_prompt(question: str, evidence: str, dialect: str, schema: str | None) -> str:
     """Assemble the user turn.
 
@@ -187,11 +207,13 @@ def build_records(
             schema = schema_cache[db_id]
 
         question = q["question"]
-        # Experiment branch, not for merging: BEAVER's leaderboard is its
-        # Setting 0, the question alone. The seeder puts each question's
-        # domain-knowledge annotation in "evidence", so it is dropped here.
+        # Experiment branch, not for merging: a diagnostic of how much a right
+        # table choice is worth on BEAVER. Its domain-knowledge evidence is
+        # dropped, as in the no-hints run, and replaced by the gold query's tables.
         evidence = (
-            "" if spec.name == "beaverbench" else (q.get("evidence") or "").strip()
+            _gold_tables_hint(q["SQL"])
+            if spec.name == "beaverbench"
+            else (q.get("evidence") or "").strip()
         )
         # question_id is an int on BIRD/WWI but a string like "FDA0002" on
         # FDABench, so the joinable key is always rendered as text.
