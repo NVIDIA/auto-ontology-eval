@@ -6,6 +6,56 @@ SPDX-License-Identifier: Apache-2.0
 
 # BEAM
 
+## Run it
+
+Both commands need the env loaded first, and they must never run at the same
+time: the eval reads the graph the build is wiping.
+
+```
+cd /Users/tfrenklach/Desktop/ao-eval-unstructured && set -a && . ./.env && set +a
+```
+
+### 1. Build the graph
+
+```
+uv run --no-sync python build_graph.py 2 --verify --subject-agent
+```
+
+Takes about 16 minutes and wipes conversation 2 before it starts. Leave
+`--cache-draft` off for a measured run, and always off after an extraction
+prompt change — it reuses the stored draft and skips extraction entirely.
+
+### 2. Score it
+
+```
+uv run --no-sync python main.py --database-name beam --skip-migrate --skip-ingest \
+  --scale 100K --conversations 2 --tag mytag --rounds 4 --eval-workers 4 \
+  --retrieval semantic --node-turns 15 --top-k 5 --widen 0 \
+  --reader-model aws/anthropic/bedrock-claude-opus-4-8 --reader-prompt cognee \
+  --judge-model azure/openai/gpt-4.1-mini --judge-prompt cognee
+```
+
+Name the `--tag` after what changed, because the per-round files on disk are
+keyed by it and that is the only record of which graph a score belongs to.
+
+`main.py` on the `beam` database has no graph stage — `--skip-ingest` plus
+`--skip-eval` does nothing at all. `--skip-ingest` is not optional: without it
+the transcripts are re-ingested with `reset=True`, which renumbers turns and
+breaks every citation in the graph.
+
+Keep `--eval-workers` at 4. At 8 the embeddings endpoint has returned 429 and
+killed a round, and a round that answers fewer than 20 questions **invalidates
+the whole run**: `_require_one_question_set` refuses to pool means taken over
+different question sets, so four rounds minus one is not three rounds, it is an
+error and no overall score. The per-round files survive on disk, so the fix is
+to re-run only the short rounds.
+
+**The score to beat is 0.79** — cognee's 0.794 on this conversation over four
+runs. Our best so far is 0.856, on the build that stores what the user asked to
+have handled as its own kind.
+
+---
+
 [Beyond a Million Tokens: Benchmarking and Enhancing Long-Term Memory in LLMs](https://arxiv.org/abs/2510.27246)
 (ICLR 2026), [upstream implementation](https://github.com/mohammadtavakoli78/BEAM),
 data on the Hub as [Mohammadta/BEAM](https://huggingface.co/datasets/Mohammadta/BEAM)
@@ -1099,6 +1149,99 @@ Three changes follow, in order of how little they assume:
 3. Assert after every build that a statement the citation check reported as
    `DENIES` carries a `supersedes` or `contradicts` edge. Deterministic, free,
    and it would have caught this the moment it appeared.
+
+#### A true answer scores below a shorter one
+
+`information_extraction` sits at 0.833 against cognee's 0.979, and three
+rounds in four lose the same nugget for a reason worth recording rather than
+fixing. Asked which technologies the project started with, the two answers are:
+
+```
+ours    Vanilla JavaScript ES2021, HTML5, and CSS3 (with axios as the HTTP client library).
+cognee  Vanilla JavaScript (ES2021), HTML5, and CSS3.
+```
+
+and the judge's reason for giving theirs 1.0 and ours 0.5:
+
+> The response includes the required element 'vanilla JavaScript ES2021,'
+> satisfying the positive requirement. However, it also mentions additional
+> technologies: HTML5, CSS3, and axios, which were not stated in the rubric
+> criterion. Since the rubric only required stating 'vanilla JavaScript
+> ES2021,' the inclusion of extra technologies leads to only partial
+> compliance.
+
+HTML5 and CSS3 are **nuggets of the same rubric**, scored 1.0 each in the same
+pass. The nugget is marked down for naming the things two other nuggets require,
+which is not a borderline judgement but a contradiction between three criteria
+scored independently. The only content separating the two answers is `axios`,
+which the transcript states and which cognee omits.
+
+So the gap on this ability is not retrieval and not reader: the single
+reachable improvement is to stop saying something true, and the nugget pays
+0.5 either way on a four-nugget rubric. It is recorded here and left alone --
+any arm that shows `information_extraction` recovering should be checked for
+having dropped a fact rather than found one.
+
+The other failing nugget on that ability is ours, and is being worked: asked
+what was recommended for a problem, the reader named two of three mechanisms
+and spent the answer on how one of them was coded, while the third -- stated
+plainly in the retrieved context, every word of it present -- went unmentioned.
+See `_EXTRACTION_FORMAT`.
+
+#### Kendall tau measures phrasing, not order
+
+Our tau sits near 0.23 against cognee's 0.515 and does not move when retrieval
+improves. It is not measuring ordering.
+
+`align_events` rewrites each of our lines into the rubric's wording by asking a
+binary classifier, one call per candidate pair, whether the two describe the
+same event. The rubric items are two- and three-word labels -- `Debounce
+implementation`, `API response time handling`, `Rapid input and debounce
+concerns`, `Dropdown and error handling`, `Event listener cleanup` -- and the
+classifier is `gpt-4.1-mini` with upstream's prompt. Given our third line, the
+exchange is:
+
+```
+System: You are a binary classifier. If the TWO snippets describe the SAME
+        event/fact, reply **YES**. Otherwise reply **NO**. No extra words.
+
+User:   First snippet: Dropdown and error handling
+        Second snippet: Handling the 5-item dropdown limit and error handling
+                        for invalid API key
+```
+
+It answers **NO**. Our line is then counted as invented and the rubric item as
+unmentioned, from one call, on a pair that plainly matches. Run directly over
+all five of our lines against all five labels, four match nothing at all and
+the fifth matches the wrong label: `Debounce delay added to the autocomplete
+feature` is refused against `Debounce implementation` and accepted against
+`Rapid input and debounce concerns`, which misplaces our first item as the
+rubric's third and damages the rank order specifically.
+
+With nothing matched, `tau_norm` is **0.143** -- not a score but the arithmetic
+of five sentinel ranks against five, which is why that figure repeats
+unchanged across every round of every arm.
+
+The ordering itself was never wrong. On the question that scores precision
+0.00, our five items appear in the transcript at turns 10, 37, 41 and 70:
+monotonically increasing, which is what the `precedes` edges are for.
+
+What separates cognee is register, not content. Theirs reads:
+
+```
+1) Proposed localStorage caching of the last three searched cities to reduce API calls. (Session 1, Turn 4)
+2) Asked to add a city autocomplete feature with a 300 ms debounce. (Session 1, Turn 5)
+```
+
+Short, one clause, "Asked to" and "Proposed" openings -- and their published
+metric for that question records `matched 4/5 reference events`, F1 0.800. They
+write in the form the classifier recognises; we write fuller sentences and
+match nothing.
+
+So tau is excluded as a target here. It can be raised by writing shorter, more
+label-like lines, and that change would not make a single answer more correct.
+The rubric score on the same two questions -- 0.90 against cognee's 0.787 --
+is the number worth reading, and it is reported beside tau for that reason.
 
 ## Layout
 

@@ -57,6 +57,14 @@ def main() -> int:
         "turn that denies them are reported, since the fix there is a node "
         "that is missing rather than one to remove.",
     )
+    parser.add_argument(
+        "--subject-agent",
+        action="store_true",
+        help="Let the subject pass read turns it was not shown before "
+        "answering, rather than deciding from its batch alone. For statements "
+        "whose subject is a thing introduced outside that batch, which arrives "
+        "as a description rather than as the turns stating it.",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -89,6 +97,7 @@ def main() -> int:
         window_chars=1 if args.per_turn else 12000,
         draft_cache=_draft_path(args) if args.cache_draft else None,
         verify=args.verify,
+        subject_agent=args.subject_agent,
     )
     print(
         f"\nconversation {result.conversation_id}: {result.nodes} nodes "
