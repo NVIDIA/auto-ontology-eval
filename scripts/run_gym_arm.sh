@@ -36,6 +36,10 @@ set -a
 . ./.env
 set +a
 
+# Experiment branch, not for merging: the agent's reasoning model for a BEAVER
+# check of Claude Opus 5.5, whatever the deployment running the arm sets.
+export REASONING_MODEL=aws/anthropic/bedrock-claude-opus-5-5
+
 # The schema-only arm imports ontology_sql_eval.gym.* (the shared executors and
 # grader) but deliberately does not install this project, since that would pull
 # in Auto Ontology. It finds the package through this PYTHONPATH entry: Gym puts
