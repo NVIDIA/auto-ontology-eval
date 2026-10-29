@@ -97,7 +97,9 @@ python scripts/build_gym_tasks.py --dataset bird --arm auto_ontology
 Datasets: `bird` (1,534q), `fdabench` (169q), `wideworldimporters` (41q,
 Postgres), `beaverbench` (MySQL). Output is deterministic, so regenerating is
 safe. `--limit N` takes a prefix; `--start-index` / `--end-index` slice, so a
-long run can be sharded or resumed.
+long run can be sharded or resumed. `--no-evidence` (`beaverbench` only) leaves
+each question's evidence out of both arms, as the BEAVER leaderboard's Setting 0
+does.
 
 Each build overwrites `data/tasks.jsonl`, which is the file the server config
 points at. That is deliberate: a per-dataset filename meant the config had to
