@@ -103,6 +103,51 @@ uv run python main.py --database-name beaverbench \
     --skip-ingest --skip-semantic --limit 10 --eval-workers 3
 ```
 
+### Long runs
+
+A full run can take a day or more. Ingest and compile with `main.py`, then build
+the tasks and run each arm with `scripts/run_gym_arm.sh`, so an arm can be
+resumed:
+
+```bash
+uv run python main.py --database-name beaverbench --skip-eval
+
+# Gym caches metrics beside the task file; a rebuild with a different question
+# count must clear them first.
+rm -f resources_servers/{schema_only_sql,auto_ontology_sql}/data/tasks_{metrics,metrics_conflict}.json \
+      resources_servers/{schema_only_sql,auto_ontology_sql}/data/tasks_prepare.jsonl
+uv run python scripts/build_gym_tasks.py --dataset beaverbench --arm schema_only
+uv run python scripts/build_gym_tasks.py --dataset beaverbench --arm auto_ontology
+
+GYM_CONCURRENCY=5 scripts/run_gym_arm.sh schema_only_sql runs/control/beaverbench.jsonl
+GYM_CONCURRENCY=5 scripts/run_gym_arm.sh auto_ontology_sql runs/treatment/beaverbench.jsonl \
+    --max-output-tokens 16 \
+    +auto_ontology_sql_resources_server.resources_servers.auto_ontology_sql.max_concurrency=5
+
+uv run python -m ontology_sql_eval.gym.compare \
+    --control runs/control/beaverbench.jsonl \
+    --treatment runs/treatment/beaverbench.jsonl
+```
+
+The ontology arm ignores the policy model's answer, so `--max-output-tokens 16`
+keeps that call from competing for the rate limit, and `max_concurrency` lifts
+the arm's own limit, which is 3 by default.
+
+- A question whose run fails, for example on a burst of rate limits, is
+  recorded in `runs/<arm>/beaverbench_failures.jsonl` and the run goes on.
+- To finish it, run the same command again with `--resume`. Questions already
+  done are kept; failed and unfinished ones are retried, up to
+  `NEMO_GYM_MAX_ROLLOUT_ATTEMPTS` (default 3) attempts each. Without `--resume`,
+  the command starts over and deletes the arm's earlier results.
+- Until then Gym's metrics count each failed question as a miss, and the
+  comparison refuses to report while any question has no result. A published
+  number should come from a run with none left.
+
+After the Auto Ontology pin changes (a pull and `uv sync`), set
+`GYM_REBUILD_VENV=1` for the next run of the ontology arm. The script rebuilds a
+server venv on its own only when nemo-gym, ray or openai differ, so it would
+otherwise keep running the old Auto Ontology.
+
 ## Scoring
 
 Both arms are scored with BEAVER's official execution accuracy (`ex_acc`), ported

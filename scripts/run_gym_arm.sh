@@ -17,6 +17,14 @@
 # Concurrency defaults to 3: the sk- inference-api key rate-limits hard above
 # that, and Auto Ontology's retry turns a 429 into empty SQL rather than a visible error.
 # 10 is measured-safe on the sk- key across two full 1,534-question runs.
+#
+# A question whose /run fails is recorded in <output stem>_failures.jsonl and the
+# run goes on, rather than one rate-limit burst ending a day-long run. Re-run the
+# same command with --resume to retry the failed questions (up to
+# NEMO_GYM_MAX_ROLLOUT_ATTEMPTS, default 3, each) and the ones never finished,
+# keeping everything already done. Until then Gym's metrics count each failed
+# question as a miss, and ontology_sql_eval/gym/compare.py refuses to report
+# while any remain.
 set -euo pipefail
 
 SERVER="${1:?usage: run_gym_arm.sh <resources-server> <output.jsonl> [args...]}"
@@ -82,6 +90,14 @@ fi
 # environment when the config is read. DEFAULT_MODELS_API_KEY is exported above,
 # so Gym's child processes inherit it either way.
 GYM_FLAGS=('+policy_api_key=${oc.env:DEFAULT_MODELS_API_KEY}')
+
+# Keep going past a failed /run (see the header), and score what failed or never
+# ran as a miss, so the metrics cannot read higher than the run earned.
+GYM_FLAGS+=(
+  +route_failures_to_sidecar=true
+  '+count_failure_classes_as_zero=[agent_run_error,agent_request_failed]'
+  +count_missing_rollouts_as_zero=true
+)
 
 # Reuse the server venv Gym already built. Rebuilding costs minutes.
 #

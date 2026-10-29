@@ -139,6 +139,14 @@ so otherwise the new pins silently never take effect. The one exception is
 checked for you: when a server venv's nemo-gym or Ray differs from `.venv`'s, the
 script rebuilds without being asked, since either mismatch breaks the run.
 
+A question whose `/run` fails, on a burst of rate limits say, does not end the
+run: `run_gym_arm.sh` passes `+route_failures_to_sidecar=true`, so Gym records
+the failure in `<output stem>_failures.jsonl` and goes on. Re-run the same
+command with `--resume` to retry the failed questions and finish any that never
+ran, keeping the rest; without it the run starts over. Until then Gym's metrics
+count each failed or missing question as a miss (`count_failure_classes_as_zero`,
+`count_missing_rollouts_as_zero`), and `gym/compare.py` refuses to report.
+
 Gym builds each server venv with `uv pip install` run from inside this repo, so uv
 also applies the root `pyproject.toml`'s `[tool.uv] override-dependencies` there.
 That is deliberate: it is how the server venvs get the CVE floors without a second
