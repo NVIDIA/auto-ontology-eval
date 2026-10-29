@@ -161,6 +161,11 @@ reported both with and without empty-gold questions
 
 No LLM judge is involved.
 
+The seed script fills each question's `evidence` from BEAVER's domain
+knowledge, and both arms see it by default. The leaderboard's Setting 0 gives no
+hints, so pass `--no-evidence` to `main.py` or `scripts/build_gym_tasks.py` for
+a number comparable with it. Only `beaverbench` takes the flag.
+
 ## Notes
 
 - Only `ex_acc` is ported, not the official BEAVER coarse/fine-grained
