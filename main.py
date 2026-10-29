@@ -210,6 +210,7 @@ def stage_benchmark(
     sql_examples_min_score: float | None = None,
     value_anchors_csv: str | None = None,
     reuse_control: bool = False,
+    evidence: bool = True,
 ) -> None:
     """Run the NeMo Gym benchmark: both arms over the dataset, then compare.
 
@@ -225,6 +226,9 @@ def stage_benchmark(
     inputs to the ontology arm. The control arm cannot be given an equivalent,
     so a delta measured with them set covers those inputs **as well as** the
     ontology grounding -- which is why they are off unless asked for.
+
+    *evidence* ``False`` leaves each question's evidence out of both arms, as
+    the BEAVER leaderboard's Setting 0 does.
     """
     from ontology_sql_eval.gym.compare import compare
     from ontology_sql_eval.gym.tasks import (
@@ -264,6 +268,7 @@ def stage_benchmark(
                 DATASETS[database_name],
                 root,
                 arm,
+                evidence=evidence,
                 limit=limit,
                 start_index=start_index,
                 end_index=end_index,
@@ -396,6 +401,14 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "match the current task set. Run the control when no matching output exists."
         ),
     )
+    parser.add_argument(
+        "--no-evidence",
+        action="store_true",
+        help=(
+            "Leave BEAVER's evidence (its domain-knowledge hints) out of both arms, "
+            "as the BEAVER leaderboard's Setting 0 does. beaverbench only."
+        ),
+    )
     extra_prompts = parser.add_argument_group(
         "extra prompts (ontology arm only)",
         "Question-keyed inputs attached to the ontology arm's payload. The "
@@ -430,7 +443,16 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="CSV of question-keyed value anchors, e.g. "
         "inputs/extra_prompts/bird/value_anchors.csv",
     )
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    # Checked here, not when the tasks are built: that comes after the ingest
+    # and the semantic compile.
+    if args.no_evidence:
+        from ontology_sql_eval.gym.tasks import EVIDENCE_OPTIONAL
+
+        if args.database_name not in EVIDENCE_OPTIONAL:
+            only = ", ".join(sorted(EVIDENCE_OPTIONAL))
+            parser.error(f"--no-evidence is only for {only}, not {args.database_name}")
+    return args
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -469,6 +491,7 @@ def main(argv: list[str] | None = None) -> None:
             sql_examples_min_score=args.sql_examples_min_score,
             value_anchors_csv=args.value_anchors_csv,
             reuse_control=args.reuse_control,
+            evidence=not args.no_evidence,
         )
 
 
