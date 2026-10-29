@@ -181,6 +181,10 @@ def build_records(
     ``evidence=False`` leaves each question's evidence out of both arms. The
     command lines offer it only for the datasets in ``EVIDENCE_OPTIONAL``.
     """
+    # This branch is for the BEAVER leaderboard run, which gives no hints
+    # (Setting 0): BEAVER tasks never carry evidence here, flag or not.
+    if spec.name in EVIDENCE_OPTIONAL:
+        evidence = False
     questions = load_questions(spec, root)
     stop = end_index if end_index is not None else len(questions)
     questions = questions[start_index:stop]

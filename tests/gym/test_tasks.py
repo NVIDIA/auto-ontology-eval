@@ -46,11 +46,12 @@ def _prompt(record: dict[str, Any]) -> str:
     return record["responses_create_params"]["input"][-1]["content"]
 
 
-def test_beaver_tasks_keep_their_evidence_by_default(root: Path) -> None:
+def test_beaver_tasks_never_carry_evidence_on_this_branch(root: Path) -> None:
+    # The BEAVER leaderboard run gives no hints (Setting 0), flag or not.
     [record] = build_records(DATASETS["beaverbench"], root, "auto_ontology")
 
-    assert record["evidence"] == QUESTION["evidence"]
-    assert f"### Evidence\n{QUESTION['evidence']}" in _prompt(record)
+    assert record["evidence"] == ""
+    assert "Evidence" not in _prompt(record)
 
 
 def test_no_evidence_leaves_it_out_of_the_prompt_and_the_task(root: Path) -> None:

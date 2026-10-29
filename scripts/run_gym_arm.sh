@@ -44,6 +44,13 @@ set -a
 . ./.env
 set +a
 
+# This branch is for the BEAVER leaderboard run. The agent runs on the models
+# measured for it, whatever .env says: Claude Opus 5.5 to reason and Sonnet 5.5
+# for the rest. The semantic compile (main.py) does not go through this script,
+# so it keeps .env's models, or Auto Ontology's defaults (Opus 4.8 to reason).
+export REASONING_MODEL=aws/anthropic/bedrock-claude-opus-5-5
+export NON_REASONING_MODEL=aws/anthropic/bedrock-claude-sonnet-5-5
+
 # The schema-only arm imports ontology_sql_eval.gym.* (the shared executors and
 # grader) but deliberately does not install this project, since that would pull
 # in Auto Ontology. It finds the package through this PYTHONPATH entry: Gym puts
@@ -98,6 +105,11 @@ GYM_FLAGS+=(
   '+count_failure_classes_as_zero=[agent_run_error,agent_request_failed]'
   +count_missing_rollouts_as_zero=true
 )
+
+# Gym gives its servers 10 minutes to come up, and that includes building their
+# venvs. Rebuilding the Auto Ontology server after a pin change, or building
+# every server from a cold uv cache, can take longer.
+GYM_FLAGS+=('++server_spinup_timeout_seconds=1800')
 
 # Reuse the server venv Gym already built. Rebuilding costs minutes.
 #
