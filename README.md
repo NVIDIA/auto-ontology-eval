@@ -413,7 +413,9 @@ endpoint.
 > Read the `health/*` counters next to the accuracy. A rate-limited or otherwise
 > broken run scores near zero and is indistinguishable from a weak model;
 > `ontology_sql_eval/gym/compare.py` refuses to print a headline number when more than 5% of tasks
-> failed that way.
+> failed that way. It also refuses while any question has no result:
+> `run_gym_arm.sh` records a failed question in `<output stem>_failures.jsonl`
+> and keeps going, and the same command re-run with `--resume` finishes it.
 
 > [!NOTE]
 > BIRD databases live under `datasets/bird/dev/<db_id>/`. A seed made before that
