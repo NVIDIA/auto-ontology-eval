@@ -212,7 +212,7 @@ set -m  # job control: the background job gets its own process group
   --split validation \
   --output "$OUTPUT" \
   --concurrency "${GYM_CONCURRENCY:-3}" \
-  --model "${GYM_MODEL:-aws/anthropic/bedrock-claude-opus-4-8}" \
+  --model "${GYM_MODEL:-azure/anthropic/claude-opus-5-5}" \
   --model-url "${GYM_MODEL_URL:-https://inference-api.nvidia.com/v1}" \
   "${GYM_FLAGS[@]}" \
   "$@" &
