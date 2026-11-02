@@ -11,6 +11,7 @@ import time
 import uuid
 import warnings
 from contextlib import asynccontextmanager
+from functools import partial
 from pathlib import Path
 from typing import Any, Dict
 
@@ -43,7 +44,7 @@ from auto_ontology.retrieval.interactive import (  # noqa: E402
     apply_submit_result as auto_ontology_apply_submit_result,
 )
 from . import bird_interact_http as bird_http  # noqa: E402
-from .budget import MAX_AGENT_STEPS, Budget  # noqa: E402
+from .budget import MAX_AGENT_STEPS, Budget, MeteredConnector  # noqa: E402
 from .known_issues import is_p1snap_collision  # noqa: E402
 from .session import AdapterSession, get_session, put_session  # noqa: E402
 
@@ -317,6 +318,21 @@ def _entity_fields(sess: AdapterSession) -> dict[str, list]:
     }
 
 
+def _record_query(sess: AdapterSession, sql: str, charged: bool) -> None:
+    """Log one of Auto Ontology's own queries in the a-Interact trajectory."""
+    budget = sess.budget
+    assert budget is not None
+    sess.tool_trajectory.append(
+        {
+            "tool": "execute_sql",
+            "phase": sess.phase,
+            "input": {"sql": sql[:2000]},
+            "charged": charged,
+            "budget_after": budget.remaining,
+        }
+    )
+
+
 def _exec_error(submit_message: str) -> str | None:
     if "[exec_err_flg]" in submit_message:
         return submit_message.split("[exec_err_flg]", 1)[-1].strip()
@@ -349,14 +365,14 @@ async def _run_ainteract_session(sess: AdapterSession, req: RunSessionRequest) -
     )
     debug_error: str | None = None
     follow_up_question: str | None = None
-    phase = 1
+    sess.phase = 1
     submitted_this_phase: set[str] = set()
     phase_secs: dict[int, float] = {}
     t_phase = t_start = time.time()
     stop_reason = "max_agent_steps"
 
     for turn in range(1, MAX_AGENT_STEPS + 1):
-        if phase == 1:
+        if sess.phase == 1:
             # Auto Ontology asks while its history is under max_clarify_turns,
             # so keep that at what the budget can still pay for.
             auto_ontology.max_clarify_turns = (
@@ -384,7 +400,7 @@ async def _run_ainteract_session(sess: AdapterSession, req: RunSessionRequest) -
                 "[turn %d | %.1fs | P%d | budget %.1f] ASK: %s",
                 turn,
                 elapsed,
-                phase,
+                sess.phase,
                 budget.remaining,
                 action.question,
             )
@@ -401,7 +417,7 @@ async def _run_ainteract_session(sess: AdapterSession, req: RunSessionRequest) -
             sess.tool_trajectory.append(
                 {
                     "tool": "ask_user",
-                    "phase": phase,
+                    "phase": sess.phase,
                     "input": {"question": action.question},
                     "output": {"answer": answer},
                     "budget_after": budget.remaining,
@@ -421,7 +437,7 @@ async def _run_ainteract_session(sess: AdapterSession, req: RunSessionRequest) -
             # The grader is deterministic, so a resubmission can only fail again.
             stop_reason = "repeated_sql"
             logger.info(
-                "[turn %d] P%d debug produced an already-failed SQL", turn, phase
+                "[turn %d] P%d debug produced an already-failed SQL", turn, sess.phase
             )
             break
         submitted_this_phase.add(action.sql)
@@ -430,7 +446,7 @@ async def _run_ainteract_session(sess: AdapterSession, req: RunSessionRequest) -
             "[turn %d | %.1fs | P%d | budget %.1f] SUBMIT:\n%s",
             turn,
             elapsed,
-            phase,
+            sess.phase,
             budget.remaining,
             action.sql,
         )
@@ -448,7 +464,7 @@ async def _run_ainteract_session(sess: AdapterSession, req: RunSessionRequest) -
         sess.tool_trajectory.append(
             {
                 "tool": "submit_sql",
-                "phase": phase,
+                "phase": sess.phase,
                 "input": {"sql": action.sql},
                 "output": result,
                 "budget_after": budget.remaining,
@@ -458,7 +474,7 @@ async def _run_ainteract_session(sess: AdapterSession, req: RunSessionRequest) -
 
         phase_completed = result.get("phase_completed")
         if phase_completed is not None:
-            phase_secs[phase] = time.time() - t_phase
+            phase_secs[sess.phase] = time.time() - t_phase
             t_phase = time.time()
         if phase_completed == 1:
             sess.phase1_completed = True
@@ -467,7 +483,7 @@ async def _run_ainteract_session(sess: AdapterSession, req: RunSessionRequest) -
                 stop_reason = "done"
                 break
             await bird_http.phase_transition(req.task_id)
-            phase = 2
+            sess.phase = 2
             submitted_this_phase = set()
             turn_type = TurnType.FOLLOW_UP
             follow_up_question = result.get("follow_up_query", "")
@@ -485,8 +501,8 @@ async def _run_ainteract_session(sess: AdapterSession, req: RunSessionRequest) -
             stop_reason = "budget_exhausted"
             break
 
-    if phase not in phase_secs:
-        phase_secs[phase] = time.time() - t_phase
+    if sess.phase not in phase_secs:
+        phase_secs[sess.phase] = time.time() - t_phase
     logger.info(
         "[done] %s | P1=%s P2=%s reward=%.2f budget=%.1f/%.1f stop=%s (%.1fs)",
         req.task_id,
@@ -561,7 +577,21 @@ async def init_session(req: InitSessionRequest):
     if not connectors:
         logger.warning("[session] no connector for db=%r", db_name)
 
-    auto_ontology_session = auto_ontology_create_session(
+    sess = AdapterSession(
+        task_id=req.task_id,
+        mode=req.mode,
+        session_id=session_id,
+        bird_state=req.state,
+        max_turn=max_turn,
+        budget=budget,
+    )
+    if budget is not None:
+        connectors = [
+            MeteredConnector(c, budget, partial(_record_query, sess))
+            for c in connectors
+        ]
+
+    sess.auto_ontology_session = auto_ontology_create_session(
         session_id=session_id,
         task_id=req.task_id,
         db_name=db_name,
@@ -577,16 +607,6 @@ async def init_session(req: InitSessionRequest):
         # BIRD-Interact answers are graded by a result checker, so enable cast
         # rewriting / numeric type flip on the debug attempt.
         numeric_type_alignment=True,
-    )
-
-    sess = AdapterSession(
-        task_id=req.task_id,
-        mode=req.mode,
-        session_id=session_id,
-        bird_state=req.state,
-        auto_ontology_session=auto_ontology_session,
-        max_turn=max_turn,
-        budget=budget,
     )
     put_session(sess)
     if budget is not None:

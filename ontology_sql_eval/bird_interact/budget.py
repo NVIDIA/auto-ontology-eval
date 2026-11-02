@@ -4,17 +4,21 @@ The a-interact orchestrator (orchestrator/ainteract.py in the reference ADK)
 hands the system agent a per-task budget and nothing else; the agent's own
 callbacks (system_agent/callbacks.py) then charge every tool call against it.
 Grading never checks the budget — it only bounds how many asks, schema/KB
-lookups and submissions the agent gets — so matching those callbacks' rules
-exactly is what keeps our numbers comparable with other a-Interact agents.
+lookups, queries and submissions the agent gets — so matching those
+callbacks' rules exactly is what keeps our numbers comparable with other
+a-Interact agents.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import threading
+from dataclasses import dataclass, field
+from typing import Any, Callable
 
 # Same costs as TOOL_COSTS in the reference system_agent/callbacks.py, limited
 # to the tools this adapter actually calls.
 TOOL_COSTS = {
+    "execute_sql": 1.0,
     "get_schema": 1.0,
     "get_all_knowledge_definitions": 1.0,
     "ask_user": 2.0,
@@ -25,10 +29,19 @@ TOOL_COSTS = {
 MAX_AGENT_STEPS = 60
 
 
+class BudgetExhausted(RuntimeError):
+    """A query the remaining budget can't pay for; the reference tool refuses it too."""
+
+
 @dataclass
 class Budget:
     initial: float
     remaining: float
+    # Auto Ontology can run queries from worker threads mid-step (see
+    # MeteredConnector), so charges are serialized.
+    _lock: threading.Lock = field(
+        default_factory=threading.Lock, repr=False, compare=False
+    )
 
     @classmethod
     def start(cls, initial: float) -> "Budget":
@@ -48,17 +61,56 @@ class Budget:
         balance can't cover is refused.
         """
         cost = TOOL_COSTS[tool]
-        if self.remaining < cost:
-            if tool == "submit_sql":
+        with self._lock:
+            if self.remaining < cost:
+                if tool == "submit_sql":
+                    self.remaining = -1.0
+                    return True
+                return False
+            self.remaining -= cost
+            if tool == "submit_sql" and self.remaining <= 0:
                 self.remaining = -1.0
-                return True
-            return False
-        self.remaining -= cost
-        if tool == "submit_sql" and self.remaining <= 0:
-            self.remaining = -1.0
-        return True
+            return True
 
     def affordable_asks(self) -> int:
         """Asks that still leave enough for one submission afterwards."""
         spare = self.remaining - TOOL_COSTS["submit_sql"]
         return max(0, int(spare // TOOL_COSTS["ask_user"]))
+
+
+class MeteredConnector:
+    """A connector whose queries are charged as the reference's execute_sql.
+
+    Auto Ontology queries the database itself while it grounds values and
+    validates SQL. The reference agent can only do that through execute_sql
+    at 1 coin a query, so each execute() here is charged the same, and one the
+    budget can't cover raises BudgetExhausted instead of running. Everything
+    else (schema introspection, qualify, ...) passes through uncharged, as the
+    reference charges its schema once through get_schema.
+
+    *on_query* is told about every query, charged or refused, so the session
+    can record it in its trajectory.
+    """
+
+    def __init__(
+        self,
+        base: Any,
+        budget: Budget,
+        on_query: Callable[[str, bool], None],
+    ) -> None:
+        self._base = base
+        self._budget = budget
+        self._on_query = on_query
+
+    def execute(self, sql: str, *args: Any, **kwargs: Any) -> Any:
+        charged = self._budget.charge("execute_sql")
+        self._on_query(sql, charged)
+        if not charged:
+            raise BudgetExhausted(
+                f"Budget exhausted ({self._budget.remaining:.1f} remaining); "
+                "query refused."
+            )
+        return self._base.execute(sql, *args, **kwargs)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._base, name)

@@ -895,3 +895,59 @@ def test_ainteract_stops_instead_of_resubmitting_a_failed_sql():
 
     assert state["stop_reason"] == "repeated_sql"
     assert state["budget_remaining"] == 20.0 - 2.0 - 3.0
+
+
+def test_metered_connector_charges_queries_and_refuses_unaffordable_ones():
+    from ontology_sql_eval.bird_interact.budget import (
+        Budget,
+        BudgetExhausted,
+        MeteredConnector,
+    )
+
+    base = MagicMock(database_name="alien")
+    seen = []
+    conn = MeteredConnector(
+        base, Budget.start(1.5), lambda sql, charged: seen.append((sql, charged))
+    )
+
+    conn.execute("SELECT 1", timeout_s=5)
+    base.execute.assert_called_once_with("SELECT 1", timeout_s=5)
+    with pytest.raises(BudgetExhausted):
+        conn.execute("SELECT 2")
+    assert base.execute.call_count == 1
+    assert seen == [("SELECT 1", True), ("SELECT 2", False)]
+    # Everything but execute() passes through uncharged.
+    assert conn.database_name == "alien"
+
+
+def test_ainteract_charges_auto_ontology_queries_as_execute_sql():
+    mock_sess = MagicMock(clarify_history=[])
+    captured = {}
+
+    def create_session(**kwargs):
+        captured.update(kwargs)
+        return mock_sess
+
+    def step(*_args, **_kwargs):
+        captured["connectors"][0].execute("SELECT DISTINCT planet FROM aliens")
+        return SubmitSQLAction("SELECT 1")
+
+    passed = {
+        "passed": True,
+        "reward": 0.7,
+        "phase_completed": 1,
+        "has_follow_up": False,
+        "message": "Phase 1 correct!",
+    }
+    ctx = list(_ainteract_ctx(mock_sess, step, [passed]))
+    ctx[3] = patch.object(
+        server_mod, "auto_ontology_create_session", side_effect=create_session
+    )
+
+    state = _run_ainteract(ctx, budget=20.0)
+
+    # 2 (schema + KB) + 1 (query) + 3 (submit)
+    assert state["budget_remaining"] == 14.0
+    query = state["tool_trajectory"][0]
+    assert query["tool"] == "execute_sql"
+    assert query["phase"] == 1 and query["charged"] is True

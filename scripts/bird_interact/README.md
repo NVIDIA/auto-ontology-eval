@@ -163,6 +163,7 @@ and its retries — and charges every action at the reference tool prices
 | Action | Cost |
 | --- | --- |
 | Schema + all KB definitions, bought once at session start | 1 + 1 |
+| Each query Auto Ontology runs against the database (`execute_sql`) | 1 |
 | `ask_user` | 2 |
 | `submit_sql` | 3 |
 
@@ -178,12 +179,15 @@ What differs from c-Interact:
 - **Budget rules match the reference callbacks.** A submission is allowed even
   when the balance can't cover it, as the final action. One that spends the
   balance to zero also ends the task, even after a Phase 1 pass.
-- Auto Ontology's own probe queries against its connectors are **not** charged
-  — the reference charges `execute_sql` at 1 coin, but those queries never go
-  through the DB environment.
+- **Auto Ontology's own queries are charged as `execute_sql`.** Each session
+  gets its connectors wrapped in `MeteredConnector` (`budget.py`), which
+  charges every `execute()` 1 coin and refuses one the balance can't cover,
+  as the reference tool does. They still run against the base database
+  directly, not through the DB environment. Schema introspection on the
+  connector stays free, since the schema was already bought.
 
-Output records carry `initial_budget`, `budget_used`, per-phase submission
-counts and a `stop_reason` (`done`, `budget_exhausted`, `repeated_sql`, ...)
+Output records carry `initial_budget`, `budget_used`, charged and refused
+query counts (`queries`, `queries_refused`), per-phase submission counts and a `stop_reason` (`done`, `budget_exhausted`, `repeated_sql`, ...)
 in place of c-Interact's debug columns. The default output stem is
 `ainteract_query_all`. `analyze_bird_interact.py` reads c-Interact records
 only.

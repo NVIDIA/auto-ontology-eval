@@ -75,6 +75,8 @@ AINTERACT_CSV_COLUMNS = [
     "initial_budget",
     "budget_used",
     "turns_used",
+    "queries",
+    "queries_refused",
     "phase1_passed",
     "phase1_submits",
     "phase2_passed",
@@ -424,6 +426,8 @@ def _ainteract_record(task: dict, dataset_label: str) -> dict[str, Any]:
         "initial_budget": ainteract_budget(task),
         "budget_used": None,
         "turns_used": None,
+        "queries": 0,
+        "queries_refused": 0,
         "phase1_passed": False,
         "phase1_submits": 0,
         "phase2_passed": None,
@@ -521,12 +525,15 @@ def run_task_ainteract(
         ]
         for phase in (1, 2)
     }
+    queries = [t for t in trajectory if t["tool"] == "execute_sql"]
     p1_pass = state.get("phase1_completed", False)
     remaining = state.get("budget_remaining", budget)
     record.update(
         {
             "budget_used": budget - max(0.0, remaining),
             "turns_used": len(state.get("dialogue_history", [])) // 2,
+            "queries": sum(t["charged"] for t in queries),
+            "queries_refused": sum(not t["charged"] for t in queries),
             "phase1_passed": p1_pass,
             "phase1_submits": len(submits[1]),
             "phase2_passed": (
@@ -889,7 +896,7 @@ def main() -> None:
                 p1 = "PASS" if record["phase1_passed"] else "FAIL"
                 print(
                     f"  Phase 1: {p1}  submits={record['phase1_submits']}  "
-                    f"asks={record['turns_used']}"
+                    f"asks={record['turns_used']}  queries={record['queries']}"
                 )
                 if record["phase2_passed"] is not None:
                     p2 = "PASS" if record["phase2_passed"] else "FAIL"

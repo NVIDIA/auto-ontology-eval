@@ -45,6 +45,9 @@ class AdapterSession:
     # a-Interact only: the bird-coin ledger (see budget.py). None in c-Interact,
     # whose only limit is max_turn.
     budget: Budget | None = None
+    # a-Interact only: the phase being worked on, so queries Auto Ontology runs
+    # mid-step can be recorded against it.
+    phase: int = 1
     # Conversation history (returned to orchestrator)
     dialogue_history: list = field(default_factory=list)
     tool_trajectory: list = field(default_factory=list)
