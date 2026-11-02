@@ -378,11 +378,7 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
             # predates the parameter this is an inert extra key rather than an
             # error -- it simply has no effect.
             "shorten_answer": True,
-            # Enables the validate_sql_values node, which checks filter literals
-            # against the database before the SQL is accepted. Costly -- it is the
-            # single largest contributor to wall clock -- but the legacy harness
-            # runs with it, so omitting it makes the two arms incomparable.
-            "validate_sql_values": True,
+            "validate_sql_values": False,
         }
         if _SUPPORTS_EVIDENCE:
             payload["evidence"] = evidence

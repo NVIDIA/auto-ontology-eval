@@ -272,14 +272,15 @@ That instruction is not cosmetic: extra columns fail `set(gold) == set(pred)`
 outright, so giving it to one arm only would measure projection guidance rather
 than ontology grounding.
 
-The Auto Ontology arm also has to carry `calculation_only=True` and
-`validate_sql_values=True`, which are not comparability knobs but parity with
-the single-arm harness this arm replaced, whose numbers it was checked against.
-The first pins the intent to CALCULATION (every BIRD
-question is answered by running SQL, so letting the classifier route elsewhere
-only creates ways to lose); the second enables the `validate_sql_values` node,
-which checks filter literals against the database. Omitting them is not visible
-in the rollouts, only in the node trace, and cost about two points.
+The Auto Ontology arm also has to carry `calculation_only=True`, which is not a
+comparability knob but parity with the single-arm harness this arm replaced,
+whose numbers it was checked against. It pins the intent to CALCULATION (every
+BIRD question is answered by running SQL, so letting the classifier route
+elsewhere only creates ways to lose). Omitting it is not visible in the
+rollouts, only in the node trace.
+
+`validate_sql_values`, the node that checks filter literals against the
+database, is off.
 
 ### Extra prompts are off by default
 
