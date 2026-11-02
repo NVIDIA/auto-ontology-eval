@@ -65,7 +65,9 @@ This sparse-clones the upstream ADK repo (`github.com/bird-bench/BIRD-Interact`,
 ADK code + Docker `env/` only) into `third_party/BIRD-Interact/`, downloads the
 task JSONL from HuggingFace (`birdsql/bird-interact-<variant>`), and builds
 `datasets/bird_interact[_full]/` (public JSONL, combined JSONL, `manifest.json`,
-`gt/` placeholder). `--dataset` is required, no default. Use `--force` to
+`gt/` placeholder, and a `<db>/metadata.json` per database built from the
+upstream column meanings — see [Column meanings](#column-meanings)).
+`--dataset` is required, no default. Use `--force` to
 re-download.
 
 ## 2. Get Ground Truth (GT)
@@ -149,6 +151,21 @@ Recommended for long runs (prevents the Mac from sleeping mid-run):
 ```bash
 caffeinate -i uv run python scripts/bird_interact/run_all_bird_interact.py --output my_run_name
 ```
+
+## Column meanings
+
+The seeder turns each database's upstream `<db>_column_meaning_base.json`
+into `datasets/bird_interact[_full]/<db>/metadata.json`, which ingestion
+stamps onto the catalog as column descriptions, so they reach Auto
+Ontology's semantic layer and embeddings. JSONB columns keep their per-field
+meanings as `field.path: meaning` lines. Run
+`main.py --database-name bird_interact --skip-eval` (or `bird_interact_full`)
+after seeding to ingest them.
+
+In a-Interact the reference agent pays for these (`get_all_column_meanings`,
+1 coin); building them into the ontology gives them to Auto Ontology free on
+every task. Report a-Interact numbers as "ontology built with the dataset's
+column documentation".
 
 ## a-Interact
 

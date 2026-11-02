@@ -332,6 +332,62 @@ def _combine_public_with_gt(public_path: Path, gt_path: Path, output_path: Path)
     return combined
 
 
+def _column_meaning_text(meaning: object) -> str:
+    """Flatten one column-meaning entry into a single description.
+
+    Most entries are plain text. A JSONB column's entry is a dict holding the
+    column's own meaning plus a (possibly nested) meaning per field; those are
+    kept as ``path: meaning`` lines so the field semantics survive.
+    """
+    if not isinstance(meaning, dict):
+        return str(meaning)
+    lines = [str(meaning.get("column_meaning", "")).strip()]
+
+    def walk(fields: dict, prefix: str) -> None:
+        for name, value in fields.items():
+            if isinstance(value, dict):
+                walk(value, f"{prefix}{name}.")
+            else:
+                lines.append(f"{prefix}{name}: {value}")
+
+    walk(meaning.get("fields_meaning") or {}, "")
+    return "\n".join(line for line in lines if line)
+
+
+def _write_column_metadata(variant: str, db_names: list[str], dest: Path) -> int:
+    """Write each database's ``<db>/metadata.json`` from its column meanings.
+
+    The upstream ``<db>_column_meaning_base.json`` (keys ``db|table|column``)
+    becomes the metadata.json that ingestion's apply_metadata stamps onto the
+    catalog, so the ontology carries the dataset's own column documentation.
+    Names are lowercased to match the Postgres catalog. Returns the number of
+    databases written.
+    """
+    written = 0
+    for db_name in db_names:
+        src = _data_root(variant) / db_name / f"{db_name}_column_meaning_base.json"
+        if not src.is_file():
+            logger.warning("No column meanings for %s at %s", db_name, src)
+            continue
+        tables: dict[str, list[dict[str, str]]] = {}
+        for key, meaning in json.loads(src.read_text()).items():
+            _db, table, column = key.lower().split("|")
+            tables.setdefault(table, []).append(
+                {"name": column, "description": _column_meaning_text(meaning)}
+            )
+        out = dest / db_name / "metadata.json"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(
+            json.dumps(
+                {table: {"columns": cols} for table, cols in tables.items()},
+                indent=2,
+            )
+            + "\n"
+        )
+        written += 1
+    return written
+
+
 def _build_datasets(
     variant: str, *, upstream_commit: str | None = None, force: bool = False
 ) -> dict:
@@ -396,6 +452,15 @@ def _build_datasets(
             _gt_dir(variant) / GT_JSONL_NAME,
             dest.relative_to(_repo_root()),
         )
+
+    # --- per-database column meanings, as ingestion metadata ---
+    n_metadata = _write_column_metadata(variant, db_names, dest)
+    logger.info(
+        "Wrote column-meaning metadata.json for %d/%d databases under %s",
+        n_metadata,
+        len(db_names),
+        dest.relative_to(_repo_root()),
+    )
 
     # --- manifest ---
     manifest: dict = {
