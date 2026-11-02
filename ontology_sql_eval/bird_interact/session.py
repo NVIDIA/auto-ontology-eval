@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from .budget import Budget
+
 
 @dataclass
 class AdapterSession:
@@ -40,6 +42,9 @@ class AdapterSession:
     # here so /run_session can bound its own clarification loop rather than
     # trusting Auto Ontology to always stop asking.
     max_turn: int = 5
+    # a-Interact only: the bird-coin ledger (see budget.py). None in c-Interact,
+    # whose only limit is max_turn.
+    budget: Budget | None = None
     # Conversation history (returned to orchestrator)
     dialogue_history: list = field(default_factory=list)
     tool_trajectory: list = field(default_factory=list)

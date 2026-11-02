@@ -7,6 +7,9 @@
 
 Runs all (or a filtered subset of) query-category tasks sequentially through the
 full c-Interact pipeline: init → phase1 [→ phase1 debug] → phase2 [→ phase2 debug].
+With --mode a-interact it runs the a-Interact protocol instead: one
+run_session call per task, in which the adapter spends a bird-coin budget on
+asks and submissions across both phases.
 
 Mirrors eval_bird_interact.py's per-task flow exactly, but:
   - Loops over multiple tasks automatically
@@ -29,6 +32,7 @@ Usage:
     caffeinate -i uv run python scripts/bird_interact/run_all_bird_interact.py --limit 10 --shuffle
     caffeinate -i uv run python scripts/bird_interact/run_all_bird_interact.py --difficulty challenging
     caffeinate -i uv run python scripts/bird_interact/run_all_bird_interact.py --phase-timeout 1200
+    caffeinate -i uv run python scripts/bird_interact/run_all_bird_interact.py --mode a-interact
 """
 
 from __future__ import annotations
@@ -63,6 +67,24 @@ USER_SIM_URL = "http://127.0.0.1:6001"
 DB_ENV_URL = "http://127.0.0.1:6002"
 
 PATIENCE = 3
+
+AINTERACT_CSV_COLUMNS = [
+    "instance_id",
+    "dataset",
+    "database",
+    "initial_budget",
+    "budget_used",
+    "turns_used",
+    "phase1_passed",
+    "phase1_submits",
+    "phase2_passed",
+    "phase2_submits",
+    "total_reward",
+    "exec_error_p1",
+    "exec_error_p2",
+    "stop_reason",
+    "error",
+]
 
 CSV_COLUMNS = [
     "instance_id",
@@ -162,9 +184,11 @@ def _append_jsonl(record: dict, path: Path) -> None:
         f.write(json.dumps(record) + "\n")
 
 
-def _append_csv(record: dict, path: Path, write_header: bool) -> None:
+def _append_csv(
+    record: dict, path: Path, write_header: bool, columns: list[str] = CSV_COLUMNS
+) -> None:
     with path.open("a", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=CSV_COLUMNS, extrasaction="ignore")
+        writer = csv.DictWriter(f, fieldnames=columns, extrasaction="ignore")
         if write_header:
             writer.writeheader()
         writer.writerow(record)
@@ -379,6 +403,168 @@ def run_task(
     return record
 
 
+def ainteract_budget(task: dict) -> float:
+    """The reference a-interact budget: 6 + 2 * ambiguities + 2 * patience.
+
+    Same formula as calculate_initial_budget() in the reference ADK's
+    orchestrator/ainteract.py.
+    """
+    n_critical = len(task.get("user_query_ambiguity", {}).get("critical_ambiguity", []))
+    n_knowledge = len(task.get("knowledge_ambiguity", []))
+    return 6.0 + 2.0 * (n_critical + n_knowledge) + 2.0 * PATIENCE
+
+
+def _ainteract_record(task: dict, dataset_label: str) -> dict[str, Any]:
+    """An a-Interact result record with nothing reached yet."""
+    return {
+        "instance_id": task["instance_id"],
+        "dataset": dataset_label,
+        "database": task["selected_database"],
+        "task_start_timestamp": time.time(),
+        "initial_budget": ainteract_budget(task),
+        "budget_used": None,
+        "turns_used": None,
+        "phase1_passed": False,
+        "phase1_submits": 0,
+        "phase2_passed": None,
+        "phase2_submits": 0,
+        "total_reward": 0.0,
+        "p1_sql": None,
+        "p2_sql": None,
+        "exec_error_p1": None,
+        "exec_error_p2": None,
+        "stop_reason": None,
+        "dialogue_history": [],
+        "tool_trajectory": [],
+        "initial_extracted_entities": [],
+        "extracted_entities": [],
+        "unresolved_entities_start": [],
+        "unresolved_entities_end": [],
+        "resolved_entities": [],
+        "timing": {"phase1_secs": None, "phase2_secs": None},
+        "error": None,
+    }
+
+
+def run_task_ainteract(
+    task: dict,
+    agent_url: str,
+    phase_timeout: float,
+    dataset_label: str,
+) -> dict[str, Any]:
+    """Run one task through the a-Interact protocol and return a result record.
+
+    Mirrors run_single_task() in the reference ADK's orchestrator/ainteract.py:
+    the services and the agent session are initialized, the agent gets the
+    query once, and everything after that happens inside one run_session call.
+    """
+    task_id = task["instance_id"]
+    db_name = task["selected_database"]
+    has_follow_up = bool((task.get("follow_up") or {}).get("sol_sql"))
+    record = _ainteract_record(task, dataset_label)
+    budget = record["initial_budget"]
+
+    payload = {
+        "task_id": task_id,
+        "task_data": {**task, "_interact_mode": "a-interact"},
+    }
+    post(f"{DB_ENV_URL}/init_task", payload)
+    post(f"{USER_SIM_URL}/init_task", payload)
+    try:
+        post(
+            f"{agent_url}/init_session",
+            {
+                "task_id": task_id,
+                "mode": "a-interact",
+                "state": {
+                    "task_id": task_id,
+                    "db_name": db_name,
+                    "user_query": task.get("amb_user_query", ""),
+                    "current_phase": 1,
+                    "budget_remaining": budget,
+                    "initial_budget": budget,
+                    "total_reward": 0.0,
+                    "dialogue_history": [],
+                    "tool_trajectory": [],
+                    "adk_events": [],
+                    "phase1_completed": False,
+                    "phase2_completed": False,
+                    "task_done": False,
+                },
+                "reset": True,
+            },
+            timeout=60.0,
+        )
+        message = (
+            f"Database: {db_name}\n"
+            f"Task ID: {task_id}\n\n"
+            f"User Query:\n{task.get('amb_user_query', '')}\n\n"
+            f"You have a budget of {budget:.1f} bird-coins. "
+            f"Use your tools to explore the database, clarify ambiguities with the user, "
+            f"and submit your final SQL efficiently."
+        )
+        state = post(
+            f"{agent_url}/run_session",
+            {"task_id": task_id, "mode": "a-interact", "message": message},
+            timeout=phase_timeout,
+        ).get("state", {})
+    finally:
+        try:
+            post(f"{DB_ENV_URL}/cleanup_task", {"task_id": task_id}, timeout=30.0)
+        except Exception:
+            pass
+
+    trajectory = state.get("tool_trajectory", [])
+    submits = {
+        phase: [
+            t for t in trajectory if t["tool"] == "submit_sql" and t["phase"] == phase
+        ]
+        for phase in (1, 2)
+    }
+    p1_pass = state.get("phase1_completed", False)
+    remaining = state.get("budget_remaining", budget)
+    record.update(
+        {
+            "budget_used": budget - max(0.0, remaining),
+            "turns_used": len(state.get("dialogue_history", [])) // 2,
+            "phase1_passed": p1_pass,
+            "phase1_submits": len(submits[1]),
+            "phase2_passed": (
+                state.get("phase2_completed", False)
+                if p1_pass and has_follow_up
+                else None
+            ),
+            "phase2_submits": len(submits[2]),
+            "total_reward": state.get("total_reward", 0.0),
+            "stop_reason": state.get("stop_reason"),
+            "dialogue_history": state.get("dialogue_history", []),
+            "tool_trajectory": trajectory,
+            "initial_extracted_entities": state.get("initial_extracted_entities", []),
+            "extracted_entities": state.get("extracted_entities", []),
+            "unresolved_entities_start": state.get("unresolved_entities_start", []),
+            "unresolved_entities_end": state.get("unresolved_entities_end", []),
+            "resolved_entities": state.get("resolved_entities", []),
+            "timing": {
+                "phase1_secs": state.get("timing_phase1_secs"),
+                "phase2_secs": state.get("timing_phase2_secs"),
+            },
+        }
+    )
+    for phase in (1, 2):
+        if submits[phase]:
+            last = submits[phase][-1]
+            record[f"p{phase}_sql"] = last["input"]["sql"]
+            record[f"exec_error_p{phase}"] = next(
+                (
+                    _exec_error(t["output"].get("message"))
+                    for t in submits[phase]
+                    if _exec_error(t["output"].get("message"))
+                ),
+                None,
+            )
+    return record
+
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 
@@ -392,9 +578,16 @@ def main() -> None:
         help="Path to bird_interact_data_with_gt.jsonl",
     )
     parser.add_argument(
+        "--mode",
+        choices=["c-interact", "a-interact"],
+        default="c-interact",
+        help="Interaction protocol (default: c-interact)",
+    )
+    parser.add_argument(
         "--output",
-        default="cinteract_query_all",
-        help="Output file stem (results/<stem>.jsonl + .csv)",
+        default=None,
+        help="Output file stem (results/<stem>.jsonl + .csv; default: "
+        "cinteract_query_all or ainteract_query_all, per --mode)",
     )
     parser.add_argument(
         "--limit", type=int, default=None, help="Max number of tasks to run"
@@ -460,6 +653,10 @@ def main() -> None:
         "--limit randomly from the remaining pool (space-separated)",
     )
     args = parser.parse_args()
+    ainteract = args.mode == "a-interact"
+    if args.output is None:
+        args.output = "ainteract_query_all" if ainteract else "cinteract_query_all"
+    csv_columns = AINTERACT_CSV_COLUMNS if ainteract else CSV_COLUMNS
 
     agent_url = f"http://127.0.0.1:{args.agent_port}"
     run_dir = RESULTS_DIR / args.output
@@ -496,7 +693,10 @@ def main() -> None:
     if not tasks:
         print("No tasks matched the given filters.", file=sys.stderr)
         sys.exit(1)
-    print(f"\nLoaded {len(tasks)} query-category tasks  (dataset: {dataset_label})")
+    print(
+        f"\nLoaded {len(tasks)} query-category tasks  "
+        f"(dataset: {dataset_label}, mode: {args.mode})"
+    )
     if args.difficulty:
         print(f"  difficulty filter: {args.difficulty}")
     if include_ids:
@@ -552,6 +752,26 @@ def main() -> None:
             )
             n_knowledge = len(task.get("knowledge_ambiguity", []))
             max_turn = n_critical + n_knowledge + PATIENCE
+
+            if ainteract:
+                print(
+                    f"[{i}/{len(tasks)}] {task_id}  db={db_name}  "
+                    f"budget={ainteract_budget(task):.1f}"
+                )
+                try:
+                    record = run_task_ainteract(
+                        task, agent_url, args.phase_timeout, dataset_label
+                    )
+                except Exception as exc:
+                    record = _ainteract_record(task, dataset_label)
+                    if isinstance(exc, httpx.TimeoutException):
+                        record["error"] = (
+                            f"timeout — timed out after {args.phase_timeout:.0f}s"
+                        )
+                    else:
+                        record["error"] = repr(exc)
+                    print(f"  ERROR: {record['error']}")
+                return i, task, max_turn, record
 
             print(f"[{i}/{len(tasks)}] {task_id}  db={db_name}  max_turn={max_turn}")
 
@@ -658,13 +878,32 @@ def main() -> None:
 
             # Write results immediately (safe on crash)
             _append_jsonl(record, jsonl_path)
-            _append_csv(record, csv_path, write_header=csv_is_new)
+            _append_csv(record, csv_path, write_header=csv_is_new, columns=csv_columns)
             csv_is_new = False
 
             # Terminal summary
             if record["error"]:
                 n_error += 1
                 print(f"  ERROR: {record['error']}  (skipped)")
+            elif ainteract:
+                p1 = "PASS" if record["phase1_passed"] else "FAIL"
+                print(
+                    f"  Phase 1: {p1}  submits={record['phase1_submits']}  "
+                    f"asks={record['turns_used']}"
+                )
+                if record["phase2_passed"] is not None:
+                    p2 = "PASS" if record["phase2_passed"] else "FAIL"
+                    print(f"  Phase 2: {p2}  submits={record['phase2_submits']}")
+                print(
+                    f"  reward={record['total_reward']:.2f}  "
+                    f"budget={record['budget_used']:.1f}/{record['initial_budget']:.1f}  "
+                    f"stop={record['stop_reason']}"
+                )
+                sum_reward += record["total_reward"]
+                if record["phase1_passed"] and record["phase2_passed"] is not False:
+                    n_pass += 1
+                else:
+                    n_fail += 1
             else:
                 p1 = "PASS" if record["phase1_passed"] else "FAIL"
                 debug_tag = (

@@ -252,7 +252,7 @@ for how to seed the database and run the full pipeline.
 ### BIRD-Interact
 
 Runs against Lite (~300 tasks / 18 DBs) and Full (600 tasks / 22 DBs)
-BIRD-Interact, c-Interact mode only, query-category tasks only. See
+BIRD-Interact, c-Interact and a-Interact modes, query-category tasks only. See
 **[scripts/bird_interact/README.md](scripts/bird_interact/README.md)** for seeding, GT,
 running, and results.
 

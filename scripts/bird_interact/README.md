@@ -6,7 +6,9 @@ ties them together and calls out the things that are easy to miss.
 
 ## Scope — read this first
 
-- **c-Interact only.** a-Interact is not implemented.
+- **c-Interact and a-Interact.** c-Interact is the default; a-Interact runs
+  through `run_all_bird_interact.py --mode a-interact` (see
+  [a-Interact](#a-interact) below). The other run scripts are c-Interact only.
 - **Query-category tasks only.** Management tasks are explicitly excluded —
   `scripts/bird_interact/run_all_bird_interact.py` hardcodes a `category == "query"` filter
   (`_load_tasks`, look for `# Hardcoded: query category only`). If you write a
@@ -147,6 +149,44 @@ Recommended for long runs (prevents the Mac from sleeping mid-run):
 ```bash
 caffeinate -i uv run python scripts/bird_interact/run_all_bird_interact.py --output my_run_name
 ```
+
+## a-Interact
+
+`--mode a-interact` follows the reference ADK's `orchestrator/ainteract.py`:
+one `run_session` call per task, carrying only the database name, the
+ambiguous query and a bird-coin budget of `6 + 2 × ambiguities + 2 × patience`
+(patience = 3). The adapter then runs the whole task inside that call —
+Phase 1, debug retries, the user simulator's phase transition, the follow-up
+and its retries — and charges every action at the reference tool prices
+(`ontology_sql_eval/bird_interact/budget.py`):
+
+| Action | Cost |
+| --- | --- |
+| Schema + all KB definitions, bought once at session start | 1 + 1 |
+| `ask_user` | 2 |
+| `submit_sql` | 3 |
+
+What differs from c-Interact:
+
+- **No fixed debug retry.** A phase keeps resubmitting while the budget lasts.
+  It stops early if a debug turn regenerates SQL that already failed, since a
+  resubmission would be graded the same.
+- **Asks are budget-bound.** Auto Ontology may ask while the remaining balance
+  still covers the ask plus one submission. Phase 2 still asks nothing.
+- **Reward ignores retries.** The grader awards 0.7 / 0.3 for a pass however
+  many submissions it took; c-Interact's 0.5 / 0.2 debug rewards don't apply.
+- **Budget rules match the reference callbacks.** A submission is allowed even
+  when the balance can't cover it, as the final action. One that spends the
+  balance to zero also ends the task, even after a Phase 1 pass.
+- Auto Ontology's own probe queries against its connectors are **not** charged
+  — the reference charges `execute_sql` at 1 coin, but those queries never go
+  through the DB environment.
+
+Output records carry `initial_budget`, `budget_used`, per-phase submission
+counts and a `stop_reason` (`done`, `budget_exhausted`, `repeated_sql`, ...)
+in place of c-Interact's debug columns. The default output stem is
+`ainteract_query_all`. `analyze_bird_interact.py` reads c-Interact records
+only.
 
 ## 5. Results — where and what format
 
