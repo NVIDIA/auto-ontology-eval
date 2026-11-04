@@ -142,7 +142,7 @@ All three (except `run_bird_interact_cinteract.py`) require `:6001` and
 | `--include IDS...` / `--exclude IDS...` | Run only / skip specific instance_ids. |
 | `--force-include IDS...` | Guarantee these instance_ids are in the run, fill the rest of `--limit` from the remaining pool. |
 | `--agent-port` (default 6003) | Auto Ontology adapter port. |
-| `--phase-timeout` (default 600s) | Per `run_session` HTTP call — matches the official orchestrator's timeout. |
+| `--phase-timeout` (default 1800s for a-interact, 600s for c-interact) | Per `run_session` HTTP call. a-Interact matches the reference orchestrator's 1800s; c-Interact stays at 600s. |
 | `--health-timeout` (default 10s) | Per-service health-check timeout before giving up. |
 | `--overwrite` | Overwrite an existing output stem instead of failing. |
 
