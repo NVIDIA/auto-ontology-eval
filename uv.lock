@@ -217,7 +217,7 @@ wheels = [
 [[package]]
 name = "auto-ontology-server"
 version = "1.1.0"
-source = { git = "https://github.com/NVIDIA/auto-ontology.git?rev=dd78d0689ef9a8e062af90a294fa903cb6643015#dd78d0689ef9a8e062af90a294fa903cb6643015" }
+source = { git = "https://github.com/NVIDIA/auto-ontology.git?rev=b5e4f639fd6f320cc3cf992861f5761ae02119dc#b5e4f639fd6f320cc3cf992861f5761ae02119dc" }
 dependencies = [
     { name = "alembic" },
     { name = "apache-ossie-nvidia-auto-ontology" },
@@ -1897,7 +1897,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "auto-ontology-server", git = "https://github.com/NVIDIA/auto-ontology.git?rev=dd78d0689ef9a8e062af90a294fa903cb6643015" },
+    { name = "auto-ontology-server", git = "https://github.com/NVIDIA/auto-ontology.git?rev=b5e4f639fd6f320cc3cf992861f5761ae02119dc" },
     { name = "datasets", specifier = ">=5.0.1" },
     { name = "huggingface-hub", specifier = ">=1.28.0" },
     { name = "matplotlib", specifier = ">=3.11.1" },

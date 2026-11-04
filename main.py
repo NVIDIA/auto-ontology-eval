@@ -305,7 +305,7 @@ def stage_benchmark(
         # The treatment arm ignores the policy model's output, so its call is
         # capped rather than left to compete for the same rate limit.
         if label == "treatment":
-            cmd += ["--max-output-tokens", "128"]
+            cmd += ["--max-output-tokens", "1024"]
             cmd += _ontology_arm_overrides(
                 concurrency=concurrency,
                 sql_examples_csv=sql_examples_csv,

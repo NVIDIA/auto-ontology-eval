@@ -11,8 +11,8 @@ read from beside that database: `datasets/<benchmark>/dev/<database_name>/` when
 `--benchmark-name` names a multi-database benchmark such as BIRD, otherwise
 `datasets/<database_name>/`.
 
-> Auto Ontology is installed by `uv sync`. See
-> [Prerequisites](../../README.md#prerequisites) in the main README.
+> Auto-Ontology is installed by `uv sync`. See
+> [Quickstart](../../README.md#quickstart) in the main README.
 
 ## Run
 
