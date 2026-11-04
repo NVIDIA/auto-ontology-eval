@@ -168,7 +168,7 @@ Useful environment variables:
 |---|---|---|
 | `GYM_CONCURRENCY` | 3 | Size against the **model endpoint's rate limit**, not CPU. 10 is measured-safe on the `sk-` key — two full 1,534-question ontology runs at 10 produced zero rate-limit failures. The conservative default stays 3 because the ceiling belongs to the key, not the code. Setting this alone is not enough for the ontology arm: its server gates agent runs behind a semaphore of its own (`max_concurrency`, also 3), so the arm stays throttled unless both move. `main.py --eval-workers` sets both. |
 | `GYM_API_KEY` | `.env`'s `DEFAULT_MODELS_API_KEY` | Overrides the key for *both* the policy model and Auto-Ontology's own calls |
-| `GYM_MODEL` / `GYM_MODEL_URL` | bedrock-claude-opus-4-8 @ inference-api | |
+| `GYM_MODEL` / `GYM_MODEL_URL` | `azure/anthropic/claude-opus-5-5` @ inference-api | Match the treatment arm's `REASONING_MODEL` |
 
 `GYM_API_KEY` works by exporting `DEFAULT_MODELS_API_KEY`, which is what both
 consumers read: the Auto-Ontology arm authenticates its own in-process calls
