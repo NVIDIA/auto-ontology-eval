@@ -1,12 +1,12 @@
 # NeMo Gym environments
 
-Two resources servers that answer one question: **how much does Auto Ontology's ontology
+Two resources servers that answer one question: **how much does Auto-Ontology's ontology
 grounding add over a competent LLM that sees only the schema?**
 
 | Server | Arm | What the model gets |
 |---|---|---|
 | `schema_only_sql` | control | The question plus a raw schema dump, one shot, no tools |
-| `auto_ontology_sql` | treatment | Nothing directly — Auto Ontology's agent retrieves its own grounding |
+| `auto_ontology_sql` | treatment | Nothing directly — Auto-Ontology's agent retrieves its own grounding |
 
 Both are graded by the same verifier (`ontology_sql_eval/gym/exec_match.py`) against
 the same databases, so any difference in the reported number comes from the SQL,
@@ -157,21 +157,21 @@ override replaces Gym's exact `ray[default]==<head version>` pin, the server ven
 resolves the newest Ray, and it fails to join the head's cluster with
 `Version mismatch`.
 
-Both arms run **in-process**: `auto_ontology_sql` imports Auto Ontology and drives its graph
-directly, so no Auto Ontology server is required. `--max-output-tokens 16` on the Auto Ontology arm is
+Both arms run **in-process**: `auto_ontology_sql` imports Auto-Ontology and drives its graph
+directly, so no Auto-Ontology server is required. `--max-output-tokens 16` on the Auto-Ontology arm is
 deliberate — that arm ignores the policy model's output, so the call is capped to
-stop it competing for rate limit with Auto Ontology's own ~19 calls per question.
+stop it competing for rate limit with Auto-Ontology's own ~19 calls per question.
 
 Useful environment variables:
 
 | Variable | Default | Notes |
 |---|---|---|
 | `GYM_CONCURRENCY` | 3 | Size against the **model endpoint's rate limit**, not CPU. 10 is measured-safe on the `sk-` key — two full 1,534-question ontology runs at 10 produced zero rate-limit failures. The conservative default stays 3 because the ceiling belongs to the key, not the code. Setting this alone is not enough for the ontology arm: its server gates agent runs behind a semaphore of its own (`max_concurrency`, also 3), so the arm stays throttled unless both move. `main.py --eval-workers` sets both. |
-| `GYM_API_KEY` | `.env`'s `DEFAULT_MODELS_API_KEY` | Overrides the key for *both* the policy model and Auto Ontology's own calls |
+| `GYM_API_KEY` | `.env`'s `DEFAULT_MODELS_API_KEY` | Overrides the key for *both* the policy model and Auto-Ontology's own calls |
 | `GYM_MODEL` / `GYM_MODEL_URL` | bedrock-claude-opus-4-8 @ inference-api | |
 
 `GYM_API_KEY` works by exporting `DEFAULT_MODELS_API_KEY`, which is what both
-consumers read: the Auto Ontology arm authenticates its own in-process calls
+consumers read: the Auto-Ontology arm authenticates its own in-process calls
 with that variable, and the policy model's key is an interpolation of it (see
 [The API key never goes on the command line](#the-api-key-never-goes-on-the-command-line)).
 Pointing only the policy model at a new key would leave the actual workload --
@@ -190,17 +190,17 @@ another reason to prefer it over driving the arms by hand.
 
 ## Environment
 
-One venv holds both `nemo_gym` and Auto Ontology's dependencies, with no overrides
-needed between them: Auto Ontology pins `openai==2.44.0` to match nemo-gym.
+One venv holds both `nemo_gym` and Auto-Ontology's dependencies, with no overrides
+needed between them: Auto-Ontology pins `openai==2.44.0` to match nemo-gym.
 
-Auto Ontology's runtime dependencies are not redeclared in `pyproject.toml` — they
+Auto-Ontology's runtime dependencies are not redeclared in `pyproject.toml` — they
 arrive through the `auto-ontology-server` Git dependency. Add a package there only
-when this project needs it on top of Auto Ontology.
+when this project needs it on top of Auto-Ontology.
 
 nemo-gym requires Python **>=3.13.14**, which is why `requires-python` was
 raised from 3.12.
 
-Auto Ontology is installed from the parent project's pinned Git dependency.
+Auto-Ontology is installed from the parent project's pinned Git dependency.
 The resource-server environment receives the same revision through its editable
 installation of this project.
 
@@ -255,7 +255,7 @@ prompt would be absurd.
 rather than a JSON array, `sol_sql` lists instead of a single `SQL`, `follow_up`
 turns, test cases, and a user-simulation loop driven by the c-Interact
 orchestrator. Both arms here are single-shot by construction — the control gets
-one prompt and the Auto Ontology arm runs one `stream_agent_response` to completion — so
+one prompt and the Auto-Ontology arm runs one `stream_agent_response` to completion — so
 representing it would mean a new multi-turn environment, not a registry entry.
 Use `scripts/bird_interact/run_bird_interact_cinteract.py` for that benchmark.
 
@@ -264,15 +264,15 @@ Use `scripts/bird_interact/run_bird_interact_cinteract.py` for that benchmark.
 Anything that changes what the model is told must land on **both** arms or
 neither. The current pairing:
 
-| Control (`schema_only_sql`) | Auto Ontology (`auto_ontology_sql`) |
+| Control (`schema_only_sql`) | Auto-Ontology (`auto_ontology_sql`) |
 |---|---|
-| `SYSTEM_PROMPT` in `ontology_sql_eval/gym/tasks.py` carries "Return exactly the requested output fields and NO others" | `shorten_answer=True` appends the same rule to Auto Ontology's projection rules |
+| `SYSTEM_PROMPT` in `ontology_sql_eval/gym/tasks.py` carries "Return exactly the requested output fields and NO others" | `shorten_answer=True` appends the same rule to Auto-Ontology's projection rules |
 
 That instruction is not cosmetic: extra columns fail `set(gold) == set(pred)`
 outright, so giving it to one arm only would measure projection guidance rather
 than ontology grounding.
 
-The Auto Ontology arm also has to carry `calculation_only=True` and
+The Auto-Ontology arm also has to carry `calculation_only=True` and
 `validate_sql_values=True`, which are not comparability knobs but parity with
 the single-arm harness this arm replaced, whose numbers it was checked against.
 The first pins the intent to CALCULATION (every BIRD
@@ -351,7 +351,7 @@ questions the ontology fixed or broke.
 
 A 60-question BIRD run at 8 workers against `aws/anthropic/bedrock-claude-opus-4-8` came back
 at 13.3% execution accuracy. That number was fiction: 747 of 1126 HTTP calls were
-429s. Auto Ontology retries three times, gives up, and routes to a *valid* terminal state
+429s. Auto-Ontology retries three times, gives up, and routes to a *valid* terminal state
 (`unconstructable_sql_response`) — so 37 of 60 questions produced empty SQL, scored
 zero, and left the error column blank. The run looked like a weak model.
 
@@ -369,11 +369,11 @@ Three workers is clean on the `sk-` inference-api key; eight is not. Numbers in
 `results/CONCURRENCY-STUDY.md` were measured on a different model and do not
 transfer.
 
-## Arm B's couplings with Auto Ontology
+## Arm B's couplings with Auto-Ontology
 
-`auto_ontology_sql` imports Auto Ontology in-process, which forces three things:
+`auto_ontology_sql` imports Auto-Ontology in-process, which forces three things:
 
-- `load_dotenv()` runs **before** the Auto Ontology imports —
+- `load_dotenv()` runs **before** the Auto-Ontology imports —
   `auto_ontology.retrieval.text_to_sql.main`
   builds its LLM client and compiles the graph at import time.
 - The parent project and resource-server environment must be installed before
@@ -386,5 +386,5 @@ itself and ignores the rollout's model output (`policy_output_ignored: true`). T
 keeps the arm behaviourally identical to the existing harness, at the cost of it not
 being RL-trainable.
 
-Arm B also needs the pre-ingested Auto Ontology catalog (Postgres + pgvector) for every
+Arm B also needs the pre-ingested Auto-Ontology catalog (Postgres + pgvector) for every
 database it touches; build it with `main.py --skip-eval`.

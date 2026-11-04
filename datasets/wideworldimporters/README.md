@@ -38,7 +38,7 @@ Flags (see [scripts/seed/seed_wwi.py](../../scripts/seed/seed_wwi.py)):
 ## Configure
 
 Point `CONNECTION_STRINGS` at the seeded DB in your `.env`. Replace
-`<password>` with your Postgres password — the same one Auto Ontology's `docker-compose`
+`<password>` with your Postgres password — the same one Auto-Ontology's `docker-compose`
 uses (i.e. the value of `POSTGRES_PASSWORD` in your `.env`):
 
 ```bash
@@ -67,7 +67,7 @@ uv run python -m ontology_sql_eval.ingestion.semantic --database-name wideworldi
 uv run python main.py --database-name wideworldimporters --skip-ingest --skip-semantic
 ```
 
-See the per-workflow READMEs under [Workflows](../../README.md#workflows) for
+See the per-workflow READMEs under [Reference](../../README.md#reference) for
 the details of each stage.
 
 ## Folder layout
