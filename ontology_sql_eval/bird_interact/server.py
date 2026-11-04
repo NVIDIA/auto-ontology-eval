@@ -67,6 +67,9 @@ logging.getLogger("auto_ontology.retrieval.interactive.entity_resolution").setLe
 logging.getLogger("auto_ontology.retrieval.interactive.completeness").setLevel(
     logging.DEBUG
 )
+logging.getLogger("auto_ontology.retrieval.interactive.value_gaps").setLevel(
+    logging.INFO
+)
 logging.getLogger("auto_ontology.retrieval.interactive.coordinator").setLevel(
     logging.INFO
 )
