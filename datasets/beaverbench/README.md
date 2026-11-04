@@ -19,7 +19,7 @@ Public HuggingFace data (gated — accept the terms, then `hf auth login`):
 - Tables / MySQL dumps: [`beaverbench/beaver-table`](https://huggingface.co/datasets/beaverbench/beaver-table)
 
 Splits: `dw`, `nova`, `neutron`, `dw_real` (`dw_real` questions run against the
-`dw` database). Gold SQL is MySQL dialect; Auto Ontology's MySQL connector is on `main`
+`dw` database). Gold SQL is MySQL dialect; Auto-Ontology's MySQL connector is on `main`
 (`auto_ontology/connectors/mysql.py`, PR #195).
 
 ## Download / seed
@@ -63,18 +63,18 @@ With `--import-mysql`, the seed script writes something like:
 CONNECTION_STRINGS=mysql://root:beaver-benchmark@localhost:3306/dw
 ```
 
-Also point pgvector at the Auto Ontology Docker Postgres host port (typically `5434`):
+Also point pgvector at the Auto-Ontology Docker Postgres host port (typically `5434`):
 
 ```bash
 POSTGRES_PORT=5434
-POSTGRES_USER=postgres     # match the deployed Auto Ontology service
-POSTGRES_PASSWORD=...      # match the deployed Auto Ontology service
+POSTGRES_USER=postgres     # match the deployed Auto-Ontology service
+POSTGRES_PASSWORD=...      # match the deployed Auto-Ontology service
 POSTGRES_DATABASE=auto_ontology
 ```
 
 Models come from NVIDIA inference. The tested setup is a single `sk-` key with
 no model pinned, so every role uses its built-in default (see
-[Configuration](../../README.md#configuration) and
+[Models](../../README.md#models) and
 [`.env.example`](../../.env.example)):
 
 ```bash
@@ -84,7 +84,7 @@ DEFAULT_MODELS_API_KEY=sk-...
 ## Run the full pipeline
 
 The Postgres store (catalog + pgvector) must be up; follow the
-[Auto Ontology deployment guide](https://github.com/NVIDIA/auto-ontology).
+[Auto-Ontology deployment guide](https://github.com/NVIDIA/auto-ontology).
 
 Then from this repo:
 
@@ -143,10 +143,10 @@ the arm's own limit, which is 3 by default.
   comparison refuses to report while any question has no result. A published
   number should come from a run with none left.
 
-After the Auto Ontology pin changes (a pull and `uv sync`), set
+After the Auto-Ontology pin changes (a pull and `uv sync`), set
 `GYM_REBUILD_VENV=1` for the next run of the ontology arm. The script rebuilds a
 server venv on its own only when nemo-gym, ray or openai differ, so it would
-otherwise keep running the old Auto Ontology.
+otherwise keep running the old Auto-Ontology.
 
 ## Scoring
 
