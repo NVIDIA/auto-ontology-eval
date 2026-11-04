@@ -8,14 +8,15 @@ data.
 
 ## Why it matters
 
-An accuracy number for a text-to-SQL agent means little without a control. This
-repository answers one question: how much does Auto-Ontology's ontology add over
-the same model given only the database schema?
+Auto-Ontology exists to help agents give fewer wrong answers on enterprise
+data. This repository measures whether it does.
 
-Each run asks the same questions of the same model twice and scores both answers
-with one deterministic verifier. The result is a single accuracy difference,
-plus the list of questions the ontology fixed and the ones it broke, so you can
-see where the difference comes from.
+A trustworthy accuracy number needs a control. The eval asks one question: how
+much does Auto-Ontology's ontology add over the same model given only the
+database schema? Each run asks the same questions of the same model twice and
+scores the SQL from both arms with one deterministic verifier. The result is a
+single accuracy difference, plus the list of questions the ontology fixed and
+the ones it broke, so you can see where the difference comes from.
 
 ## How it works
 
@@ -65,8 +66,9 @@ You need:
 
 - [uv](https://docs.astral.sh/uv/), which installs the required Python 3.13
 - A Postgres server with pgvector for Auto-Ontology's catalog. Auto-Ontology's
-  Docker Compose provides one: run `docker compose up -d postgres` in an
-  [auto-ontology](https://github.com/NVIDIA/auto-ontology) checkout.
+  Docker Compose provides one: in an
+  [auto-ontology](https://github.com/NVIDIA/auto-ontology) checkout, run
+  `cp .env.example .env && docker compose up -d postgres`.
 - A model API key (see [Models](#models))
 
 1. Install and configure:
@@ -106,8 +108,8 @@ You need:
 
 ## Models
 
-Point both arms at the same model, so a model difference can't account for the
-result. The treatment arm reads Auto-Ontology's model settings; the control arm
+Point both arms at the same model, so the difference measures what Auto-Ontology
+adds. The treatment arm reads Auto-Ontology's model settings; the control arm
 reads `GYM_MODEL` and `GYM_MODEL_URL`.
 
 | Variables                                     | Used by           | Purpose                                         |
