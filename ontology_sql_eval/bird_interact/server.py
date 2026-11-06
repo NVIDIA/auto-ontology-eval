@@ -590,7 +590,9 @@ async def init_session(req: InitSessionRequest):
     )
     if budget is not None:
         connectors = [
-            MeteredConnector(c, budget, partial(_record_query, sess))
+            MeteredConnector(
+                c, budget, partial(_record_query, sess), phase=lambda: sess.phase
+            )
             for c in connectors
         ]
 
