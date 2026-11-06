@@ -8,7 +8,9 @@ class _Base:
 
 def _connector(left: float, phase: int = 1) -> tuple[MeteredConnector, Budget]:
     budget = Budget.start(left)
-    return MeteredConnector(_Base(), budget, lambda sql, charged: None, phase=lambda: phase), budget
+    return MeteredConnector(
+        _Base(), budget, lambda sql, charged: None, phase=lambda: phase
+    ), budget
 
 
 def test_phase1_status_shows_the_balance_and_asks_to_keep_a_phase2_reserve():
@@ -42,3 +44,11 @@ def test_status_says_to_submit_when_no_query_is_affordable():
     connector, _ = _connector(0.5)
 
     assert "Submit your best query now" in connector.cost_status()
+
+
+def test_queries_stop_being_runnable_when_the_last_coin_is_spent():
+    connector, _ = _connector(1.0)
+
+    assert connector.can_run_queries()
+    connector.execute("SELECT 1")
+    assert not connector.can_run_queries()

@@ -129,6 +129,10 @@ class MeteredConnector:
             )
         return f"BUDGET: {left:g} coins left for this follow-up. {prices}"
 
+    def can_run_queries(self) -> bool:
+        """Whether the next query would be charged rather than refused."""
+        return self._budget.remaining >= TOOL_COSTS["execute_sql"]
+
     def execute(self, sql: str, *args: Any, **kwargs: Any) -> Any:
         charged = self._budget.charge("execute_sql")
         self._on_query(sql, charged)
