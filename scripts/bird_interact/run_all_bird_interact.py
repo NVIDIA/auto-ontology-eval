@@ -643,7 +643,7 @@ def main() -> None:
     parser.add_argument(
         "--resume",
         action="store_true",
-        help="Append to an existing output stem instead of refusing it",
+        help="Append to an existing output stem, skipping the tasks it already has",
     )
     parser.add_argument(
         "--include",
@@ -699,6 +699,13 @@ def main() -> None:
     # ── Load tasks ────────────────────────────────────────────────────────────
     include_ids = set(args.include) if args.include else None
     exclude_ids = set(args.exclude) if args.exclude else None
+    resumed_ids: set[str] = set()
+    if args.resume and jsonl_path.exists():
+        with jsonl_path.open() as f:
+            resumed_ids = {
+                json.loads(line)["instance_id"] for line in f if line.strip()
+            }
+        exclude_ids = (exclude_ids or set()) | resumed_ids
     force_include_ids = set(args.force_include) if args.force_include else None
     dataset_label = _infer_dataset_label(Path(args.data))
     tasks = _load_tasks(
@@ -721,8 +728,12 @@ def main() -> None:
         print(f"  difficulty filter: {args.difficulty}")
     if include_ids:
         print(f"  include filter:    {sorted(include_ids)}")
-    if exclude_ids:
-        print(f"  exclude filter:    {sorted(exclude_ids)}")
+    if resumed_ids:
+        print(
+            f"  resuming: skipping {len(resumed_ids)} tasks already in {jsonl_path.name}"
+        )
+    if exclude_ids and exclude_ids != resumed_ids:
+        print(f"  exclude filter:    {sorted(exclude_ids - resumed_ids)}")
     if force_include_ids:
         print(f"  force-include:     {sorted(force_include_ids)}")
     print(f"  output dir: {run_dir}")
