@@ -860,8 +860,8 @@ def test_ainteract_runs_both_phases_in_one_call():
 
     state = _run_ainteract(ctx, budget=20.0)
 
-    # 2 (schema + KB) + 2 (ask) + 3 * 3 (submits)
-    assert state["budget_remaining"] == 20.0 - 13.0
+    # 3 (schema + column meanings + KB) + 2 (ask) + 3 * 3 (submits)
+    assert state["budget_remaining"] == 20.0 - 14.0
     assert state["phase1_completed"] and state["phase2_completed"]
     assert state["total_reward"] == 1.0
     assert state["stop_reason"] == "done"
@@ -886,12 +886,12 @@ def test_ainteract_stops_when_a_submit_spends_the_budget():
     wrong = {"passed": False, "reward": 0.0, "message": "Your SQL is not correct."}
     ctx = _ainteract_ctx(mock_sess, steps, [wrong, wrong])
 
-    # 5 - 2 for schema + KB leaves exactly one submission.
-    state = _run_ainteract(ctx, budget=5.0)
+    # 6 - 3 for schema + column meanings + KB leaves exactly one submission.
+    state = _run_ainteract(ctx, budget=6.0)
 
     assert state["stop_reason"] == "budget_exhausted"
     assert len(state["tool_trajectory"]) == 1
-    # Only one submission's worth left after the schema/KB purchase, so no asks.
+    # Only one submission's worth left after the setup purchases, so no asks.
     assert mock_sess.max_clarify_turns == 0
 
 
@@ -904,7 +904,7 @@ def test_ainteract_stops_instead_of_resubmitting_a_failed_sql():
     state = _run_ainteract(ctx, budget=20.0)
 
     assert state["stop_reason"] == "repeated_sql"
-    assert state["budget_remaining"] == 20.0 - 2.0 - 3.0
+    assert state["budget_remaining"] == 20.0 - 3.0 - 3.0
 
 
 def test_ainteract_recovers_last_generated_sql_instead_of_empty_paid_submit():
@@ -1198,8 +1198,8 @@ def test_ainteract_charges_auto_ontology_queries_as_execute_sql():
 
     state = _run_ainteract(ctx, budget=20.0)
 
-    # 2 (schema + KB) + 1 (query) + 3 (submit)
-    assert state["budget_remaining"] == 14.0
+    # 3 (schema + column meanings + KB) + 1 (query) + 3 (submit)
+    assert state["budget_remaining"] == 13.0
     query = state["tool_trajectory"][0]
     assert query["tool"] == "execute_sql"
     assert query["phase"] == 1 and query["charged"] is True

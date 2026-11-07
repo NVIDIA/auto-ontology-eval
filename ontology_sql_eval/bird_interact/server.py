@@ -646,8 +646,11 @@ async def init_session(req: InitSessionRequest):
         # a-Interact hands the agent no schema or KB — only a bird-coin
         # budget. Buy both up front, at the reference tool prices, so Auto
         # Ontology starts from the same context c-Interact gives it for free.
+        # The column meanings are paid for too but not fetched: the catalog
+        # Auto Ontology retrieves from was seeded with them.
         budget = Budget.start(float(req.state.get("initial_budget", 0.0)))
         budget.charge("get_schema")
+        budget.charge("get_all_column_meanings")
         budget.charge("get_all_knowledge_definitions")
         try:
             db_schema = await bird_http.get_schema(req.task_id)

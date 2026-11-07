@@ -21,6 +21,7 @@ from typing import Any, Callable
 TOOL_COSTS = {
     "execute_sql": 1.0,
     "get_schema": 1.0,
+    "get_all_column_meanings": 1.0,
     "get_all_knowledge_definitions": 1.0,
     "ask_user": 2.0,
     "submit_sql": 3.0,
