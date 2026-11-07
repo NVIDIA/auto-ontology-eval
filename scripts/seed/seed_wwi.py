@@ -127,13 +127,13 @@ def _load_csvs(database_name: str, data_dir: Path) -> int:
                 qn = f"{schema}.{table}"
 
                 try:
-                    with csv_path.open("r") as f:
+                    with csv_path.open("rb") as f:
                         with cur.copy(
                             f"COPY {qn} FROM STDIN WITH "
                             f"(FORMAT csv, HEADER true, NULL '\\N')"
                         ) as copy:
-                            while data := f.read(65536):
-                                copy.write(data.encode())
+                            while chunk := f.read(65536):
+                                copy.write(chunk)
 
                     cur.execute(f"SELECT count(*) FROM {qn}")
                     cnt = cur.fetchone()[0]
