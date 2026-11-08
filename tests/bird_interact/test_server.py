@@ -932,7 +932,7 @@ def test_ainteract_recovers_last_generated_sql_instead_of_empty_paid_submit():
 def test_ainteract_phase1_still_asks_when_the_balance_covers_it():
     """An ask is sent while the balance still covers the ask and one submission.
 
-    Budget 12, of which schema and KB take 2. The ask is still sent.
+    Budget 13, of which schema, column meanings and KB take 3. The ask is still sent.
     """
     mock_sess = MagicMock(clarify_history=[])
     steps = [
@@ -957,12 +957,12 @@ def test_ainteract_phase1_still_asks_when_the_balance_covers_it():
     ctx = _ainteract_ctx(mock_sess, steps, [passed, follow])
     ask = ctx[9].new
 
-    state = _run_ainteract(ctx, budget=12.0, task_id="a-ask-below-floor")
+    state = _run_ainteract(ctx, budget=13.0, task_id="a-ask-below-floor")
 
     ask.assert_awaited()
     assert state["phase1_completed"] and state["phase2_completed"]
     assert state["stop_reason"] == "done"
-    # 2 schema/KB + 2 ask + 3 phase 1 + 3 phase 2.
+    # 3 setup + 2 ask + 3 phase 1 + 3 phase 2.
     assert state["budget_remaining"] == 2.0
     assert [t["tool"] for t in state["tool_trajectory"]] == [
         "ask_user",
@@ -999,8 +999,8 @@ def test_ainteract_stops_asking_after_the_user_simulator_failure_fallback():
     assert state["phase1_completed"] is True
     assert state["stop_reason"] == "done"
     assert [t["tool"] for t in state["tool_trajectory"]] == ["ask_user", "submit_sql"]
-    # 2 schema/KB + 2 for the one ask that failed + 3 for the submit.
-    assert state["budget_remaining"] == 13.0
+    # 3 setup + 2 for the one ask that failed + 3 for the submit.
+    assert state["budget_remaining"] == 12.0
     assert mock_sess.max_clarify_turns == 0
 
 
@@ -1073,8 +1073,8 @@ def test_phase1_holds_four_coins_and_phase2_can_spend_them():
         server_mod, "auto_ontology_create_session", side_effect=create_session
     )
 
-    # 7 - 2 for schema and KB leaves 5. The first query leaves the floor of 4.
-    state = _run_ainteract(ctx, budget=7.0, task_id="a-floor-4")
+    # 8 - 3 for setup leaves 5. The first query leaves the floor of 4.
+    state = _run_ainteract(ctx, budget=8.0, task_id="a-floor-4")
 
     queries = [t for t in state["tool_trajectory"] if t["tool"] == "execute_sql"]
     submits = [t for t in state["tool_trajectory"] if t["tool"] == "submit_sql"]
@@ -1105,9 +1105,9 @@ def test_phase1_ask_stops_when_four_coins_remain():
     }
     ctx = _ainteract_ctx(mock_sess, steps, [passed])
 
-    # 8 - 2 leaves 6, so one ask lands exactly on the floor of 4. The next ask
+    # 9 - 3 leaves 6, so one ask lands exactly on the floor of 4. The next ask
     # would leave 2 and is refused.
-    state = _run_ainteract(ctx, budget=8.0, task_id="a-ask-floor")
+    state = _run_ainteract(ctx, budget=9.0, task_id="a-ask-floor")
 
     asks = [t for t in state["tool_trajectory"] if t["tool"] == "ask_user"]
     assert [t["budget_after"] for t in asks] == [4.0]
