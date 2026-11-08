@@ -44,7 +44,8 @@ import random
 import subprocess
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from collections import deque
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path
 from typing import Any
 
@@ -617,8 +618,8 @@ def main() -> None:
         "--phase-timeout",
         type=float,
         default=None,
-        help="Seconds per run_session HTTP call. Default follows the official "
-        "orchestrator for --mode: 600 for c-interact, 1800 for a-interact",
+        help="Seconds per run_session HTTP call (default: 1800 for a-interact, "
+        "600 for c-interact)",
     )
     parser.add_argument(
         "--health-timeout",
@@ -630,12 +631,19 @@ def main() -> None:
         "--workers",
         type=int,
         default=1,
-        help="Number of tasks to run concurrently (default: 1)",
+        help="Number of tasks to run concurrently (default: 1). "
+        "At most one task per database runs at a time, because each task "
+        "database is cloned from that database's template.",
     )
     parser.add_argument(
         "--overwrite",
         action="store_true",
         help="Overwrite existing output files instead of failing",
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Append to an existing output stem, skipping the tasks it already has",
     )
     parser.add_argument(
         "--include",
@@ -674,9 +682,10 @@ def main() -> None:
     jsonl_path = run_dir / f"{args.output}.jsonl"
     csv_path = run_dir / f"{args.output}.csv"
 
-    if jsonl_path.exists() and not args.overwrite:
+    if jsonl_path.exists() and not args.overwrite and not args.resume:
         print(
-            f"ERROR: {jsonl_path} already exists. Use --overwrite to replace it.",
+            f"ERROR: {jsonl_path} already exists. Use --overwrite to replace it "
+            "or --resume to append.",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -684,11 +693,20 @@ def main() -> None:
         jsonl_path.unlink(missing_ok=True)
         csv_path.unlink(missing_ok=True)
 
-    csv_is_new = True
+    csv_is_new = not (
+        args.resume and csv_path.exists() and csv_path.stat().st_size > 0
+    )
 
     # ── Load tasks ────────────────────────────────────────────────────────────
     include_ids = set(args.include) if args.include else None
     exclude_ids = set(args.exclude) if args.exclude else None
+    resumed_ids: set[str] = set()
+    if args.resume and jsonl_path.exists():
+        with jsonl_path.open() as f:
+            resumed_ids = {
+                json.loads(line)["instance_id"] for line in f if line.strip()
+            }
+        exclude_ids = (exclude_ids or set()) | resumed_ids
     force_include_ids = set(args.force_include) if args.force_include else None
     dataset_label = _infer_dataset_label(Path(args.data))
     tasks = _load_tasks(
@@ -711,8 +729,12 @@ def main() -> None:
         print(f"  difficulty filter: {args.difficulty}")
     if include_ids:
         print(f"  include filter:    {sorted(include_ids)}")
-    if exclude_ids:
-        print(f"  exclude filter:    {sorted(exclude_ids)}")
+    if resumed_ids:
+        print(
+            f"  resuming: skipping {len(resumed_ids)} tasks already in {jsonl_path.name}"
+        )
+    if exclude_ids and exclude_ids != resumed_ids:
+        print(f"  exclude filter:    {sorted(exclude_ids - resumed_ids)}")
     if force_include_ids:
         print(f"  force-include:     {sorted(force_include_ids)}")
     print(f"  output dir: {run_dir}")
@@ -965,15 +987,35 @@ def main() -> None:
             for indexed_task in indexed_tasks:
                 emit_result(execute_task(indexed_task))
         else:
+            # createdb --template allows one session per template, and each
+            # database has a single shared connector, so a database already
+            # in flight stays queued until its running task finishes.
+            by_db: dict[str, deque] = {}
+            for indexed_task in indexed_tasks:
+                by_db.setdefault(
+                    indexed_task[1]["selected_database"], deque()
+                ).append(indexed_task)
+            idle: deque[str] = deque(by_db)
+            in_flight: dict[Any, str] = {}
             with ThreadPoolExecutor(
                 max_workers=workers, thread_name_prefix="bird-interact"
             ) as pool:
-                futures = [
-                    pool.submit(execute_task, indexed_task)
-                    for indexed_task in indexed_tasks
-                ]
-                for future in as_completed(futures):
-                    emit_result(future.result())
+
+                def start_available() -> None:
+                    while len(in_flight) < workers and idle:
+                        db_name = idle.popleft()
+                        fut = pool.submit(execute_task, by_db[db_name].popleft())
+                        in_flight[fut] = db_name
+
+                start_available()
+                while in_flight:
+                    done, _ = wait(set(in_flight), return_when=FIRST_COMPLETED)
+                    for fut in done:
+                        db_name = in_flight.pop(fut)
+                        emit_result(fut.result())
+                        if by_db[db_name]:
+                            idle.append(db_name)
+                    start_available()
 
     finally:
         print("\nStopping Auto Ontology adapter...")

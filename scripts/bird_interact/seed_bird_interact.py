@@ -48,6 +48,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import re
 import shutil
 import subprocess
 import sys
@@ -332,23 +333,141 @@ def _combine_public_with_gt(public_path: Path, gt_path: Path, output_path: Path)
     return combined
 
 
-def _column_meaning_text(meaning: object) -> str:
+_SAMPLE_ROWS_MARKERS = ("First 3 rows:", '"First" 3 rows:')
+_TABLE_NAME = re.compile(r'TABLE\s+"?([^"\s(]+)"?\s*\(')
+_LITERAL_TOKEN = re.compile(
+    r"""\s*(?:
+        (?P<punct>[{}\[\]:,])
+      | (?P<str>'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")
+      | (?P<atom>-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?|None|True|False)
+    )""",
+    re.VERBOSE,
+)
+
+
+def _sample_rows(schema_text: str) -> dict[str, dict[str, list[str]]]:
+    """The "First 3 rows" cells of each table in an upstream ``<db>_schema.txt``.
+
+    Each block is a fixed-width table: a header, a dashed rule whose runs mark
+    the column spans, then the rows. Cells keep their raw text. The upstream
+    file cuts long rows at a fixed width, so a JSONB cell is often a truncated
+    Python repr of the object. Keys are lower-cased table and column names.
+    """
+    rows_by_table: dict[str, dict[str, list[str]]] = {}
+    table: str | None = None
+    lines = schema_text.splitlines()
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        if match := _TABLE_NAME.search(line):
+            table = match.group(1).lower()
+        if line.strip() in _SAMPLE_ROWS_MARKERS and table and i + 2 < len(lines):
+            header, rule = lines[i + 1], lines[i + 2]
+            spans = [m.span() for m in re.finditer(r"-+", rule)]
+            names = [header[a:b].strip().lower() for a, b in spans]
+            cells: dict[str, list[str]] = {name: [] for name in names}
+            i += 3
+            while i < len(lines) and lines[i].strip() not in ("", "..."):
+                row = lines[i]
+                for n, (name, (start, end)) in enumerate(zip(names, spans)):
+                    stop = None if n == len(spans) - 1 else end
+                    cell = row[start:stop].strip()
+                    if cell:
+                        cells[name].append(cell)
+                i += 1
+            rows_by_table[table] = cells
+            continue
+        i += 1
+    return rows_by_table
+
+
+def _json_leaf_values(cell: str) -> dict[str, str]:
+    """``path -> value`` for each complete scalar leaf of a (possibly truncated) repr.
+
+    The cell is a Python repr of a JSON object (``None``, single quotes), cut
+    off at an arbitrary character. Leaves read before the cut are returned with
+    dotted paths; a leaf the cut splits is dropped. Lists are skipped rather
+    than guessed at. Values keep their literal form, so a quoted ``'100.50%'``
+    shows that the field holds text.
+    """
+    leaves: dict[str, str] = {}
+    path: list[str | None] = []
+    key: str | None = None
+    expect_key = False
+    depth_in_list = 0
+    pos = 0
+    while pos < len(cell):
+        match = _LITERAL_TOKEN.match(cell, pos)
+        if not match:
+            break
+        pos = match.end()
+        punct, text, atom = match.group("punct", "str", "atom")
+        if depth_in_list:
+            if punct == "[":
+                depth_in_list += 1
+            elif punct == "]":
+                depth_in_list -= 1
+            continue
+        if punct == "{":
+            path.append(key)
+            key, expect_key = None, True
+        elif punct == "}":
+            if path:
+                path.pop()
+            key, expect_key = None, False
+        elif punct == "[":
+            depth_in_list = 1
+        elif punct == ",":
+            expect_key = True
+        elif punct == ":":
+            expect_key = False
+        elif expect_key and text is not None:
+            key = text[1:-1]
+        elif key is not None and (text is not None or atom is not None):
+            if pos < len(cell):
+                parts = [p for p in path if p is not None] + [key]
+                leaves[".".join(parts)] = text if text is not None else atom
+            key = None
+    return leaves
+
+
+def _field_samples(cells: list[str]) -> dict[str, list[str]]:
+    """Distinct non-null sample values per JSONB field path, in row order."""
+    samples: dict[str, list[str]] = {}
+    for cell in cells:
+        for leaf, value in _json_leaf_values(cell).items():
+            seen = samples.setdefault(leaf, [])
+            if value != "None" and value not in seen:
+                seen.append(value)
+    return samples
+
+
+def _column_meaning_text(
+    meaning: object, field_samples: dict[str, list[str]] | None = None
+) -> str:
     """Flatten one column-meaning entry into a single description.
 
     Most entries are plain text. A JSONB column's entry is a dict holding the
     column's own meaning plus a (possibly nested) meaning per field; those are
-    kept as ``path: meaning`` lines so the field semantics survive.
+    kept as ``path: meaning`` lines so the field semantics survive. Values a
+    field holds in the upstream sample rows follow its meaning, because the
+    documented example can differ in form from what is stored (``1.005``
+    documented, ``'100.50%'`` stored).
     """
     if not isinstance(meaning, dict):
         return str(meaning)
     lines = [str(meaning.get("column_meaning", "")).strip()]
+    field_samples = field_samples or {}
 
     def walk(fields: dict, prefix: str) -> None:
         for name, value in fields.items():
             if isinstance(value, dict):
                 walk(value, f"{prefix}{name}.")
-            else:
-                lines.append(f"{prefix}{name}: {value}")
+                continue
+            line = f"{prefix}{name}: {value}"
+            if seen := field_samples.get(f"{prefix}{name}"):
+                line += f" Stored values in sample rows: {', '.join(seen)}."
+            lines.append(line)
 
     walk(meaning.get("fields_meaning") or {}, "")
     return "\n".join(line for line in lines if line)
@@ -360,8 +479,14 @@ def _write_column_metadata(variant: str, db_names: list[str], dest: Path) -> int
     The upstream ``<db>_column_meaning_base.json`` (keys ``db|table|column``)
     becomes the metadata.json that ingestion's apply_metadata stamps onto the
     catalog, so the ontology carries the dataset's own column documentation.
-    Names are lowercased to match the Postgres catalog. Returns the number of
+    Table and column names keep the case of the meaning file; ingest matches
+    them to the catalog without regard to case. Returns the number of
     databases written.
+
+    JSONB field values from ``<db>_schema.txt``'s sample rows go into the
+    description, not ``value_examples``: ingest's profiled ``sample_values``
+    for a JSONB column list its key paths, which SQL generation needs, and a
+    ``value_examples`` entry would replace them.
     """
     written = 0
     for db_name in db_names:
@@ -369,11 +494,24 @@ def _write_column_metadata(variant: str, db_names: list[str], dest: Path) -> int
         if not src.is_file():
             logger.warning("No column meanings for %s at %s", db_name, src)
             continue
+        schema_file = src.with_name(f"{db_name}_schema.txt")
+        sample_rows = (
+            _sample_rows(schema_file.read_text()) if schema_file.is_file() else {}
+        )
         tables: dict[str, list[dict[str, str]]] = {}
         for key, meaning in json.loads(src.read_text()).items():
-            _db, table, column = key.lower().split("|")
+            parts = key.split("|")
+            if len(parts) != 3:
+                logger.warning("Skipping column-meaning key %r", key)
+                continue
+            _db, table, column = parts
+            cells = sample_rows.get(table.lower(), {}).get(column.lower(), [])
+            field_samples = _field_samples(cells) if isinstance(meaning, dict) else None
             tables.setdefault(table, []).append(
-                {"name": column, "description": _column_meaning_text(meaning)}
+                {
+                    "name": column,
+                    "description": _column_meaning_text(meaning, field_samples),
+                }
             )
         out = dest / db_name / "metadata.json"
         out.parent.mkdir(parents=True, exist_ok=True)

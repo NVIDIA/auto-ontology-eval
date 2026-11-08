@@ -26,6 +26,10 @@ TOOL_COSTS = {
     "submit_sql": 3.0,
 }
 
+# What a Phase 2 attempt needs: a submission (3), the query that checks it (1),
+# and two queries to look at the data first.
+PHASE2_RESERVE = 6.0
+
 # The reference agent's MAX_MODEL_TURNS: a hard stop independent of budget.
 MAX_AGENT_STEPS = 60
 
@@ -106,7 +110,9 @@ class MeteredConnector:
     reference charges its schema once through get_schema.
 
     *on_query* is told about every query, charged or refused, so the session
-    can record it in its trajectory.
+    can record it in its trajectory. *phase* says which a-Interact phase is
+    running, so :meth:`cost_status` can tell Phase 1 to leave coins for the
+    follow-up, which is paid from the same budget.
     """
 
     def __init__(
@@ -115,12 +121,39 @@ class MeteredConnector:
         budget: Budget,
         on_query: Callable[[str, bool], None],
         reserve: float = 0.0,
+        phase: Callable[[], int] = lambda: 1,
     ) -> None:
         self._base = base
         self._budget = budget
         self._on_query = on_query
         # Phase 1 sets this to PHASE1_QUERY_FLOOR; phase 2 clears it.
         self.reserve = reserve
+        self._phase = phase
+
+    def cost_status(self) -> str:
+        """The balance and prices, for an agent that decides how many queries to run."""
+        left = self._budget.remaining
+        if not self.can_run_queries():
+            return "BUDGET: no coins left for run_sql. Submit your best query now."
+        prices = (
+            f"run_sql costs {TOOL_COSTS['execute_sql']:g} coin. Submitting costs "
+            f"{TOOL_COSTS['submit_sql']:g}, plus 1 for each query run to check "
+            "the SQL, and a wrong submission is charged in full."
+        )
+        if self._phase() == 1:
+            return (
+                f"BUDGET: {left:g} coins left. {prices} If this answer is "
+                "accepted, a follow-up question comes next and is paid from "
+                f"what is left, so submit with at least {PHASE2_RESERVE:g} "
+                "coins unspent when you can."
+            )
+        return f"BUDGET: {left:g} coins left for this follow-up. {prices}"
+
+    def can_run_queries(self) -> bool:
+        """Whether the next query would be charged rather than refused."""
+        return (
+            self._budget.remaining - TOOL_COSTS["execute_sql"] >= self.reserve
+        )
 
     def execute(self, sql: str, *args: Any, **kwargs: Any) -> Any:
         charged = self._budget.charge("execute_sql", reserve=self.reserve)

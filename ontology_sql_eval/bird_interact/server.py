@@ -107,9 +107,12 @@ async def lifespan(app: FastAPI):
     _DATA_RETRIEVER = get_data_objects_retriever()
     _SEMANTIC_RETRIEVER = get_semantic_objects_retriever()
 
+    # CONNECTION_STRINGS is the eval .env (BIRD Dev sqlite). BIRD-Interact
+    # Postgres URLs are passed separately so that overlay does not drop them.
     connection_strings = [
         cs.strip()
-        for cs in os.environ.get("CONNECTION_STRINGS", "").split(",")
+        for key in ("CONNECTION_STRINGS", "BIRD_INTERACT_CONNECTION_STRINGS")
+        for cs in os.environ.get(key, "").split(",")
         if cs.strip()
     ]
     for cs in connection_strings:
@@ -644,6 +647,7 @@ async def init_session(req: InitSessionRequest):
                 budget,
                 partial(_record_query, sess),
                 reserve=PHASE1_QUERY_FLOOR,
+                phase=lambda: sess.phase,
             )
             for c in connectors
         ]
