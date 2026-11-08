@@ -44,9 +44,19 @@ from auto_ontology.retrieval.interactive import (  # noqa: E402
     apply_submit_result as auto_ontology_apply_submit_result,
 )
 from . import bird_interact_http as bird_http  # noqa: E402
-from .budget import MAX_AGENT_STEPS, Budget, MeteredConnector  # noqa: E402
+from .budget import (  # noqa: E402
+    MAX_AGENT_STEPS,
+    PHASE1_QUERY_FLOOR,
+    Budget,
+    MeteredConnector,
+    install_budget_refusal_submits_current_sql,
+)
 from .known_issues import is_p1snap_collision  # noqa: E402
 from .session import AdapterSession, get_session, put_session  # noqa: E402
+
+# A refused phase-1 query has to escape SQL execution, or the generator
+# rewrites it until the call times out.
+install_budget_refusal_submits_current_sql()
 
 # ── Logging setup ─────────────────────────────────────────────────────────────
 # Suppress noisy third-party warnings
@@ -346,7 +356,10 @@ async def _run_ainteract_session(sess: AdapterSession, req: RunSessionRequest) -
     phase sequencing c-Interact's orchestrator does over several calls happens
     here instead: Phase 1, its debug retries, the user simulator's phase
     transition, then the follow-up and its retries. The bird-coin budget, not a
-    fixed retry count, decides how many submissions each phase gets.
+    fixed retry count, decides how many submissions each phase gets. Phase 1
+    queries and asks leave 4 coins in the same wallet. A submission can spend
+    those coins, and phase 2 has no floor. A submission that spends the wallet
+    to zero still ends the task.
     """
     if sess._seen_first_run_session:
         raise HTTPException(
@@ -373,10 +386,17 @@ async def _run_ainteract_session(sess: AdapterSession, req: RunSessionRequest) -
 
     for turn in range(1, MAX_AGENT_STEPS + 1):
         if sess.phase == 1:
-            # Auto Ontology asks while its history is under max_clarify_turns,
-            # so keep that at what the budget can still pay for.
+            # Auto Ontology asks while its history is under max_clarify_turns.
+            # The count is what the reference budget can still pay: each ask
+            # must leave one submission. A failed user simulator stops that,
+            # because every further ask would be the same empty fallback.
+            asks_left = (
+                0
+                if sess.clarify_blocked
+                else budget.affordable_asks(PHASE1_QUERY_FLOOR)
+            )
             auto_ontology.max_clarify_turns = (
-                len(auto_ontology.clarify_history) + budget.affordable_asks()
+                len(auto_ontology.clarify_history) + asks_left
             )
         t0 = time.time()
         action = await asyncio.to_thread(
@@ -388,9 +408,30 @@ async def _run_ainteract_session(sess: AdapterSession, req: RunSessionRequest) -
             follow_up_question=follow_up_question,
         )
         elapsed = time.time() - t0
+        if isinstance(action, AskUserAction) and sess.clarify_blocked:
+            logger.warning(
+                "[turn %d] ask suppressed after the user simulator failed", turn
+            )
+            auto_ontology.max_clarify_turns = len(auto_ontology.clarify_history)
+            action = await asyncio.to_thread(
+                auto_ontology_step,
+                auto_ontology,
+                turn_type=turn_type,
+                debug_error=debug_error,
+                initial_question=initial_question,
+                follow_up_question=follow_up_question,
+            )
+            if isinstance(action, AskUserAction):
+                stop_reason = "user_sim_failed"
+                logger.error(
+                    "[turn %d] user simulator failed and the agent is still asking",
+                    turn,
+                )
+                break
 
         if isinstance(action, AskUserAction):
-            if not budget.charge("ask_user"):
+            ask_reserve = PHASE1_QUERY_FLOOR if sess.phase == 1 else 0.0
+            if not budget.charge("ask_user", reserve=ask_reserve):
                 # Only Auto Ontology's opening output-type question ignores
                 # max_clarify_turns, and the opening budget always covers it.
                 stop_reason = "ask_unaffordable"
@@ -412,6 +453,15 @@ async def _run_ainteract_session(sess: AdapterSession, req: RunSessionRequest) -
                     status_code=502, detail=f"ask_user error: {type(e).__name__}: {e}"
                 )
             logger.info("  └─ user answer: %s", answer)
+            # user_simulator/server.py returns this exact string when the
+            # response generator has nothing to parse, including a failed call.
+            if answer.strip() == "I'm not sure I understand your question.":
+                sess.clarify_blocked = True
+                logger.warning(
+                    "[turn %d] user simulator returned its failure fallback; "
+                    "no further asks",
+                    turn,
+                )
             sess.dialogue_history.append({"role": "agent", "content": action.question})
             sess.dialogue_history.append({"role": "user", "content": answer})
             sess.tool_trajectory.append(
@@ -483,6 +533,8 @@ async def _run_ainteract_session(sess: AdapterSession, req: RunSessionRequest) -
                 stop_reason = "done"
                 break
             await bird_http.phase_transition(req.task_id)
+            for conn in sess.query_connectors:
+                conn.reserve = 0.0
             sess.phase = 2
             submitted_this_phase = set()
             turn_type = TurnType.FOLLOW_UP
@@ -565,7 +617,7 @@ async def init_session(req: InitSessionRequest):
             raise HTTPException(
                 status_code=502, detail=f"db_env error: {type(e).__name__}: {e}"
             )
-        max_turn = budget.affordable_asks()
+        max_turn = budget.affordable_asks(PHASE1_QUERY_FLOOR)
     else:
         db_schema = req.state.get("db_schema", "")
         raw_kb = req.state.get("external_kb", "[]")
@@ -587,9 +639,15 @@ async def init_session(req: InitSessionRequest):
     )
     if budget is not None:
         connectors = [
-            MeteredConnector(c, budget, partial(_record_query, sess))
+            MeteredConnector(
+                c,
+                budget,
+                partial(_record_query, sess),
+                reserve=PHASE1_QUERY_FLOOR,
+            )
             for c in connectors
         ]
+        sess.query_connectors = connectors
 
     sess.auto_ontology_session = auto_ontology_create_session(
         session_id=session_id,

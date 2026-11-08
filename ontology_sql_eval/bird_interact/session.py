@@ -48,6 +48,12 @@ class AdapterSession:
     # a-Interact only: the phase being worked on, so queries Auto Ontology runs
     # mid-step can be recorded against it.
     phase: int = 1
+    # Metered connectors for this task. Phase 1 sets their reserve to the
+    # query floor; entering phase 2 clears it so those coins can be spent.
+    query_connectors: list = field(default_factory=list)
+    # Set when the user simulator returns its failure fallback. Further asks
+    # would be charged and still carry no information.
+    clarify_blocked: bool = False
     # Conversation history (returned to orchestrator)
     dialogue_history: list = field(default_factory=list)
     tool_trajectory: list = field(default_factory=list)

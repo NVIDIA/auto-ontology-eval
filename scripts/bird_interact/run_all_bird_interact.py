@@ -616,9 +616,9 @@ def main() -> None:
     parser.add_argument(
         "--phase-timeout",
         type=float,
-        default=600.0,
-        help="Seconds per run_session HTTP call (default: 600 = 10 min, "
-        "matching the official cinteract orchestrator's hard-coded timeout)",
+        default=None,
+        help="Seconds per run_session HTTP call. Default follows the official "
+        "orchestrator for --mode: 600 for c-interact, 1800 for a-interact",
     )
     parser.add_argument(
         "--health-timeout",
@@ -661,6 +661,9 @@ def main() -> None:
     )
     args = parser.parse_args()
     ainteract = args.mode == "a-interact"
+    if args.phase_timeout is None:
+        # Official orchestrators: cinteract.py uses 600s, ainteract.py uses 1800s.
+        args.phase_timeout = 1800.0 if ainteract else 600.0
     if args.output is None:
         args.output = "ainteract_query_all" if ainteract else "cinteract_query_all"
     csv_columns = AINTERACT_CSV_COLUMNS if ainteract else CSV_COLUMNS

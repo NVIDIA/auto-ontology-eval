@@ -6,7 +6,8 @@ callbacks (system_agent/callbacks.py) then charge every tool call against it.
 Grading never checks the budget — it only bounds how many asks, schema/KB
 lookups, queries and submissions the agent gets — so matching those
 callbacks' rules exactly is what keeps our numbers comparable with other
-a-Interact agents.
+a-Interact agents. ``charge`` does that, including the submission that spends
+the wallet to zero.
 """
 
 from __future__ import annotations
@@ -27,6 +28,10 @@ TOOL_COSTS = {
 
 # The reference agent's MAX_MODEL_TURNS: a hard stop independent of budget.
 MAX_AGENT_STEPS = 60
+
+# Phase 1 queries and asks stop once this many coins are left. The coins stay
+# in the same wallet: a submission can spend them, and phase 2 has no floor.
+PHASE1_QUERY_FLOOR = 4.0
 
 
 class BudgetExhausted(RuntimeError):
@@ -52,29 +57,41 @@ class Budget:
         # The reference uses -1 as its stop signal, never a real balance.
         return self.remaining < 0
 
-    def charge(self, tool: str) -> bool:
+    def charge(self, tool: str, reserve: float = 0.0) -> bool:
         """Deduct *tool*'s cost; False when the call is refused.
 
         A submission is never refused: when the balance can't cover it, or it
         spends the balance down to zero, it goes through as the agent's final
         action and the budget reads exhausted afterwards. Any other tool the
-        balance can't cover is refused.
+        balance can't cover is refused. *reserve* is a floor those other tools
+        must leave behind; a submission ignores it.
         """
-        cost = TOOL_COSTS[tool]
         with self._lock:
-            if self.remaining < cost:
-                if tool == "submit_sql":
-                    self.remaining = -1.0
-                    return True
-                return False
-            self.remaining -= cost
-            if tool == "submit_sql" and self.remaining <= 0:
-                self.remaining = -1.0
-            return True
+            return self._charge_unlocked(tool, reserve)
 
-    def affordable_asks(self) -> int:
-        """Asks that still leave enough for one submission afterwards."""
-        spare = self.remaining - TOOL_COSTS["submit_sql"]
+    def _charge_unlocked(self, tool: str, reserve: float = 0.0) -> bool:
+        cost = TOOL_COSTS[tool]
+        if tool != "submit_sql" and self.remaining - cost < reserve:
+            return False
+        if self.remaining < cost:
+            if tool == "submit_sql":
+                self.remaining = -1.0
+                return True
+            return False
+        self.remaining -= cost
+        if tool == "submit_sql" and self.remaining <= 0:
+            self.remaining = -1.0
+        return True
+
+    def affordable_asks(self, reserve: float = 0.0) -> int:
+        """Asks that still leave one submission, or *reserve* if that is more.
+
+        The phase-1 floor is not stacked on top of the submission. The balance
+        kept is whichever of the two is larger, which at 4 coins still pays
+        for one submission.
+        """
+        keep = max(reserve, TOOL_COSTS["submit_sql"])
+        spare = self.remaining - keep
         return max(0, int(spare // TOOL_COSTS["ask_user"]))
 
 
@@ -97,20 +114,61 @@ class MeteredConnector:
         base: Any,
         budget: Budget,
         on_query: Callable[[str, bool], None],
+        reserve: float = 0.0,
     ) -> None:
         self._base = base
         self._budget = budget
         self._on_query = on_query
+        # Phase 1 sets this to PHASE1_QUERY_FLOOR; phase 2 clears it.
+        self.reserve = reserve
 
     def execute(self, sql: str, *args: Any, **kwargs: Any) -> Any:
-        charged = self._budget.charge("execute_sql")
+        charged = self._budget.charge("execute_sql", reserve=self.reserve)
         self._on_query(sql, charged)
         if not charged:
             raise BudgetExhausted(
-                f"Budget exhausted ({self._budget.remaining:.1f} remaining); "
-                "query refused."
+                f"Query refused ({self._budget.remaining:.1f} remaining)."
             )
         return self._base.execute(sql, *args, **kwargs)
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._base, name)
+
+
+def install_budget_refusal_submits_current_sql() -> None:
+    """A refused phase-1 query must not be rewritten as a bad SQL statement.
+
+    The text-to-SQL runner treats every execution error as a query to fix and
+    reconstructs it, up to seven model calls. On this benchmark that loop runs
+    past the run_session call timeout, so the SQL already generated never gets
+    submitted. ``BudgetExhausted`` leaving ``_run_sql`` hits the runner's
+    existing fallback, which submits that SQL instead.
+
+    Tests stub ``auto_ontology.retrieval`` before this process imports the real
+    package. Skipping the patch there is fine: those tests never execute SQL.
+    """
+    try:
+        import auto_ontology.retrieval.text_to_sql.agents.sql_execution as sql_execution
+    except (ModuleNotFoundError, ImportError):
+        return
+    _patch_run_sql_to_reraise_budget(sql_execution)
+
+
+def _patch_run_sql_to_reraise_budget(module: Any) -> None:
+    import inspect
+    import textwrap
+
+    if getattr(module, "_budget_refusal_installed", False):
+        return
+    source = textwrap.dedent(inspect.getsource(module._run_sql))
+    old = "    except Exception as e:\n"
+    new = "    except BudgetExhausted:\n        raise\n    except Exception as e:\n"
+    if source.count(old) != 1:
+        raise RuntimeError(
+            "sql_execution._run_sql no longer has one 'except Exception'; "
+            "the budget-refusal fallback was not installed"
+        )
+    # The re-raised name is resolved in that module, not in this one.
+    module.BudgetExhausted = BudgetExhausted
+    exec(source.replace(old, new, 1), module.__dict__)
+    module._budget_refusal_installed = True

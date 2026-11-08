@@ -142,7 +142,7 @@ All three (except `run_bird_interact_cinteract.py`) require `:6001` and
 | `--include IDS...` / `--exclude IDS...` | Run only / skip specific instance_ids. |
 | `--force-include IDS...` | Guarantee these instance_ids are in the run, fill the rest of `--limit` from the remaining pool. |
 | `--agent-port` (default 6003) | Auto Ontology adapter port. |
-| `--phase-timeout` (default 600s) | Per `run_session` HTTP call — matches the official orchestrator's timeout. |
+| `--phase-timeout` | Per `run_session` HTTP call. Default 600s for c-Interact and 1800s for a-Interact, matching each official orchestrator. |
 | `--health-timeout` (default 10s) | Per-service health-check timeout before giving up. |
 | `--overwrite` | Overwrite an existing output stem instead of failing. |
 
@@ -172,7 +172,9 @@ column documentation".
 `--mode a-interact` follows the reference ADK's `orchestrator/ainteract.py`:
 one `run_session` call per task, carrying only the database name, the
 ambiguous query and a bird-coin budget of `6 + 2 × ambiguities + 2 × patience`
-(patience = 3). The adapter then runs the whole task inside that call —
+(patience = 3). That call waits 1800 seconds, the same limit as
+`run_agent_session` in the reference orchestrator. The adapter then runs the
+whole task inside that call —
 Phase 1, debug retries, the user simulator's phase transition, the follow-up
 and its retries — and charges every action at the reference tool prices
 (`ontology_sql_eval/bird_interact/budget.py`):
@@ -189,8 +191,17 @@ What differs from c-Interact:
 - **No fixed debug retry.** A phase keeps resubmitting while the budget lasts.
   It stops early if a debug turn regenerates SQL that already failed, since a
   resubmission would be graded the same.
-- **Asks are budget-bound.** Auto Ontology may ask while the remaining balance
-  still covers the ask plus one submission. Phase 2 still asks nothing.
+- **Asks are budget-bound.** An ask is allowed while the balance still covers
+  the ask and one submission, which is the reference rule. Phase 2 still asks
+  nothing.
+- **Phase 1 holds 4 coins in the same wallet.** A phase-1 query or ask is
+  refused when it would leave fewer than 4 coins. `submit_sql` can spend those
+  coins, including a debug submission and one that spends the wallet to zero.
+  Phase 2 has no floor: its queries spend until fewer than 1 coin remains. A
+  refused query is not treated as a bad SQL statement: generation stops and
+  the SQL already produced is submitted. If the user simulator returns its
+  failure fallback, further asks stop, so a dead simulator cannot spend the
+  rest of the wallet on empty answers.
 - **Reward ignores retries.** The grader awards 0.7 / 0.3 for a pass however
   many submissions it took; c-Interact's 0.5 / 0.2 debug rewards don't apply.
 - **Budget rules match the reference callbacks.** A submission is allowed even
