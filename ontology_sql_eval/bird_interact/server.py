@@ -152,6 +152,21 @@ def _extract_followup_question(message: str) -> str:
     return match.group(1).strip() if match else ""
 
 
+_FOLLOW_UP_EXECUTION_GUIDANCE = """\
+Execution requirements:
+- Treat the accepted Phase 1 SQL as authoritative for the prior result set, formulas, joins, filters, ranking, and tie behavior. Preserve every part the follow-up does not explicitly replace.
+- Apply only the requested change. References such as "the same", "those", "top N", or "from that list" must use the Phase 1 result as the base relation before extending it.
+- Return exactly the requested columns, in the requested order and grain, with no extra columns. Preserve requested rounding, scale, NULL handling, and sorting."""
+
+
+def _with_follow_up_guidance(question: str) -> str:
+    """Add deterministic guardrails for extending the accepted Phase 1 query."""
+    question = question.strip()
+    if not question:
+        return question
+    return f"{question}\n\n{_FOLLOW_UP_EXECUTION_GUIDANCE}"
+
+
 _MAX_KG_CHILDREN = 5
 
 # Slack allowed on top of a task's max_turn before /run_session stops looping.
@@ -486,6 +501,25 @@ async def _run_ainteract_session(sess: AdapterSession, req: RunSessionRequest) -
             logger.warning("[turn %d] unexpected action %s — aborting", turn, action)
             break
 
+        if not action.sql.strip():
+            recovered_sql = str(
+                getattr(auto_ontology, "path_state", {}).get("sql_code") or ""
+            ).strip()
+            if not recovered_sql:
+                stop_reason = "empty_sql"
+                logger.error(
+                    "[turn %d] P%d generated no SQL; refusing an empty paid submit",
+                    turn,
+                    sess.phase,
+                )
+                break
+            logger.warning(
+                "[turn %d] P%d action SQL was empty; using the last generated SQL",
+                turn,
+                sess.phase,
+            )
+            action = SubmitSQLAction(recovered_sql)
+
         if action.sql in submitted_this_phase:
             # The grader is deterministic, so a resubmission can only fail again.
             stop_reason = "repeated_sql"
@@ -541,7 +575,9 @@ async def _run_ainteract_session(sess: AdapterSession, req: RunSessionRequest) -
             sess.phase = 2
             submitted_this_phase = set()
             turn_type = TurnType.FOLLOW_UP
-            follow_up_question = result.get("follow_up_query", "")
+            follow_up_question = _with_follow_up_guidance(
+                result.get("follow_up_query", "")
+            )
             debug_error = None
         elif phase_completed == 2:
             sess.phase2_completed = True

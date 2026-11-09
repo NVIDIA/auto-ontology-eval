@@ -199,9 +199,11 @@ What differs from c-Interact:
   coins, including a debug submission and one that spends the wallet to zero.
   Phase 2 has no floor: its queries spend until fewer than 1 coin remains. A
   refused query is not treated as a bad SQL statement: generation stops and
-  the SQL already produced is submitted. If the user simulator returns its
-  failure fallback, further asks stop, so a dead simulator cannot spend the
-  rest of the wallet on empty answers.
+  the SQL already produced is submitted. An empty submit action falls back to
+  that last generated SQL; if none exists, it stops without paying for an empty
+  submission. If the user simulator returns its failure fallback, further asks
+  stop, so a dead simulator cannot spend the rest of the wallet on empty
+  answers.
 - **Reward ignores retries.** The grader awards 0.7 / 0.3 for a pass however
   many submissions it took; c-Interact's 0.5 / 0.2 debug rewards don't apply.
 - **Budget rules match the reference callbacks.** A submission is allowed even

@@ -708,10 +708,15 @@ def test_load_kb_children_rejects_unsafe_db_name():
         # An empty name is routine (state with no db_name) and also yields {}.
         assert server_mod._load_kb_children("") == {}
 
-        # A legitimate name is still accepted and memoised -- {} here only
-        # because no *_kb.jsonl exists for it in the test checkout.
-        assert server_mod._load_kb_children("labor_certification_applications") == {}
+        # A legitimate name is accepted and memoised whether or not the optional
+        # local Full dataset is installed in the test checkout.
+        children = server_mod._load_kb_children("labor_certification_applications")
+        assert isinstance(children, dict)
         assert "labor_certification_applications" in server_mod._kb_children_cache
+        assert (
+            server_mod._kb_children_cache["labor_certification_applications"]
+            is children
+        )
     finally:
         server_mod._kb_children_cache.clear()
 
@@ -868,7 +873,10 @@ def test_ainteract_runs_both_phases_in_one_call():
     assert calls[2].kwargs["turn_type"] == TurnType.DEBUG
     assert calls[2].kwargs["debug_error"] == "boom"
     assert calls[3].kwargs["turn_type"] == TurnType.FOLLOW_UP
-    assert calls[3].kwargs["follow_up_question"] == "Now by planet?"
+    follow_up_question = calls[3].kwargs["follow_up_question"]
+    assert follow_up_question.startswith("Now by planet?\n\nExecution requirements:")
+    assert "Phase 1 SQL as authoritative" in follow_up_question
+    assert "exactly the requested columns" in follow_up_question
     assert [t["phase"] for t in state["tool_trajectory"]] == [1, 1, 1, 2]
 
 
@@ -897,6 +905,28 @@ def test_ainteract_stops_instead_of_resubmitting_a_failed_sql():
 
     assert state["stop_reason"] == "repeated_sql"
     assert state["budget_remaining"] == 20.0 - 2.0 - 3.0
+
+
+def test_ainteract_recovers_last_generated_sql_instead_of_empty_paid_submit():
+    mock_sess = MagicMock(
+        clarify_history=[], path_state={"sql_code": "SELECT recovered"}
+    )
+    steps = [SubmitSQLAction("")]
+    passed = {
+        "passed": True,
+        "reward": 0.7,
+        "phase_completed": 1,
+        "has_follow_up": False,
+        "message": "Phase 1 correct!",
+    }
+    ctx = _ainteract_ctx(mock_sess, steps, [passed])
+    submit = ctx[10].new
+
+    state = _run_ainteract(ctx, budget=14.0, task_id="a-recover-empty-sql")
+
+    submit.assert_awaited_once_with("a-recover-empty-sql", "SELECT recovered")
+    assert state["stop_reason"] == "done"
+    assert state["tool_trajectory"][0]["input"]["sql"] == "SELECT recovered"
 
 
 def test_ainteract_phase1_still_asks_when_the_balance_covers_it():
