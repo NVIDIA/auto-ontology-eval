@@ -52,11 +52,15 @@ from .budget import (  # noqa: E402
     install_budget_refusal_submits_current_sql,
 )
 from .known_issues import is_p1snap_collision  # noqa: E402
+from .schema import install_compact_schema_parser  # noqa: E402
 from .session import AdapterSession, get_session, put_session  # noqa: E402
 
 # A refused phase-1 query has to escape SQL execution, or the generator
 # rewrites it until the call times out.
 install_budget_refusal_submits_current_sql()
+# Some official Full schema files quote SQL keywords (for example
+# ``"CREATE" TABLE``), which Auto Ontology's default compactor does not parse.
+install_compact_schema_parser()
 
 # ── Logging setup ─────────────────────────────────────────────────────────────
 # Suppress noisy third-party warnings
