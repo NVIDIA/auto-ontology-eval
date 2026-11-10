@@ -1,7 +1,8 @@
-"""FastAPI service on port 6000 — Bird system agent interface for c-Interact."""
+"""FastAPI service on port 6000 — Bird system agent interface for c-Interact and a-Interact."""
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -10,6 +11,7 @@ import time
 import uuid
 import warnings
 from contextlib import asynccontextmanager
+from functools import partial
 from pathlib import Path
 from typing import Any, Dict
 
@@ -42,8 +44,23 @@ from auto_ontology.retrieval.interactive import (  # noqa: E402
     apply_submit_result as auto_ontology_apply_submit_result,
 )
 from . import bird_interact_http as bird_http  # noqa: E402
+from .budget import (  # noqa: E402
+    MAX_AGENT_STEPS,
+    PHASE1_QUERY_FLOOR,
+    Budget,
+    MeteredConnector,
+    install_budget_refusal_submits_current_sql,
+)
 from .known_issues import is_p1snap_collision  # noqa: E402
+from .schema import install_compact_schema_parser  # noqa: E402
 from .session import AdapterSession, get_session, put_session  # noqa: E402
+
+# A refused phase-1 query has to escape SQL execution, or the generator
+# rewrites it until the call times out.
+install_budget_refusal_submits_current_sql()
+# Some official Full schema files quote SQL keywords (for example
+# ``"CREATE" TABLE``), which Auto Ontology's default compactor does not parse.
+install_compact_schema_parser()
 
 # ── Logging setup ─────────────────────────────────────────────────────────────
 # Suppress noisy third-party warnings
@@ -94,9 +111,12 @@ async def lifespan(app: FastAPI):
     _DATA_RETRIEVER = get_data_objects_retriever()
     _SEMANTIC_RETRIEVER = get_semantic_objects_retriever()
 
+    # CONNECTION_STRINGS is the eval .env (BIRD Dev sqlite). BIRD-Interact
+    # Postgres URLs are passed separately so that overlay does not drop them.
     connection_strings = [
         cs.strip()
-        for cs in os.environ.get("CONNECTION_STRINGS", "").split(",")
+        for key in ("CONNECTION_STRINGS", "BIRD_INTERACT_CONNECTION_STRINGS")
+        for cs in os.environ.get(key, "").split(",")
         if cs.strip()
     ]
     for cs in connection_strings:
@@ -134,6 +154,21 @@ def _extract_followup_question(message: str) -> str:
         r"follow-up question:\s*\n\n(.*?)(?:\n\nGenerate|$)", message, re.DOTALL
     )
     return match.group(1).strip() if match else ""
+
+
+_FOLLOW_UP_EXECUTION_GUIDANCE = """\
+Execution requirements:
+- Treat the accepted Phase 1 SQL as authoritative for the prior result set, formulas, joins, filters, ranking, and tie behavior. Preserve every part the follow-up does not explicitly replace.
+- Apply only the requested change. References such as "the same", "those", "top N", or "from that list" must use the Phase 1 result as the base relation before extending it.
+- Return exactly the requested columns, in the requested order and grain, with no extra columns. Preserve requested rounding, scale, NULL handling, and sorting."""
+
+
+def _with_follow_up_guidance(question: str) -> str:
+    """Add deterministic guardrails for extending the accepted Phase 1 query."""
+    question = question.strip()
+    if not question:
+        return question
+    return f"{question}\n\n{_FOLLOW_UP_EXECUTION_GUIDANCE}"
 
 
 _MAX_KG_CHILDREN = 5
@@ -275,6 +310,333 @@ class RunSessionRequest(BaseModel):
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 
+def _raise_on_p1snap_collision(turn: int, msg: str) -> None:
+    # This ADK crash signature (see known_issues.py) should be
+    # unreachable: scripts/bird_interact/start_bird_services.sh mandatorily patches
+    # ADK's create_task_db() before ADK's services ever start, so a
+    # run reaching here has an unpatched/bypassed ADK setup — a setup
+    # bug worth stopping the run for, not a score to silently correct.
+    if not is_p1snap_collision(msg):
+        return
+    logger.error(
+        "[turn %d] ADK p1snap name-collision signature seen despite "
+        "the mandatory patch (see known_issues.py) — ADK services were "
+        "likely started without scripts/bird_interact/start_bird_services.sh, or the "
+        "patch stopped applying after an ADK update.",
+        turn,
+    )
+    raise HTTPException(
+        status_code=500,
+        detail=(
+            "ADK p1snap name-collision bug detected; this should be "
+            "impossible with the patch applied — see known_issues.py"
+        ),
+    )
+
+
+def _entity_fields(sess: AdapterSession) -> dict[str, list]:
+    auto_ontology = sess.auto_ontology_session
+    return {
+        "unresolved_entities_end": list(
+            getattr(auto_ontology, "persistent_unresolved", [])
+        ),
+        "resolved_entities": list(getattr(auto_ontology, "resolved_persistent", set())),
+        "initial_extracted_entities": list(
+            getattr(auto_ontology, "initial_extracted_entities", [])
+        ),
+        "extracted_entities": list(
+            getattr(auto_ontology, "path_state", {}).get("entities") or []
+        ),
+    }
+
+
+def _record_query(sess: AdapterSession, sql: str, charged: bool) -> None:
+    """Log one of Auto Ontology's own queries in the a-Interact trajectory."""
+    budget = sess.budget
+    assert budget is not None
+    sess.tool_trajectory.append(
+        {
+            "tool": "execute_sql",
+            "phase": sess.phase,
+            "input": {"sql": sql[:2000]},
+            "charged": charged,
+            "budget_after": budget.remaining,
+        }
+    )
+
+
+def _exec_error(submit_message: str) -> str | None:
+    if "[exec_err_flg]" in submit_message:
+        return submit_message.split("[exec_err_flg]", 1)[-1].strip()
+    return None
+
+
+async def _run_ainteract_session(sess: AdapterSession, req: RunSessionRequest) -> dict:
+    """Run a whole a-Interact task in one call, as the reference orchestrator expects.
+
+    The orchestrator sends one message and reads back the final state, so the
+    phase sequencing c-Interact's orchestrator does over several calls happens
+    here instead: Phase 1, its debug retries, the user simulator's phase
+    transition, then the follow-up and its retries. The bird-coin budget, not a
+    fixed retry count, decides how many submissions each phase gets. Phase 1
+    queries and asks leave 4 coins in the same wallet. A submission can spend
+    those coins, and phase 2 has no floor. A submission that spends the wallet
+    to zero still ends the task.
+    """
+    if sess._seen_first_run_session:
+        raise HTTPException(
+            status_code=400,
+            detail=f"a-Interact task_id={req.task_id!r} already ran — "
+            "it takes a single run_session call.",
+        )
+    sess._seen_first_run_session = True
+    budget = sess.budget
+    assert budget is not None
+    auto_ontology = sess.auto_ontology_session
+
+    turn_type = TurnType.INITIAL
+    initial_question = sess.bird_state.get("user_query") or _extract_initial_question(
+        req.message
+    )
+    debug_error: str | None = None
+    follow_up_question: str | None = None
+    sess.phase = 1
+    submitted_this_phase: set[str] = set()
+    phase_secs: dict[int, float] = {}
+    t_phase = t_start = time.time()
+    stop_reason = "max_agent_steps"
+
+    for turn in range(1, MAX_AGENT_STEPS + 1):
+        if sess.phase == 1:
+            # Auto Ontology asks while its history is under max_clarify_turns.
+            # The count is what the reference budget can still pay: each ask
+            # must leave one submission. A failed user simulator stops that,
+            # because every further ask would be the same empty fallback.
+            asks_left = (
+                0
+                if sess.clarify_blocked
+                else budget.affordable_asks(PHASE1_QUERY_FLOOR)
+            )
+            auto_ontology.max_clarify_turns = (
+                len(auto_ontology.clarify_history) + asks_left
+            )
+        t0 = time.time()
+        action = await asyncio.to_thread(
+            auto_ontology_step,
+            auto_ontology,
+            turn_type=turn_type,
+            debug_error=debug_error,
+            initial_question=initial_question,
+            follow_up_question=follow_up_question,
+        )
+        elapsed = time.time() - t0
+        if isinstance(action, AskUserAction) and sess.clarify_blocked:
+            logger.warning(
+                "[turn %d] ask suppressed after the user simulator failed", turn
+            )
+            auto_ontology.max_clarify_turns = len(auto_ontology.clarify_history)
+            action = await asyncio.to_thread(
+                auto_ontology_step,
+                auto_ontology,
+                turn_type=turn_type,
+                debug_error=debug_error,
+                initial_question=initial_question,
+                follow_up_question=follow_up_question,
+            )
+            if isinstance(action, AskUserAction):
+                stop_reason = "user_sim_failed"
+                logger.error(
+                    "[turn %d] user simulator failed and the agent is still asking",
+                    turn,
+                )
+                break
+
+        if isinstance(action, AskUserAction):
+            ask_reserve = PHASE1_QUERY_FLOOR if sess.phase == 1 else 0.0
+            if not budget.charge("ask_user", reserve=ask_reserve):
+                # Only Auto Ontology's opening output-type question ignores
+                # max_clarify_turns, and the opening budget always covers it.
+                stop_reason = "ask_unaffordable"
+                logger.error("[turn %d] ask_user unaffordable — ending task", turn)
+                break
+            logger.info(
+                "[turn %d | %.1fs | P%d | budget %.1f] ASK: %s",
+                turn,
+                elapsed,
+                sess.phase,
+                budget.remaining,
+                action.question,
+            )
+            try:
+                answer = await bird_http.ask_user(req.task_id, action.question)
+            except Exception as e:
+                logger.error("[turn %d] ask_user failed: %r", turn, e)
+                raise HTTPException(
+                    status_code=502, detail=f"ask_user error: {type(e).__name__}: {e}"
+                )
+            logger.info("  └─ user answer: %s", answer)
+            # user_simulator/server.py returns this exact string when the
+            # response generator has nothing to parse, including a failed call.
+            if answer.strip() == "I'm not sure I understand your question.":
+                sess.clarify_blocked = True
+                logger.warning(
+                    "[turn %d] user simulator returned its failure fallback; "
+                    "no further asks",
+                    turn,
+                )
+            sess.dialogue_history.append({"role": "agent", "content": action.question})
+            sess.dialogue_history.append({"role": "user", "content": answer})
+            sess.tool_trajectory.append(
+                {
+                    "tool": "ask_user",
+                    "phase": sess.phase,
+                    "input": {"question": action.question},
+                    "output": {"answer": answer},
+                    "budget_after": budget.remaining,
+                }
+            )
+            await asyncio.to_thread(
+                auto_ontology_apply_user_answer, auto_ontology, answer
+            )
+            continue
+
+        if not isinstance(action, SubmitSQLAction):
+            stop_reason = f"unexpected_action:{type(action).__name__}"
+            logger.warning("[turn %d] unexpected action %s — aborting", turn, action)
+            break
+
+        if not action.sql.strip():
+            recovered_sql = str(
+                getattr(auto_ontology, "path_state", {}).get("sql_code") or ""
+            ).strip()
+            if not recovered_sql:
+                stop_reason = "empty_sql"
+                logger.error(
+                    "[turn %d] P%d generated no SQL; refusing an empty paid submit",
+                    turn,
+                    sess.phase,
+                )
+                break
+            logger.warning(
+                "[turn %d] P%d action SQL was empty; using the last generated SQL",
+                turn,
+                sess.phase,
+            )
+            action = SubmitSQLAction(recovered_sql)
+
+        if action.sql in submitted_this_phase:
+            # The grader is deterministic, so a resubmission can only fail again.
+            stop_reason = "repeated_sql"
+            logger.info(
+                "[turn %d] P%d debug produced an already-failed SQL", turn, sess.phase
+            )
+            break
+        submitted_this_phase.add(action.sql)
+        budget.charge("submit_sql")
+        logger.info(
+            "[turn %d | %.1fs | P%d | budget %.1f] SUBMIT:\n%s",
+            turn,
+            elapsed,
+            sess.phase,
+            budget.remaining,
+            action.sql,
+        )
+        try:
+            result = await bird_http.submit_sql(req.task_id, action.sql)
+        except Exception as e:
+            logger.error("[turn %d] submit_sql failed: %s", turn, e)
+            raise HTTPException(status_code=502, detail=f"submit_sql error: {e}")
+        msg = result.get("message", "")
+        logger.info("  └─ %s", msg)
+        _raise_on_p1snap_collision(turn, msg)
+
+        sess._last_submit_raw = msg
+        sess.total_reward += float(result.get("reward") or 0.0)
+        sess.tool_trajectory.append(
+            {
+                "tool": "submit_sql",
+                "phase": sess.phase,
+                "input": {"sql": action.sql},
+                "output": result,
+                "budget_after": budget.remaining,
+            }
+        )
+        auto_ontology_apply_submit_result(auto_ontology, result)
+
+        phase_completed = result.get("phase_completed")
+        if phase_completed is not None:
+            phase_secs[sess.phase] = time.time() - t_phase
+            t_phase = time.time()
+        if phase_completed == 1:
+            sess.phase1_completed = True
+            if not result.get("has_follow_up"):
+                sess.task_done = True
+                stop_reason = "done"
+                break
+            await bird_http.phase_transition(req.task_id)
+            for conn in sess.query_connectors:
+                conn.reserve = 0.0
+            sess.phase = 2
+            submitted_this_phase = set()
+            turn_type = TurnType.FOLLOW_UP
+            follow_up_question = _with_follow_up_guidance(
+                result.get("follow_up_query", "")
+            )
+            debug_error = None
+        elif phase_completed == 2:
+            sess.phase2_completed = True
+            sess.task_done = True
+            stop_reason = "done"
+            break
+        else:
+            turn_type = TurnType.DEBUG
+            debug_error = _exec_error(msg)
+
+        if budget.exhausted:
+            stop_reason = "budget_exhausted"
+            break
+
+    if sess.phase not in phase_secs:
+        phase_secs[sess.phase] = time.time() - t_phase
+    logger.info(
+        "[done] %s | P1=%s P2=%s reward=%.2f budget=%.1f/%.1f stop=%s (%.1fs)",
+        req.task_id,
+        sess.phase1_completed,
+        sess.phase2_completed,
+        sess.total_reward,
+        budget.remaining,
+        budget.initial,
+        stop_reason,
+        time.time() - t_start,
+    )
+
+    out_state = {
+        **sess.bird_state,
+        "phase1_completed": sess.phase1_completed,
+        "phase2_completed": sess.phase2_completed,
+        "total_reward": sess.total_reward,
+        "budget_remaining": budget.remaining,
+        "initial_budget": budget.initial,
+        "dialogue_history": sess.dialogue_history,
+        "tool_trajectory": sess.tool_trajectory,
+        "_last_submit_raw": sess._last_submit_raw,
+        "task_done": sess.task_done,
+        "stop_reason": stop_reason,
+        "adk_events": [],
+        "timing_phase1_secs": phase_secs.get(1),
+        "timing_phase2_secs": phase_secs.get(2),
+        **_entity_fields(sess),
+    }
+    return {
+        "task_id": req.task_id,
+        "mode": req.mode,
+        "session_id": sess.session_id,
+        "state": out_state,
+        "response": f"Task ended: {stop_reason}",
+        "adk_available": True,
+    }
+
+
 @app.get("/health")
 async def health():
     return {"status": "healthy", "service": "system_agent", "adk_available": True}
@@ -283,18 +645,58 @@ async def health():
 @app.post("/init_session")
 async def init_session(req: InitSessionRequest):
     db_name = req.state.get("db_name", "")
-    db_schema = req.state.get("db_schema", "")
-    external_kb, external_kb_children_map = _format_external_kb(
-        req.state.get("external_kb", "[]"), db_name
-    )
+    budget: Budget | None = None
+    if req.mode == "a-interact":
+        # a-Interact hands the agent no schema or KB — only a bird-coin
+        # budget. Buy both up front, at the reference tool prices, so Auto
+        # Ontology starts from the same context c-Interact gives it for free.
+        # The column meanings are paid for too but not fetched: the catalog
+        # Auto Ontology retrieves from was seeded with them.
+        budget = Budget.start(float(req.state.get("initial_budget", 0.0)))
+        budget.charge("get_schema")
+        budget.charge("get_all_column_meanings")
+        budget.charge("get_all_knowledge_definitions")
+        try:
+            db_schema = await bird_http.get_schema(req.task_id)
+            raw_kb = await bird_http.get_all_knowledge(req.task_id)
+        except Exception as e:
+            raise HTTPException(
+                status_code=502, detail=f"db_env error: {type(e).__name__}: {e}"
+            )
+        max_turn = budget.affordable_asks(PHASE1_QUERY_FLOOR)
+    else:
+        db_schema = req.state.get("db_schema", "")
+        raw_kb = req.state.get("external_kb", "[]")
+        max_turn = int(req.state.get("max_turn", 5))
+    external_kb, external_kb_children_map = _format_external_kb(raw_kb, db_name)
     session_id = uuid.uuid4().hex
 
     connectors = _CONNECTORS.get(db_name, [])
     if not connectors:
         logger.warning("[session] no connector for db=%r", db_name)
 
-    max_turn = int(req.state.get("max_turn", 5))
-    auto_ontology_session = auto_ontology_create_session(
+    sess = AdapterSession(
+        task_id=req.task_id,
+        mode=req.mode,
+        session_id=session_id,
+        bird_state=req.state,
+        max_turn=max_turn,
+        budget=budget,
+    )
+    if budget is not None:
+        connectors = [
+            MeteredConnector(
+                c,
+                budget,
+                partial(_record_query, sess),
+                reserve=PHASE1_QUERY_FLOOR,
+                phase=lambda: sess.phase,
+            )
+            for c in connectors
+        ]
+        sess.query_connectors = connectors
+
+    sess.auto_ontology_session = auto_ontology_create_session(
         session_id=session_id,
         task_id=req.task_id,
         db_name=db_name,
@@ -311,17 +713,19 @@ async def init_session(req: InitSessionRequest):
         # rewriting / numeric type flip on the debug attempt.
         numeric_type_alignment=True,
     )
-
-    sess = AdapterSession(
-        task_id=req.task_id,
-        mode=req.mode,
-        session_id=session_id,
-        bird_state=req.state,
-        auto_ontology_session=auto_ontology_session,
-        max_turn=max_turn,
-    )
     put_session(sess)
-    logger.info("[session] %s | init db=%s max_turn=%d", req.task_id, db_name, max_turn)
+    if budget is not None:
+        logger.info(
+            "[session] %s | init db=%s budget=%.1f/%.1f",
+            req.task_id,
+            db_name,
+            budget.remaining,
+            budget.initial,
+        )
+    else:
+        logger.info(
+            "[session] %s | init db=%s max_turn=%d", req.task_id, db_name, max_turn
+        )
 
     return {
         "task_id": req.task_id,
@@ -341,8 +745,10 @@ async def run_session(req: RunSessionRequest):
             detail=f"No session for task_id={req.task_id!r}. Call /init_session first.",
         )
 
+    if sess.budget is not None:
+        return await _run_ainteract_session(sess, req)
+
     sess._submitted_this_phase = False
-    import asyncio
 
     # Classify this request's message once, up front, and reuse the result for
     # every auto_ontology_step call in this request's loop (mirrors how req.message
@@ -476,26 +882,7 @@ async def run_session(req: RunSessionRequest):
                 logger.error("[turn %d] submit_sql failed: %s", turn, e)
                 raise HTTPException(status_code=502, detail=f"submit_sql error: {e}")
 
-            # This ADK crash signature (see known_issues.py) should be
-            # unreachable: scripts/bird_interact/start_bird_services.sh mandatorily patches
-            # ADK's create_task_db() before ADK's services ever start, so a
-            # run reaching here has an unpatched/bypassed ADK setup — a setup
-            # bug worth stopping the run for, not a score to silently correct.
-            if is_p1snap_collision(msg):
-                logger.error(
-                    "[turn %d] ADK p1snap name-collision signature seen despite "
-                    "the mandatory patch (see known_issues.py) — ADK services were "
-                    "likely started without scripts/bird_interact/start_bird_services.sh, or the "
-                    "patch stopped applying after an ADK update.",
-                    turn,
-                )
-                raise HTTPException(
-                    status_code=500,
-                    detail=(
-                        "ADK p1snap name-collision bug detected; this should be "
-                        "impossible with the patch applied — see known_issues.py"
-                    ),
-                )
+            _raise_on_p1snap_collision(turn, msg)
 
             t_submit = time.time()
             sess._last_submit_raw = result.get("message", "")
@@ -529,13 +916,7 @@ async def run_session(req: RunSessionRequest):
                 sess._next_debug_error = None
             else:
                 sess._next_turn_type = "debug"
-                raw_msg = result.get("message", "")
-                if "[exec_err_flg]" in raw_msg:
-                    sess._next_debug_error = raw_msg.split("[exec_err_flg]", 1)[
-                        -1
-                    ].strip()
-                else:
-                    sess._next_debug_error = None
+                sess._next_debug_error = _exec_error(result.get("message", ""))
 
             auto_ontology_apply_submit_result(sess.auto_ontology_session, result)
             sess._submitted_this_phase = True
@@ -576,19 +957,6 @@ async def run_session(req: RunSessionRequest):
     timing_clarification_secs = t_clarify_end - t_loop_start
     timing_sql_gen_secs = (t_submit - t_clarify_end) if t_submit is not None else None
 
-    unresolved_end = list(
-        getattr(sess.auto_ontology_session, "persistent_unresolved", [])
-    )
-    resolved_entities = list(
-        getattr(sess.auto_ontology_session, "resolved_persistent", set())
-    )
-    initial_extracted_entities = list(
-        getattr(sess.auto_ontology_session, "initial_extracted_entities", [])
-    )
-    extracted_entities = list(
-        getattr(sess.auto_ontology_session, "path_state", {}).get("entities") or []
-    )
-
     out_state = {
         **sess.bird_state,
         "phase1_completed": sess.phase1_completed,
@@ -604,10 +972,7 @@ async def run_session(req: RunSessionRequest):
         "timing_clarification_secs": timing_clarification_secs,
         "timing_sql_gen_secs": timing_sql_gen_secs,
         "unresolved_entities_start": unresolved_start,
-        "unresolved_entities_end": unresolved_end,
-        "resolved_entities": resolved_entities,
-        "initial_extracted_entities": initial_extracted_entities,
-        "extracted_entities": extracted_entities,
+        **_entity_fields(sess),
     }
     return {
         "task_id": req.task_id,

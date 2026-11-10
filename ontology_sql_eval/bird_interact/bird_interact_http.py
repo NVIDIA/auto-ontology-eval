@@ -118,6 +118,22 @@ async def submit_sql(task_id: str, sql: str) -> dict:
         return r.json()
 
 
+async def get_schema(task_id: str) -> str:
+    """POST :6002/schema → the task database's CREATE TABLE text."""
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        r = await client.post(f"{DB_ENV_URL}/schema", json={"task_id": task_id})
+        r.raise_for_status()
+        return r.json().get("schema", "")
+
+
+async def get_all_knowledge(task_id: str) -> str:
+    """POST :6002/knowledge with no name → every KB entry, as a JSON array string."""
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        r = await client.post(f"{DB_ENV_URL}/knowledge", json={"task_id": task_id})
+        r.raise_for_status()
+        return r.json().get("knowledge", "[]")
+
+
 async def phase_transition(task_id: str) -> None:
     """POST :6001/phase_transition."""
     async with httpx.AsyncClient(timeout=30.0) as client:

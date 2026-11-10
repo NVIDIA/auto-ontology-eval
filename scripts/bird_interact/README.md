@@ -6,7 +6,9 @@ ties them together and calls out the things that are easy to miss.
 
 ## Scope — read this first
 
-- **c-Interact only.** a-Interact is not implemented.
+- **c-Interact and a-Interact.** c-Interact is the default; a-Interact runs
+  through `run_all_bird_interact.py --mode a-interact` (see
+  [a-Interact](#a-interact) below). The other run scripts are c-Interact only.
 - **Query-category tasks only.** Management tasks are explicitly excluded —
   `scripts/bird_interact/run_all_bird_interact.py` hardcodes a `category == "query"` filter
   (`_load_tasks`, look for `# Hardcoded: query category only`). If you write a
@@ -63,7 +65,9 @@ This sparse-clones the upstream ADK repo (`github.com/bird-bench/BIRD-Interact`,
 ADK code + Docker `env/` only) into `third_party/BIRD-Interact/`, downloads the
 task JSONL from HuggingFace (`birdsql/bird-interact-<variant>`), and builds
 `datasets/bird_interact[_full]/` (public JSONL, combined JSONL, `manifest.json`,
-`gt/` placeholder). `--dataset` is required, no default. Use `--force` to
+`gt/` placeholder, and a `<db>/metadata.json` per database built from the
+upstream column meanings — see [Column meanings](#column-meanings)).
+`--dataset` is required, no default. Use `--force` to
 re-download.
 
 ## 2. Get Ground Truth (GT)
@@ -138,7 +142,7 @@ All three (except `run_bird_interact_cinteract.py`) require `:6001` and
 | `--include IDS...` / `--exclude IDS...` | Run only / skip specific instance_ids. |
 | `--force-include IDS...` | Guarantee these instance_ids are in the run, fill the rest of `--limit` from the remaining pool. |
 | `--agent-port` (default 6003) | Auto-Ontology adapter port. |
-| `--phase-timeout` (default 600s) | Per `run_session` HTTP call — matches the official orchestrator's timeout. |
+| `--phase-timeout` (default 1800s for a-interact, 600s for c-interact) | Per `run_session` HTTP call. a-Interact matches the reference orchestrator's 1800s; c-Interact stays at 600s. |
 | `--health-timeout` (default 10s) | Per-service health-check timeout before giving up. |
 | `--overwrite` | Overwrite an existing output stem instead of failing. |
 
@@ -147,6 +151,76 @@ Recommended for long runs (prevents the Mac from sleeping mid-run):
 ```bash
 caffeinate -i uv run python scripts/bird_interact/run_all_bird_interact.py --output my_run_name
 ```
+
+## Column meanings
+
+The seeder turns each database's upstream `<db>_column_meaning_base.json`
+into `datasets/bird_interact[_full]/<db>/metadata.json`, which ingestion
+stamps onto the catalog as column descriptions, so they reach Auto
+Ontology's semantic layer and embeddings. JSONB columns keep their per-field
+meanings as `field.path: meaning` lines. Run
+`main.py --database-name bird_interact --skip-eval` (or `bird_interact_full`)
+after seeding to ingest them.
+
+In a-Interact the reference agent pays for these (`get_all_column_meanings`,
+1 coin); building them into the ontology gives them to Auto Ontology free on
+every task. Report a-Interact numbers as "ontology built with the dataset's
+column documentation".
+
+## a-Interact
+
+`--mode a-interact` follows the reference ADK's `orchestrator/ainteract.py`:
+one `run_session` call per task, carrying only the database name, the
+ambiguous query and a bird-coin budget of `6 + 2 × ambiguities + 2 × patience`
+(patience = 3). That call waits 1800 seconds, the same limit as
+`run_agent_session` in the reference orchestrator. The adapter then runs the
+whole task inside that call —
+Phase 1, debug retries, the user simulator's phase transition, the follow-up
+and its retries — and charges every action at the reference tool prices
+(`ontology_sql_eval/bird_interact/budget.py`):
+
+| Action | Cost |
+| --- | --- |
+| Schema + all KB definitions, bought once at session start | 1 + 1 |
+| Each query Auto Ontology runs against the database (`execute_sql`) | 1 |
+| `ask_user` | 2 |
+| `submit_sql` | 3 |
+
+What differs from c-Interact:
+
+- **No fixed debug retry.** A phase keeps resubmitting while the budget lasts.
+  It stops early if a debug turn regenerates SQL that already failed, since a
+  resubmission would be graded the same.
+- **Asks are budget-bound.** An ask is allowed while the balance still covers
+  the ask and one submission, which is the reference rule. Phase 2 still asks
+  nothing.
+- **Phase 1 holds 4 coins in the same wallet.** A phase-1 query or ask is
+  refused when it would leave fewer than 4 coins. `submit_sql` can spend those
+  coins, including a debug submission and one that spends the wallet to zero.
+  Phase 2 has no floor: its queries spend until fewer than 1 coin remains. A
+  refused query is not treated as a bad SQL statement: generation stops and
+  the SQL already produced is submitted. An empty submit action falls back to
+  that last generated SQL; if none exists, it stops without paying for an empty
+  submission. If the user simulator returns its failure fallback, further asks
+  stop, so a dead simulator cannot spend the rest of the wallet on empty
+  answers.
+- **Reward ignores retries.** The grader awards 0.7 / 0.3 for a pass however
+  many submissions it took; c-Interact's 0.5 / 0.2 debug rewards don't apply.
+- **Budget rules match the reference callbacks.** A submission is allowed even
+  when the balance can't cover it, as the final action. One that spends the
+  balance to zero also ends the task, even after a Phase 1 pass.
+- **Auto Ontology's own queries are charged as `execute_sql`.** Each session
+  gets its connectors wrapped in `MeteredConnector` (`budget.py`), which
+  charges every `execute()` 1 coin and refuses one the balance can't cover,
+  as the reference tool does. They still run against the base database
+  directly, not through the DB environment. Schema introspection on the
+  connector stays free, since the schema was already bought.
+
+Output records carry `initial_budget`, `budget_used`, charged and refused
+query counts (`queries`, `queries_refused`), per-phase submission counts and a `stop_reason` (`done`, `budget_exhausted`, `repeated_sql`, ...)
+in place of c-Interact's debug columns. The default output stem is
+`ainteract_query_all`. `analyze_bird_interact.py` reads c-Interact records
+only.
 
 ## 5. Results — where and what format
 
