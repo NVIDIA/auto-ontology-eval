@@ -73,44 +73,9 @@ the model chooses its own tools, is in development. To evaluate it, point the
 `auto-ontology-server` revision in `pyproject.toml` at a commit that has it,
 run `uv sync`, and rebuild the Gym environments with `GYM_REBUILD_VENV=1` (see
 [Troubleshooting](#troubleshooting)). Auto-Ontology's
-[How it works](https://github.com/NVIDIA/auto-ontology#how-it-works) draws
-both, as Now and Next.
-
-### Next: ReAct tools on NeMo Gym
-
-**Planned, not built yet.** Now, Gym's policy model answers only in the
-control arm; in the treatment arm its answer is discarded and Auto-Ontology's
-agent writes the SQL. With the ReAct agent, the plan is for the policy model to
-call Auto-Ontology's tools directly, with the same verifier scoring each
-submitted query as the reward.
-
-```mermaid
-flowchart LR
-  task["Gym task: question, database, gold SQL"]
-  policy{"Policy model: choose the next tool"}
-  subgraph env["Auto-Ontology tools as the Gym environment"]
-    direction TB
-    retrieve["retrieve: search the ontology"]
-    runsql["run_sql: check names, run read-only"]
-    submit["submit: check and run the final query"]
-  end
-  verify["Verifier: run submitted and gold SQL, compare results, no LLM"]
-  score["Score: accuracy per question, the reward for training"]
-  traj[("Trajectory: every message and tool call")]
-  task --> policy
-  policy -- "tool call" --> env
-  env -- "result" --> policy
-  policy -- "submitted query" --> verify --> score
-  policy -.-> traj
-  classDef model fill:#eaf5d6,stroke:#76b900,color:#111
-  classDef det fill:#f2f2f2,stroke:#777,color:#111
-  classDef react fill:#efe6f7,stroke:#7b3fa0,color:#111
-  class policy react
-  class retrieve model
-  class runsql,submit,verify det
-```
-
-Green: model call. Gray: deterministic (SQL or rules). Purple: model-chosen tool (ReAct). Dashed: off by default or optional.
+[architecture doc](https://github.com/NVIDIA/auto-ontology/blob/main/docs/architecture.md)
+draws both, now and next. Where the evaluation itself is going, with ReAct
+tools on NeMo Gym, is in [docs/architecture.md](./docs/architecture.md).
 
 ## Benchmarks and datasets
 
@@ -302,6 +267,7 @@ They're off unless you pass `--sql-examples-csv` or `--value-anchors-csv`; see
 | Dataset file formats                      | [docs/datasets.md](./docs/datasets.md)                                           |
 | Extra prompts                             | [docs/extra-prompts.md](./docs/extra-prompts.md)                                 |
 | Repository layout and development         | [docs/development.md](./docs/development.md)                                     |
+| Evaluation flow, now and next             | [docs/architecture.md](./docs/architecture.md)                                   |
 
 ## Contributing
 
