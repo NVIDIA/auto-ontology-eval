@@ -36,6 +36,9 @@ flowchart LR
   verify --> report
 ```
 
+Next, a planned flow runs Auto-Ontology's ReAct tools directly on NeMo Gym; both
+flows are in [docs/architecture.md](./docs/architecture.md).
+
 Every reported difference is paired: the same model answers the identical
 questions twice, once with only the schema and once through Auto-Ontology's
 ontology, and one deterministic verifier scores both. BIRD-Interact is the
