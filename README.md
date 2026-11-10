@@ -20,6 +20,25 @@ the ones it broke, so you can see where the difference comes from.
 
 ## How it works
 
+```mermaid
+flowchart LR
+  seed[("Seed a benchmark database: BIRD, BEAVER, FDABench-Lite, Wide World Importers")]
+  ingest["Ingest the schema into Auto-Ontology's catalog"]
+  compile["Compile the ontology"]
+  control["Control arm: the model gets the question and a schema dump"]
+  treat["Treatment arm: the same model, through Auto-Ontology's agent"]
+  verify["Verifier: run each arm's SQL and the gold SQL, compare results, no LLM"]
+  report["Report: accuracy per arm, the paired difference, questions fixed and broken"]
+  seed --> ingest --> compile --> treat --> verify
+  seed --> control --> verify
+  verify --> report
+```
+
+Every reported difference is paired: the same model answers the identical
+questions twice, once with only the schema and once through Auto-Ontology's
+ontology, and one deterministic verifier scores both. BIRD-Interact is the
+exception; it runs Auto-Ontology alone.
+
 A run has three stages, and `main.py` runs them in order:
 
 1. **Ingest.** Extract the source database's schema into Auto-Ontology's catalog
@@ -42,6 +61,54 @@ is deterministic, with no LLM judge.
 `uv sync` installs Auto-Ontology from the Git revision pinned in
 [`pyproject.toml`](./pyproject.toml), so the treatment arm runs that exact
 version in-process.
+
+### Choosing the answer architecture
+
+The treatment arm runs whichever answer architecture the pinned Auto-Ontology
+revision has; there's no runtime switch. The revision pinned on `main` answers
+with the fixed LangGraph chain. Auto-Ontology's ReAct agent, where the model
+chooses its own tools, is in development. To evaluate it, point the
+`auto-ontology-server` revision in `pyproject.toml` at a commit that has it,
+run `uv sync`, and rebuild the Gym environments with `GYM_REBUILD_VENV=1` (see
+[Troubleshooting](#troubleshooting)). Both architectures are drawn in
+Auto-Ontology's
+[How it works](https://github.com/NVIDIA/auto-ontology#how-it-works).
+
+### Where this is going: ReAct tools on NeMo Gym
+
+**Planned, not built yet.** Today Gym's policy model answers only in the
+control arm; in the treatment arm its answer is discarded and Auto-Ontology's
+agent writes the SQL. With the ReAct agent, the plan is for the policy model to
+call Auto-Ontology's tools directly, with the same verifier scoring each
+submitted query as the reward.
+
+```mermaid
+flowchart LR
+  task["Gym task: question, database, gold SQL"]
+  policy{"Policy model: choose the next tool"}
+  subgraph env["Auto-Ontology tools as the Gym environment"]
+    direction TB
+    retrieve["retrieve: search the ontology"]
+    runsql["run_sql: check names, run read-only"]
+    submit["submit: check and run the final query"]
+  end
+  verify["Verifier: run submitted and gold SQL, compare results, no LLM"]
+  score["Score: accuracy per question, the reward for training"]
+  traj[("Trajectory: every message and tool call")]
+  task --> policy
+  policy -- "tool call" --> env
+  env -- "result" --> policy
+  policy -- "submitted query" --> verify --> score
+  policy -.-> traj
+  classDef model fill:#eaf5d6,stroke:#76b900,color:#111
+  classDef det fill:#f2f2f2,stroke:#777,color:#111
+  classDef react fill:#efe6f7,stroke:#7b3fa0,color:#111
+  class policy react
+  class retrieve model
+  class runsql,submit,verify det
+```
+
+Green: model call. Gray: deterministic (SQL or rules). Purple: model-chosen tool (ReAct). Dashed: off by default or optional.
 
 ## Benchmarks and datasets
 
@@ -91,7 +158,10 @@ You need:
    With an `nvapi-` key, also set the control arm's model as shown in
    [Models](#models).
 
-2. Load the sample database into Postgres:
+2. Load the sample database into Postgres with
+   [`scripts/seed/seed_wwi.py`](./scripts/seed/seed_wwi.py), the same script
+   Auto-Ontology's
+   [Quickstart](https://github.com/NVIDIA/auto-ontology#quickstart) uses:
 
    ```bash
    uv run python scripts/seed/seed_wwi.py --database-name wideworldimporters --drop
@@ -176,6 +246,16 @@ any question is missing a result.
 
 To drive the stages by hand (build task files, run one arm, compare), see
 [resources_servers/README.md](./resources_servers/README.md).
+
+### Tokens per question
+
+TODO: report tokens per question for each arm. The treatment arm already
+records each question's Auto-Ontology model usage on its rollouts
+(`agent_llm_calls`, `agent_input_tokens`, `agent_cached_input_tokens`,
+`agent_output_tokens`, `agent_total_tokens`), and Gym averages them into
+`mean/...` fields in `*_aggregate_metrics.json`. Embedding calls aren't
+counted, the control arm has no matching fields, and the comparison doesn't
+print either yet. No token numbers are published.
 
 ### Extra prompts
 
