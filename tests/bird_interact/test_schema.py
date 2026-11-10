@@ -37,8 +37,7 @@ trader_key text,
 """
 
     assert compact_bird_schema(schema) == (
-        "traders: TR_KEY, typeFlag, trader_fin_data\n"
-        "trades: trade id, trader_key"
+        "traders: TR_KEY, typeFlag, trader_fin_data\ntrades: trade id, trader_key"
     )
 
 
@@ -50,4 +49,3 @@ event_id bigint
 """
 
     assert compact_bird_schema(schema) == "events: event_id"
-

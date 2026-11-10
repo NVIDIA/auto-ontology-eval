@@ -83,4 +83,3 @@ def install_compact_schema_parser() -> None:
 
     kb_coverage._compact_schema = compact_bird_schema
     clarify._compact_schema = compact_bird_schema
-

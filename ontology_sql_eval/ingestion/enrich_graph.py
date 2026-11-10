@@ -326,9 +326,7 @@ def apply_metadata(database_name: str, benchmark_name: str | None = None) -> Non
             )
             if not col_desc and sample_values is None:
                 continue
-            resolved = resolve_metadata_column(
-                table_name, col["name"], catalog_columns
-            )
+            resolved = resolve_metadata_column(table_name, col["name"], catalog_columns)
             if resolved is None:
                 skipped.append(f"{table_name}.{col['name']}")
                 continue

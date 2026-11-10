@@ -693,9 +693,7 @@ def main() -> None:
         jsonl_path.unlink(missing_ok=True)
         csv_path.unlink(missing_ok=True)
 
-    csv_is_new = not (
-        args.resume and csv_path.exists() and csv_path.stat().st_size > 0
-    )
+    csv_is_new = not (args.resume and csv_path.exists() and csv_path.stat().st_size > 0)
 
     # ── Load tasks ────────────────────────────────────────────────────────────
     include_ids = set(args.include) if args.include else None
@@ -992,9 +990,9 @@ def main() -> None:
             # in flight stays queued until its running task finishes.
             by_db: dict[str, deque] = {}
             for indexed_task in indexed_tasks:
-                by_db.setdefault(
-                    indexed_task[1]["selected_database"], deque()
-                ).append(indexed_task)
+                by_db.setdefault(indexed_task[1]["selected_database"], deque()).append(
+                    indexed_task
+                )
             idle: deque[str] = deque(by_db)
             in_flight: dict[Any, str] = {}
             with ThreadPoolExecutor(
