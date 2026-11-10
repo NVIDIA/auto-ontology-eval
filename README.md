@@ -20,6 +20,8 @@ the ones it broke, so you can see where the difference comes from.
 
 ## How it works
 
+**Now: paired arms on NeMo Gym.**
+
 ```mermaid
 flowchart LR
   seed[("Seed a benchmark database: BIRD, BEAVER, FDABench-Lite, Wide World Importers")]
@@ -65,18 +67,18 @@ version in-process.
 ### Choosing the answer architecture
 
 The treatment arm runs whichever answer architecture the pinned Auto-Ontology
-revision has; there's no runtime switch. The revision pinned on `main` answers
-with the fixed LangGraph chain. Auto-Ontology's ReAct agent, where the model
-chooses its own tools, is in development. To evaluate it, point the
+revision has; there's no runtime switch. Now, the revision pinned on `main`
+answers with the fixed LangGraph chain. Next, Auto-Ontology's ReAct agent, where
+the model chooses its own tools, is in development. To evaluate it, point the
 `auto-ontology-server` revision in `pyproject.toml` at a commit that has it,
 run `uv sync`, and rebuild the Gym environments with `GYM_REBUILD_VENV=1` (see
-[Troubleshooting](#troubleshooting)). Both architectures are drawn in
-Auto-Ontology's
-[How it works](https://github.com/NVIDIA/auto-ontology#how-it-works).
+[Troubleshooting](#troubleshooting)). Auto-Ontology's
+[How it works](https://github.com/NVIDIA/auto-ontology#how-it-works) draws
+both, as Now and Next.
 
-### Where this is going: ReAct tools on NeMo Gym
+### Next: ReAct tools on NeMo Gym
 
-**Planned, not built yet.** Today Gym's policy model answers only in the
+**Planned, not built yet.** Now, Gym's policy model answers only in the
 control arm; in the treatment arm its answer is discarded and Auto-Ontology's
 agent writes the SQL. With the ReAct agent, the plan is for the policy model to
 call Auto-Ontology's tools directly, with the same verifier scoring each
