@@ -143,10 +143,9 @@ the arm's own limit, which is 3 by default.
   comparison refuses to report while any question has no result. A published
   number should come from a run with none left.
 
-After the Auto-Ontology pin changes (a pull and `uv sync`), set
-`GYM_REBUILD_VENV=1` for the next run of the ontology arm. The script rebuilds a
-server venv on its own only when nemo-gym, ray or openai differ, so it would
-otherwise keep running the old Auto-Ontology.
+After the Auto-Ontology pin changes (a pull and `uv sync`), the next run of the
+ontology arm rebuilds its server venv on its own: the script compares
+Auto-Ontology's commit with `.venv`'s, as it does nemo-gym, ray and openai.
 
 ## Scoring
 

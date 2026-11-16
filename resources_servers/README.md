@@ -138,8 +138,9 @@ metadata-timestamp race below. **Set `GYM_REBUILD_VENV=1` after editing a server
 `requirements.txt` or the root `pyproject.toml`'s `[tool.uv]` overrides, and once
 after pulling a change to either.** A venv that already exists is reused as-is,
 so otherwise the new pins silently never take effect. The one exception is
-checked for you: when a server venv's nemo-gym or Ray differs from `.venv`'s, the
-script rebuilds without being asked, since either mismatch breaks the run.
+checked for you: when a server venv's nemo-gym, Ray, openai or Auto-Ontology
+commit differs from `.venv`'s, the script rebuilds without being asked, since
+each mismatch either breaks the run or runs the wrong code.
 
 A question whose `/run` fails, on a burst of rate limits say, does not end the
 run: `run_gym_arm.sh` passes `+route_failures_to_sidecar=true`, so Gym records
