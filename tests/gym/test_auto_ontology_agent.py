@@ -135,7 +135,11 @@ async def test_seed_starts_the_image_and_its_catalog_and_close_stops_it(
     assert spec.image == "auto-ontology-eval/agent:bird"
     # Long enough for setup, the episode and its close.
     assert spec.ttl_s == 300 + 1800 + 2 * 60
-    sandbox.exec.assert_awaited_once_with(START_CATALOG, timeout_s=300)
+    [start] = sandbox.exec.await_args_list
+    assert start.args == (START_CATALOG,)
+    assert start.kwargs["timeout_s"] == 300
+    assert 20000 <= int(start.kwargs["env"]["POSTGRES_PORT"]) < 60000
+    assert state.catalog_port == int(start.kwargs["env"]["POSTGRES_PORT"])
     assert state.session.owns_sandbox
 
     closed = await agent._close_agent_session_state(state)
@@ -158,7 +162,27 @@ async def test_a_catalog_that_does_not_start_fails_the_seed_and_stops_the_sandbo
     with pytest.raises(RuntimeError, match="no PGDATA"):
         await _agent()._seed_agent_session_state(_seed())
 
+    # Each attempt takes another port before the seed gives up.
+    starts = [c for c in sandbox.exec.await_args_list if c.args == (START_CATALOG,)]
+    assert len(starts) == 3
     sandbox.stop.assert_awaited_once()
+
+
+async def test_a_taken_port_is_retried_on_another(sandbox: AsyncMock) -> None:
+    sandbox.exec.side_effect = [
+        SandboxExecResult(
+            stdout="", stderr="could not bind: address in use", return_code=1
+        ),
+        SandboxExecResult(stdout="", stderr="", return_code=0),
+    ]
+
+    state = await _agent()._seed_agent_session_state(_seed())
+
+    ports = [
+        int(c.kwargs["env"]["POSTGRES_PORT"]) for c in sandbox.exec.await_args_list
+    ]
+    assert len(ports) == 2
+    assert state.catalog_port == ports[1]
 
 
 class _FakeSession:
@@ -205,8 +229,11 @@ def activate(monkeypatch: pytest.MonkeyPatch, staged: dict[str, str]):  # noqa: 
     ) -> AutoOntologySessionState:
         seed = _seed()
         state = AutoOntologySessionState(
-            request=seed, task=agent.parse_agent_context(seed), session=session
-        )  # type: ignore[arg-type]
+            request=seed,
+            task=agent.parse_agent_context(seed),
+            session=session,  # type: ignore[arg-type]
+            catalog_port=34567,
+        )
         monkeypatch.setattr(
             AutoOntologyAgent,
             "resolve_model_base_url",
@@ -260,7 +287,10 @@ async def test_the_activation_runs_one_episode_and_answers_with_its_query(
         **TASK,
         "model": "openai/policy",
         "model_base_url": MODEL_URL,
-        "environment": {"DEFAULT_MODELS_API_KEY": "embed-key"},
+        "environment": {
+            "DEFAULT_MODELS_API_KEY": "embed-key",
+            "POSTGRES_PORT": "34567",
+        },
     }
 
 

@@ -39,10 +39,13 @@ ENV PGDATA=/var/lib/postgresql/catalog \
     POSTGRES_USER=postgres \
     POSTGRES_PASSWORD=catalog \
     POSTGRES_DATABASE=auto_ontology
-COPY docker/auto_ontology_agent/start-catalog docker/auto_ontology_agent/run-episode \
-     docker/auto_ontology_agent/build-catalog ./
+COPY docker/auto_ontology_agent/build-catalog ./
 
 # The catalog, in a stage of its own: `--target runtime` builds everything else
 # without the model keys.
 FROM runtime AS catalog
 RUN --mount=type=secret,id=models,required=true ./build-catalog /run/secrets/models
+
+# The scripts an episode runs, last, so editing them does not rebuild the
+# catalog.
+COPY docker/auto_ontology_agent/start-catalog docker/auto_ontology_agent/run-episode ./

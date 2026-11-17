@@ -15,10 +15,6 @@
 #     --model-type inference_provider --model <name> --model-url <url> \
 #     --split validation --output runs/react/bird.jsonl
 
-# The sandbox reaches the policy's Model Server at this host's address, not at
-# loopback.
-use_absolute_ip: true
-
 # The key of Auto Ontology's embedding and reranking endpoints, from env.yaml.
 auto_ontology_api_key: ???
 
@@ -36,6 +32,10 @@ auto_ontology_sandbox:
       use_init: true
       apply_resource_limits: true
       publish_host: 127.0.0.1
+      # On the host network the sandbox reaches the policy's Model Server at
+      # Gym's own address, which a host firewall often closes to Docker's
+      # bridge. Each sandbox's catalog takes its own loopback port.
+      network: host
     exec:
       default_timeout_s: 180
 

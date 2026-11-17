@@ -76,14 +76,22 @@ names in `.env`. The key comes from the agent's config.
      --config responses_api_agents/auto_ontology_agent/configs/auto_ontology_agent.yaml \
      --model-type inference_provider --model <model> --model-url <url> \
      --split validation --output runs/react/bird.jsonl \
-     ++auto_ontology_api_key=<key> \
-     ++default_host=$(docker network inspect bridge -f '{{(index .IPAM.Config 0).Gateway}}')
+     ++schema_only_sql_simple_agent=null ++schema_only_sql_environment_server=null
    ```
 
-   The sandbox sends model calls to the Model Server's address. The config
-   sets `use_absolute_ip: true`. If the host name resolves to a loopback
-   address, set `default_host` to an address that the sandbox can reach, such
-   as Docker's bridge gateway.
+   The two `null` overrides drop the schema-only arm's own agent and
+   Environment Server; this run needs only its grader.
+
+The sandboxes run on the host network. A sandbox then reaches the policy's
+Model Server at Gym's own address, which a host firewall often closes to
+Docker's bridge. Since the sandboxes share loopback, the agent starts each
+sandbox's catalog on its own random port.
+
+Gym builds each server's venv with the parent's nemo-gym. A nemo-gym installed
+from a Git commit cannot be installed there by version, so install that commit
+from a local checkout instead: `uv pip install --no-deps -e <gym checkout at
+that commit>`. Without it the servers fail to start with "No solution found when
+resolving dependencies".
 
 ## Settings
 

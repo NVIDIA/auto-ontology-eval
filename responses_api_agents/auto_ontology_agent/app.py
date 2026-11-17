@@ -25,6 +25,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import random
 from dataclasses import dataclass
 from time import time
 from typing import Any, Optional, cast
@@ -107,6 +108,10 @@ class AutoOntologyAgentConfig(BaseResponsesAPIAgentConfig):
     close_timeout_seconds: float = Field(default=60, gt=0)
     # Episodes at once in this server: each holds a sandbox with a Postgres.
     max_concurrent_episodes: int = Field(default=8, gt=0)
+    # The loopback ports a sandbox's catalog may take. Sandboxes on the host
+    # network share loopback, so each takes its own, at random from this range.
+    catalog_ports: tuple[int, int] = (20000, 60000)
+    catalog_port_attempts: int = Field(default=3, gt=0)
 
 
 @dataclass(kw_only=True)
@@ -115,6 +120,7 @@ class AutoOntologySessionState(AgentSessionState):
 
     task: AutoOntologyTask
     session: SandboxSession[dict[str, Any]]
+    catalog_port: int
     activation: Optional[asyncio.Task[NeMoGymResponse]] = None
     activation_request: Optional[NeMoGymResponseCreateParamsNonStreaming] = None
     episode: Optional[dict[str, Any]] = None
@@ -190,18 +196,32 @@ class AutoOntologyAgent(SimpleResponsesAPIAgent):
             harness="Auto Ontology",
         )
         try:
-            started = await sandbox.exec(
-                START_CATALOG, timeout_s=self.config.setup_timeout_seconds
-            )
-            if started.error_type is not None or started.return_code != 0:
-                raise RuntimeError(
-                    f"The catalog did not start ({started.error_type or f'exit {started.return_code}'}): "
-                    f"{(started.stderr or started.stdout or '')[-2000:]}"
-                )
+            catalog_port = await self._start_catalog(sandbox)
         except BaseException:
             await session.close(timeout=self.config.close_timeout_seconds)
             raise
-        return AutoOntologySessionState(request=body, task=task, session=session)
+        return AutoOntologySessionState(
+            request=body, task=task, session=session, catalog_port=catalog_port
+        )
+
+    async def _start_catalog(self, sandbox: AsyncSandbox) -> int:
+        """Start the sandbox's catalog on a free loopback port, and return the port."""
+        low, high = self.config.catalog_ports
+        failures = []
+        for _ in range(self.config.catalog_port_attempts):
+            port = random.randrange(low, high)
+            started = await sandbox.exec(
+                START_CATALOG,
+                env={"POSTGRES_PORT": str(port)},
+                timeout_s=self.config.setup_timeout_seconds,
+            )
+            if started.error_type is None and started.return_code == 0:
+                return port
+            failures.append(
+                f"port {port}: {started.error_type or f'exit {started.return_code}'}: "
+                f"{(started.stderr or started.stdout or '')[-1000:]}"
+            )
+        raise RuntimeError("The catalog did not start; " + "; ".join(failures))
 
     async def _close_agent_session_state(
         self, state: AgentSessionState
@@ -246,7 +266,11 @@ class AutoOntologyAgent(SimpleResponsesAPIAgent):
             "model_base_url": self.resolve_model_base_url(
                 self.config.model_server.name, state.request.episode_id.capture_key
             ),
-            "environment": self.config.environment,
+            # The sandbox's own catalog port wins over the configured settings.
+            "environment": {
+                **self.config.environment,
+                "POSTGRES_PORT": str(state.catalog_port),
+            },
         }
 
         async def stage() -> SandboxCommand:
