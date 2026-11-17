@@ -159,6 +159,33 @@ class SeedSpider2LiteTest(unittest.TestCase):
         self.assertEqual(columns["title"]["value_examples"], ["A", "B"])
         self.assertEqual(columns["meta"]["value_examples"], ['{"k": 1}'])
 
+    def test_metadata_leaves_out_document_sized_samples(self) -> None:
+        table_json = (
+            self.upstream / "spider2-lite/resource/databases/sqlite/f1/races.json"
+        )
+        page = (
+            '<table><img src="/flag.gif"/>' + "x" * seed_spider2_lite.MAX_SAMPLE_CHARS
+        )
+        table_json.write_text(
+            json.dumps(
+                {
+                    "table_name": "races",
+                    "column_names": ["race_id", "page"],
+                    "sample_rows": [
+                        {"race_id": 7, "page": page},
+                        {"race_id": 8, "page": "<b>short</b>"},
+                    ],
+                }
+            )
+        )
+
+        self._seed(skip_databases=True)
+
+        metadata = json.loads((self.dest / "f1" / "metadata.json").read_text())
+        columns = {c["name"]: c for c in metadata["races"]["columns"]}
+        self.assertEqual(columns["page"]["value_examples"], ["<b>short</b>"])
+        self.assertEqual(columns["race_id"]["value_examples"], [7, 8])
+
     def test_installs_sqlite_from_archive_by_normalized_name(self) -> None:
         archive = self.tmp / "pack.zip"
         with zipfile.ZipFile(archive, "w") as zf:

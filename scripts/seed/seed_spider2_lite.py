@@ -93,6 +93,13 @@ ZIP_MAGIC = b"PK\x03\x04"
 
 LOCAL_INSTANCE_PREFIX = "local"
 
+# Some columns hold whole documents (wwe's scraped HTML pages, eu_soccer's match
+# XML). As samples they say nothing a type and name don't, they get embedded at
+# ingest, and Auto Ontology's default nemotron-3-embed-1b endpoint rejects text
+# containing <img> tags as image input. Longer values are left out; truncating
+# them instead could keep a partial tag.
+MAX_SAMPLE_CHARS = 500
+
 
 @dataclass(frozen=True)
 class ArchiveSource:
@@ -329,7 +336,8 @@ def _table_metadata(source: dict[str, Any]) -> tuple[str, dict[str, Any]]:
 
     Upstream keeps column descriptions in a list aligned with ``column_names``
     and samples as ``sample_rows`` dicts; the entry keeps up to five distinct
-    non-null samples per column as ``value_examples``. The table key is the bare
+    non-null samples per column as ``value_examples``, leaving out any longer
+    than ``MAX_SAMPLE_CHARS`` once rendered. The table key is the bare
     table name, which is what ingest stores for a SQLite table.
     """
     raw_name = str(source.get("table_fullname") or source.get("table_name") or "")
@@ -355,6 +363,8 @@ def _table_metadata(source: dict[str, Any]) -> tuple[str, dict[str, Any]]:
             if value is None:
                 continue
             rendered = _sample_value(value)
+            if isinstance(rendered, str) and len(rendered) > MAX_SAMPLE_CHARS:
+                continue
             identity = json.dumps(rendered, ensure_ascii=False, sort_keys=True)
             if identity in seen:
                 continue
