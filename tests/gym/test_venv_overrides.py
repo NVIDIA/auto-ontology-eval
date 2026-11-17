@@ -89,7 +89,14 @@ def test_server_requirements_pin_the_parents_nemo_gym() -> None:
     assert len(parent) == 1 and _EXACT_GYM_PIN.fullmatch(parent[0]), (
         f"pyproject.toml must pin nemo-gym to a version or a Git commit, got {parent!r}"
     )
-    for requirements in sorted((ROOT / "resources_servers").glob("*/requirements.txt")):
+    servers = [
+        *(ROOT / "resources_servers").glob("*/requirements.txt"),
+        *(ROOT / "responses_api_agents").glob("*/requirements.txt"),
+    ]
+    assert len(servers) >= 3, (
+        "expected the two arms' and the ReAct agent's requirements"
+    )
+    for requirements in sorted(servers):
         pins = [
             line.strip()
             for line in requirements.read_text().splitlines()

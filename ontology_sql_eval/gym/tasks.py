@@ -36,22 +36,35 @@ from ontology_sql_eval.gym.ddl import (
     sqlite_schema_dump,
 )
 
-Arm = Literal["schema_only", "auto_ontology"]
+Arm = Literal["schema_only", "auto_ontology", "react"]
 
-# The Gym resources server that runs each arm.
+# The Gym resources server that runs each arm main.py runs.
 SERVER_FOR_ARM: dict[Arm, str] = {
     "schema_only": "schema_only_sql",
     "auto_ontology": "auto_ontology_sql",
 }
 
+# The ReAct arm: Auto Ontology's ReAct agent as a Gym Agent Server
+# (responses_api_agents/auto_ontology_agent), graded by schema_only_sql.
+REACT_ARM: Arm = "react"
+ARMS: tuple[Arm, ...] = (*SERVER_FOR_ARM, REACT_ARM)
+
 
 def task_file(root: Path, arm: Arm) -> Path:
-    """Where an arm's tasks go: the file its resources server's config loads.
+    """Where an arm's tasks go: the file its server's config loads.
 
     A fixed name, not ``<dataset>.jsonl``: Gym loads whatever the server config
     points at, and a per-dataset filename meant the config had to name one
     dataset up front -- so every other dataset silently ran that one.
     """
+    if arm == REACT_ARM:
+        return (
+            root
+            / "responses_api_agents"
+            / "auto_ontology_agent"
+            / "data"
+            / "tasks.jsonl"
+        )
     return root / "resources_servers" / SERVER_FOR_ARM[arm] / "data" / "tasks.jsonl"
 
 
@@ -212,7 +225,7 @@ def build_records(
             digest = hashlib.sha1(question.encode("utf-8")).hexdigest()[:12]
             raw_id = f"q{digest}"
 
-        yield {
+        record: dict[str, Any] = {
             "responses_create_params": {
                 "input": [
                     {"role": "system", "content": SYSTEM_PROMPT},
@@ -236,6 +249,19 @@ def build_records(
             "answer_raw": q.get("answer_raw") or "",
             "id": raw_id,
         }
+        if arm == REACT_ARM:
+            # The ReAct agent writes its own prompts from the task, which the
+            # Environment Server gives it in the seed's agent context.
+            record["agent_context"] = {
+                "agent": {
+                    "values": {
+                        "question": question,
+                        "evidence": evidence_text,
+                        "database": db_id,
+                    }
+                }
+            }
+        yield record
 
 
 def write_jsonl(records: Iterator[dict[str, Any]], path: Path) -> int:

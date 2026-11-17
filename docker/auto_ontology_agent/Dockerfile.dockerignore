@@ -1,0 +1,19 @@
+# The build context is the repository root. Send only what the Dockerfile
+# copies, and never a key.
+*
+!pyproject.toml
+!uv.lock
+!.python-version
+!README.md
+!LICENSE
+!main.py
+!ontology_sql_eval/
+!scripts/
+!inputs/
+!datasets/bird/
+!docker/auto_ontology_agent/
+**/__pycache__
+**/.venv
+**/.env
+**/.env.*
+datasets/bird/.*.zip

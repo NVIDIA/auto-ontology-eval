@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES.
+# All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Start the catalog's Postgres, if it is not running, and wait until it takes
+# connections. The sandbox keeps its own entrypoint, so the agent runs this at
+# the seed.
+set -euo pipefail
+if ! pg_isready -q -h localhost -p "$POSTGRES_PORT"; then
+  su postgres -c "pg_ctl -D '$PGDATA' -l '$PGDATA/server.log' -w -t 120 start" >/dev/null
+fi
+pg_isready -h localhost -p "$POSTGRES_PORT" -t 60

@@ -6,7 +6,8 @@
 
     python scripts/build_gym_tasks.py --dataset bird --arm schema_only
 
-Writes to ``resources_servers/<arm-server>/data/tasks.jsonl``. Run it once
+Writes to ``resources_servers/<arm-server>/data/tasks.jsonl``, or for the ReAct
+arm ``responses_api_agents/auto_ontology_agent/data/tasks.jsonl``. Run it once
 per (dataset, arm); the output is deterministic, so regenerating is safe.
 """
 
@@ -16,9 +17,9 @@ import argparse
 from pathlib import Path
 
 from ontology_sql_eval.gym.tasks import (
+    ARMS,
     DATASETS,
     EVIDENCE_OPTIONAL,
-    SERVER_FOR_ARM,
     build_records,
     task_file,
     write_jsonl,
@@ -28,7 +29,7 @@ from ontology_sql_eval.gym.tasks import (
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset", required=True, choices=sorted(DATASETS))
-    parser.add_argument("--arm", required=True, choices=sorted(SERVER_FOR_ARM))
+    parser.add_argument("--arm", required=True, choices=sorted(ARMS))
     parser.add_argument(
         "--no-descriptions",
         action="store_true",

@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES.
+# All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Run one ReAct episode: run-episode TASK_JSON RESULT_JSON.
+set -euo pipefail
+cd /opt/auto-ontology-eval
+exec .venv/bin/python -m ontology_sql_eval.gym.react_runner "$@"
