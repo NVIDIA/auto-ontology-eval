@@ -7,4 +7,4 @@
 # Listed explicitly: Gym decides whether to install nemo-gym by looking for a
 # pyproject.toml two levels up, finds this repo's, and wrongly concludes it is
 # an editable Gym checkout.
-nemo-gym==0.7.0
+nemo-gym @ git+https://github.com/NVIDIA-NeMo/Gym.git@5d6429f5b1362af47954d8cf72f03cbe443ff941

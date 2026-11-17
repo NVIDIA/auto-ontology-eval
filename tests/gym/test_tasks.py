@@ -83,3 +83,27 @@ def test_build_gym_tasks_offers_no_evidence_for_beaver_only(
     with pytest.raises(SystemExit):
         build_gym_tasks.main()
     assert "only for beaverbench, not bird" in capsys.readouterr().err
+
+
+def test_react_tasks_carry_the_task_in_the_agent_context(root: Path) -> None:
+    """The ReAct agent reads the task from its seed, not from a prompt."""
+    [record] = build_records(DATASETS["beaverbench"], root, "react")
+
+    assert record["agent_context"] == {
+        "agent": {
+            "values": {
+                "question": QUESTION["question"],
+                "evidence": QUESTION["evidence"],
+                "database": QUESTION["db_id"],
+            }
+        }
+    }
+    # The grader's fields stay, and no schema dump is built.
+    assert record["gt_sql"] == QUESTION["SQL"]
+    assert record["sql_context"] == ""
+
+
+def test_other_arms_carry_no_agent_context(root: Path) -> None:
+    [record] = build_records(DATASETS["beaverbench"], root, "auto_ontology")
+
+    assert "agent_context" not in record

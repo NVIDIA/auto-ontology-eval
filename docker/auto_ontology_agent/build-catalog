@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES.
+# All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Build the catalog into the image: build-catalog MODELS_ENV.
+#
+# MODELS_ENV is a .env-style file with the model keys (DEFAULT_MODELS_API_KEY,
+# and EMBED_*/NON_REASONING_* if they differ). It runs this repository's own
+# pipeline, main.py --skip-eval: catalog migration, ingest and semantic
+# compile, over every BIRD dev database. Then it writes .env with the settings
+# an episode needs, apart from keys: the source databases and the embedding and
+# reranking endpoints and models the catalog was built with.
+set -euo pipefail
+cd /opt/auto-ontology-eval
+
+connections="$(printf 'sqlite:///%s,' "$PWD"/datasets/bird/dev/*/*.sqlite)"
+connections="${connections%,}"
+[[ "$connections" == *.sqlite ]] || { echo "build-catalog: no BIRD dev databases" >&2; exit 1; }
+
+su postgres -c "initdb -D '$PGDATA' --username='$POSTGRES_USER' --auth=trust" >/dev/null
+su postgres -c "pg_ctl -D '$PGDATA' -l '$PGDATA/server.log' -w -t 120 \
+  -o '-p $POSTGRES_PORT -c listen_addresses=localhost' start" >/dev/null
+psql -h localhost -U "$POSTGRES_USER" -c "CREATE DATABASE $POSTGRES_DATABASE" >/dev/null
+
+# The keys, then this image's catalog and sources over whatever the file says.
+set -a
+# shellcheck disable=SC1090
+. "$1"
+set +a
+export CONNECTION_STRINGS="$connections" POSTGRES_HOST POSTGRES_PORT POSTGRES_USER POSTGRES_PASSWORD \
+  POSTGRES_DATABASE
+.venv/bin/python main.py --database-name bird --skip-eval 2>&1 | tee /tmp/catalog.log
+
+# A model call that fails after Auto Ontology's retries (a 429 burst, say) is
+# logged and skipped, leaving a column or join undescribed. Refuse that too.
+if grep -E "failed for [A-Za-z]+ after [0-9]+ attempts|giving up after" /tmp/catalog.log; then
+  echo "build-catalog: model calls failed during the build; rebuild when the endpoint has capacity" >&2
+  exit 1
+fi
+
+# main.py logs a missing or refused key and goes on, leaving a catalog without
+# vectors or compiled terms. Refuse to build an image from one.
+databases=(datasets/bird/dev/*/)
+databases=("${databases[@]%/}")
+databases=("${databases[@]##*/}")
+catalog() { psql -h localhost -U "$POSTGRES_USER" -d "$POSTGRES_DATABASE" -tAc "$1"; }
+for layer in data_objects_layer semantic_layer; do
+  # The store creates a layer's table with its first rows.
+  if [[ "$(catalog "SELECT to_regclass('vdb.$layer') IS NOT NULL")" != t ]]; then
+    echo "build-catalog: no vdb.$layer was written; check the keys in MODELS_ENV" >&2
+    exit 1
+  fi
+  for database in "${databases[@]}"; do
+    rows="$(catalog "SELECT count(*) FROM vdb.$layer WHERE database_name = '$database'")"
+    if [[ "$rows" -eq 0 ]]; then
+      echo "build-catalog: $database has no rows in vdb.$layer; check the keys in MODELS_ENV" >&2
+      exit 1
+    fi
+  done
+done
+
+{
+  echo "CONNECTION_STRINGS=$connections"
+  .venv/bin/python - <<'PY'
+from auto_ontology.utils.model_config import resolve
+
+for role in ("EMBED", "RERANK"):
+    for field in ("ENDPOINT", "MODEL"):
+        print(f"{role}_{field}={resolve(role, field)}")
+PY
+} > .env
+
+su postgres -c "pg_ctl -D '$PGDATA' -w stop" >/dev/null

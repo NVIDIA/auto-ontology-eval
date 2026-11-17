@@ -1,0 +1,83 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES.
+# All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# The ReAct arm: Auto Ontology's ReAct agent as a Gym Agent Server, one sandbox
+# per episode, on the policy model. The schema-only arm's Resources Server
+# grades its query with the same exec_match. See ../README.md.
+#
+# Compose it with the schema-only arm's config, which holds that Resources
+# Server:
+#
+#   gym eval run --search-dir . \
+#     --config resources_servers/schema_only_sql/configs/schema_only_sql.yaml \
+#     --config responses_api_agents/auto_ontology_agent/configs/auto_ontology_agent.yaml \
+#     --model-type inference_provider --model <name> --model-url <url> \
+#     --split validation --output runs/react/bird.jsonl
+
+# The key of Auto Ontology's embedding and reranking endpoints, from env.yaml.
+auto_ontology_api_key: ???
+
+# The image scripts/build_agent_image.sh builds.
+auto_ontology_agent_image: auto-ontology-eval/agent:bird
+
+auto_ontology_sandbox:
+  default_metadata:
+    sandbox-api: docker-cli
+  docker:
+    create:
+      keepalive_shell: /bin/sh
+      keepalive_cmd: "while :; do sleep 2147483647; done"
+      start_timeout_s: 600
+      use_init: true
+      apply_resource_limits: true
+      publish_host: 127.0.0.1
+      # On the host network the sandbox reaches the policy's Model Server at
+      # Gym's own address, which a host firewall often closes to Docker's
+      # bridge. Each sandbox's catalog takes its own loopback port.
+      network: host
+    exec:
+      default_timeout_s: 180
+
+auto_ontology_agent:
+  responses_api_agents:
+    auto_ontology_agent:
+      entrypoint: app.py
+      model_server:
+        type: responses_api_models
+        name: policy_model
+      sandbox_provider: auto_ontology_sandbox
+      sandbox_config:
+        image: ${auto_ontology_agent_image}
+      # Auto Ontology's settings in the sandbox. Retrieval embeds each query,
+      # so it needs the key of the embedding endpoint the catalog was built
+      # with. Add the ReAct agent's limits here to change its defaults (24 tool
+      # calls, at most 10 run_sql calls).
+      environment:
+        DEFAULT_MODELS_API_KEY: ${auto_ontology_api_key}
+      max_concurrent_episodes: 8
+      datasets:
+        - name: tasks
+          type: validation
+          jsonl_fpath: responses_api_agents/auto_ontology_agent/data/tasks.jsonl
+          license: Creative Commons Attribution-ShareAlike 4.0 International
+          taskset: auto_ontology_react
+
+environment_server_routes:
+  auto_ontology_react: auto_ontology_agent_environment_server
+
+auto_ontology_agent_environment_server:
+  environment_servers:
+    single_agent_turn:
+      entrypoint: app.py
+      resources_server:
+        type: resources_servers
+        name: schema_only_sql_resources_server
+      agent_server:
+        type: responses_api_agents
+        name: auto_ontology_agent
+      # Auto Ontology calls its own tools, not the Resources Server's.
+      resources_tool_transports: []
+      # Above the agent's setup, episode and close timeouts together.
+      default_episode_timeout_seconds: 2400
+      cleanup_timeout_seconds: 180
