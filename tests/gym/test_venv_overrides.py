@@ -26,6 +26,10 @@ from ontology_sql_eval.paths import REPO_ROOT
 
 ROOT = REPO_ROOT
 
+# An exact nemo-gym pin: a release, or a full Git commit when a needed feature is
+# on Gym's main but in no release yet.
+_EXACT_GYM_PIN = re.compile(r"nemo-gym(==\S+| @ git\+https://\S+@[0-9a-f]{40})")
+
 
 def _uv_names(key: str) -> set[str]:
     with (ROOT / "pyproject.toml").open("rb") as fh:
@@ -82,8 +86,8 @@ def test_server_requirements_pin_the_parents_nemo_gym() -> None:
         for dep in pyproject["project"]["dependencies"]
         if dep.startswith("nemo-gym")
     ]
-    assert len(parent) == 1 and parent[0].startswith("nemo-gym=="), (
-        f"pyproject.toml must pin nemo-gym exactly, got {parent!r}"
+    assert len(parent) == 1 and _EXACT_GYM_PIN.fullmatch(parent[0]), (
+        f"pyproject.toml must pin nemo-gym to a version or a Git commit, got {parent!r}"
     )
     for requirements in sorted((ROOT / "resources_servers").glob("*/requirements.txt")):
         pins = [
