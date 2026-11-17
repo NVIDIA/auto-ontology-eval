@@ -49,12 +49,14 @@ import json
 import logging
 import re
 import shutil
+import sqlite3
 import ssl
 import subprocess
 import urllib.error
 import urllib.request
 import zipfile
-from dataclasses import dataclass
+from contextlib import closing
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -406,6 +408,7 @@ class _Database:
     spider2_db: str
     question_count: int = 0
     table_count: int = 0
+    dropped_views: list[str] = field(default_factory=list)
 
 
 def _build_dataset(
@@ -680,6 +683,40 @@ def _install_databases(
     return remaining
 
 
+def _drop_broken_views(sqlite_path: Path) -> list[str]:
+    """Drop the views in *sqlite_path* that SQLite cannot compile; return their names.
+
+    Upstream ships some views over columns that do not exist (``oracle_sql``'s
+    ``emp_hire_periods_with_name`` selects ``start_date`` from a table whose
+    column is ``start_``). Such a view cannot be queried, so no question uses
+    it, but reading its columns raises, which aborts ingest for the database.
+    A view built on a broken view fails to compile too and goes with it.
+    """
+
+    def quote(name: str) -> str:
+        return '"' + name.replace('"', '""') + '"'
+
+    with closing(sqlite3.connect(sqlite_path)) as conn, conn:
+        views = [
+            row[0]
+            for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'view'"
+            )
+        ]
+        broken: list[str] = []
+        for view in views:
+            try:
+                conn.execute(f"SELECT * FROM {quote(view)} LIMIT 0")
+            except sqlite3.Error as exc:
+                logger.warning(
+                    "  %s: dropping broken view %s (%s)", sqlite_path.name, view, exc
+                )
+                broken.append(view)
+        for view in broken:
+            conn.execute(f"DROP VIEW {quote(view)}")
+    return broken
+
+
 # --- summary -----------------------------------------------------------------
 
 
@@ -705,6 +742,7 @@ def _write_manifest(
                 "question_count": db.question_count,
                 "table_count": db.table_count,
                 "sqlite_installed": _sqlite_path(dest, db.db_id).is_file(),
+                "dropped_views": db.dropped_views,
             }
             for db in sorted(databases.values(), key=lambda d: d.db_id)
         ],
@@ -831,6 +869,10 @@ def seed_spider2_lite(
             force=force,
             keep_archive=keep_archive,
         )
+
+    for db_id, database in databases.items():
+        if db_id not in missing:
+            database.dropped_views = _drop_broken_views(_sqlite_path(target, db_id))
 
     _write_manifest(
         target, upstream_commit=commit, evaluation=evaluation, databases=databases

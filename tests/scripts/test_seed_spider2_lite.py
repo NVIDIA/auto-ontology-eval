@@ -5,6 +5,7 @@ import sqlite3
 import tempfile
 import unittest
 import zipfile
+from contextlib import closing
 from pathlib import Path
 from unittest.mock import patch
 
@@ -193,6 +194,33 @@ class SeedSpider2LiteTest(unittest.TestCase):
 
         download.assert_not_called()
         self.assertEqual(installed, ["db_imdb", "f1"])
+
+    def test_drops_views_that_cannot_compile(self) -> None:
+        root = self.tmp / "localdb"
+        root.mkdir()
+        db_path = root / "f1.sqlite"
+        with closing(sqlite3.connect(db_path)) as conn, conn:
+            conn.execute("CREATE TABLE periods (start_ TEXT)")
+            conn.execute("CREATE VIEW good AS SELECT start_ FROM periods")
+            conn.execute("CREATE VIEW bad AS SELECT start_date FROM periods")
+            conn.execute("CREATE VIEW on_bad AS SELECT * FROM bad")
+        (root / "Db-IMDB.sqlite").write_bytes(_sqlite_bytes(self.tmp, "a"))
+
+        self._seed(sqlite_root=root)
+
+        installed = self.dest / "f1" / "f1.sqlite"
+        with closing(sqlite3.connect(installed)) as conn:
+            views = {
+                row[0]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'view'"
+                )
+            }
+        self.assertEqual(views, {"good"})
+
+        manifest = json.loads((self.dest / "manifest.json").read_text())
+        dropped = {d["db_id"]: d["dropped_views"] for d in manifest["databases"]}
+        self.assertEqual(dropped, {"db_imdb": [], "f1": ["bad", "on_bad"]})
 
 
 if __name__ == "__main__":
