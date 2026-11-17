@@ -302,16 +302,16 @@ def stage_benchmark(
                 )
         env = {**os.environ, "GYM_CONCURRENCY": str(concurrency)}
         if label == "treatment":
-            # Gym still sends every treatment question to its policy model and
-            # then discards the answer; the ontology agent writes the SQL. On
-            # the agent's model that call competes for the same rate limit,
-            # and Gym gives up after 3 tries (hard-coded), failing the question
-            # before the agent runs. A model with its own limit avoids that
-            # without changing any score. The control arm keeps GYM_MODEL: there
-            # the policy model's answer is the result.
-            env["GYM_MODEL"] = os.environ.get(
-                "TREATMENT_POLICY_MODEL", "azure/anthropic/claude-sonnet-5-5"
+            # Gym's policy call here is discarded, but on the agent's model
+            # (REASONING_MODEL) it eats the rate limit and Gym's 3 retries can
+            # fail the question before the agent runs. The control arm keeps
+            # GYM_MODEL: there the policy model's answer is the result.
+            policy_model = os.environ.get("TREATMENT_POLICY_MODEL") or os.environ.get(
+                "NON_REASONING_MODEL"
             )
+            if policy_model:
+                env["GYM_MODEL"] = policy_model
+
         cmd = ["./scripts/run_gym_arm.sh", server, str(out)]
         # The treatment arm ignores the policy model's output, so its call is
         # capped rather than left to compete for the same rate limit.
