@@ -70,6 +70,18 @@
       "justMyCode": false
     },
     {
+      "name": "Seed local Spider2-lite",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/seed/seed_spider2_lite.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "envFile": "${workspaceFolder}/.env",
+      "justMyCode": false,
+      "args": ["--upstream-root", "third_party/Spider2"]
+    },
+    {
       "name": "Ingest",
       "type": "debugpy",
       "request": "launch",

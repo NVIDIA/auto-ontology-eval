@@ -111,6 +111,17 @@ in this repository. `scripts/seed/seed_fdabench.py` downloads them at runtime, a
 Dabstep (`merchant_data.db`) tasks are intentionally skipped by the seed
 script because that database is not redistributed with FDABench-Lite.
 
+### Note on the Spider2-lite dataset
+
+The Spider2-lite questions, gold results, table metadata and local SQLite
+databases are **not** included in this repository.
+`scripts/seed/seed_spider2_lite.py` downloads them at runtime: a sparse checkout
+of [xlang-ai/Spider2](https://github.com/xlang-ai/Spider2) (MIT) into the
+gitignored `third_party/Spider2/`, and the local SQLite pack from the
+[`xlangai/spider2-localdb`](https://huggingface.co/datasets/xlangai/spider2-localdb)
+HuggingFace mirror or the authors' Google Drive. `datasets/spider2_lite/` ships
+only a README and a `.gitkeep`.
+
 ---
 
 ## License Texts
