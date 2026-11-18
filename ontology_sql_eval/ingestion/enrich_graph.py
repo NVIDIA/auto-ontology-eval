@@ -179,6 +179,91 @@ def custom_analyses_json_path(
     ) or _dataset_file_path("custom_analyses.json", database_name, benchmark_name)
 
 
+def resolve_metadata_column(
+    table_name: str,
+    column_name: str,
+    catalog_columns: list[tuple[str, str]],
+) -> tuple[str, str] | None:
+    """Return the catalog's own table and column names for a metadata entry.
+
+    The comparison is case-insensitive, because metadata names are folded to
+    lowercase while a quoted Postgres identifier keeps its capitals. When the
+    metadata names a table the catalog does not have, and the column name
+    belongs to exactly one catalog table, that column is used. A metadata
+    table that does exist is never redirected onto a different table.
+    """
+    folded = [
+        (table.casefold(), column.casefold(), table, column)
+        for table, column in catalog_columns
+    ]
+    table_fold = table_name.casefold()
+    column_fold = column_name.casefold()
+    exact = [
+        (table, column)
+        for folded_table, folded_column, table, column in folded
+        if folded_table == table_fold and folded_column == column_fold
+    ]
+    if len(exact) == 1:
+        return exact[0]
+    if exact:
+        return None
+    known_tables = {folded_table for folded_table, *_rest in folded}
+    if table_fold in known_tables:
+        return None
+    by_column = [
+        (table, column)
+        for _folded_table, folded_column, table, column in folded
+        if folded_column == column_fold
+    ]
+    if len(by_column) == 1:
+        return by_column[0]
+    return None
+
+
+def _catalog_columns(database_name: str) -> list[tuple[str, str]]:
+    """``(table, column)`` names stored for *database_name*."""
+    from sqlalchemy import select
+
+    from auto_ontology.dal import schema as s
+    from auto_ontology.dal.session import store
+
+    rows = store().query_read(
+        select(
+            s.catalog_table.c.name.label("table_name"),
+            s.catalog_column.c.name.label("column_name"),
+        )
+        .select_from(
+            s.catalog_column.join(
+                s.catalog_table,
+                s.catalog_table.c.id == s.catalog_column.c.table_id,
+            )
+            .join(
+                s.catalog_schema,
+                s.catalog_schema.c.id == s.catalog_table.c.schema_id,
+            )
+            .join(
+                s.catalog_database,
+                s.catalog_database.c.id == s.catalog_schema.c.database_id,
+            )
+        )
+        .where(s.catalog_database.c.name == database_name)
+    )
+    return [(row["table_name"], row["column_name"]) for row in rows]
+
+
+def _resolve_table_name(
+    table_name: str, catalog_columns: list[tuple[str, str]]
+) -> str | None:
+    matches = {
+        table
+        for table, _column in catalog_columns
+        if table.casefold() == table_name.casefold()
+    }
+    if len(matches) == 1:
+        return next(iter(matches))
+    return None
+
+
 def apply_metadata(database_name: str, benchmark_name: str | None = None) -> None:
     """Stamp table/column metadata onto the Postgres catalog.
 
@@ -191,8 +276,11 @@ def apply_metadata(database_name: str, benchmark_name: str | None = None) -> Non
     * ``Column.sample_values`` (from the JSON's ``value_examples`` field, when
       present and non-empty)
 
-    Tables/columns that aren't present in the catalog are silently skipped.
-    Properties for which the JSON has no value are left untouched.
+    Names are matched to the catalog case-insensitively. A column whose table
+    name is absent from the catalog is still applied when that column name
+    belongs to exactly one catalog table. Anything that still names no catalog
+    column is logged and skipped. Properties for which the JSON has no value
+    are left untouched.
     """
     from auto_ontology.dal.datasources import apply_metadata_batch
 
@@ -208,13 +296,21 @@ def apply_metadata(database_name: str, benchmark_name: str | None = None) -> Non
     with metadata_path.open() as f:
         raw = json.load(f)
 
+    catalog_columns = _catalog_columns(database_name)
     table_rows: list[dict[str, str]] = []
     column_rows: list[dict[str, str | None]] = []
     samples_count = 0
+    skipped: list[str] = []
     for table_name, table_meta in raw.items():
         table_desc = table_meta.get("description")
         if table_desc:
-            table_rows.append({"table_name": table_name, "description": table_desc})
+            resolved_table = _resolve_table_name(table_name, catalog_columns)
+            if resolved_table is None:
+                skipped.append(table_name)
+            else:
+                table_rows.append(
+                    {"table_name": resolved_table, "description": table_desc}
+                )
 
         for col in table_meta.get("columns", []) or []:
             col_desc = col.get("description")
@@ -230,12 +326,17 @@ def apply_metadata(database_name: str, benchmark_name: str | None = None) -> Non
             )
             if not col_desc and sample_values is None:
                 continue
+            resolved = resolve_metadata_column(table_name, col["name"], catalog_columns)
+            if resolved is None:
+                skipped.append(f"{table_name}.{col['name']}")
+                continue
             if sample_values is not None:
                 samples_count += 1
+            resolved_table, resolved_column = resolved
             column_rows.append(
                 {
-                    "table_name": table_name,
-                    "column_name": col["name"],
+                    "table_name": resolved_table,
+                    "column_name": resolved_column,
                     "description": col_desc or None,
                     "sample_values": sample_values,
                 }
@@ -251,6 +352,13 @@ def apply_metadata(database_name: str, benchmark_name: str | None = None) -> Non
         samples_count,
         metadata_path,
     )
+    if skipped:
+        logger.warning(
+            "Skipped %d metadata name(s) with no catalog column in %s: %s",
+            len(skipped),
+            database_name,
+            ", ".join(skipped),
+        )
 
 
 def add_custom_analyses(

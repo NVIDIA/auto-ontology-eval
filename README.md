@@ -54,8 +54,8 @@ version in-process.
 | BIRD-Interact                                         | ~300 (Lite), 600 (Full)     | Postgres | [scripts/bird_interact](./scripts/bird_interact/README.md)             |
 
 BIRD-Interact is multi-turn: the agent asks clarifying questions, then answers a
-follow-up. It runs Auto-Ontology alone on its own c-Interact harness, on query
-tasks.
+follow-up. It runs Auto-Ontology alone on its own c-Interact and a-Interact
+harnesses, on query tasks.
 
 ## Quickstart
 
