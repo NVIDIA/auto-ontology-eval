@@ -17,6 +17,7 @@ from pathlib import Path
 
 from ontology_sql_eval.gym.tasks import (
     DATASETS,
+    EVIDENCE_OPTIONAL,
     SERVER_FOR_ARM,
     build_records,
     task_file,
@@ -33,11 +34,20 @@ def main() -> None:
         action="store_true",
         help="omit BIRD's per-column description block from the schema arm",
     )
+    parser.add_argument(
+        "--no-evidence",
+        action="store_true",
+        help="leave BEAVER's evidence (its domain-knowledge hints) out of both "
+        "arms, as the BEAVER leaderboard's Setting 0 does; beaverbench only",
+    )
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--start-index", type=int, default=0)
     parser.add_argument("--end-index", type=int, default=None)
     parser.add_argument("--output", type=Path, default=None)
     args = parser.parse_args()
+    if args.no_evidence and args.dataset not in EVIDENCE_OPTIONAL:
+        only = ", ".join(sorted(EVIDENCE_OPTIONAL))
+        parser.error(f"--no-evidence is only for {only}, not {args.dataset}")
 
     root = Path(__file__).resolve().parent.parent
     spec = DATASETS[args.dataset]
@@ -50,6 +60,7 @@ def main() -> None:
             root,
             args.arm,
             descriptions=not args.no_descriptions,
+            evidence=not args.no_evidence,
             limit=args.limit,
             start_index=args.start_index,
             end_index=args.end_index,

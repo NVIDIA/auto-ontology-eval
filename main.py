@@ -50,6 +50,8 @@ server, task builder and reward function to express. Results land in
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import logging
 import os
 import subprocess
@@ -286,6 +288,55 @@ def _ontology_arm_overrides(
     return overrides
 
 
+def _jsonl_task_ids(path: Path) -> set[str] | None:
+    """Return task IDs from a complete JSONL file, or None when unusable."""
+    if not path.is_file():
+        return None
+    task_ids: set[str] = set()
+    try:
+        with path.open() as fh:
+            for line in fh:
+                if not line.strip():
+                    continue
+                record = json.loads(line)
+                task_id = record.get("task_id")
+                if task_id is None:
+                    task_id = record.get("id")
+                if task_id is None:
+                    return None
+                task_ids.add(str(task_id))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return task_ids or None
+
+
+def _control_can_be_reused(control_output: Path, control_tasks: Path) -> bool:
+    """Reuse control only when it matches the currently built task corpus."""
+    output_ids = _jsonl_task_ids(control_output)
+    task_ids = _jsonl_task_ids(control_tasks)
+    if output_ids is None or output_ids != task_ids:
+        return False
+
+    digest = hashlib.sha256(control_tasks.read_bytes()).hexdigest()
+    manifest = control_output.with_suffix(control_output.suffix + ".tasks.sha256")
+    if manifest.is_file():
+        return manifest.read_text().strip() == digest
+
+    # Adopt a legacy output once when its IDs match exactly. From then on the
+    # task-content digest catches changed questions, schemas, evidence, or prompts
+    # even when their IDs remain unchanged.
+    manifest.parent.mkdir(parents=True, exist_ok=True)
+    manifest.write_text(digest + "\n")
+    return True
+
+
+def _record_control_tasks(control_output: Path, control_tasks: Path) -> None:
+    digest = hashlib.sha256(control_tasks.read_bytes()).hexdigest()
+    manifest = control_output.with_suffix(control_output.suffix + ".tasks.sha256")
+    manifest.parent.mkdir(parents=True, exist_ok=True)
+    manifest.write_text(digest + "\n")
+
+
 def stage_benchmark(
     *,
     database_name: str,
@@ -298,6 +349,8 @@ def stage_benchmark(
     sql_examples_k: int = 5,
     sql_examples_min_score: float | None = None,
     value_anchors_csv: str | None = None,
+    reuse_control: bool = False,
+    evidence: bool = True,
 ) -> None:
     """Run the NeMo Gym benchmark: both arms over the dataset, then compare.
 
@@ -313,6 +366,9 @@ def stage_benchmark(
     inputs to the ontology arm. The control arm cannot be given an equivalent,
     so a delta measured with them set covers those inputs **as well as** the
     ontology grounding -- which is why they are off unless asked for.
+
+    *evidence* ``False`` leaves each question's evidence out of both arms, as
+    the BEAVER leaderboard's Setting 0 does.
     """
     from ontology_sql_eval.gym.compare import compare
     from ontology_sql_eval.gym.tasks import (
@@ -352,6 +408,7 @@ def stage_benchmark(
                 DATASETS[database_name],
                 root,
                 arm,
+                evidence=evidence,
                 limit=limit,
                 start_index=start_index,
                 end_index=end_index,
@@ -371,12 +428,35 @@ def stage_benchmark(
         label = RUN_LABEL[arm]
         out = base / label / f"{database_name}.jsonl"
         outputs[label] = out
+        if label == "control" and reuse_control:
+            control_tasks = task_file(root, "schema_only")
+            if _control_can_be_reused(out, control_tasks):
+                logger.info(
+                    "Reusing control arm output with matching task IDs: %s", out
+                )
+                continue
+            if out.exists():
+                logger.info(
+                    "Existing control output does not match current tasks; rerunning: %s",
+                    out,
+                )
         env = {**os.environ, "GYM_CONCURRENCY": str(concurrency)}
+        if label == "treatment":
+            # Gym's policy call here is discarded, but on the agent's model
+            # (REASONING_MODEL) it eats the rate limit and Gym's 3 retries can
+            # fail the question before the agent runs. The control arm keeps
+            # GYM_MODEL: there the policy model's answer is the result.
+            policy_model = os.environ.get("TREATMENT_POLICY_MODEL") or os.environ.get(
+                "NON_REASONING_MODEL"
+            )
+            if policy_model:
+                env["GYM_MODEL"] = policy_model
+
         cmd = ["./scripts/run_gym_arm.sh", server, str(out)]
         # The treatment arm ignores the policy model's output, so its call is
         # capped rather than left to compete for the same rate limit.
         if label == "treatment":
-            cmd += ["--max-output-tokens", "16"]
+            cmd += ["--max-output-tokens", "1024"]
             cmd += _ontology_arm_overrides(
                 concurrency=concurrency,
                 sql_examples_csv=sql_examples_csv,
@@ -386,6 +466,8 @@ def stage_benchmark(
             )
         logger.info("Running %s arm: %s", label, " ".join(cmd))
         subprocess.run(cmd, cwd=root, check=True, env=env)
+        if label == "control":
+            _record_control_tasks(out, task_file(root, "schema_only"))
 
     logger.info("Comparing arms")
     status = compare(root / outputs["control"], root / outputs["treatment"])
@@ -610,6 +692,22 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "both unchanged; otherwise deleted turns keep answering searches."
         ),
     )
+    parser.add_argument(
+        "--reuse-control",
+        action="store_true",
+        help=(
+            "Reuse an existing schema-only control output when its task IDs exactly "
+            "match the current task set. Run the control when no matching output exists."
+        ),
+    )
+    parser.add_argument(
+        "--no-evidence",
+        action="store_true",
+        help=(
+            "Leave BEAVER's evidence (its domain-knowledge hints) out of both arms, "
+            "as the BEAVER leaderboard's Setting 0 does. beaverbench only."
+        ),
+    )
     extra_prompts = parser.add_argument_group(
         "extra prompts (ontology arm only)",
         "Question-keyed inputs attached to the ontology arm's payload. The "
@@ -644,7 +742,16 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="CSV of question-keyed value anchors, e.g. "
         "inputs/extra_prompts/bird/value_anchors.csv",
     )
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    # Checked here, not when the tasks are built: that comes after the ingest
+    # and the semantic compile.
+    if args.no_evidence:
+        from ontology_sql_eval.gym.tasks import EVIDENCE_OPTIONAL
+
+        if args.database_name not in EVIDENCE_OPTIONAL:
+            only = ", ".join(sorted(EVIDENCE_OPTIONAL))
+            parser.error(f"--no-evidence is only for {only}, not {args.database_name}")
+    return args
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -714,6 +821,8 @@ def main(argv: list[str] | None = None) -> None:
             sql_examples_k=args.sql_examples_k,
             sql_examples_min_score=args.sql_examples_min_score,
             value_anchors_csv=args.value_anchors_csv,
+            reuse_control=args.reuse_control,
+            evidence=not args.no_evidence,
         )
 
 

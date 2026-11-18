@@ -17,6 +17,14 @@
 # Concurrency defaults to 3: the sk- inference-api key rate-limits hard above
 # that, and Auto Ontology's retry turns a 429 into empty SQL rather than a visible error.
 # 10 is measured-safe on the sk- key across two full 1,534-question runs.
+#
+# A question whose /run fails is recorded in <output stem>_failures.jsonl and the
+# run goes on, rather than one rate-limit burst ending a day-long run. Re-run the
+# same command with --resume to retry the failed questions (up to
+# NEMO_GYM_MAX_ROLLOUT_ATTEMPTS, default 3, each) and the ones never finished,
+# keeping everything already done. Until then Gym's metrics count each failed
+# question as a miss, and ontology_sql_eval/gym/compare.py refuses to report
+# while any remain.
 set -euo pipefail
 
 SERVER="${1:?usage: run_gym_arm.sh <resources-server> <output.jsonl> [args...]}"
@@ -83,9 +91,15 @@ fi
 # so Gym's child processes inherit it either way.
 GYM_FLAGS=('+policy_api_key=${oc.env:DEFAULT_MODELS_API_KEY}')
 
-# Reuse the server venv Gym already built. Rebuilding costs minutes and can trip
-# a race in nemo-retriever's timestamp-derived version ("Package metadata
-# version ... does not match ... from the wheel filename").
+# Keep going past a failed /run (see the header), and score what failed or never
+# ran as a miss, so the metrics cannot read higher than the run earned.
+GYM_FLAGS+=(
+  +route_failures_to_sidecar=true
+  '+count_failure_classes_as_zero=[agent_run_error,agent_request_failed]'
+  +count_missing_rollouts_as_zero=true
+)
+
+# Reuse the server venv Gym already built. Rebuilding costs minutes.
 #
 # Set GYM_REBUILD_VENV=1 after editing a server's requirements.txt or the root
 # pyproject's [tool.uv] overrides, which uv applies there too. Skipping is safe
@@ -96,10 +110,14 @@ GYM_FLAGS=('+policy_api_key=${oc.env:DEFAULT_MODELS_API_KEY}')
 # The packages whose mismatch breaks a run are checked here rather than left to
 # memory. A server venv on a different nemo-gym runs old Gym code under the new
 # head; a different ray cannot join the head's cluster; openai 2.45+ rejects the
-# inference-api gateway's responses; a newer nemo-retriever silently retrieves
-# no tables. Only the venvs Gym uses for this run are checked, at the
-# <type>/<name>/.venv paths it keeps them under --search-dir.
-CHECKED_DISTS=(nemo-gym ray openai nemo-retriever)
+# inference-api gateway's responses. Only the venvs Gym uses for this run are
+# checked, at the <type>/<name>/.venv paths it keeps them under --search-dir.
+#
+# A package listed here that a venv has and .venv does not counts as a
+# mismatch, and a rebuild never uninstalls it, so a dependency that is dropped
+# from the project must be dropped from this list too: otherwise every run
+# rebuilds that server's venv. nemo-retriever did exactly that after it went.
+CHECKED_DISTS=(nemo-gym ray openai)
 dist_versions() {  # <venv>: a "name version" line per CHECKED_DISTS entry it has
   "$1/bin/python" - "${CHECKED_DISTS[@]}" <<'PY'
 import sys
@@ -194,7 +212,7 @@ set -m  # job control: the background job gets its own process group
   --split validation \
   --output "$OUTPUT" \
   --concurrency "${GYM_CONCURRENCY:-3}" \
-  --model "${GYM_MODEL:-aws/anthropic/bedrock-claude-opus-4-8}" \
+  --model "${GYM_MODEL:-azure/anthropic/claude-opus-5-5}" \
   --model-url "${GYM_MODEL_URL:-https://inference-api.nvidia.com/v1}" \
   "${GYM_FLAGS[@]}" \
   "$@" &

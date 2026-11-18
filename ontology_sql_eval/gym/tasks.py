@@ -110,6 +110,12 @@ DATASETS: dict[str, DatasetSpec] = {
     "beaverbench": DatasetSpec("beaverbench", "mysql", "beaverbench"),
 }
 
+# Datasets whose evidence can be left out of the tasks. BEAVER's seed fills each
+# question's evidence from the benchmark's domain knowledge, which its
+# leaderboard (Setting 0) does not give. BIRD's evidence is part of its standard
+# setting, so the other datasets always keep theirs.
+EVIDENCE_OPTIONAL = frozenset({"beaverbench"})
+
 
 def load_questions(spec: DatasetSpec, root: Path) -> list[dict[str, Any]]:
     """Read a dataset's ``evaluation.json`` (a JSON array, not JSONL)."""
@@ -162,6 +168,7 @@ def build_records(
     arm: Arm,
     *,
     descriptions: bool = True,
+    evidence: bool = True,
     limit: int | None = None,
     start_index: int = 0,
     end_index: int | None = None,
@@ -170,6 +177,9 @@ def build_records(
 
     ``start_index``/``end_index`` slice the evaluation set so a long run can be
     sharded or resumed; ``limit`` caps the slice, so the two compose.
+
+    ``evidence=False`` leaves each question's evidence out of both arms. The
+    command lines offer it only for the datasets in ``EVIDENCE_OPTIONAL``.
     """
     questions = load_questions(spec, root)
     stop = end_index if end_index is not None else len(questions)
@@ -187,7 +197,7 @@ def build_records(
             schema = schema_cache[db_id]
 
         question = q["question"]
-        evidence = (q.get("evidence") or "").strip()
+        evidence_text = (q.get("evidence") or "").strip() if evidence else ""
         # question_id is an int on BIRD/WWI but a string like "FDA0002" on
         # FDABench, so the joinable key is always rendered as text.
         #
@@ -209,7 +219,7 @@ def build_records(
                     {
                         "role": "user",
                         "content": _user_prompt(
-                            question, evidence, spec.dialect, schema
+                            question, evidence_text, spec.dialect, schema
                         ),
                     },
                 ]
@@ -222,7 +232,7 @@ def build_records(
             "db_id": db_id,
             "dataset": spec.name,
             "dialect": spec.dialect,
-            "evidence": evidence,
+            "evidence": evidence_text,
             "answer_raw": q.get("answer_raw") or "",
             "id": raw_id,
         }
