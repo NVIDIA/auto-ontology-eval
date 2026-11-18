@@ -108,6 +108,10 @@ DATASETS: dict[str, DatasetSpec] = {
     # BEAVER. Gold SQL is MySQL dialect and each db_id is its own physical
     # database. Seeded by scripts/seed/seed_beaverbench.py; not committed.
     "beaverbench": DatasetSpec("beaverbench", "mysql", "beaverbench"),
+    # Spider2-lite's 135 local (SQLite) questions. Scored against gold result
+    # CSVs, not gold SQL, which most questions lack. Seeded by
+    # scripts/seed/seed_spider2_lite.py; not committed.
+    "spider2_lite": DatasetSpec("spider2_lite", "sqlite", "spider2_lite"),
 }
 
 # Datasets whose evidence can be left out of the tasks. BEAVER's seed fills each
@@ -212,6 +216,18 @@ def build_records(
             digest = hashlib.sha1(question.encode("utf-8")).hexdigest()[:12]
             raw_id = f"q{digest}"
 
+        # Spider2-lite's gold: result files relative to the dataset directory,
+        # plus the columns and ordering its official comparison is told to use.
+        gold = (
+            {
+                "gold_results": q["gold_results"],
+                "condition_cols": q.get("condition_cols"),
+                "ignore_order": bool(q.get("ignore_order")),
+            }
+            if q.get("gold_results")
+            else {}
+        )
+
         yield {
             "responses_create_params": {
                 "input": [
@@ -226,7 +242,7 @@ def build_records(
             },
             "task_id": f"{spec.name}-{raw_id}",
             "question": question,
-            "gt_sql": q["SQL"],
+            "gt_sql": q.get("SQL") or "",
             "sql_context": schema or "",
             "difficulty": q.get("difficulty") or "",
             "db_id": db_id,
@@ -235,6 +251,7 @@ def build_records(
             "evidence": evidence_text,
             "answer_raw": q.get("answer_raw") or "",
             "id": raw_id,
+            **gold,
         }
 
 

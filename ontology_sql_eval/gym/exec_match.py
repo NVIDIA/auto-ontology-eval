@@ -19,6 +19,11 @@ queries scored as empty results, and accuracy reported both with and without
 empty-gold questions) so its numbers are quotable against the BEAVER
 leaderboard instead.
 
+Spider2-lite is the other: it ships gold *result* CSVs rather than gold SQL, so
+its tasks carry :class:`~ontology_sql_eval.gym.spider2.GoldResults`, only the
+prediction is executed, and the comparison is Spider2's own
+(:mod:`ontology_sql_eval.gym.spider2`).
+
 Queries run against the database file or DSN directly, not through an Auto Ontology
 connector, so the schema-only arm carries no Auto Ontology dependency at all.
 """
@@ -34,6 +39,13 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Optional, Protocol
 from urllib.parse import unquote, urlparse
+
+from ontology_sql_eval.gym.spider2 import (
+    GoldResults,
+    gold_is_empty,
+    prediction_table,
+    results_match,
+)
 
 ResultSet = list[tuple[Any, ...]]
 
@@ -70,6 +82,7 @@ __all__ = [
     "SHARED_TIMEOUT",
     "drop_unusable_tasks",
     "FailureCode",
+    "GoldResults",
     "SqliteExecutor",
     "PostgresExecutor",
     "MySqlExecutor",
@@ -207,7 +220,11 @@ ERRORS_AS_EMPTY = {"beaverbench"}
 # official evaluator gives every query 10 seconds, and a query that finishes in
 # 20 is a pass here but an empty result there -- so the leaderboard number is
 # only reproducible with the leaderboard's timeout.
-QUERY_TIMEOUTS = {"beaverbench": 10.0}
+#
+# Spider2-lite's evaluator sets no limit at all. Its slowest gold query takes
+# ~11s here (local099 on db_imdb), so the default would time out a correct
+# prediction that is merely a few times slower than gold.
+QUERY_TIMEOUTS = {"beaverbench": 10.0, "spider2_lite": 120.0}
 
 # Datasets scored the way BIRD's evaluation_ex.py scores them: the prediction and
 # then the gold query run under ONE time limit, and any failure -- the gold
@@ -264,6 +281,40 @@ def _run_sqlite(db_path: Path, sql: str) -> tuple[Optional[ResultSet], str]:
         return None, "error"
 
 
+def _run_sqlite_table(
+    db_path: Path, sql: str, timeout_s: float
+) -> tuple[Optional[tuple[int, ResultSet]], str]:
+    """Run *sql* read-only and return ``((column_count, rows), status)``.
+
+    The column count is kept because an empty result still has columns, and
+    Spider2 compares column vectors: an empty prediction matches an empty gold.
+    The query is interrupted at the deadline rather than left running on a
+    worker thread the caller has stopped waiting for.
+    """
+    deadline = time.monotonic() + timeout_s
+    timed_out = False
+
+    def past_deadline() -> int:
+        nonlocal timed_out
+        timed_out = time.monotonic() > deadline
+        return int(timed_out)
+
+    try:
+        conn = sqlite3.connect(f"{db_path.resolve().as_uri()}?mode=ro", uri=True)
+    except Exception:
+        return None, "error"
+    try:
+        conn.set_progress_handler(past_deadline, 10_000)
+        cursor = conn.execute(sql)
+        if cursor.description is None:
+            return None, "error"
+        return (len(cursor.description), cursor.fetchall()), ""
+    except Exception:
+        return None, "timeout" if timed_out else "error"
+    finally:
+        conn.close()
+
+
 class SqliteExecutor:
     """Executes against ``<db_root>/<db_id>/<db_id>.sqlite`` (BIRD, FDABench)."""
 
@@ -292,6 +343,15 @@ class SqliteExecutor:
                 )
             except asyncio.TimeoutError:
                 return None, "timeout"
+
+    async def execute_table(
+        self, db_id: str, sql: str
+    ) -> tuple[Optional[tuple[int, ResultSet]], str]:
+        """Like :meth:`execute`, also returning the column count (Spider2)."""
+        async with self._semaphore:
+            return await asyncio.to_thread(
+                _run_sqlite_table, self.db_path(db_id), sql, self.timeout_s
+            )
 
 
 def _run_postgres(dsn: str, sql: str) -> tuple[Optional[ResultSet], str]:
@@ -403,8 +463,12 @@ async def execute_and_compare(
     gold_sql: str,
     pred_sql: Optional[str],
     dataset: str = "",
+    gold: Optional[GoldResults] = None,
 ) -> tuple[bool, Optional[str], Optional[str]]:
     """Run both queries and compare. Returns ``(match, error_tag, gold_result)``.
+
+    With *gold* (Spider2-lite) there is no gold query: ``gold_sql`` is ignored,
+    only the prediction runs, and it is scored against the gold result files.
 
     ``pred_sql=None`` means there is no prediction at all -- an empty model
     answer or an agent failure. Gold is still run: on most datasets a broken
@@ -417,6 +481,9 @@ async def execute_and_compare(
     :func:`gold_result_tag` when gold ran, ``"failed_gold"`` when it failed and
     was scored as empty, and ``None`` when the task is excluded.
     """
+    if gold is not None:
+        return await _execute_and_compare_gold_results(executor, db_id, pred_sql, gold)
+
     if dataset in SHARED_TIMEOUT:
         return await _execute_and_compare_shared_timeout(
             executor, db_id, gold_sql, pred_sql, dataset
@@ -441,6 +508,35 @@ async def execute_and_compare(
         return False, f"pred_sql_{pred_status or 'error'}", gold_result
 
     return matcher_for(dataset)(gold_rows, pred_rows), None, gold_result
+
+
+async def _execute_and_compare_gold_results(
+    executor: Executor,
+    db_id: str,
+    pred_sql: Optional[str],
+    gold: GoldResults,
+) -> tuple[bool, Optional[str], Optional[str]]:
+    """Spider2-lite: run the prediction and compare it with the gold CSVs.
+
+    Missing gold files are a seeding problem, not a wrong answer, so they take
+    the task out of the denominator like a broken gold query does. A failed
+    prediction is a miss, as it is officially.
+    """
+    if not gold.paths or not all(path.is_file() for path in gold.paths):
+        return False, "gold_sql_error", None
+    gold_result = "empty_gold" if gold_is_empty(gold) else "nonempty_gold"
+
+    if pred_sql is None:
+        return False, "pred_sql_missing", gold_result
+    execute_table = getattr(executor, "execute_table", None)
+    if execute_table is None:
+        raise TypeError(f"{type(executor).__name__} cannot score gold result files")
+    result, status = await execute_table(db_id, pred_sql)
+    if result is None:
+        return False, f"pred_sql_{status or 'error'}", gold_result
+    column_count, rows = result
+    pred = prediction_table(column_count, rows)
+    return results_match(pred, gold), None, gold_result
 
 
 async def _execute_and_compare_shared_timeout(

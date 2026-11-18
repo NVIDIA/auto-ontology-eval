@@ -19,6 +19,7 @@ differently and we want numbers that are comparable to each one's own leaderboar
 |---|---|
 | everything else | BIRD: `set(gold) == set(pred)` on raw rows |
 | `beaverbench` | BEAVER `ex_acc`: values stringified and stripped first |
+| `spider2_lite` | Spider2's: prediction against gold result CSVs, column by column |
 
 They genuinely disagree. BEAVER treats `1` and `"1"` as equal and strips
 whitespace, but **not** `Decimal("150.250")` and `Decimal("150.25")` -- which on a
@@ -65,6 +66,32 @@ prediction can be scored correct; it still counts. 518's takes about 26 s on an
 idle machine, leaving the prediction a few seconds, so whether it can pass
 depends on machine speed and load, as it does under the official evaluator.
 
+Spider2-lite has no gold SQL for most of its questions (24 of 135), so it is
+scored against the gold *result* CSVs the seeder copies to
+`datasets/spider2_lite/gold/`, the way its official `evaluate.py` scores
+(`ontology_sql_eval/gym/spider2.py`):
+
+- **Only the prediction runs**, read-only. Tasks carry `gold_results`,
+  `condition_cols` and `ignore_order`; `gt_sql` is unused.
+- **Column-wise match.** Every gold column, or only the question's
+  `condition_cols`, must equal some predicted column, numbers within an
+  absolute 0.01. Extra predicted columns, column order and column names do not
+  matter. A question with several gold files (`<id>_a.csv`, `<id>_b.csv`, ...)
+  passes if any one matches.
+- **Values are typed as pandas types them.** Upstream round-trips the
+  prediction through `read_sql_query` -> `to_csv` -> `read_csv`, so `'007'`
+  equals `7`, `'NA'` and NULL are missing, and missing equals `0`. The port
+  reproduces that round trip, and upstream's quirks with it: a single `_a`
+  file with a flat `condition_cols` checks only its first entry.
+  `tests/gym/test_spider2_match.py` holds it against upstream's pandas code
+  (`tests/gym/spider2_reference.py`), on fuzzed tables and on the seeded gold
+  SQL.
+- **120-second query timeout** (upstream sets none). A failed prediction is a
+  miss; a missing gold file drops the task.
+
+Upstream's own gold SQL reproduces its gold CSVs for only 16 of the 24
+questions that have it, under the official evaluator as under ours.
+
 Every other dataset keeps the stricter handling: a failed prediction is a miss,
 each query gets the full limit, and a failed gold query drops the task
 (`health/excluded_unusable_gold_count`).
@@ -82,6 +109,7 @@ ontology_sql_eval/gym/
   ddl.py         schema dumping (SQLite introspection, Postgres DDL files)
   tasks.py       evaluation.json -> Gym task JSONL
   exec_match.py  executors + BIRD set-equality + failure codes
+  spider2.py     Spider2-lite's gold-CSV comparison, without pandas
 resources_servers/
   schema_only_sql/{app.py,configs/,data/}
   auto_ontology_sql/{app.py,configs/,data/}
@@ -95,7 +123,7 @@ python scripts/build_gym_tasks.py --dataset bird --arm auto_ontology
 ```
 
 Datasets: `bird` (1,534q), `fdabench` (169q), `wideworldimporters` (41q,
-Postgres), `beaverbench` (MySQL). Output is deterministic, so regenerating is
+Postgres), `beaverbench` (MySQL), `spider2_lite` (135q). Output is deterministic, so regenerating is
 safe. `--limit N` takes a prefix; `--start-index` / `--end-index` slice, so a
 long run can be sharded or resumed. `--no-evidence` (`beaverbench` only) leaves
 each question's evidence out of both arms, as the BEAVER leaderboard's Setting 0
@@ -227,6 +255,7 @@ execution match, binary reward.
 **The Gym verifier's EX is BIRD's official EX**, `set(gold_rows) ==
 set(pred_rows)`, taken from NeMo Gym's `bird_sql`, which mirrors BIRD's own
 evaluator: row order and duplicate rows are ignored, extra columns fail.
+BEAVER and Spider2-lite use their own official rules instead (see above).
 
 **VES is not computed.** BIRD's Valid Efficiency Score is a runtime ratio over
 EX-passing questions; the benchmark measures correctness only.
@@ -242,6 +271,7 @@ Gym's own guidance is to prefer a deterministic verifier where one exists.
 | `fdabench` (169q) | SQLite | yes |
 | `wideworldimporters` (41q) | Postgres | yes |
 | `beaverbench` | MySQL | yes — seed with `scripts/seed/seed_beaverbench.py --import-mysql` |
+| `spider2_lite` (135q) | SQLite | yes — seed with `scripts/seed/seed_spider2_lite.py` |
 | `bird_interact` | Postgres | **no, by design** |
 
 `beaverbench` needs a `mysql://` entry in `CONNECTION_STRINGS` (the seeder writes

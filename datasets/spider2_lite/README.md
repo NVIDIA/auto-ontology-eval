@@ -89,4 +89,17 @@ installed database into your `.env`, replacing any existing entry. Pass
 
 ```bash
 uv run python -m ontology_sql_eval.ingestion.ingest --benchmark-name spider2_lite
+uv run python -m ontology_sql_eval.ingestion.semantic --benchmark-name spider2_lite
 ```
+
+## Run the benchmark
+
+Both NeMo Gym arms, then the comparison:
+
+```bash
+uv run python main.py --database-name spider2_lite --skip-ingest --skip-semantic
+```
+
+The verifier scores the way `evaluate.py` does, against the gold CSVs above;
+see [resources_servers/README.md](../../resources_servers/README.md) for the
+details and the quirks it keeps.

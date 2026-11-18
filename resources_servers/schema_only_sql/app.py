@@ -44,6 +44,7 @@ from nemo_gym.reward_profile import (
 from ontology_sql_eval.gym.exec_match import (
     drop_unusable_tasks,
     FailureCode,
+    GoldResults,
     MySqlExecutor,
     PostgresExecutor,
     SqliteExecutor,
@@ -104,6 +105,11 @@ class SchemaOnlySqlVerifyRequest(BaseVerifyRequest):
     dialect: str = "sqlite"
     difficulty: Optional[str] = None
     task_id: Optional[str] = None
+    # Spider2-lite's gold result files (relative to the dataset directory) and
+    # how they are compared; unset on datasets scored against gold SQL.
+    gold_results: Optional[List[str]] = None
+    condition_cols: Optional[Any] = None
+    ignore_order: bool = False
 
 
 class SchemaOnlySqlVerifyResponse(BaseVerifyResponse):
@@ -183,6 +189,16 @@ class SchemaOnlySqlResourcesServer(SimpleResourcesServer):
         self._executors[dataset] = executor
         return executor
 
+    def _gold(self, body: SchemaOnlySqlVerifyRequest) -> Optional[GoldResults]:
+        if not body.gold_results:
+            return None
+        return GoldResults.from_task(
+            self._root / self.config.datasets_dir / DATASETS[body.dataset].name,
+            body.gold_results,
+            body.condition_cols,
+            body.ignore_order,
+        )
+
     async def verify(
         self, body: SchemaOnlySqlVerifyRequest
     ) -> SchemaOnlySqlVerifyResponse:
@@ -242,6 +258,7 @@ class SchemaOnlySqlResourcesServer(SimpleResourcesServer):
                 body.gt_sql,
                 None,
                 body.dataset,
+                self._gold(body),
             )
             if err in _GOLD_FAILURE:
                 return _response(0.0, _GOLD_FAILURE[err], execution_match=False)
@@ -262,6 +279,7 @@ class SchemaOnlySqlResourcesServer(SimpleResourcesServer):
                 body.gt_sql,
                 extracted,
                 body.dataset,
+                self._gold(body),
             )
         except Exception as exc:
             logger.exception(

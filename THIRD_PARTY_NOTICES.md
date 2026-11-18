@@ -122,6 +122,11 @@ gitignored `third_party/Spider2/`, and the local SQLite pack from the
 HuggingFace mirror or the authors' Google Drive. `datasets/spider2_lite/` ships
 only a README and a `.gitkeep`.
 
+The Gym verifier's Spider2-lite comparison (`ontology_sql_eval/gym/spider2.py`)
+is ported from upstream's `spider2-lite/evaluation_suite/evaluate.py`, and
+`tests/gym/spider2_reference.py` copies its comparison functions; both carry
+upstream's MIT notice (Copyright (c) 2024 bird_sql).
+
 ---
 
 ## License Texts

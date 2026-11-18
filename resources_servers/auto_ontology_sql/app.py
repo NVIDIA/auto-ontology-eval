@@ -83,6 +83,7 @@ from ontology_sql_eval.extra_prompts import (  # noqa: E402
 from ontology_sql_eval.gym.exec_match import (  # noqa: E402
     drop_unusable_tasks,
     FailureCode,
+    GoldResults,
     MySqlExecutor,
     PostgresExecutor,
     SqliteExecutor,
@@ -187,6 +188,11 @@ class AutoOntologySqlVerifyRequest(BaseVerifyRequest):
     # keyed by. Int on BIRD/WWI but a string like "FDA0002" on FDABench, so it
     # is accepted as either and stringified at lookup.
     id: Optional[Union[int, str]] = None
+    # Spider2-lite's gold result files (relative to the dataset directory) and
+    # how they are compared; unset on datasets scored against gold SQL.
+    gold_results: Optional[List[str]] = None
+    condition_cols: Optional[Any] = None
+    ignore_order: bool = False
 
 
 class AutoOntologySqlVerifyResponse(BaseVerifyResponse):
@@ -345,6 +351,16 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
 
         self._executors[dataset] = executor
         return executor
+
+    def _gold(self, body: AutoOntologySqlVerifyRequest) -> Optional[GoldResults]:
+        if not body.gold_results:
+            return None
+        return GoldResults.from_task(
+            self._root / self.config.datasets_dir / DATASETS[body.dataset].name,
+            body.gold_results,
+            body.condition_cols,
+            body.ignore_order,
+        )
 
     def _run_agent(
         self, question: str, evidence: str, db_id: str, question_id: str
@@ -510,7 +526,12 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
 
         try:
             match, err, gold_result = await execute_and_compare(
-                self._executor(body.dataset), body.db_id, body.gt_sql, sql, body.dataset
+                self._executor(body.dataset),
+                body.db_id,
+                body.gt_sql,
+                sql,
+                body.dataset,
+                self._gold(body),
             )
         except Exception as exc:
             logger.exception("verify failed task_id=%s: %s", body.task_id, exc)
@@ -568,6 +589,7 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
                 body.gt_sql,
                 None,
                 body.dataset,
+                self._gold(body),
             )
         except Exception as exc:
             # Often the same fault that broke the agent (an unknown dataset, an
