@@ -140,8 +140,8 @@ def tag_rollout_requests() -> None:
     Patched at the HTTP layer because Auto Ontology builds its chat clients in
     many places, some per call, and with two libraries: ``ChatOpenAI`` sends
     through httpx, ``ChatNVIDIA`` through requests. The rollout id comes from
-    Gym's context variable, which ``asyncio.to_thread`` and LangGraph's
-    executor both copy onto the threads that make the calls. Idempotent.
+    Gym's context variable, which ``asyncio.to_thread`` copies onto the thread
+    that makes the calls. Idempotent.
     """
     import httpx
     import requests

@@ -2,7 +2,7 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
-# Treatment arm: Auto Ontology's ontology-grounded LangGraph agent, wrapped opaquely.
+# Treatment arm: Auto Ontology's ontology-grounded text-to-SQL agent, wrapped opaquely.
 # Graded by the same execution-match verifier as the schema-only control.
 
 auto_ontology_sql_resources_server:

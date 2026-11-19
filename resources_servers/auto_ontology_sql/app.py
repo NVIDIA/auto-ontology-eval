@@ -4,7 +4,7 @@
 
 """Auto Ontology-grounded text-to-SQL resources server: the treatment arm.
 
-Drives Auto Ontology's LangGraph agent **in-process**, exactly as the
+Drives Auto Ontology's text-to-SQL agent **in-process**, exactly as the
 single-arm harness it replaced did, so the two behave identically. Gym's policy
 model is not in the loop: ``verify`` runs the agent itself and ignores the
 rollout's model output. That costs RL-trainability and buys an apples-to-apples
@@ -12,7 +12,9 @@ comparison.
 
 Grading is shared with the schema-only arm -- same executor, same BIRD
 set-equality rule, same failure codes -- so a difference in the number can only
-come from the SQL.
+come from the SQL. BIRD is the rule rather than the only tenant: ``tasks.py``
+routes every SQL dataset's ``auto_ontology`` arm here, so beaverbench and
+wideworldimporters questions arrive through this server too.
 
 Auto Ontology's own LLM calls go through two Gym model servers rather than
 straight to the endpoint (see ``ontology_sql_eval.gym.model_routing``), each
@@ -21,9 +23,9 @@ captures them per rollout, and ``verify`` reports the question's token totals.
 
 Three couplings with Auto Ontology this module must respect:
 
-* ``auto_ontology.retrieval.text_to_sql.main`` builds its LLM client and compiles the
-  graph *at import time*, so the environment is loaded -- and the endpoints
-  repointed at Gym -- before Auto Ontology imports.
+* ``auto_ontology.retrieval.text_to_sql.main`` builds its LLM client and its
+  pipeline (``steps = create_steps()``) *at import time*, so the environment is
+  loaded -- and the endpoints repointed at Gym -- before Auto Ontology imports.
 * Auto Ontology is installed from the parent project's pinned Git dependency.
 * ``stream_agent_response`` is a blocking generator, so it runs on a worker
   thread under a semaphore rather than on the event loop.
@@ -69,6 +71,10 @@ from nemo_gym.rollout_correlation import current_rollout_id  # noqa: E402
 
 from auto_ontology.connectors import get_connectors  # noqa: E402
 from auto_ontology.retrieval.text_to_sql.main import stream_agent_response  # noqa: E402
+# Imported under the name every revision has. The type is ``AgentRequest``
+# now, aliased to this one, and this file is built to run against older
+# installs -- see the annotation checks below -- so importing the newer
+# name would fail on exactly the revisions those checks exist for.
 from auto_ontology.retrieval.text_to_sql.state import TextToSQLPayload  # noqa: E402
 from auto_ontology.utils import (  # noqa: E402
     get_data_objects_retriever,

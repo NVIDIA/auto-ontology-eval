@@ -334,7 +334,6 @@ def answer(
     max_tokens: int = READER_MAX_TOKENS,
     system: str | None = None,
     style: str = "beam",
-    note: str = "",
 ) -> tuple[str, str]:
     """Answer *question* from *hits*, returning ``(answer, context)``.
 
@@ -347,19 +346,8 @@ def answer(
     per-ability prompt as *system* -- not BEAM's prompt plus theirs, because
     that combination is neither party's and its instructions conflict.
 
-    *note* is the semantic layer's prose block, when retrieval went through the
-    ontology. It goes **above** the turns rather than below: it says which of
-    them is current and which was superseded, and a model that reads the turns
-    first has already formed an answer by the time it arrives. Counted as part
-    of the context for the budget, because it competes for the same window.
     """
     context = build_context([turn_text(hit) for hit in hits], max_tokens=max_tokens)
-    if note and context:
-        context = f"{note}\n\nThe turns themselves:\n\n{context}"
-    elif note:
-        # The graph arm retrieves no turns at all, so the heading above would
-        # introduce nothing. Not a failure: the relations are the context.
-        context = note
     if not context:
         logger.warning("no context retrieved for: %s", question[:80])
     if style == "cognee":

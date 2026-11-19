@@ -29,14 +29,16 @@ prompt change — it reuses the stored draft and skips extraction entirely.
 
 ```
 uv run --no-sync python main.py --database-name beam --skip-migrate --skip-ingest \
-  --scale 100K --conversations 2 --tag mytag --rounds 4 --eval-workers 4 \
-  --retrieval semantic --node-turns 15 --top-k 5 --widen 0 \
-  --reader-model aws/anthropic/bedrock-claude-opus-4-8 --reader-prompt cognee \
-  --judge-model azure/openai/gpt-4.1-mini --judge-prompt cognee
+  --scale 100K --conversations 2 --eval-workers 4 \
+  --retrieval semantic
 ```
 
-Name the `--tag` after what changed, because the per-round files on disk are
-keyed by it and that is the only record of which graph a score belongs to.
+Output is named after the arm, so the command above writes
+`results/100K/semantic_r1.jsonl` and so on. To keep a run instead of letting
+the next one of the same arm overwrite it, point `--run-dir` somewhere else --
+the same flag and the same rule as the SQL arms, and the reason nothing is
+named by hand: a score filed under a label that describes a configuration it
+was not produced with is worse than no score.
 
 `main.py` on the `beam` database has no graph stage — `--skip-ingest` plus
 `--skip-eval` does nothing at all. `--skip-ingest` is not optional: without it
@@ -464,7 +466,7 @@ reference point rather than a finish line.
 
 ## Experiments
 
-One arm per `--tag`, each varying one thing against the baseline so the
+One arm per `--retrieval`, each varying one thing against the baseline so the
 difference is attributable. Output lands in `results/<scale>/<tag>*`.
 
 | Tag | Questions | Reader | Judge model | Judge prompt | Prompts | Rounds |
@@ -510,9 +512,9 @@ Reproduce with:
 
 ```bash
 uv run python main.py --database-name beam --skip-ingest --skip-migrate \
-    --skip-semantic --stage answer --tag ontology --eval-workers 8
+    --skip-semantic --stage answer --retrieval semantic --eval-workers 8
 uv run python main.py --database-name beam --skip-ingest --skip-migrate \
-    --skip-semantic --stage judge --tag ontology --eval-workers 8
+    --skip-semantic --stage judge --retrieval semantic --eval-workers 8
 ```
 
 | Memory ability | Ours | Llama RAG | Delta |
@@ -1066,18 +1068,19 @@ Build the graph, then score it:
 uv run --no-sync python build_graph.py 2 --per-turn --cache-draft --verify
 
 uv run --no-sync python main.py --database-name beam --skip-migrate --skip-ingest \
-  --scale 100K --conversations 2 --tag prefact --rounds 4 --eval-workers 8 \
-  --retrieval semantic --node-turns 15 --top-k 5 --widen 0 \
-  --reader-model aws/anthropic/bedrock-claude-opus-4-8 --reader-prompt cognee \
-  --judge-model azure/openai/gpt-4.1-mini --judge-prompt cognee
+  --scale 100K --conversations 2 --eval-workers 8 --run-dir runs/prefact \
+  --retrieval semantic
 ```
 
 `--skip-ingest` is not optional once the transcripts are in Postgres: without it
 `stage_beam_ingest` re-ingests with `reset=True`, which renumbers turns and
-breaks every citation in the graph. `--node-turns`, not `--top-k`, is the turn
-budget on `--retrieval semantic`, which never searches turn text — every turn
-the reader sees is a citation on a matched node, so `--top-k` is inert here and
-is passed only to keep the recorded config comparable with the vector arms.
+breaks every citation in the graph. The judge, the reader and the turn budget
+come from the `beam` entry in `conversation/benchmarks.py` rather than from the
+command line, so a run cannot be scored with the wrong instrument by forgetting
+a flag; `node_turns`, not `top_k`, is the budget on `--retrieval semantic`,
+which never searches turn text — every turn the reader sees is a citation on a
+matched node, so `top_k` is inert here and is recorded only to keep the config
+comparable with the vector arms.
 
 #### How much of this is the reader
 

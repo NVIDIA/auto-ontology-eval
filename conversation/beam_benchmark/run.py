@@ -43,12 +43,14 @@ import json
 import logging
 import statistics
 import time
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict
 from pathlib import Path
 from threading import Lock
 from typing import Any
+
+from langchain_core.callbacks import get_usage_metadata_callback
 
 from .evaluator import ORDERING_ABILITY, ability_means, overall, score_question
 from .evaluator.scoring import mean
@@ -156,9 +158,113 @@ def ingest_scale(
     return total
 
 
-def answers_path(scale: str, tag: str) -> Path:
+def token_counts(usage: dict[str, Any]) -> dict[str, Any]:
+    """Flatten a usage callback's per-model totals into row fields.
+
+    Summed across models rather than kept per model: a question may touch more
+    than one endpoint, and what is being compared is the cost of answering it,
+    not of any one call. The model names are kept alongside so a total can be
+    read back to the endpoints that produced it, since a cached-heavy total
+    from one provider is not comparable with an uncached total from another.
+
+    ``cached_input_tokens`` is reported separately because it is already part
+    of ``input_tokens`` -- the providers count it that way, and adding it again
+    would roughly double a loop that re-sends its whole history every step.
+    """
+
+    def across(field: str, details: str | None = None) -> int:
+        if details is None:
+            return sum(int(m.get(field) or 0) for m in usage.values())
+        return sum(int((m.get(details) or {}).get(field) or 0) for m in usage.values())
+
+    return {
+        "input_tokens": across("input_tokens"),
+        "cached_input_tokens": across("cache_read", "input_token_details"),
+        "output_tokens": across("output_tokens"),
+        "total_tokens": across("total_tokens"),
+        "token_models": sorted(usage),
+    }
+
+
+def agent_limits() -> dict[str, int]:
+    """The agent's budget for this run, read from the library that enforces it.
+
+    Recorded per row because it is not ours to set. The ReAct loop takes these
+    from the environment at call time, so they are neither in the benchmark
+    spec nor in the payload, and a score saved without them cannot be
+    reproduced or compared: raising the observation cap from its default moved
+    this arm by more than the gap between the two arms being compared, and
+    nothing in the output said which cap had been used.
+
+    Empty for the arms that never reach the agent, so a vector run is not
+    annotated with budgets that did not apply to it.
+    """
+    from auto_ontology.retrieval.text_to_sql.react import config
+
+    return {
+        "react_max_observation_chars": config.max_observation_chars(),
+        "react_max_tool_calls": config.max_tool_calls(),
+    }
+
+
+def answers_path(scale: str, tag: str, results_dir: Path = RESULTS_DIR) -> Path:
     """Where ``answer_questions`` writes and ``judge_answers`` reads."""
-    return RESULTS_DIR / scale / f"{tag}_answers.jsonl"
+    return results_dir / scale / f"{tag}_answers.jsonl"
+
+
+def agent_answer(question: str, scope: str) -> tuple[str, list[dict[str, Any]]]:
+    """Answer *question* about the *scope* transcript through the ReAct agent.
+
+    The other arms retrieve once and hand the result to a reader. This hands
+    the question to the agent instead, with conversation search on and nothing
+    else: the agent chooses what to search for, reads what comes back, and may
+    search again before it answers. That loop is the whole point of the arm --
+    two of the losses that survived every prompt change need a second look at
+    the transcript, and no amount of tuning a single retrieval can give them
+    one.
+
+    A conversation memory is a ``catalog_database`` carrying transcripts and no
+    tables, so ``calculation`` is off: there is no warehouse to connect to and
+    no query to write. ``information`` is off too, because the catalog of a
+    database with no tables describes nothing.
+
+    Returns ``(response, trajectory)``. The trajectory is the agent's whole
+    path -- every tool call with its arguments and every observation that came
+    back -- which is the only record of what it chose to do, since unlike the
+    one-shot arms nothing here decided the retrieval in advance. It is also
+    why no context string is returned: the agent assembles its own and does
+    not report it, so a row from this arm has ``context_chars`` of 0 and is
+    excluded from the empty-context warning below rather than counted as a
+    retrieval failure.
+    """
+    from auto_ontology.retrieval.text_to_sql.main import (
+        get_agent_response_with_state,
+    )
+    from auto_ontology.retrieval.text_to_sql.state import AgentRequest
+    from auto_ontology.utils.retriever import (
+        get_data_objects_retriever,
+        get_semantic_objects_retriever,
+    )
+
+    answer = get_agent_response_with_state(
+        AgentRequest(
+            question=question,
+            calculation=False,
+            information=False,
+            conversation=True,
+            # The agent takes the database it works on from here, and it is
+            # what scopes the conversation search.
+            path_state={"target_db": scope},
+            connectors=[],
+            data_retriever=get_data_objects_retriever(),
+            semantic_retriever=get_semantic_objects_retriever(),
+            prediction=False,
+        )
+    )
+    path_state = answer.get("path_state") or {}
+    return (answer.get("response") or "").strip(), path_state.get(
+        "react_trajectory"
+    ) or []
 
 
 def _run_concurrently(
@@ -222,15 +328,13 @@ def answer_questions(
     ids: Sequence[str] | None = None,
     top_k: int = DEFAULT_TOP_K,
     widen: int = 0,
-    node_k: int = 8,
-    path_k: int = 10,
-    node_turns: int = 10,
     reader_model: str | None = None,
     workers: int = 4,
     tag: str = "ontology",
     limit: int | None = None,
     reader_prompt: str = "beam",
     retrieval: str = "vector",
+    results_dir: Path = RESULTS_DIR,
 ) -> int:
     """Retrieve and answer, without scoring. Returns the answers written.
 
@@ -238,10 +342,13 @@ def answer_questions(
     this file -- a scored result should be reproducible from one artifact, not
     from one artifact plus whatever ``questions.csv`` happens to say later.
 
-    *node_k* and *path_k* only apply to the semantic arms and are ignored by
-    ``--retrieval vector``.
+    Two arms. ``vector`` searches turn text once and reads the result;
+    ``agent`` hands the question to the ReAct loop, which searches as often as
+    it decides to. The one-shot ontology arms were removed: the agent reaches
+    the same ontology through its own tool, so keeping a second path to it
+    meant two ways of asking one question and only one of them maintained.
     """
-    from auto_ontology.retrieval.conversation import search_semantic, search_turns
+    from auto_ontology.retrieval.conversation import search_turns
 
     rows = load_questions(scale, ids)
     if limit is not None:
@@ -251,6 +358,19 @@ def answer_questions(
 
     read = make_reader(model=reader_model)
     resolved_reader = resolve_model(reader_model)
+    # What actually governed this run, per arm. The agent is its own reader
+    # and does its own searching, so recording the reader and the turn budget
+    # beside its answers would describe a configuration that never touched
+    # them -- the same failure as omitting the budget that did.
+    if retrieval == "agent":
+        applied: dict[str, Any] = agent_limits()
+    else:
+        applied = {
+            "reader_model": resolved_reader,
+            "reader_prompt": reader_prompt,
+            "top_k": top_k,
+            "widen": widen,
+        }
     prompts = cognee_system_prompts() if reader_prompt == "cognee" else {}
     logger.info(
         "Answering %d question(s) over %d conversation(s): "
@@ -260,7 +380,6 @@ def answer_questions(
         retrieval,
         top_k,
         widen,
-        f" node_k={node_k} path_k={path_k}" if retrieval != "vector" else "",
         workers,
         resolved_reader,
         f"cognee, per-ability ({len(prompts)})" if prompts else "beam, single",
@@ -269,43 +388,40 @@ def answer_questions(
     def work(row: dict[str, Any]) -> dict[str, Any]:
         scope = scope_for(scale, row["conversation_id"])
         started = time.monotonic()
-        note = ""
-        nodes = edges = via_paths = 0
-        if retrieval == "vector":
-            hits = search_turns(
-                row["question"], database_name=scope, top_k=top_k, widen=widen
-            )
-        elif retrieval in ("semantic", "hybrid", "graph"):
-            found = search_semantic(
-                row["question"],
-                database_name=scope,
-                top_k=top_k,
-                widen=widen,
-                node_k=node_k,
-                path_k=path_k,
-                node_turns=node_turns,
-                hybrid=retrieval == "hybrid",
-            )
-            hits = found.turns
-            # 'graph' differs from 'semantic' in how the ontology is written
-            # down and in nothing else -- same nodes, same edges, same turns.
-            # Dropping the turns as well was measured and cost 0.19, and not
-            # because the graph is missing the facts: HTML5, CSS3 and ES2021
-            # were all extracted with correct built_with edges, and went
-            # unretrieved because fetch_edges keeps an edge only when both ends
-            # matched. Summarisation is the real loss -- its nuggets are
-            # narrative, and the graph has no prose.
-            note = found.graph if retrieval == "graph" else found.note
-            nodes, edges = len(found.nodes), len(found.edges)
-            via_paths = len(found.via_paths)
-        else:
-            raise ValueError(f"unknown retrieval {retrieval!r}")
-        system = (
-            prompts.get(row["ability"], prompts.get("default")) if prompts else None
-        )
-        response, context = read_answer(
-            row["question"], hits, read, system=system, style=reader_prompt, note=note
-        )
+        # Entered inside the worker, because the handler travels on a
+        # contextvar and a ThreadPoolExecutor thread does not inherit one
+        # entered outside. Verified to capture both arms: the reader's single
+        # call and the agent's whole loop, several frames down in the library.
+        trajectory: list[dict[str, Any]] = []
+        with get_usage_metadata_callback() as usage:
+            if retrieval == "agent":
+                # The agent reads for itself, so the reader built above is unused
+                # and the retrieval counters stay at zero: what it searched for and
+                # how often is its own decision and is not knowable from here.
+                # Deliberately not comparable with the other arms -- they get one
+                # search and one answer, which is the published setup.
+                hits = []
+                context = ""
+                response, trajectory = agent_answer(row["question"], scope)
+            elif retrieval == "vector":
+                hits = search_turns(
+                    row["question"], database_name=scope, top_k=top_k, widen=widen
+                )
+            else:
+                raise ValueError(f"unknown retrieval {retrieval!r}")
+            if retrieval != "agent":
+                system = (
+                    prompts.get(row["ability"], prompts.get("default"))
+                    if prompts
+                    else None
+                )
+                response, context = read_answer(
+                    row["question"],
+                    hits,
+                    read,
+                    system=system,
+                    style=reader_prompt,
+                )
         return {
             "conversation_id": row["conversation_id"],
             "ability": row["ability"],
@@ -323,30 +439,39 @@ def answer_questions(
                 for h in hits
             ],
             "matched": sum(1 for h in hits if h.matched),
+            # The reader's whole input, not just its length. Without it a
+            # wrong answer cannot be told apart from a wrong retrieval, which
+            # is the first question asked of every loss. Empty on the agent
+            # arm, which assembles its own and reports a trajectory instead.
+            "context": context,
             "context_chars": len(context),
-            "reader_model": resolved_reader,
-            "reader_prompt": reader_prompt,
             "retrieval": retrieval,
-            "top_k": top_k,
-            "widen": widen,
-            # What the ontology contributed, recorded per row so an arm's gain
-            # can be attributed to the nodes it actually matched rather than to
-            # the flag being on. *via_paths* is the subset of those nodes that
-            # only arrived because a path they sit on matched, which is the
-            # whole case for embedding paths and is worth isolating.
-            "nodes": nodes,
-            "edges": edges,
-            "via_paths": via_paths,
-            "note_chars": len(note),
+            **applied,
             "seconds": round(time.monotonic() - started, 1),
+            # What the answer cost, summed over every model call the question
+            # caused. The one-shot arms spend one call and the agent spends
+            # one per step, so this is the only number that puts them on the
+            # same footing: a higher score bought with four times the tokens
+            # is a different trade from the same score bought with one call,
+            # and the score alone cannot tell them apart.
+            **token_counts(usage.usage_metadata),
+            # Only the agent arm has one. For the others the retrieval is
+            # settled before the question is seen, so "retrieved" above
+            # already says everything there is to say about what was looked
+            # at; here it is the only record of what the agent chose to do.
+            **({"trajectory": trajectory} if trajectory else {}),
         }
 
-    out = answers_path(scale, tag)
+    out = answers_path(scale, tag, results_dir)
     results, failures, seconds = _run_concurrently(
         rows, work, out=out, workers=workers, verb="answered"
     )
 
-    empty = sum(1 for r in results if not r["context_chars"])
+    # The agent arm reports no context by construction, so counting it here
+    # would report every question as a retrieval failure.
+    empty = (
+        0 if retrieval == "agent" else sum(1 for r in results if not r["context_chars"])
+    )
     blank = sum(1 for r in results if not r["response"].strip())
     logger.info("Wrote %d answer(s) in %.0fs -> %s", len(results), seconds, out)
     if empty:
@@ -366,14 +491,16 @@ def answer_questions(
     return len(results)
 
 
-def load_answers(scale: str, tag: str) -> list[dict[str, Any]]:
+def load_answers(
+    scale: str, tag: str, results_dir: Path = RESULTS_DIR
+) -> list[dict[str, Any]]:
     """Read back what ``answer_questions`` wrote."""
-    path = answers_path(scale, tag)
+    path = answers_path(scale, tag, results_dir)
     if not path.is_file():
         raise SystemExit(
             f"No answers at {path}. Produce them first with:\n\n"
             f"    uv run python main.py --database-name beam --scale {scale} "
-            f"--tag {tag} --stage answer"
+            f"--retrieval {tag} --stage answer"
         )
     with path.open(encoding="utf-8") as handle:
         return [json.loads(line) for line in handle if line.strip()]
@@ -414,7 +541,15 @@ def _retrieval_settings(rows: Sequence[dict[str, Any]]) -> dict[str, Any]:
     report ``unrecorded``.
     """
     settings: dict[str, Any] = {}
-    for key in ("reader_model", "reader_prompt", "retrieval", "top_k", "widen"):
+    for key in (
+        "reader_model",
+        "reader_prompt",
+        "retrieval",
+        "top_k",
+        "widen",
+        "react_max_observation_chars",
+        "react_max_tool_calls",
+    ):
         seen = sorted({str(r.get(key, "unrecorded")) for r in rows})
         settings[key] = seen[0] if len(seen) == 1 else seen
     return settings
@@ -429,6 +564,7 @@ def judge_answers(
     limit: int | None = None,
     flavour: str = "beam",
     cognee_run: int = 0,
+    results_dir: Path = RESULTS_DIR,
 ) -> dict[str, Any]:
     """Score an answers file. Returns the summary.
 
@@ -441,7 +577,7 @@ def judge_answers(
     answer from; ``run_rounds`` pairs it with ours so four rounds show four of
     theirs rather than one of theirs four times.
     """
-    rows = load_answers(scale, tag)
+    rows = load_answers(scale, tag, results_dir)
     if limit is not None:
         rows = rows[:limit]
 
@@ -483,7 +619,7 @@ def judge_answers(
             "seconds": round(time.monotonic() - started, 1),
         }
 
-    out_dir = RESULTS_DIR / scale
+    out_dir = results_dir / scale
     results, failures, seconds = _run_concurrently(
         rows, work, out=out_dir / f"{tag}.jsonl", workers=workers, verb="judged"
     )
@@ -655,13 +791,11 @@ def run_rounds(
     ids: Sequence[str] | None = None,
     top_k: int = DEFAULT_TOP_K,
     widen: int = 0,
-    node_k: int = 8,
-    path_k: int = 10,
-    node_turns: int = 10,
     reader_model: str | None = None,
     judge_model: str | None = None,
     workers: int = 4,
     limit: int | None = None,
+    results_dir: Path = RESULTS_DIR,
     reader_prompt: str = "beam",
     retrieval: str = "vector",
     flavour: str = "beam",
@@ -693,13 +827,11 @@ def run_rounds(
             ids=ids,
             top_k=top_k,
             widen=widen,
-            node_k=node_k,
-            path_k=path_k,
-            node_turns=node_turns,
             reader_model=reader_model,
             workers=workers,
             tag=round_tag,
             limit=limit,
+            results_dir=results_dir,
             reader_prompt=reader_prompt,
             retrieval=retrieval,
         )
@@ -711,6 +843,7 @@ def run_rounds(
                 workers=workers,
                 flavour=flavour,
                 cognee_run=index - 1,
+                results_dir=results_dir,
             )
         )
         per_round[-1]["answered"] = answered
@@ -744,7 +877,7 @@ def run_rounds(
         # event-ordering questions reports None rather than zero.
         "kendall_tau": mean(taus) if (taus := _round_taus(per_round)) else None,
     }
-    (RESULTS_DIR / scale / f"{tag}_rounds.json").write_text(
+    (results_dir / scale / f"{tag}_rounds.json").write_text(
         json.dumps(pooled, indent=2)
     )
 
@@ -768,11 +901,7 @@ _PINNED = (
     "retrieval",
     "top_k",
     "widen",
+    "react_max_observation_chars",
+    "react_max_tool_calls",
     "conversations",
 )
-
-
-def iter_summaries(scale: str) -> Iterable[dict[str, Any]]:
-    """Every summary written for *scale*, for comparing arms after the fact."""
-    for path in sorted((RESULTS_DIR / scale).glob("*_summary.json")):
-        yield json.loads(path.read_text(encoding="utf-8"))
