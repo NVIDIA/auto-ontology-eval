@@ -204,7 +204,8 @@ They're off unless you pass `--sql-examples-csv` or `--value-anchors-csv`; see
   under `datasets/bird/dev/<db_id>/`. Re-seed with
   `uv run python scripts/seed/seed_bird.py`.
 - **The treatment arm misses an Auto-Ontology update.** Server environments are
-  reused between runs. Rebuild them with
+  reused between runs. A new pinned commit is noticed and rebuilds the ontology
+  arm's venv; for any other change, rebuild with
   `GYM_REBUILD_VENV=1 scripts/run_gym_arm.sh auto_ontology_sql /tmp/probe.jsonl`.
 - **A run stopped partway.** Rerun `scripts/run_gym_arm.sh` for that arm with
   `--resume` to finish the missing questions; see
