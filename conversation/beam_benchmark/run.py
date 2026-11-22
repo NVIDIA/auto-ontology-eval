@@ -241,10 +241,6 @@ def agent_answer(question: str, scope: str) -> tuple[str, list[dict[str, Any]]]:
         get_agent_response_with_state,
     )
     from auto_ontology.retrieval.text_to_sql.state import AgentRequest
-    from auto_ontology.utils.retriever import (
-        get_data_objects_retriever,
-        get_semantic_objects_retriever,
-    )
 
     answer = get_agent_response_with_state(
         AgentRequest(
@@ -256,8 +252,6 @@ def agent_answer(question: str, scope: str) -> tuple[str, list[dict[str, Any]]]:
             # what scopes the conversation search.
             path_state={"target_db": scope},
             connectors=[],
-            data_retriever=get_data_objects_retriever(),
-            semantic_retriever=get_semantic_objects_retriever(),
             prediction=False,
         )
     )

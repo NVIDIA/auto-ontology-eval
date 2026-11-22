@@ -71,16 +71,12 @@ from nemo_gym.rollout_correlation import current_rollout_id  # noqa: E402
 
 from auto_ontology.connectors import get_connectors  # noqa: E402
 from auto_ontology.retrieval.text_to_sql.main import stream_agent_response  # noqa: E402
+
 # Imported under the name every revision has. The type is ``AgentRequest``
 # now, aliased to this one, and this file is built to run against older
 # installs -- see the annotation checks below -- so importing the newer
 # name would fail on exactly the revisions those checks exist for.
 from auto_ontology.retrieval.text_to_sql.state import TextToSQLPayload  # noqa: E402
-from auto_ontology.utils import (  # noqa: E402
-    get_data_objects_retriever,
-    get_semantic_objects_retriever,
-)
-
 from ontology_sql_eval.extra_prompts import (  # noqa: E402
     load_sql_examples,
     load_value_anchors,
@@ -275,10 +271,9 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
                 inflight,
             )
 
-        # Built once: Auto Ontology's retrievers are process-wide singletons and the
-        # connectors hold real database handles.
-        self._data_retriever = get_data_objects_retriever()
-        self._semantic_retriever = get_semantic_objects_retriever()
+        # Built once: the connectors hold real database handles. The retrievers
+        # are not built here at all -- each tool opens the collection it
+        # searches, so there is nothing to hand the agent.
         self._connectors = {c.database_name: c for c in get_connectors()}
         logger.info("Auto Ontology connectors available: %s", sorted(self._connectors))
 
@@ -368,8 +363,6 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
             # running SQL, so letting the intent classifier route elsewhere only
             # creates ways to lose.
             "calculation_only": True,
-            "data_retriever": self._data_retriever,
-            "semantic_retriever": self._semantic_retriever,
             "connectors": [connector],
             "path_state": {},
             "custom_prompts": "",
