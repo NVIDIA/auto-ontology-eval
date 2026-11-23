@@ -135,6 +135,9 @@ The maintainers test with an NVIDIA-internal `sk-` key on
 `nvidia/nvidia/nemotron-3.5-embed-1b-nvfp4`. Use models that support structured
 output. [`.env.example`](./.env.example) documents every variable.
 
+For BIRD-Interact runs, set `INTERACTIVE=true` in `.env`. It is the only
+Auto-Ontology flag the pinned version reads; no other flags are needed.
+
 ## Running benchmarks
 
 `main.py --database-name <dataset>` runs the whole pipeline. Common flags:

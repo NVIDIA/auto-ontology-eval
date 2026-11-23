@@ -20,7 +20,7 @@ from pydantic import BaseModel
 
 # Load Auto Ontology's .env before importing any auto_ontology.* module — several
 # (e.g. auto_ontology.retrieval.interactive.entity_resolution) read feature-flag env
-# vars (INTERACTIVE, DB_PROBE_*, BIRD_INTERACT, ...) at import time via
+# vars (INTERACTIVE, ...) at import time via
 # module-level constants, so this must run first or those flags silently
 # fall back to defaults. Every other Auto Ontology entrypoint
 # (auto_ontology/server/__main__.py,
@@ -28,8 +28,6 @@ from pydantic import BaseModel
 # the one process that runs auto_ontology.retrieval code without it, so Auto Ontology/.env was
 # previously never read here.
 #
-# BIRD_INTERACT itself is this repo's own master flag (ontology_sql_eval.env),
-# not Auto Ontology's — Auto Ontology just provides the flags it cascades onto.
 from ontology_sql_eval.env import load_env
 
 load_env()
