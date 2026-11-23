@@ -266,20 +266,16 @@ neither. The current pairing:
 
 | Control (`schema_only_sql`) | Auto-Ontology (`auto_ontology_sql`) |
 |---|---|
-| `SYSTEM_PROMPT` in `ontology_sql_eval/gym/tasks.py` carries "Return exactly the requested output fields and NO others" | `shorten_answer=True` appends the same rule to Auto-Ontology's projection rules |
+| `SYSTEM_PROMPT` in `ontology_sql_eval/gym/tasks.py` carries "Return exactly the requested output fields and NO others" | `shorten_answer=True` appends Auto-Ontology's OUTPUT SHAPE rules (`SHORT_ANSWER_RULES`) to the agent's system prompt |
 
 That instruction is not cosmetic: extra columns fail `set(gold) == set(pred)`
 outright, so giving it to one arm only would measure projection guidance rather
 than ontology grounding.
 
-The Auto-Ontology arm also has to carry `calculation_only=True` and
-`validate_sql_values=True`, which are not comparability knobs but parity with
-the single-arm harness this arm replaced, whose numbers it was checked against.
-The first pins the intent to CALCULATION (every BIRD
-question is answered by running SQL, so letting the classifier route elsewhere
-only creates ways to lose); the second enables the `validate_sql_values` node,
-which checks filter literals against the database. Omitting them is not visible
-in the rollouts, only in the node trace, and cost about two points.
+The Auto-Ontology arm also has to carry `calculation_only=True`, which is not a
+comparability knob. It pins the intent to CALCULATION: every BIRD question is
+answered by running SQL, so letting the classifier route elsewhere only creates
+ways to lose.
 
 ### Extra prompts are off by default
 

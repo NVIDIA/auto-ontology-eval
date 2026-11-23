@@ -368,21 +368,11 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
             "path_state": {},
             "custom_prompts": "",
             "acronyms": [],
-            # Appends "Return exactly the requested output fields and NO others"
-            # to Auto Ontology's projection rules. Not cosmetic: extra columns break the
-            # set(gold) == set(pred) comparison outright, so omitting this scores
-            # Auto Ontology with a handicap the legacy harness no longer carries.
-            #
-            # Set unconditionally, as the single-arm harness this arm replaced
-            # did. TextToSQLPayload is a TypedDict, so on an Auto Ontology revision that
-            # predates the parameter this is an inert extra key rather than an
-            # error -- it simply has no effect.
+            # Appends Auto Ontology's OUTPUT SHAPE rules (SHORT_ANSWER_RULES) to the
+            # agent's system prompt: select only the requested columns, in the
+            # requested order. Not cosmetic: extra columns break the
+            # set(gold) == set(pred) comparison even when the rows are right.
             "shorten_answer": True,
-            # Enables the validate_sql_values node, which checks filter literals
-            # against the database before the SQL is accepted. Costly -- it is the
-            # single largest contributor to wall clock -- but the legacy harness
-            # runs with it, so omitting it makes the two arms incomparable.
-            "validate_sql_values": True,
         }
         if _SUPPORTS_EVIDENCE:
             payload["evidence"] = evidence

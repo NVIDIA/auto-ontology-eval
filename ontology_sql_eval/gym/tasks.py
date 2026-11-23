@@ -56,8 +56,8 @@ def task_file(root: Path, arm: Arm) -> Path:
 
 
 # The first sentence is upstream bird_sql's prompt verbatim. The projection rule
-# is added to match what Auto Ontology receives via shorten_answer=True, which appends
-# "Return exactly the requested output fields and NO others" to its own prompt.
+# is the counterpart of shorten_answer=True on the Auto Ontology arm, which appends
+# Auto Ontology's OUTPUT SHAPE rules (SHORT_ANSWER_RULES) to its system prompt.
 #
 # Both arms need it or neither does: extra columns break the
 # set(gold) == set(pred) comparison outright, so giving the instruction to only
