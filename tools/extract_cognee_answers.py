@@ -36,7 +36,7 @@ from pathlib import Path
 from typing import Any
 
 HERE = Path(__file__).resolve().parent.parent
-VENDORED = HERE / "conversation" / "beam_benchmark" / "upstream" / "cognee_report"
+VENDORED = HERE / "conversation" / "beam_benchmark" / "cognee_results"
 SUMMARY = VENDORED / "hybrid_completion_20_20_qa_v1_cross_run_summary.json"
 OUTPUT = VENDORED / "cognee_answers_conv2.json"
 

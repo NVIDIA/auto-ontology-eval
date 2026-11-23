@@ -14,7 +14,7 @@ conversation 2 and nothing else, so joining this onto a run over any other
 conversation attaches nothing. That is also the conversation every arm in the
 README was measured on, which is why it is worth having.
 
-``upstream/cognee_report/cognee_answers_conv2.json`` is distilled from their
+``cognee_results/cognee_answers_conv2.json`` is distilled from their
 four ``beam_existing_ingestion_metrics_conv1_*.json.gz`` artifacts by
 ``tools/extract_cognee_answers.py``. Distilled rather than vendored whole
 because each artifact is 2MB unpacked, almost all of it ``retrieval_context``:
@@ -36,9 +36,9 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-UPSTREAM = Path(__file__).parent / "upstream" / "cognee_report"
-REFERENCE = UPSTREAM / "cognee_answers_conv2.json"
-SUMMARY = UPSTREAM / "hybrid_completion_20_20_qa_v1_cross_run_summary.json"
+COGNEE_RESULTS = Path(__file__).parent / "cognee_results"
+REFERENCE = COGNEE_RESULTS / "cognee_answers_conv2.json"
+SUMMARY = COGNEE_RESULTS / "hybrid_completion_20_20_qa_v1_cross_run_summary.json"
 
 #: Their artifacts are per-conversation and this is the only one at 100K.
 COVERED_CONVERSATION = "2"

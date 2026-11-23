@@ -18,8 +18,8 @@ Run with ``--flavour beam`` to see both columns at once.
 
     uv run --no-sync python compare_cognee.py pathk4 --rounds 4
 
-Their figures are vendored under ``upstream/cognee_report/`` so this works
-offline; see that directory's entry in the benchmark README for provenance.
+Their figures are vendored under ``conversation/beam_benchmark/cognee_results/``
+so this works offline; see ``THIRD_PARTY_NOTICES.md`` for provenance.
 """
 
 from __future__ import annotations
@@ -41,8 +41,7 @@ COGNEE_SUMMARY = (
     HERE
     / "conversation"
     / "beam_benchmark"
-    / "upstream"
-    / "cognee_report"
+    / "cognee_results"
     / "hybrid_completion_20_20_qa_v1_cross_run_summary.json"
 )
 

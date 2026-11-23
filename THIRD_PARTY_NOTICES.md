@@ -78,6 +78,47 @@ implementation is checked against. The file carries the upstream copyright and
 license identifier in its header, followed by the NVIDIA copyright block covering
 NVIDIA's modifications.
 
+### 3. BEAM benchmark prompts
+
+| | |
+|---|---|
+| **Location in this repo** | `conversation/beam_benchmark/prompts/judge/beam_*.txt`, `conversation/beam_benchmark/prompts/answer/beam_answer.txt` |
+| **Upstream project** | BEAM — https://github.com/mohammadtavakoli78/BEAM |
+| **Copyright holder** | Copyright (c) 2025 Mohammad Tavakoli |
+| **License** | MIT |
+
+The benchmark's judge, equivalence and answer prompts, copied byte-for-byte so
+scores stay comparable with the paper's: `beam_judge.txt` from
+`src/prompts.py::unified_llm_judge_base_prompt`, `beam_equivalence_*.txt` from
+`src/evaluation/compute_metrics.py::llm_equivalence`, and `beam_answer.txt`
+from `answer_generation_for_rag`.
+
+### 4. Cognee BEAM evaluation prompts and published results
+
+| | |
+|---|---|
+| **Location in this repo** | `conversation/beam_benchmark/prompts/judge/cognee_judge.txt`, `conversation/beam_benchmark/prompts/answer/cognee/`, `conversation/beam_benchmark/cognee_results/` |
+| **Upstream project** | Cognee — https://github.com/topoteretes/cognee |
+| **Copyright holder** | Copyright 2024 Topoteretes UG |
+| **License** | Apache-2.0 |
+
+Cognee's BEAM rubric judge (`cognee/eval_framework/beam/eval/metrics/beam_rubric.py`),
+its per-ability answer prompts (`cognee/eval_framework/beam/report_artifacts/qa_prompts/`
+and `cognee/infrastructure/llm/prompts/context_for_question.txt`), and its
+published 100K results
+([`report_artifacts/100k_fixed/`](https://github.com/topoteretes/cognee/tree/main/cognee/eval_framework/beam/report_artifacts/100k_fixed)),
+used to compare against cognee's reported scores. The prompts, config and
+cross-run summary are unmodified; `cognee_answers_conv2.json` is a modified
+extract of the per-question artifacts, produced by
+`tools/extract_cognee_answers.py`.
+
+### Note on the BEAM dataset
+
+The BEAM **dataset** is not included in this repository.
+`conversation/beam_benchmark/download_data.py` downloads it at runtime from
+[`Mohammadta/BEAM`](https://huggingface.co/datasets/Mohammadta/BEAM), where its
+authors distribute it under CC BY-SA 4.0.
+
 ### Note on the BEAVER dataset
 
 The BEAVER **dataset** is not included in this repository.
@@ -143,6 +184,7 @@ copyrights:
 
 - SQL Server Samples (`datasets/wideworldimporters/`) — Copyright (c) Microsoft Corporation
 - BEAVER (`tests/gym/beaver_reference.py`) — Copyright (c) 2024 MIT Data Systems Group
+- BEAM (`conversation/beam_benchmark/prompts/`) — Copyright (c) 2025 Mohammad Tavakoli
 
 ---
 
@@ -181,6 +223,8 @@ Full text: https://www.apache.org/licenses/LICENSE-2.0
 
 Applies to: snowflake-connector-python, databricks-sql-connector, pyheavydb,
 hvac, importlib-metadata.
+
+Also applies to the included Cognee content above (Copyright 2024 Topoteretes UG).
 
 ---
 

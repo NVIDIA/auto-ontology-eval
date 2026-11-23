@@ -29,7 +29,7 @@ is 0.838. Mixing the two understates a run by roughly 0.06 overall, which on a
 
 The point of porting it rather than writing our own is comparability. The
 published best baseline at 100K is 0.323; a number of ours only sits next to it
-if it came out of the same judge, so the prompts in ``upstream/`` are verbatim
+if it came out of the same judge, so the prompts in ``prompts/judge/`` are verbatim
 and the quirks below are reproduced rather than fixed.
 
 Known quirks, all upstream's:

@@ -4,7 +4,7 @@
 
 """BEAM's judging prompts, as published.
 
-The text lives in ``../upstream/*.txt`` rather than in string literals here.
+The text lives in ``../prompts/judge/*.txt`` rather than in string literals here.
 Several of the lines that carry trailing whitespace end a bullet, and a trailing
 space before a newline changes how the text tokenizes -- so a formatter or an
 editor quietly stripping it would move the scores by a hair and leave no trace
@@ -13,8 +13,8 @@ of why. Text files are not something ``ruff format`` rewrites.
 Keeping them as files also keeps the provenance obvious: these are upstream
 artifacts under BEAM's MIT licence, copied from
 
-- ``src/prompts.py::unified_llm_judge_base_prompt`` -> ``judge.txt``
-- ``src/evaluation/compute_metrics.py::llm_equivalence`` -> ``equivalence_*.txt``
+- ``src/prompts.py::unified_llm_judge_base_prompt`` -> ``beam_judge.txt``
+- ``src/evaluation/compute_metrics.py::llm_equivalence`` -> ``beam_equivalence_*.txt``
 
 and they are not ours to improve. Anything we would rather word differently
 belongs in a prompt of our own, under a different name, scored separately.
@@ -28,25 +28,29 @@ from __future__ import annotations
 
 from pathlib import Path
 
-#: Shared with ``../reader.py``: one directory for every verbatim BEAM prompt,
-#: so there is a single place to diff if upstream revises them.
-_UPSTREAM = Path(__file__).resolve().parent.parent / "upstream"
+#: One directory for every judging prompt, so there is a single place to diff
+#: if upstream revises them. The reader's prompts are in ``../prompts/answer/``.
+_JUDGE_PROMPTS = Path(__file__).resolve().parent.parent / "prompts" / "judge"
 
 #: Scores one rubric nugget against one response. Placeholders are
 #: ``<rubric_item>`` and ``<llm_response>``, substituted by ``str.replace`` the
 #: way upstream does it -- the prompt contains literal ``{`` and ``}`` in its
 #: output-format block, so ``str.format`` is not an option.
-JUDGE = (_UPSTREAM / "judge.txt").read_text(encoding="utf-8")
+JUDGE = (_JUDGE_PROMPTS / "beam_judge.txt").read_text(encoding="utf-8")
 
 #: Decides whether two event descriptions name the same event. Used only by
 #: event ordering, to align a response's events with the rubric's before the
 #: ranks are compared.
-EQUIVALENCE_SYSTEM = (_UPSTREAM / "equivalence_system.txt").read_text(encoding="utf-8")
+EQUIVALENCE_SYSTEM = (_JUDGE_PROMPTS / "beam_equivalence_system.txt").read_text(
+    encoding="utf-8"
+)
 
 #: The user half of the same exchange. Placeholders are ``{first_paragraph}``
 #: and ``{second_paragraph}``: this one *was* an f-string upstream, so the
 #: braces are substitution points rather than literals.
-EQUIVALENCE_USER = (_UPSTREAM / "equivalence_user.txt").read_text(encoding="utf-8")
+EQUIVALENCE_USER = (_JUDGE_PROMPTS / "beam_equivalence_user.txt").read_text(
+    encoding="utf-8"
+)
 
 #: Cognee's edit of :data:`JUDGE`, from
 #: ``cognee/eval_framework/beam/eval/metrics/beam_rubric.py``. Not ours and not
@@ -62,7 +66,7 @@ EQUIVALENCE_USER = (_UPSTREAM / "equivalence_user.txt").read_text(encoding="utf-
 #: a judge asked to check on-topicness against nothing has to guess, and guesses
 #: inconsistently -- we measured the same abstention answer scoring 0.0 and 1.0
 #: in consecutive rounds on a one-word paraphrase.
-COGNEE_JUDGE = (_UPSTREAM / "cognee_judge.txt").read_text(encoding="utf-8")
+COGNEE_JUDGE = (_JUDGE_PROMPTS / "cognee_judge.txt").read_text(encoding="utf-8")
 
 #: The system message Cognee pairs with it. BEAM sends none.
 COGNEE_JUDGE_SYSTEM = "You are an evaluation judge. Return only valid JSON."

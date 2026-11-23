@@ -27,11 +27,11 @@ from typing import Protocol
 
 logger = logging.getLogger(__name__)
 
-_UPSTREAM = Path(__file__).resolve().parent / "upstream"
+_ANSWER_PROMPTS = Path(__file__).resolve().parent / "prompts" / "answer"
 
 #: Placeholders are ``<context>`` and ``<question>``, substituted with
 #: ``str.replace`` as upstream does.
-READER = (_UPSTREAM / "reader.txt").read_text(encoding="utf-8")
+READER = (_ANSWER_PROMPTS / "beam_answer.txt").read_text(encoding="utf-8")
 
 #: Upstream's ``reader_max_tokens``. Applied the way upstream applies it, as a
 #: character budget of ``4 * tokens`` -- their ``len(context) // 3.5 < budget``
@@ -59,7 +59,7 @@ _CHARS_PER_TOKEN = 3.5
 #: Selecting the prompt by ability reads the benchmark's own label at inference
 #: time, which their report is explicit about (§5: outside a labelled benchmark
 #: the type "would need to be inferred from the question itself").
-_COGNEE_QA = _UPSTREAM / "cognee_qa"
+_COGNEE_QA = _ANSWER_PROMPTS / "cognee"
 
 #: The ability-keyed system prompts. ``default`` is their unrouted fallback.
 _ABILITY_FILES = "context_for_question"
