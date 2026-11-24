@@ -57,12 +57,14 @@ EQUIVALENCE_USER = (_JUDGE_PROMPTS / "beam_equivalence_user.txt").read_text(
 #: BEAM's -- a third prompt, reproduced so their published 0.79 has an
 #: instrument on our side.
 #:
-#: The difference is one line. BEAM's prompt tells the judge "if the response
-#: does not address the QUESTION, score 0.0 and stop" but never supplies a
-#: question; its ``<question>`` placeholder is left unsubstituted by
-#: ``src/prompts.py``. Cognee adds ``- QUESTION (what the user asked):`` to the
-#: inputs block and fills it, and re-words the responsiveness section to be
-#: "anchored to the QUESTION". Their source comment calls it a fix, which it is:
+#: The difference is one input. BEAM's prompt tells the judge "if the response
+#: does not address the QUESTION, score 0.0 and stop" but its inputs are only
+#: the rubric item and the response, so no question ever reaches the judge.
+#: Cognee adds ``- QUESTION (what the user asked):`` to the inputs block and
+#: fills it, and re-words the responsiveness section to be "anchored to the
+#: QUESTION". Upstream writes the placeholders as ``str.format`` fields; they
+#: are rewritten here in BEAM's ``<name>`` style, and the rendered prompt is
+#: otherwise identical. Their source comment calls it a fix, which it is:
 #: a judge asked to check on-topicness against nothing has to guess, and guesses
 #: inconsistently -- we measured the same abstention answer scoring 0.0 and 1.0
 #: in consecutive rounds on a one-word paraphrase.

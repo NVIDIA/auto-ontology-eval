@@ -34,7 +34,7 @@ _ANSWER_PROMPTS = Path(__file__).resolve().parent / "prompts" / "answer"
 READER = (_ANSWER_PROMPTS / "beam_answer.txt").read_text(encoding="utf-8")
 
 #: Upstream's ``reader_max_tokens``. Applied the way upstream applies it, as a
-#: character budget of ``4 * tokens`` -- their ``len(context) // 3.5 < budget``
+#: character budget of ``3.5 * tokens`` -- their ``len(context) // 3.5 < budget``
 #: is a character count divided by an assumed characters-per-token, not a
 #: tokenizer. Reproduced rather than replaced with a real tokenizer so the
 #: amount of context a reader sees matches the published runs.

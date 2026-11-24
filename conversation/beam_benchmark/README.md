@@ -18,7 +18,7 @@ set -a && . ./.env && set +a
 ### 1. Build the graph
 
 ```
-.venv/bin/python build_graph.py 2 --verify --subject-agent
+.venv/bin/python -m conversation.beam_benchmark.build_graph 2 --verify --subject-agent
 ```
 
 Takes 16–30 minutes and wipes conversation 2's graph before it starts. The

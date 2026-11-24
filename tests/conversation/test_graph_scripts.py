@@ -12,8 +12,7 @@ from typing import Any
 import pytest
 import sqlalchemy as sa
 
-import build_graph
-import verify_graph
+from conversation.beam_benchmark import build_graph, verify_graph
 
 
 def test_a_failed_vector_wipe_stops_the_build(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES.
+# All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 """Rebuild one BEAM transcript's semantic layer from scratch.
 
 Lives here rather than in ``main.py`` because BEAM has no semantic stage there:
@@ -12,7 +16,7 @@ rows that are gone. That happened once and cost a measurement.
 
 Usage::
 
-    uv run --no-sync python build_graph.py 2 --per-turn
+    uv run --no-sync python -m conversation.beam_benchmark.build_graph 2 --per-turn
 """
 
 from __future__ import annotations
@@ -55,7 +59,7 @@ def main() -> int:
         "whose subject is a thing introduced outside that batch, which arrives "
         "as a description rather than as the turns stating it.",
     )
-    args = parser.parse_args()
+    args: argparse.Namespace = parser.parse_args()
 
     logging.basicConfig(
         level=logging.INFO,

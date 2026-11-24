@@ -1,7 +1,10 @@
-#!/usr/bin/env python
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES.
+# All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 """Check a stored conversation graph's edges against the turns they cite.
 
-Runs the same check ``build_graph.py --verify`` runs, but over the graph already
+Runs the same check ``build_graph --verify`` runs, but over the graph already
 in the database rather than over a fresh extraction draft. That is the whole
 point of it: finding the wrong edges costs about five minutes, and rebuilding
 the graph to act on what it found would cost half an hour of extraction that
@@ -12,14 +15,21 @@ Reports by default. ``--apply`` deletes the edges whose own turns contradict
 them, and re-embeds the path index afterwards, because the paths were built from
 the edges and would otherwise keep offering the deleted ones to retrieval.
 
-    python verify_graph.py 2                 # report
-    python verify_graph.py 2 --apply         # report, delete, re-embed paths
+    python -m conversation.beam_benchmark.verify_graph 2          # report
+    python -m conversation.beam_benchmark.verify_graph 2 --apply  # and fix
 """
 
 from __future__ import annotations
 
 import argparse
 import logging
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from auto_ontology.conversations.semantic.extract import EdgeDraft
+
+#: A stored node or edge, as ``fetch_nodes`` and ``fetch_edges`` return it.
+Row = dict[str, Any]
 
 logger = logging.getLogger("verify_graph")
 
@@ -34,7 +44,7 @@ def main() -> None:
         help="Delete the unsupported edges and re-embed the paths. Without it "
         "nothing is written and the run is a read-only report.",
     )
-    args = parser.parse_args()
+    args: argparse.Namespace = parser.parse_args()
 
     logging.basicConfig(
         level=logging.INFO,
@@ -84,7 +94,7 @@ def main() -> None:
     # Keyed by identity, so the verdict can be traced back to the row to delete.
     # Two edges can carry the same names and roles after a merge, and matching
     # on those would delete a sibling the model never judged.
-    rows: dict[int, dict] = {}
+    rows: dict[int, Row] = {}
     drafts: list[EdgeDraft] = []
     for row in claimed:
         draft = EdgeDraft(
@@ -117,7 +127,7 @@ def main() -> None:
     _reembed_paths(database_name=database_name, conversation_id=args.conversation)
 
 
-def _check_citations(nodes: list[dict], texts: dict[int, str]) -> None:
+def _check_citations(nodes: list[Row], texts: dict[int, str]) -> None:
     """Report, for every multi-turn statement, which of its turns support it.
 
     Read-only even under ``--apply``. Detaching a citation here would rewrite
@@ -146,7 +156,7 @@ def _check_citations(nodes: list[dict], texts: dict[int, str]) -> None:
     verify_node_citations(drafts, texts)
 
 
-def _delete(rows: dict[int, dict], wrong: list) -> None:
+def _delete(rows: dict[int, Row], wrong: list[EdgeDraft]) -> None:
     """Delete one row per unsupported edge, by its whole primary key.
 
     ``type`` included: a semantic-layer edge can share the endpoints and role of
