@@ -69,169 +69,19 @@ _ABILITY_FILES = "context_for_question"
 COGNEE_USER = (_COGNEE_QA / "context_for_question.txt").read_text(encoding="utf-8")
 
 
-#: Appended to the ordering prompt, and the only place a prompt here is not
-#: upstream's own text.
-#:
-#: Ordering is scored by splitting the answer on newlines and treating **every
-#: line as one event**, blank lines included (see
-#: :func:`~conversation.beam_benchmark.evaluator.judge.align_events`). A
-#: well-formed answer to "list five aspects" -- a sentence of preamble, five
-#: numbered items, a blank line between each -- is eleven events to the scorer,
-#: of which six can never match anything. Measured: five correct items in the
-#: right order scored precision 0.091, one over eleven, while the nugget judge
-#: gave the same text 3.5 of 5.
-#:
-#: So this does not ask for a better answer, it asks for the same answer
-#: without the lines that are not events. The count is deliberately not
-#: mentioned: the question states it, and it differs per question.
-#:
-#: **It asked for bare labels once.** Alignment is an LLM deciding whether two
-#: event names mean the same thing, and it needs something to decide on:
-#: stripping the explanation took precision from 0.091 to 0.400 on one question
-#: by shrinking the denominator, and to 0.000 on the other by shrinking the
-#: numerator -- "Null checks to reduce error rate" does not read as the
-#: rubric's "Invalid city name error handling improvements", where the fuller
-#: phrasing did. Ordering fell 0.309 to 0.181. What is left here is the half
-#: that costs nothing: drop the lines that are not events, keep the words that
-#: make an event recognisable.
-_ORDERING_FORMAT = (
-    "\n\nFormat: reply with the list and nothing else -- no preamble, no "
-    "closing remark. One item per line, in order, with no blank lines between "
-    "them. Describe each item in enough words to be recognisable, but keep it "
-    "to a single line and leave out dates and turn numbers."
-    "\n\nName what was raised about a thing, not the thing. An answer built "
-    "from the names of its parts reports what exists rather than what came up "
-    "about it, and matches none of the questions, problems and decisions being "
-    "asked for. Prefer the difficulties, constraints and revisions in the "
-    "context over its components, and draw the lines from across the whole "
-    "conversation rather than from whichever stretch of it is nearest the "
-    "subject."
-)
-
-
-#: Appended to the abstention prompt, for the same reason as the ordering note:
-#: the metric wants a shape the prompt does not ask for.
-#:
-#: Asked what other bugs were in the Jira board, the reader answered that three
-#: were logged, that only the TypeError was named, and that "the specific
-#: identities of the other two are not available in the provided context" --
-#: which is the rubric's nugget nearly word for word. It scored 0.000. The
-#: judge read the opening count as asserting that other bugs exist and marked
-#: the whole answer as contradicting the criterion.
-#:
-#: So the instruction is about where the abstention goes, not whether to make
-#: one: the sentence saying the information is absent has to be the answer
-#: rather than its conclusion. Nothing here tells the model to abstain more
-#: often -- the two questions this applies to are the ones it already
-#: identified correctly.
-_ABSTENTION_FORMAT = (
-    "\n\nIf the answer is that the context does not contain the information, "
-    "say exactly that in your first sentence and stop there. Do not open with "
-    "related detail, counts, or what the context does cover: a nearby fact "
-    "offered first reads as a partial answer and contradicts the abstention "
-    "that follows it."
-)
-
-
-#: Appended to the contradiction prompt. The opening is deliberately not the
-#: rubric's own words: "the information is contradictory ... which one is
-#: correct" scored 1.000 across eight question-rounds, and this wording also
-#: scored 1.000 across eight, but the one arm that ran the rubric's phrasing
-#: after this one dropped to 0.750 and 0.625, losing the nuggets for quoting
-#: the second side and for asking. Two rounds is thin and these two questions
-#: have swung between 0.250 and 1.000 before, so this is a lead rather than a
-#: finding -- but an instruction that restates the criterion looks satisfiable
-#: by restating it back, where naming the act in different words does not.
-_CONTRADICTION_FORMAT = (
-    "\n\nSay that the record disagrees with itself, quote BOTH sides as the "
-    "user stated them, and close by asking which one holds. Naming the "
-    "later version is wanted and is not enough on its own: the rubric scores "
-    "the conflict, each side, and the question back to the user as four "
-    "separate points, so an answer that picks the later side and stops there "
-    "concedes the credit it did not ask for. A superseded statement in the "
-    "note is still one of the two sides to quote."
-)
-
-_TEMPORAL_FORMAT = (
-    "\n\nWhen the answer is an amount of time between two events, give the "
-    "range as well as the count, naming the earlier date first and then the "
-    "later one, followed by the interval. The same fact written as a "
-    "subtraction of one date from the other is scored as missing the range, "
-    "because the rubric asks for the two separately."
-)
-
-_PREFERENCE_FORMAT = (
-    "\n\nWhen the question asks for help doing something, apply the "
-    "preferences rather than only listing them: name the approach they imply "
-    "and then say which stated preference it respects. These rubrics ask for a "
-    "concrete recommendation *and* for the constraint it honours as two "
-    "separate points, so an answer that reports what the user prefers without "
-    "naming an approach earns only the second of the two."
-    "\n\nWhere something already in use does the work by itself, lead with it "
-    "and say that it does so, naming it as the thing doing the work. An answer "
-    "that opens on how to set that same thing up, step by step, is read as "
-    "naming no such thing at all and scores zero on the point -- measured "
-    "across four rounds of one question, where the three answers that opened "
-    "on configuration lost the point and the one that opened on what the tool "
-    "does unprompted kept it, all four having named the same tool in their "
-    "first sentence."
-)
-
-#: Appended to the information-extraction prompt. Asked what was recommended
-#: for a problem, the reader named two of the three things recommended and
-#: spent the rest of the answer on the workings of one of them, while the
-#: third -- stated plainly in the retrieved context, every word of it present
-#: -- went unmentioned. That nugget scored 0.000.
-#:
-#: So this is about which true thing to say first, not about saying more: each
-#: recommendation is a separate point and the workings of one are not any of
-#: the others.
-_EXTRACTION_FORMAT = (
-    "\n\nWhen the question asks what was recommended or advised, name every "
-    "distinct thing that was recommended, in ordinary words, before going into "
-    "how any of them works. Each is scored on its own, so an answer that names "
-    "one and then details its workings -- the names, values and limits it was "
-    "given -- leaves the others unmentioned while appearing thorough. Detail is "
-    "worth adding only once nothing recommended is still unnamed."
-)
-
-
 def cognee_system_prompts() -> dict[str, str]:
     """Load the per-ability prompts, keyed by ability name.
 
-    Upstream's text, byte-exact, except that six abilities carry a formatting
-    note the metric requires and the prompt does not give -- see
-    :data:`_ORDERING_FORMAT`, :data:`_ABSTENTION_FORMAT`,
-    :data:`_PREFERENCE_FORMAT`, :data:`_TEMPORAL_FORMAT`,
-    :data:`_CONTRADICTION_FORMAT` and :data:`_EXTRACTION_FORMAT`. All are
-    additive: the upstream files stay byte-exact on disk, so the arm can be
-    reverted to cognee's own instructions by dropping these six lines.
-
-    None of them names anything from the transcript. Three once did -- one
-    carried the two dates a temporal question asks for -- and the ability that
-    quoted its answer fell from 0.500 to 0.375 once the dates came out, so
-    every arm measured before that is reading partly its own prompt back.
+    Upstream's text, byte-exact, with nothing appended. Anything added here
+    would have to be tuned on some questions, and BEAM's conversations are also
+    its test set: a note written against a rubric item makes the score on that
+    conversation a measure of the note.
     """
-    from .evaluator import ORDERING_ABILITY
-
-    prompts = {
+    return {
         path.stem: path.read_text(encoding="utf-8").strip()
         for path in sorted(_COGNEE_QA.glob("*.txt"))
         if path.stem != _ABILITY_FILES
     }
-    if ORDERING_ABILITY in prompts:
-        prompts[ORDERING_ABILITY] += _ORDERING_FORMAT
-    if "abstention" in prompts:
-        prompts["abstention"] += _ABSTENTION_FORMAT
-    if "preference_following" in prompts:
-        prompts["preference_following"] += _PREFERENCE_FORMAT
-    if "temporal_reasoning" in prompts:
-        prompts["temporal_reasoning"] += _TEMPORAL_FORMAT
-    if "contradiction_resolution" in prompts:
-        prompts["contradiction_resolution"] += _CONTRADICTION_FORMAT
-    if "information_extraction" in prompts:
-        prompts["information_extraction"] += _EXTRACTION_FORMAT
-    return prompts
 
 
 class Reader(Protocol):

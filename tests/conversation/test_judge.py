@@ -446,6 +446,15 @@ def test_cognee_prompts_exclude_the_user_template() -> None:
     assert len(prompts) == 11
 
 
+def test_cognee_prompts_are_upstream_text_with_nothing_appended() -> None:
+    """A note tuned on BEAM's rubric items would make the score measure it."""
+    from conversation.beam_benchmark.reader import _COGNEE_QA, cognee_system_prompts
+
+    for ability, prompt in cognee_system_prompts().items():
+        upstream = (_COGNEE_QA / f"{ability}.txt").read_text(encoding="utf-8")
+        assert prompt == upstream.strip(), ability
+
+
 def test_endpoint_capacity_exhaustion_is_transient_despite_the_401() -> None:
     """The endpoint returns "too many clients" as an AuthenticationError."""
     from conversation.beam_benchmark.evaluator.judge import _is_transient
