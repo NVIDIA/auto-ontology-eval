@@ -202,6 +202,12 @@ def agent_limits() -> dict[str, int]:
     from auto_ontology.retrieval.text_to_sql.react import config
 
     return {
+        # The conversation ceiling is the one this arm answers under; the
+        # general one is recorded beside it because it is what the arm would
+        # fall back to, and the two differing is the normal case.
+        "react_max_conversation_observation_chars": (
+            config.max_conversation_observation_chars()
+        ),
         "react_max_observation_chars": config.max_observation_chars(),
         "react_max_tool_calls": config.max_tool_calls(),
     }
@@ -895,6 +901,7 @@ _PINNED = (
     "retrieval",
     "top_k",
     "widen",
+    "react_max_conversation_observation_chars",
     "react_max_observation_chars",
     "react_max_tool_calls",
     "conversations",
