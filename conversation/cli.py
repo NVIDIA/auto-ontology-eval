@@ -165,7 +165,9 @@ def reject_on_sql_datasets(
         )
 
 
-def stage_ingest(*, scale: str, reset: bool = True) -> None:
+def stage_ingest(
+    *, scale: str, ids: Sequence[str] | None = None, reset: bool = True
+) -> None:
     """Build one conversation memory per transcript.
 
     Replaces the SQL ``stage_ingest``: there is no source database and no
@@ -176,7 +178,7 @@ def stage_ingest(*, scale: str, reset: bool = True) -> None:
     _banner(1, f"BEAM ingest (conversations -> Postgres + pgvector, {scale})")
     from conversation.beam_benchmark.run import ingest_scale
 
-    ingest_scale(scale, reset=reset)
+    ingest_scale(scale, ids=ids, reset=reset)
 
 
 def stage_benchmark(
@@ -283,8 +285,13 @@ def run_stages(database_name: str, args: argparse.Namespace) -> None:
     if spec is None:  # pragma: no cover - the caller checks first
         raise SystemExit(f"{database_name!r} is not a conversation benchmark")
 
+    conversations = (
+        [c.strip() for c in args.conversations.split(",") if c.strip()]
+        if args.conversations
+        else None
+    )
     if not args.skip_ingest:
-        stage_ingest(scale=args.scale, reset=not args.no_reset)
+        stage_ingest(scale=args.scale, ids=conversations, reset=not args.no_reset)
     if args.skip_eval:
         return
     stage_benchmark(
@@ -298,10 +305,6 @@ def run_stages(database_name: str, args: argparse.Namespace) -> None:
         results_dir=Path(args.run_dir) if args.run_dir else RESULTS_DIR,
         limit=args.limit,
         stage=args.stage,
-        conversations=(
-            [c.strip() for c in args.conversations.split(",") if c.strip()]
-            if args.conversations
-            else None
-        ),
+        conversations=conversations,
         retrieval=args.retrieval,
     )

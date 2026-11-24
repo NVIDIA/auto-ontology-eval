@@ -109,7 +109,9 @@ def _wipe(*, database_name: str, conversation_id: str) -> None:
 
     The vectors are a different store with no such transaction, which is the
     whole reason this runs first: a build that dies midway must not leave
-    vectors pointing at ids the rebuild has already deleted.
+    vectors pointing at ids the rebuild has already deleted. For the same
+    reason a failure here stops the build rather than carrying on with the old
+    vectors in place.
     """
     from auto_ontology.vdb import get_conversation_semantic_vdb, get_one_hop_path_vdb
 
@@ -118,11 +120,8 @@ def _wipe(*, database_name: str, conversation_id: str) -> None:
         ("node", get_conversation_semantic_vdb),
         ("path", get_one_hop_path_vdb),
     ):
-        try:
-            factory(database_name=database_name).delete_by_database(database_name)
-            logger.info("Cleared the %s vectors.", name)
-        except Exception:
-            logger.exception("Could not clear the %s vectors.", name)
+        factory(database_name=database_name).delete_by_database(database_name)
+        logger.info("Cleared the %s vectors.", name)
 
 
 if __name__ == "__main__":

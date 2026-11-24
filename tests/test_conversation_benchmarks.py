@@ -82,3 +82,20 @@ def test_defaulted_conversation_flags_are_allowed_on_a_sql_dataset() -> None:
     cli.add_arguments(parser)
     args = parser.parse_args(["--database-name", "bird"])
     cli.reject_on_sql_datasets(parser, args)
+
+
+def test_conversations_limit_the_ingest_too(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Otherwise targeting one conversation re-ingests and resets all twenty."""
+    seen: dict[str, object] = {}
+    monkeypatch.setattr(
+        cli, "stage_ingest", lambda **kwargs: seen.update(kwargs), raising=True
+    )
+    args = argparse.Namespace(
+        scale="100K",
+        conversations="2, 5",
+        no_reset=False,
+        skip_ingest=False,
+        skip_eval=True,
+    )
+    cli.run_stages("beam", args)
+    assert seen == {"scale": "100K", "ids": ["2", "5"], "reset": True}

@@ -147,7 +147,11 @@ def _check_citations(nodes: list[dict], texts: dict[int, str]) -> None:
 
 
 def _delete(rows: dict[int, dict], wrong: list) -> None:
-    """Delete one row per unsupported edge, by its two endpoint ids and role."""
+    """Delete one row per unsupported edge, by its whole primary key.
+
+    ``type`` included: a semantic-layer edge can share the endpoints and role of
+    a knowledge edge, and is a different row.
+    """
     from sqlalchemy import and_, delete, or_
 
     from auto_ontology.dal import schema as s
@@ -160,6 +164,7 @@ def _delete(rows: dict[int, dict], wrong: list) -> None:
             and_(
                 s.conversation_edge.c.source_id == row["source_id"],
                 s.conversation_edge.c.target_id == row["target_id"],
+                s.conversation_edge.c.type == row["type"],
                 s.conversation_edge.c.role == row["role"],
             )
         )
