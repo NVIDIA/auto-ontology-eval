@@ -360,12 +360,18 @@ def cognee_judge_nugget(nugget: str, question: str, response: str, ask: Ask) -> 
     raising -- an empty reply from a reasoning model out of token budget lands
     as a confident 0.0. Reproduced because scoring their arm on our error policy
     would make the number ours instead of theirs; the ``ERROR:`` prefix on the
-    reason is the only trace, so count them before reading a score.
+    reason is the only trace, and the summary counts them as ``judge_errors``.
+
+    Narrower than theirs in one way: only an unparseable reply or an endpoint
+    failure becomes a 0.0. Theirs catches everything, which would also turn a
+    bug in this harness into a judgement about the answer.
     """
     prompt = cognee_judge_prompt(question=question, nugget=nugget, response=response)
     try:
         score, reason = parse_verdict(ask(prompt, system=COGNEE_JUDGE_SYSTEM))
-    except (JudgeError, Exception) as exc:  # noqa: B014 - theirs is this broad
+    except Exception as exc:  # noqa: BLE001 - classified immediately below
+        if not (isinstance(exc, JudgeError) or _is_transient(exc)):
+            raise
         logger.warning("cognee judge failed for %r: %s", nugget[:60], exc)
         return Verdict(nugget=nugget, score=0.0, reason=f"ERROR: {exc}")
     return Verdict(nugget=nugget, score=snap(score), reason=reason)

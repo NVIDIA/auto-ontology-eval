@@ -294,9 +294,10 @@ So `--judge-prompt` picks the rule as well as the prompt:
 | `beam` | `tau_norm` | is the score |
 | `cognee` | nugget mean | reported beside it |
 
-Both numbers are computed and stored either way, so a finished run can be
-restated against either table without re-judging — see
-[`compare_cognee.py`](../../compare_cognee.py).
+Both numbers are computed and stored either way.
+[`compare_cognee.py`](../../compare_cognee.py) puts a run beside cognee's
+figures, and refuses one that was not judged by cognee's prompt and judge model
+or that is missing questions.
 
 Per-conversation ability scores are averaged across conversations, then the ten
 ability means are averaged into the headline number. With two questions per

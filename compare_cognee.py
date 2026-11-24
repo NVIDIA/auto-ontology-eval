@@ -4,19 +4,18 @@
 
 """Put one of our runs next to cognee's published 100K figures, ability by ability.
 
-Two things make this possible rather than approximate. Their report ships the
-per-ability means for the run behind the 0.790 headline, and our judged rows
-keep every nugget verdict even for the ability whose score is not made of them
--- so a finished run can be restated under either scoring rule without spending
-a single judge call on it.
+Their report ships the per-ability means for the run behind the 0.794
+headline, and our judged rows keep every nugget verdict, so a finished run can
+be scored by cognee's rule -- the nugget mean for all ten abilities, event
+ordering included -- without spending a judge call.
 
-That matters because the two rules disagree. BEAM's ``compute_metrics`` scores
-event ordering by rank correlation; cognee's ``beam_rubric.py`` scores it by
-nuggets like everything else and reports rank correlation as a separate metric.
-Read our tau against their nugget mean and a run looks ~0.06 worse than it is.
-Run with ``--flavour beam`` to see both columns at once.
+It cannot stand in for their judge, so it refuses rows that were not judged by
+cognee's prompt and judge model, rounds that are missing questions, and a run
+stored both as one file and as rounds. Each of those would put a number beside
+0.794 that was not measured the way 0.794 was.
 
-    uv run --no-sync python compare_cognee.py pathk4 --rounds 4
+    uv run --no-sync python compare_cognee.py agent --rounds 4 \\
+        --results-dir conversation/beam_benchmark/results-<run>
 
 Their figures are vendored under ``conversation/beam_benchmark/cognee_results/``
 so this works offline; see ``THIRD_PARTY_NOTICES.md`` for provenance.
@@ -34,6 +33,7 @@ from pathlib import Path
 from typing import Any
 
 from conversation.beam_benchmark.reference import cognee_columns
+from conversation.benchmarks import BENCHMARKS
 
 HERE = Path(__file__).parent
 RESULTS = HERE / "conversation" / "beam_benchmark" / "results"
@@ -50,8 +50,8 @@ COGNEE_SUMMARY = (
 COGNEE_CONVERSATION = "2"
 
 
-def cognee_figures() -> tuple[dict[str, float], float, float]:
-    """Their per-ability rubric means, their overall, and their tau."""
+def cognee_figures() -> tuple[dict[str, float], float, float, int]:
+    """Their per-ability rubric means, overall, tau, and questions per run."""
     report = json.loads(COGNEE_SUMMARY.read_text())
     by_ability = {
         ability: stats["beam_rubric"]["mean"]
@@ -61,6 +61,7 @@ def cognee_figures() -> tuple[dict[str, float], float, float]:
         by_ability,
         report["overall"]["beam_rubric"]["mean"],
         report["overall"]["kendall_tau"]["mean"],
+        int(report["question_count"]),
     )
 
 
@@ -75,32 +76,125 @@ def _nugget_mean(row: dict[str, Any]) -> float:
     return statistics.mean(v["score"] for v in verdicts) if verdicts else 0.0
 
 
-def round_files(scale: str, tag: str, rounds: int) -> list[tuple[int, Path]]:
+def round_files(
+    scale: str, tag: str, rounds: int, results: Path = RESULTS
+) -> list[tuple[int, Path]]:
     """The judged files for *tag*, paired with the round each one is.
 
     A tag run once writes ``<tag>.jsonl``; run with ``--rounds`` it writes
-    ``<tag>_r1.jsonl`` and so on. Both are accepted so an arm measured either
-    way can be restated. The round index matters only for lining our rounds up
-    with their four runs, and a single file is round 0.
+    ``<tag>_r1.jsonl`` and so on. Either is accepted so an arm measured either
+    way can be restated, but not both: pooling them counts the same answers
+    twice. Every one of *rounds* has to be there, since a missing round leaves
+    a mean over a different number of runs than the one it is compared with.
+    The round index lines our rounds up with their four runs; a single file is
+    round 0.
     """
-    directory = RESULTS / scale
-    named = [(i - 1, directory / f"{tag}_r{i}.jsonl") for i in range(1, rounds + 1)]
-    named.append((0, directory / f"{tag}.jsonl"))
-    found = [(index, path) for index, path in named if path.exists()]
-    if not found:
+    directory = results / scale
+    single = directory / f"{tag}.jsonl"
+    numbered = [(i - 1, directory / f"{tag}_r{i}.jsonl") for i in range(1, rounds + 1)]
+    present = [(index, path) for index, path in numbered if path.exists()]
+    if single.exists() and present:
+        raise SystemExit(
+            f"both {single.name} and {tag}_rN.jsonl exist under {directory}; "
+            "pooling them would count answers twice. Move one set aside."
+        )
+    if single.exists():
+        return [(0, single)]
+    if not present:
         raise SystemExit(f"no judged rows for {tag!r} under {directory}")
-    return found
+    missing = [path.name for _, path in numbered if not path.exists()]
+    if missing:
+        raise SystemExit(f"missing round file(s) for {tag!r}: {', '.join(missing)}")
+    return present
 
 
-def read_rows(scale: str, tag: str, rounds: int) -> list[dict[str, Any]]:
-    """Judged rows for *tag*, across its rounds if it has any."""
-    rows: list[dict[str, Any]] = []
-    for _, path in round_files(scale, tag, rounds):
-        rows += [json.loads(line) for line in path.read_text().splitlines() if line]
-    return rows
+def _summary_for(path: Path) -> dict[str, Any]:
+    """The summary judging wrote beside *path*, or an empty dict."""
+    summary = path.with_name(f"{path.stem}_summary.json")
+    return json.loads(summary.read_text()) if summary.exists() else {}
 
 
-def backfill(scale: str, tag: str, rounds: int) -> None:
+def read_rounds(
+    scale: str, tag: str, rounds: int, results: Path = RESULTS
+) -> list[list[dict[str, Any]]]:
+    """Judged rows for *tag*, one list per round.
+
+    Each row carries the judge that produced it. Rows judged before that was
+    recorded take it from their round's summary.
+    """
+    out: list[list[dict[str, Any]]] = []
+    for _, path in round_files(scale, tag, rounds, results):
+        summary = _summary_for(path)
+        rows = [json.loads(line) for line in path.read_text().splitlines() if line]
+        for row in rows:
+            row.setdefault("judge_prompt", summary.get("judge_prompt"))
+            row.setdefault("judge_model", summary.get("judge_model"))
+        out.append(rows)
+    return out
+
+
+def require_cognee_judge(rows: list[dict[str, Any]], judge_model: str) -> None:
+    """Refuse verdicts that did not come from cognee's prompt and model.
+
+    Restating a run under cognee's rule only re-does their arithmetic; it
+    cannot re-do their judge. Verdicts from BEAM's prompt never saw the
+    question, and ``gpt-4.1-mini`` is the more lenient model on the same
+    answers, so either would be scored on a different instrument from 0.794.
+    """
+    judges = sorted(
+        {(str(r.get("judge_prompt")), str(r.get("judge_model"))) for r in rows}
+    )
+    if judges != [("cognee", judge_model)]:
+        raise SystemExit(
+            f"rows were judged by {judges}, not cognee's prompt with "
+            f"{judge_model}; re-judge them before comparing with 0.794."
+        )
+
+
+def require_complete_rounds(
+    per_round: list[list[dict[str, Any]]], abilities: set[str], questions: int
+) -> None:
+    """Every round must hold all of cognee's questions, once each.
+
+    A question that failed is missing from our rows but scored 0 on their side,
+    and a round short of any ability changes how much each one weighs. Either
+    makes the comparison unequal in a way the overall cannot show.
+    """
+    for index, rows in enumerate(per_round, start=1):
+        keys = [(r["ability"], str(r["question_index"])) for r in rows]
+        found = {ability for ability, _ in keys}
+        problems = []
+        if len(rows) != questions:
+            problems.append(f"{len(rows)} rows, expected {questions}")
+        if len(set(keys)) != len(keys):
+            problems.append("duplicate questions")
+        if found != abilities:
+            problems.append(f"abilities differ: {sorted(found ^ abilities)}")
+        if problems:
+            raise SystemExit(f"round {index} is incomplete: {'; '.join(problems)}")
+
+
+def cognee_overall(per_round: list[list[float]]) -> float:
+    """Their overall: each run's flat mean over questions, averaged over runs.
+
+    Not the mean of per-ability means. The two agree only when every ability
+    has the same number of questions, which is a property of this question set
+    rather than of the arithmetic.
+    """
+    return statistics.mean(statistics.mean(scores) for scores in per_round)
+
+
+def judge_errors(rows: list[dict[str, Any]]) -> int:
+    """Verdicts the cognee judge scored 0.0 because the call failed."""
+    return sum(
+        1
+        for row in rows
+        for verdict in row.get("verdicts") or []
+        if str(verdict.get("reason", "")).startswith("ERROR:")
+    )
+
+
+def backfill(scale: str, tag: str, rounds: int, results: Path = RESULTS) -> None:
     """Add the cognee columns to a run judged before they existed.
 
     Judging writes them now, so this is only for the arms already measured. It
@@ -109,7 +203,7 @@ def backfill(scale: str, tag: str, rounds: int) -> None:
     replaced in one write, so an interrupted run leaves the old file intact
     rather than half of each.
     """
-    for index, path in round_files(scale, tag, rounds):
+    for index, path in round_files(scale, tag, rounds, results):
         rows = [json.loads(line) for line in path.read_text().splitlines() if line]
         added = 0
         for row in rows:
@@ -135,7 +229,7 @@ def _wrap(label: str, text: str, width: int = 96) -> str:
     return f"    {label}\n{body}"
 
 
-def _disagreements(rows: list[dict[str, Any]], flavour: str) -> None:
+def _disagreements(rows: list[dict[str, Any]]) -> None:
     """Print the questions where their score beats ours, with both answers.
 
     Only where they win: the cases where we win need no diagnosis, and printing
@@ -148,7 +242,7 @@ def _disagreements(rows: list[dict[str, Any]], flavour: str) -> None:
     for row in rows:
         if "cognee_score" not in row or row["question"] in seen:
             continue
-        ours = row["score"] if flavour == "beam" else _nugget_mean(row)
+        ours = _nugget_mean(row)
         if ours >= row["cognee_score_mean"] - 0.001:
             continue
         seen.add(row["question"])
@@ -169,7 +263,7 @@ def _disagreements(rows: list[dict[str, Any]], flavour: str) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("tag", help="the run to restate, e.g. pathk4")
+    parser.add_argument("tag", help="the run to restate, e.g. agent")
     parser.add_argument("--scale", default="100K")
     parser.add_argument(
         "--rounds",
@@ -178,10 +272,10 @@ def main() -> int:
         help="how many <tag>_rN.jsonl files to pool (default 4)",
     )
     parser.add_argument(
-        "--flavour",
-        choices=("cognee", "beam"),
-        default="cognee",
-        help="which scoring rule to put in the 'ours' column (default cognee)",
+        "--results-dir",
+        type=Path,
+        default=RESULTS,
+        help="the run directory holding <scale>/<tag>*.jsonl (default: results/)",
     )
     parser.add_argument(
         "--backfill",
@@ -197,30 +291,31 @@ def main() -> int:
 
     if args.backfill:
         print(f"Backfilling {args.tag}:")
-        backfill(args.scale, args.tag, args.rounds)
+        backfill(args.scale, args.tag, args.rounds, args.results_dir)
         print()
 
-    rows = read_rows(args.scale, args.tag, args.rounds)
+    per_round = read_rounds(args.scale, args.tag, args.rounds, args.results_dir)
+    rows = [row for round_rows in per_round for row in round_rows]
     conversations = sorted({str(r["conversation_id"]) for r in rows})
     if conversations != [COGNEE_CONVERSATION]:
-        print(
-            f"warning: comparing conversation(s) {conversations} against their "
-            f"conversation {COGNEE_CONVERSATION}; the gaps below are not "
-            f"like-for-like.\n",
-            file=sys.stderr,
+        raise SystemExit(
+            f"rows cover conversation(s) {conversations}; cognee published "
+            f"conversation {COGNEE_CONVERSATION} only."
         )
 
-    as_judged: dict[str, list[float]] = defaultdict(list)
-    as_cognee: dict[str, list[float]] = defaultdict(list)
-    for row in rows:
-        as_judged[row["ability"]].append(row["score"])
-        as_cognee[row["ability"]].append(_nugget_mean(row))
-    ours = as_judged if args.flavour == "beam" else as_cognee
+    theirs, their_overall, their_tau, their_questions = cognee_figures()
+    require_cognee_judge(rows, BENCHMARKS["beam"].judge_model)
+    require_complete_rounds(per_round, set(theirs), their_questions)
 
-    theirs, their_overall, their_tau = cognee_figures()
+    ours: dict[str, list[float]] = defaultdict(list)
+    for row in rows:
+        ours[row["ability"]].append(_nugget_mean(row))
 
     print(f"BEAM {args.scale} conversation {COGNEE_CONVERSATION}")
-    print(f"  ours:   {args.tag}, {len(rows)} judged rows, scored as {args.flavour}")
+    print(
+        f"  ours:   {args.tag}, {len(per_round)} round(s) of {their_questions}, "
+        f"judged by {rows[0]['judge_model']} on cognee's prompt"
+    )
     print("  theirs: hybrid_completion 20/20, 4 runs, published 0.794\n")
     print(f"{'ability':28}{'ours':>8}{'cognee':>9}{'gap':>8}")
     print("-" * 53)
@@ -228,28 +323,38 @@ def main() -> int:
     gaps: list[tuple[float, str]] = []
     for ability in sorted(ours):
         mine = statistics.mean(ours[ability])
-        if ability not in theirs:
-            print(f"{ability:28}{mine:8.3f}{'--':>9}{'--':>8}")
-            continue
         gap = mine - theirs[ability]
         gaps.append((gap, ability))
         print(f"{ability:28}{mine:8.3f}{theirs[ability]:9.3f}{gap:+8.3f}")
 
     print("-" * 53)
-    overall = statistics.mean(statistics.mean(v) for v in ours.values())
+    overall = cognee_overall(
+        [[_nugget_mean(row) for row in round_rows] for round_rows in per_round]
+    )
     print(
         f"{'OVERALL':28}{overall:8.3f}{their_overall:9.3f}{overall - their_overall:+8.3f}"
     )
 
+    # Printed side by side and not subtracted: ours is BEAM's tau_norm,
+    # (tau_b + 1) / 2 after aligning events, and theirs is the mean of their
+    # own kendall_tau metric. Two different measures of ordering.
     taus = [r["ordering"]["tau_norm"] for r in rows if r.get("ordering")]
     if taus:
-        tau = statistics.mean(taus)
         print(
-            f"{'kendall tau (ordering)':28}{tau:8.3f}{their_tau:9.3f}{tau - their_tau:+8.3f}"
+            f"\nordering, different metrics: ours BEAM tau_norm "
+            f"{statistics.mean(taus):.3f}, theirs cognee kendall_tau {their_tau:.3f}"
+        )
+
+    errors = judge_errors(rows)
+    if errors:
+        print(
+            f"\nwarning: {errors} verdict(s) are judge failures scored 0.0 "
+            "(reason starts with ERROR:); the score above counts them as zeros.",
+            file=sys.stderr,
         )
 
     if args.per_question:
-        _disagreements(rows, args.flavour)
+        _disagreements(rows)
 
     behind = sorted(g for g in gaps if g[0] < -0.001)
     if behind:
@@ -261,7 +366,6 @@ def main() -> int:
             f"{-sum(g for g, _ in behind) / len(ours):.3f} of overall if every "
             f"one were closed: " + ", ".join(f"{a} ({g:+.3f})" for g, a in behind)
         )
-    print("\nTarget to beat: 0.790")
     return 0
 
 

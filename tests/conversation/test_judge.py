@@ -10,6 +10,9 @@ Nothing here reaches a model, so nothing here needs credentials.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import pytest
 
 from conversation.beam_benchmark.evaluator import prompts
@@ -323,16 +326,44 @@ def test_snap_matches_cognee_cuts() -> None:
     ]
 
 
-def test_cognee_judge_scores_failures_zero_rather_than_raising() -> None:
-    """Their ``_judge_criterion`` swallows everything. Ours must too, here."""
+@pytest.mark.parametrize(
+    "failure",
+    [
+        RuntimeError("Error code: 503 - service unavailable"),
+        RuntimeError("Connection error."),
+    ],
+)
+def test_cognee_judge_scores_endpoint_failures_zero(failure: Exception) -> None:
+    """Their ``_judge_criterion`` scores an endpoint failure 0.0, so ours does."""
     from conversation.beam_benchmark.evaluator.judge import cognee_judge_nugget
 
     def broken(prompt: str, *, system: str | None = None) -> str:
-        raise RuntimeError("endpoint down")
+        raise failure
 
     verdict = cognee_judge_nugget("states X", "What?", "X happened", broken)
     assert verdict.score == 0.0
     assert verdict.reason.startswith("ERROR:")
+
+
+def test_cognee_judge_scores_an_unparseable_reply_zero() -> None:
+    from conversation.beam_benchmark.evaluator.judge import cognee_judge_nugget
+
+    verdict = cognee_judge_nugget(
+        "states X", "What?", "X happened", lambda prompt, *, system=None: ""
+    )
+    assert verdict.score == 0.0
+    assert verdict.reason.startswith("ERROR:")
+
+
+def test_cognee_judge_raises_a_bug_instead_of_scoring_it() -> None:
+    """A fault in this harness is not a judgement about the answer."""
+    from conversation.beam_benchmark.evaluator.judge import cognee_judge_nugget
+
+    def buggy(prompt: str, *, system: str | None = None) -> str:
+        raise KeyError("nugget")
+
+    with pytest.raises(KeyError):
+        cognee_judge_nugget("states X", "What?", "X happened", buggy)
 
 
 def test_cognee_judge_sends_their_system_message() -> None:
@@ -469,12 +500,70 @@ def test_endpoint_capacity_exhaustion_is_transient_despite_the_401() -> None:
     assert not _is_transient(Exception("Error code: 401 - invalid api key"))
 
 
-def test_rounds_with_different_question_counts_are_refused() -> None:
+def test_rounds_must_all_score_the_expected_questions() -> None:
     """Pooling them would compare two question sets and call it noise."""
     from conversation.beam_benchmark.run import _require_one_question_set
 
-    _require_one_question_set([{"answered": 20}, {"answered": 20}])
-    with pytest.raises(RuntimeError, match="different question counts"):
+    expected = ["2/abstention/0", "2/abstention/1", "2/summarization/0"]
+    _require_one_question_set(
+        [{"question_keys": expected}, {"question_keys": expected}], expected
+    )
+    # Equal counts, different questions.
+    with pytest.raises(RuntimeError, match=r"r2 \(missing 1, extra 1\)"):
         _require_one_question_set(
-            [{"answered": 20}, {"answered": 18}, {"answered": 20}]
+            [
+                {"question_keys": expected[:2]},
+                {"question_keys": [expected[0], expected[2]]},
+            ],
+            expected[:2],
         )
+    # The same question lost in every round still leaves the score too high.
+    with pytest.raises(RuntimeError, match="missing 1"):
+        _require_one_question_set(
+            [{"question_keys": expected[:2]}, {"question_keys": expected[:2]}],
+            expected,
+        )
+
+
+def test_a_failed_question_fails_the_run_after_writing_the_rest(
+    tmp_path: Path,
+) -> None:
+    """Leaving it out would score the run over the questions that survived."""
+    from conversation.beam_benchmark.run import _run_concurrently
+
+    def work(row: dict[str, str]) -> dict[str, str]:
+        if row["id"] == "bad":
+            raise ValueError("boom")
+        return row
+
+    out = tmp_path / "rows.jsonl"
+    rows = [{"id": "a"}, {"id": "bad"}, {"id": "b"}]
+    with pytest.raises(RuntimeError, match="1 of 3"):
+        _run_concurrently(rows, work, out=out, workers=2, verb="judged")
+    assert sorted(json.loads(line)["id"] for line in out.read_text().splitlines()) == [
+        "a",
+        "b",
+    ]
+
+
+def _retrieve(content: str) -> dict[str, str]:
+    return {"role": "tool", "name": "retrieve", "content": content}
+
+
+def test_the_agent_must_only_see_its_own_conversation() -> None:
+    from conversation.beam_benchmark.run import require_own_conversation
+
+    own = _retrieve('<turn n="3" conversation="2" session="1">hi</turn>')
+    require_own_conversation([own, _retrieve("no turns here")], "2")
+
+    leaked = _retrieve('<turn n="9" conversation="7">elsewhere</turn>')
+    with pytest.raises(RuntimeError, match=r"\['7'\]"):
+        require_own_conversation([own, leaked], "2")
+
+
+def test_a_turn_quoted_in_the_agent_answer_is_not_a_retrieval() -> None:
+    """Only tool observations are what the search returned."""
+    from conversation.beam_benchmark.run import require_own_conversation
+
+    said = {"role": "ai", "content": '<turn conversation="7">'}
+    require_own_conversation([said], "2")

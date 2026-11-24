@@ -31,16 +31,18 @@ always whether retrieval found the turn, and that is answerable from
 Upstream splits them the same way, into ``answer_generation.py`` and
 ``run_evaluation.py``.
 
-All three are resumable in the sense that matters: ingest upserts, so
-re-running converges rather than duplicating, and both of the others write each
-row as it finishes rather than at the end.
+Ingest upserts, so re-running it converges rather than duplicating. The other
+two are not resumable: each writes rows as they finish, so a killed run leaves
+its completed work on disk to read, but a re-run starts its file over.
 """
 
 from __future__ import annotations
 
 import csv
+import html
 import json
 import logging
+import re
 import statistics
 import time
 from collections.abc import Sequence
@@ -267,6 +269,35 @@ def agent_answer(question: str, scope: str) -> tuple[str, list[dict[str, Any]]]:
     ) or []
 
 
+#: The transcript a retrieved turn came from, as the agent's search tool
+#: labels it in every observation.
+_TURN_CONVERSATION = re.compile(r'<turn\b[^>]*\bconversation="([^"]*)"')
+
+
+def require_own_conversation(
+    trajectory: Sequence[dict[str, Any]], conversation_id: str
+) -> None:
+    """Fail if the agent saw a turn from any transcript but *conversation_id*.
+
+    Isolation rests on the library scoping each search to ``target_db``, and
+    nothing else would notice if it stopped: a question answered from another
+    conversation's turns scores as if it had been answered from its own, which
+    is the pooling the benchmark exists to catch.
+    """
+    seen = {
+        html.unescape(found)
+        for step in trajectory
+        if step.get("role") == "tool"
+        for found in _TURN_CONVERSATION.findall(str(step.get("content") or ""))
+    }
+    foreign = sorted(seen - {conversation_id})
+    if foreign:
+        raise RuntimeError(
+            f"the agent answering a question about conversation "
+            f"{conversation_id} retrieved turns from {foreign}"
+        )
+
+
 def _run_concurrently(
     rows: Sequence[dict[str, Any]],
     work: Any,
@@ -279,11 +310,12 @@ def _run_concurrently(
 
     Shared by both steps because the only thing that differs between answering
     and judging is the function in the middle. Rows are written as they finish,
-    so a run killed partway leaves its completed work on disk; a row that raises
-    is logged with the question it came from and skipped, because one bad
-    question should not cost the other 399.
+    so a run killed partway leaves its completed work on disk. A row that
+    raises is logged with the question it came from and the others carry on,
+    but the run then fails: a mean over the questions that survived is higher
+    than the score, and nothing downstream could tell it from a complete one.
 
-    Returns ``(results, failures, seconds)``.
+    Returns ``(results, seconds)``.
     """
     out.parent.mkdir(parents=True, exist_ok=True)
     results: list[dict[str, Any]] = []
@@ -319,7 +351,13 @@ def _run_concurrently(
                         time.monotonic() - started,
                     )
 
-    return results, failures, time.monotonic() - started
+    if failures:
+        raise RuntimeError(
+            f"{failures} of {len(rows)} question(s) failed while {verb}; "
+            f"the other {len(results)} are in {out}. A score over the rest "
+            "would leave the failures out instead of counting them."
+        )
+    return results, time.monotonic() - started
 
 
 def answer_questions(
@@ -356,33 +394,31 @@ def answer_questions(
     if not rows:
         raise SystemExit(f"No questions selected for scale {scale}")
 
-    read = make_reader(model=reader_model)
-    resolved_reader = resolve_model(reader_model)
     # What actually governed this run, per arm. The agent is its own reader
-    # and does its own searching, so recording the reader and the turn budget
-    # beside its answers would describe a configuration that never touched
-    # them -- the same failure as omitting the budget that did.
+    # and does its own searching, so building a reader for it, or recording
+    # the reader and the turn budget beside its answers, would describe a
+    # configuration that never touched them -- the same failure as omitting
+    # the budget that did.
+    read: Any = None
+    prompts: dict[str, str] = {}
     if retrieval == "agent":
         applied: dict[str, Any] = agent_limits()
     else:
+        read = make_reader(model=reader_model)
+        prompts = cognee_system_prompts() if reader_prompt == "cognee" else {}
         applied = {
-            "reader_model": resolved_reader,
+            "reader_model": resolve_model(reader_model),
             "reader_prompt": reader_prompt,
             "top_k": top_k,
             "widen": widen,
         }
-    prompts = cognee_system_prompts() if reader_prompt == "cognee" else {}
     logger.info(
-        "Answering %d question(s) over %d conversation(s): "
-        "retrieval=%s top_k=%d widen=%d workers=%d reader=%s prompts=%s",
+        "Answering %d question(s) over %d conversation(s): retrieval=%s workers=%d %s",
         len(rows),
         len({r["conversation_id"] for r in rows}),
         retrieval,
-        top_k,
-        widen,
         workers,
-        resolved_reader,
-        f"cognee, per-ability ({len(prompts)})" if prompts else "beam, single",
+        " ".join(f"{k}={v}" for k, v in applied.items()),
     )
 
     def work(row: dict[str, Any]) -> dict[str, Any]:
@@ -403,6 +439,7 @@ def answer_questions(
                 hits = []
                 context = ""
                 response, trajectory = agent_answer(row["question"], scope)
+                require_own_conversation(trajectory, row["conversation_id"])
             elif retrieval == "vector":
                 hits = search_turns(
                     row["question"], database_name=scope, top_k=top_k, widen=widen
@@ -463,7 +500,7 @@ def answer_questions(
         }
 
     out = answers_path(scale, tag, results_dir)
-    results, failures, seconds = _run_concurrently(
+    results, seconds = _run_concurrently(
         rows, work, out=out, workers=workers, verb="answered"
     )
 
@@ -486,8 +523,6 @@ def answer_questions(
             "reader out of token budget. They will score 0 on every nugget.",
             blank,
         )
-    if failures:
-        logger.warning("%d question(s) failed and are not in the file.", failures)
     return len(results)
 
 
@@ -506,28 +541,39 @@ def load_answers(
         return [json.loads(line) for line in handle if line.strip()]
 
 
-def _require_one_question_set(per_round: Sequence[dict[str, Any]]) -> None:
-    """Refuse to pool rounds that answered different numbers of questions.
+def question_key(row: dict[str, Any]) -> str:
+    """One question's identity across files: conversation, ability, index."""
+    return f"{row['conversation_id']}/{row['ability']}/{row['question_index']}"
 
-    A round whose reader call failed writes no row for that question, and its
-    ``overall`` is then the mean over the questions that survived. Pooling that
-    with a complete round compares two different question sets and reports the
-    difference as run-to-run noise -- which is how an endpoint outage became a
-    0.520 round that looked like a real regression.
+
+def _require_one_question_set(
+    per_round: Sequence[dict[str, Any]], expected: Sequence[str]
+) -> None:
+    """Refuse to pool rounds unless every one scored exactly *expected*.
+
+    A round that lost a question has an ``overall`` over the questions that
+    survived, which is higher than the score. Pooling it with a complete round
+    also compares two question sets and reports the difference as run-to-run
+    noise -- which is how an endpoint outage became a 0.520 round that looked
+    like a real regression. Counts alone are not enough: two rounds that each
+    lost a different question have the same count.
 
     Raising rather than warning. A warning in a log that is already thousands
-    of lines of httpx chatter is not a result anybody sees, and the number this
-    produces goes into a README next to a competitor's.
+    of lines of httpx chatter is not a result anybody sees.
     """
-    counts = {int(summary.get("answered") or 0) for summary in per_round}
-    if len(counts) > 1:
-        detail = ", ".join(
-            f"r{i}={summary.get('answered')}" for i, summary in enumerate(per_round, 1)
-        )
+    want = sorted(expected)
+    short = [
+        f"r{i} (missing {len(set(want) - set(s.get('question_keys') or []))}, "
+        f"extra {len(set(s.get('question_keys') or []) - set(want))})"
+        for i, s in enumerate(per_round, 1)
+        if sorted(s.get("question_keys") or []) != want
+    ]
+    if short:
         raise RuntimeError(
-            f"rounds answered different question counts ({detail}); the means "
-            "are over different question sets and must not be pooled. The "
-            "per-round files are on disk -- re-run the short rounds."
+            f"rounds did not all score the {len(want)} expected questions: "
+            f"{', '.join(short)}. Their means are over different question sets "
+            "and must not be pooled; the per-round files are on disk -- re-run "
+            "those rounds."
         )
 
 
@@ -617,11 +663,15 @@ def judge_answers(
                 run=cognee_run,
             ),
             "verdicts": [asdict(v) for v in result.verdicts],
+            # On every row, so a verdict read back later can be checked against
+            # the judge it is being compared as.
+            "judge_prompt": flavour,
+            "judge_model": judge_model or DEFAULT_JUDGE_MODEL,
             "seconds": round(time.monotonic() - started, 1),
         }
 
     out_dir = results_dir / scale
-    results, failures, seconds = _run_concurrently(
+    results, seconds = _run_concurrently(
         rows, work, out=out_dir / f"{tag}.jsonl", workers=workers, verb="judged"
     )
 
@@ -631,7 +681,10 @@ def judge_answers(
         "tag": tag,
         "answers_read": len(rows),
         "questions_scored": len(results),
-        "questions_failed": failures,
+        "questions_failed": 0,
+        # Which questions, not just how many: two rounds that each lost a
+        # different question have equal counts and different question sets.
+        "question_keys": sorted(question_key(r) for r in results),
         "conversations": sorted({r["conversation_id"] for r in results}, key=int),
         # Read off the answers rather than taken as an argument: judging does
         # not choose the reader, and a summary that named a reader the answers
@@ -778,10 +831,6 @@ def _report(summary: dict[str, Any]) -> None:
             "comparable to the published one.",
             len(means),
         )
-    if summary["questions_failed"]:
-        logger.warning(
-            "%d question(s) failed and are excluded.", summary["questions_failed"]
-        )
 
 
 def run_rounds(
@@ -849,7 +898,10 @@ def run_rounds(
         )
         per_round[-1]["answered"] = answered
 
-    _require_one_question_set(per_round)
+    expected = load_questions(scale, ids)
+    if limit is not None:
+        expected = expected[:limit]
+    _require_one_question_set(per_round, [question_key(q) for q in expected])
 
     overalls = [s["overall"] for s in per_round]
     abilities = sorted({a for s in per_round for a in s["ability_means"]})
