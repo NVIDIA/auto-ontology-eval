@@ -40,10 +40,12 @@ def main() -> int:
     parser.add_argument(
         "--verify",
         action="store_true",
-        help="Read the extracted graph back against the turns it came from. "
-        "Edges their own turns contradict are dropped; statements citing a "
-        "turn that denies them are reported, since the fix there is a node "
-        "that is missing rather than one to remove.",
+        help="Read the extracted graph back against the turns it came from, "
+        "and change it. Edges their own turns contradict are dropped. A "
+        "statement citing a turn that denies it is kept -- the fix there is a "
+        "node that is missing, not one to remove -- but the denying turn "
+        "yields a retraction node, and the denied citation is detached once "
+        "another remains to carry the statement.",
     )
     parser.add_argument(
         "--subject-agent",

@@ -18,21 +18,38 @@ set -a && . ./.env && set +a
 ### 1. Build the graph
 
 ```
-uv run --no-sync python build_graph.py 2 --verify --subject-agent
+.venv/bin/python build_graph.py 2 --verify --subject-agent
 ```
 
-Takes about 16 minutes and wipes conversation 2 before it starts.
+Takes 16–30 minutes and wipes conversation 2's graph before it starts. The
+transcripts themselves are untouched: the turns and their vectors are ingested
+once and the graph is rebuilt over them, which is why the eval can run against
+a graph built this way without re-ingesting anything.
+
+Most of the time is the agentic subject pass. `--verify` and `--subject-agent`
+are both optional and both change what lands, so a score is only comparable to
+another score built with the same flags.
 
 ### 2. Score it
 
 ```
-uv run --no-sync python main.py --database-name beam --skip-migrate --skip-ingest \
+.venv/bin/python main.py --database-name beam --skip-migrate --skip-ingest \
   --scale 100K --conversations 2 --eval-workers 4 \
-  --retrieval semantic
+  --retrieval agent --run-dir conversation/beam_benchmark/results-agent
 ```
 
+Two arms, and the difference is not a parameter of the same method:
+
+| `--retrieval` | What answers |
+| --- | --- |
+| `vector` (default) | One similarity search over turn text, handed to a reader that answers in one call. Matches the published one-retrieval protocol. |
+| `agent` | The ReAct agent with conversation search on. It writes its own queries, reads what comes back, and may search again, reaching the ontology through the same tool. |
+
+Only `agent` uses the graph that step 1 builds, so a graph rebuild has no
+effect on a `vector` score.
+
 Output is named after the arm, so the command above writes
-`results/100K/semantic_r1.jsonl` and so on. To keep a run instead of letting
+`results/100K/agent_r1.jsonl` and so on. To keep a run instead of letting
 the next one of the same arm overwrite it, point `--run-dir` somewhere else --
 the same flag and the same rule as the SQL arms, and the reason nothing is
 named by hand: a score filed under a label that describes a configuration it
@@ -52,6 +69,29 @@ to re-run only the short rounds.
 
 **The score to beat is 0.79** — cognee's 0.794 on this conversation over four
 runs.
+
+### What the agent arm answers under
+
+Nothing to export: these are library defaults, recorded onto every answer row
+by `agent_limits` and reported in the summary, so a finished run says what it
+was produced with rather than relying on the command that started it.
+
+| Setting | Default | Env var |
+| --- | --- | --- |
+| Conversation search result size | 24,000 chars | `TEXT_TO_SQL_REACT_MAX_CONVERSATION_OBSERVATION_CHARS` |
+| Any other tool result | 8,000 chars | `TEXT_TO_SQL_REACT_MAX_OBSERVATION_CHARS` |
+| Tool calls per question | 24 | `TEXT_TO_SQL_REACT_MAX_TOOL_CALLS` |
+
+A transcript turn runs an order of magnitude longer than a catalog entry, which
+is why conversation search has a ceiling of its own. Setting the general one
+narrows conversations with it — a smaller context window is the usual reason
+for setting it, and that reason applies to every source.
+
+One setting belongs to the build rather than the score:
+`CONVERSATION_EXTRACT_KNOWN_CAP` limits how many already-extracted nodes are
+listed in each extraction window's prompt. Off by default, which lists them
+all. Capping it saves prompt tokens at the cost of a window being unable to see
+a node it may then introduce again under another name.
 
 ---
 
