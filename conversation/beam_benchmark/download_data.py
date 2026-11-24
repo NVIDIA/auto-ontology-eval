@@ -55,6 +55,13 @@ logger = logging.getLogger(__name__)
 #: Everything this writes, outside the harness that writes it.
 DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "beam"
 
+#: The commit each repo is read at. Their ``main`` moves, and a result is only
+#: comparable to another read from the same questions.
+REVISIONS = {
+    "Mohammadta/BEAM": "3205395e897e7318c7b094ef4e6047b9b82dbb03",
+    "Mohammadta/BEAM-10M": "9b2096193fe74e2837e4713e483351e19817773c",
+}
+
 #: Where each scale lives, and how much comes down with it. The 10M chats are
 #: in a repo of their own and split across two files; the rest share one.
 #:
@@ -72,6 +79,9 @@ SCALES: dict[str, tuple[str, list[str]]] = {
         ],
     ),
 }
+
+#: Written beside ``questions.csv``, naming the repo and commit it came from.
+SOURCE_FILE = "source.json"
 
 #: Roughly what each scale costs to fetch, so ``--scale all`` is an informed
 #: choice rather than a surprise.
@@ -117,11 +127,23 @@ def _read_parquet(repo: str, names: list[str], columns: list[str]) -> list[dict]
     filesystem = HfFileSystem()
     rows: list[dict] = []
     for name in names:
-        remote = f"datasets/{repo}/{name}"
+        remote = f"datasets/{repo}@{REVISIONS[repo]}/{name}"
         logger.info("  reading %s", name)
         with filesystem.open(remote, "rb") as handle:
             rows.extend(pq.read_table(handle, columns=columns).to_pylist())
     return rows
+
+
+def _conversation_id(raw: object) -> str:
+    """*raw* as a conversation id, which must be digits.
+
+    It becomes a file name, and the run sorts those numerically, so anything
+    else would either write outside ``conversations/`` or break the run later.
+    """
+    conversation_id = str(raw)
+    if not conversation_id.isdigit():
+        raise ValueError(f"conversation id {conversation_id!r} is not a number")
+    return conversation_id
 
 
 def _questions(conversation_id: str, raw: str) -> list[dict]:
@@ -175,7 +197,7 @@ def _write_scale(scale: str, force: bool) -> tuple[int, int]:
     conversations.mkdir(parents=True, exist_ok=True)
     question_rows: list[dict] = []
     for row in rows:
-        conversation_id = str(row["conversation_id"])
+        conversation_id = _conversation_id(row["conversation_id"])
         # The dialogue keeps its nesting: BEAM's turns are grouped into
         # sessions, and several of the abilities — event ordering, temporal
         # reasoning — are asked about where a turn sits in that sequence.
@@ -188,6 +210,9 @@ def _write_scale(scale: str, force: bool) -> tuple[int, int]:
         writer = csv.DictWriter(handle, fieldnames=QUESTION_FIELDS)
         writer.writeheader()
         writer.writerows(question_rows)
+    (target / SOURCE_FILE).write_text(
+        json.dumps({"repo": repo, "revision": REVISIONS[repo], "files": names})
+    )
 
     logger.info(
         "%s: %d conversation(s), %d question(s) → %s",

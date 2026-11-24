@@ -97,6 +97,16 @@ def conversation_ids(scale: str) -> list[str]:
     return [p.stem for p in sorted(directory.glob("*.json"), key=lambda p: int(p.stem))]
 
 
+def dataset_source(scale: str) -> dict[str, Any] | None:
+    """The repo and commit *scale* was downloaded from, if recorded.
+
+    ``None`` for data fetched before the revision was pinned; re-download it
+    with ``--force`` to get a run whose questions can be traced.
+    """
+    path = DATA_DIR / scale / "source.json"
+    return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else None
+
+
 def load_questions(
     scale: str, ids: Sequence[str] | None = None
 ) -> list[dict[str, Any]]:
@@ -686,6 +696,7 @@ def judge_answers(
         # different question have equal counts and different question sets.
         "question_keys": sorted(question_key(r) for r in results),
         "conversations": sorted({r["conversation_id"] for r in results}, key=int),
+        "dataset": dataset_source(scale),
         # Read off the answers rather than taken as an argument: judging does
         # not choose the reader, and a summary that named a reader the answers
         # were not produced by would be worse than one that named none.
