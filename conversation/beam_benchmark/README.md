@@ -21,9 +21,7 @@ set -a && . ./.env && set +a
 uv run --no-sync python build_graph.py 2 --verify --subject-agent
 ```
 
-Takes about 16 minutes and wipes conversation 2 before it starts. Leave
-`--cache-draft` off for a measured run, and always off after an extraction
-prompt change — it reuses the stored draft and skips extraction entirely.
+Takes about 16 minutes and wipes conversation 2 before it starts.
 
 ### 2. Score it
 

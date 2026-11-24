@@ -20,10 +20,6 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:  # pragma: no cover - typing only
-    from pathlib import Path
 
 
 def main() -> int:
@@ -40,14 +36,6 @@ def main() -> int:
         "--no-relate",
         action="store_true",
         help="Derive the semantic edges but skip adjudication.",
-    )
-    parser.add_argument(
-        "--cache-draft",
-        action="store_true",
-        help="Reuse the extraction draft from .scratch/drafts when the turns, "
-        "the prompt and the schema are unchanged, and write it there otherwise. "
-        "For retrying the stages after extraction without paying for it again. "
-        "Leave off for a measured run.",
     )
     parser.add_argument(
         "--verify",
@@ -95,7 +83,6 @@ def main() -> int:
         # the one moment a reset is safe.
         reset_vectors=True,
         window_chars=1 if args.per_turn else 12000,
-        draft_cache=_draft_path(args) if args.cache_draft else None,
         verify=args.verify,
         subject_agent=args.subject_agent,
     )
@@ -108,20 +95,6 @@ def main() -> int:
         f"{result.paths} path vectors, {result.seconds:.0f}s"
     )
     return 0
-
-
-def _draft_path(args) -> "Path":
-    """Where this transcript's cached draft lives.
-
-    The window size is in the name as well as the conversation: ``--per-turn``
-    and the packed default are two different extractions of the same transcript,
-    and both are run. The fingerprint would catch a mix-up, but only by throwing
-    the other one away every time the flag is flipped.
-    """
-    from pathlib import Path
-
-    window = "per-turn" if args.per_turn else "packed"
-    return Path(".scratch/drafts") / f"{args.scale}-{args.conversation}-{window}.json"
 
 
 def _wipe(*, database_name: str, conversation_id: str) -> None:
