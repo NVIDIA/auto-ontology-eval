@@ -15,33 +15,17 @@ from conversation.beam_benchmark.evaluator.judge import DEFAULT_JUDGE_MODEL
 from conversation.benchmarks import BENCHMARKS, is_conversation_benchmark, spec_for
 
 
-def test_default_benchmark_is_the_one_comparable_with_the_bar() -> None:
-    """``beam`` must be cognee's instrument throughout.
-
-    0.79 is the bar and 0.794 is what it was set by, both measured with
-    cognee's judge and cognee's reader prompt. Our score is only comparable
-    with theirs if every part of the instrument matches; a spec that mixed
-    cognee's judge with the paper's reader would produce a number comparable
-    with nothing. That mixing is exactly what the old flags allowed.
-    """
+def test_beam_is_cognees_instrument() -> None:
+    """Our score is only comparable with their 0.794 on their instrument."""
+    assert list(BENCHMARKS) == ["beam"]
     spec = BENCHMARKS["beam"]
-    assert spec.judge_flavour == "cognee"
     # Their report, Appendix A: gpt-5 judges. Their saved config does not name
-    # the model, so it is pinned here; gpt-4.1-mini is the more lenient judge.
-    assert spec.judge_model == "azure/openai/gpt-5"
-    assert spec.reader_style == "cognee"
+    # the model, so it is pinned here, and the judge defaults to it as well.
+    assert spec.judge_model == "azure/openai/gpt-5" == DEFAULT_JUDGE_MODEL
     # Cognee's four rounds. The judge is stochastic and run-to-run spread is
     # about 0.035, so a single round is a different measurement, not a cheaper
     # one.
     assert spec.rounds == 4
-
-
-def test_paper_benchmark_is_the_paper_throughout() -> None:
-    """``beam-paper`` is the only thing 0.323 may be compared with."""
-    spec = BENCHMARKS["beam-paper"]
-    assert spec.judge_flavour == "beam"
-    assert spec.judge_model == DEFAULT_JUDGE_MODEL
-    assert spec.reader_style == "beam"
 
 
 def test_sql_datasets_are_not_conversation_benchmarks() -> None:

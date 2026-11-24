@@ -78,22 +78,7 @@ implementation is checked against. The file carries the upstream copyright and
 license identifier in its header, followed by the NVIDIA copyright block covering
 NVIDIA's modifications.
 
-### 3. BEAM benchmark prompts
-
-| | |
-|---|---|
-| **Location in this repo** | `conversation/beam_benchmark/prompts/judge/beam_*.txt`, `conversation/beam_benchmark/prompts/answer/beam_answer.txt` |
-| **Upstream project** | BEAM — https://github.com/mohammadtavakoli78/BEAM |
-| **Copyright holder** | Copyright (c) 2025 Mohammad Tavakoli |
-| **License** | MIT |
-
-The benchmark's judge, equivalence and answer prompts, copied byte-for-byte so
-scores stay comparable with the paper's: `beam_judge.txt` from
-`src/prompts.py::unified_llm_judge_base_prompt`, `beam_equivalence_*.txt` from
-`src/evaluation/compute_metrics.py::llm_equivalence`, and `beam_answer.txt`
-from `answer_generation_for_rag`.
-
-### 4. Cognee BEAM evaluation prompts and published results
+### 3. Cognee BEAM evaluation prompts and published results
 
 | | |
 |---|---|

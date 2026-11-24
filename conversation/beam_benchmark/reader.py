@@ -2,15 +2,11 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Answer one BEAM question from retrieved turns.
+"""Answer one BEAM question from retrieved turns, with cognee's reader prompts.
 
-The prompt is upstream's ``answer_generation_for_rag``, verbatim (see
-``evaluator/prompts.py`` for why it is a text file). It is strict about using
-only the context and nothing the model already knows, which is the whole point:
-a question BEAM asks about a transcript must be answered from that transcript,
-or the score measures the reader's world knowledge instead of our retrieval.
+Used by the ``vector`` arm only; the agent arm is its own reader.
 
-Context assembly is upstream's too, including the budget. Hits are concatenated
+Context assembly follows BEAM's upstream RAG baseline, including the budget. Hits are concatenated
 in the order given until the next one would not fit, and once one is skipped the
 rest still get their turn -- so a single enormous turn does not end the context,
 it is just stepped over. That is a slightly odd rule, but it is the published
@@ -29,10 +25,6 @@ logger = logging.getLogger(__name__)
 
 _ANSWER_PROMPTS = Path(__file__).resolve().parent / "prompts" / "answer"
 
-#: Placeholders are ``<context>`` and ``<question>``, substituted with
-#: ``str.replace`` as upstream does.
-READER = (_ANSWER_PROMPTS / "beam_answer.txt").read_text(encoding="utf-8")
-
 #: Upstream's ``reader_max_tokens``. Applied the way upstream applies it, as a
 #: character budget of ``3.5 * tokens`` -- their ``len(context) // 3.5 < budget``
 #: is a character count divided by an assumed characters-per-token, not a
@@ -48,13 +40,9 @@ _CHARS_PER_TOKEN = 3.5
 #: ``beam/report_artifacts/qa_prompts/`` and the user template from
 #: ``infrastructure/llm/prompts/context_for_question.txt``.
 #:
-#: Theirs *replaces* BEAM's prompt rather than wrapping it: their retriever has
-#: its own two slots, and the per-ability file is dropped into the system slot
-#: in place of ``answer_simple_question.txt``. BEAM's reader prompt appears
-#: nowhere in their pipeline. Sending both is not a closer approximation of
-#: their setup, it is a third thing -- "be direct and concise" and "be thorough
-#: and specific, do not omit any significant topic" are contradictory
-#: instructions, and GPT-5 resolved them towards the first.
+#: Their retriever has two slots: the per-ability file is the system prompt,
+#: in place of ``answer_simple_question.txt``, and the template is the user
+#: message.
 #:
 #: Selecting the prompt by ability reads the benchmark's own label at inference
 #: time, which their report is explicit about (§5: outside a labelled benchmark
@@ -103,12 +91,8 @@ def make_reader(
     returns an empty string rather than an error when it runs out. An empty
     answer scores 0 on every nugget, so it would read as a retrieval failure.
 
-    Defaults to ``REASONING_MODEL``. The paper's own readers were
-    Llama-4-Maverick, GPT-4.1-nano, Gemini-2.0-flash and Qwen2.5-32B; matching
-    one of them is not required for our comparison, but whichever is used has to
-    be stated next to the score, because the reader moved the published figure
-    by more than the retrieval method did (0.269 to 0.323 across models on the
-    same RAG setup).
+    Defaults to ``REASONING_MODEL``. Whichever is used is recorded next to the
+    score, because the reader is part of the measurement.
     """
     from auto_ontology.utils.llm_invoke import get_llm_client
     from langchain_core.messages import HumanMessage, SystemMessage
@@ -183,7 +167,6 @@ def answer(
     *,
     max_tokens: int = READER_MAX_TOKENS,
     system: str | None = None,
-    style: str = "beam",
 ) -> tuple[str, str]:
     """Answer *question* from *hits*, returning ``(answer, context)``.
 
@@ -191,21 +174,13 @@ def answer(
     re-running retrieval -- a score that looks wrong is almost always a
     retrieval problem, and the context is the evidence.
 
-    *style* picks whose reader this is. ``beam`` sends the paper's prompt and
-    nothing else. ``cognee`` sends their bare user template instead, with the
-    per-ability prompt as *system* -- not BEAM's prompt plus theirs, because
-    that combination is neither party's and its instructions conflict.
-
+    The user message is cognee's template; *system* is the per-ability prompt
+    from :func:`cognee_system_prompts`.
     """
     context = build_context([turn_text(hit) for hit in hits], max_tokens=max_tokens)
     if not context:
         logger.warning("no context retrieved for: %s", question[:80])
-    if style == "cognee":
-        prompt = COGNEE_USER.replace("{{ question }}", question).replace(
-            "{{ context }}", context
-        )
-    elif style == "beam":
-        prompt = READER.replace("<context>", context).replace("<question>", question)
-    else:
-        raise ValueError(f"unknown reader style {style!r}")
+    prompt = COGNEE_USER.replace("{{ question }}", question).replace(
+        "{{ context }}", context
+    )
     return read(prompt, system=system).strip(), context

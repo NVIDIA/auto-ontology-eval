@@ -2,92 +2,38 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""BEAM's judging prompts, as published.
+"""Cognee's BEAM judging prompt, as published.
 
-The text lives in ``../prompts/judge/*.txt`` rather than in string literals here.
-Several of the lines that carry trailing whitespace end a bullet, and a trailing
-space before a newline changes how the text tokenizes -- so a formatter or an
-editor quietly stripping it would move the scores by a hair and leave no trace
-of why. Text files are not something ``ruff format`` rewrites.
-
-Keeping them as files also keeps the provenance obvious: these are upstream
-artifacts under BEAM's MIT licence, copied from
-
-- ``src/prompts.py::unified_llm_judge_base_prompt`` -> ``beam_judge.txt``
-- ``src/evaluation/compute_metrics.py::llm_equivalence`` -> ``beam_equivalence_*.txt``
-
-and they are not ours to improve. Anything we would rather word differently
-belongs in a prompt of our own, under a different name, scored separately.
-
-The odd indentation in the equivalence prompts and the typo in
-"exaplanation" are upstream's. They are reproduced because the comparison to
-the published 0.323 only means something if the judge is the published one.
+The text lives in ``../prompts/judge/cognee_judge.txt`` rather than in a string
+literal here, so a formatter or an editor cannot quietly rewrite it: a change
+to the judge's wording moves the scores and leaves no trace of why. It is an
+upstream artifact, from ``cognee/eval_framework/beam/eval/metrics/beam_rubric.py``,
+and not ours to improve.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-#: One directory for every judging prompt, so there is a single place to diff
-#: if upstream revises them. The reader's prompts are in ``../prompts/answer/``.
+#: Every judging prompt, in one place to diff if upstream revises it. The
+#: reader's prompts are in ``../prompts/answer/``.
 _JUDGE_PROMPTS = Path(__file__).resolve().parent.parent / "prompts" / "judge"
 
-#: Scores one rubric nugget against one response. Placeholders are
-#: ``<rubric_item>`` and ``<llm_response>``, substituted by ``str.replace`` the
-#: way upstream does it -- the prompt contains literal ``{`` and ``}`` in its
-#: output-format block, so ``str.format`` is not an option.
-JUDGE = (_JUDGE_PROMPTS / "beam_judge.txt").read_text(encoding="utf-8")
-
-#: Decides whether two event descriptions name the same event. Used only by
-#: event ordering, to align a response's events with the rubric's before the
-#: ranks are compared.
-EQUIVALENCE_SYSTEM = (_JUDGE_PROMPTS / "beam_equivalence_system.txt").read_text(
-    encoding="utf-8"
-)
-
-#: The user half of the same exchange. Placeholders are ``{first_paragraph}``
-#: and ``{second_paragraph}``: this one *was* an f-string upstream, so the
-#: braces are substitution points rather than literals.
-EQUIVALENCE_USER = (_JUDGE_PROMPTS / "beam_equivalence_user.txt").read_text(
-    encoding="utf-8"
-)
-
-#: Cognee's edit of :data:`JUDGE`, from
-#: ``cognee/eval_framework/beam/eval/metrics/beam_rubric.py``. Not ours and not
-#: BEAM's -- a third prompt, reproduced so their published 0.79 has an
-#: instrument on our side.
-#:
-#: The difference is one input. BEAM's prompt tells the judge "if the response
-#: does not address the QUESTION, score 0.0 and stop" but its inputs are only
-#: the rubric item and the response, so no question ever reaches the judge.
-#: Cognee adds ``- QUESTION (what the user asked):`` to the inputs block and
-#: fills it, and re-words the responsiveness section to be "anchored to the
-#: QUESTION". Upstream writes the placeholders as ``str.format`` fields; they
-#: are rewritten here in BEAM's ``<name>`` style, and the rendered prompt is
-#: otherwise identical. Their source comment calls it a fix, which it is:
-#: a judge asked to check on-topicness against nothing has to guess, and guesses
-#: inconsistently -- we measured the same abstention answer scoring 0.0 and 1.0
-#: in consecutive rounds on a one-word paraphrase.
+#: Scores one rubric nugget against one response, given the question.
+#: Upstream writes the placeholders as ``str.format`` fields; they are written
+#: here as ``<question>``, ``<rubric_item>`` and ``<llm_response>`` and filled
+#: by ``str.replace``, because the prompt's output-format block has literal
+#: braces. The rendered prompt is otherwise identical to theirs.
 COGNEE_JUDGE = (_JUDGE_PROMPTS / "cognee_judge.txt").read_text(encoding="utf-8")
 
-#: The system message Cognee pairs with it. BEAM sends none.
+#: The system message Cognee pairs with it.
 COGNEE_JUDGE_SYSTEM = "You are an evaluation judge. Return only valid JSON."
 
 
-def judge_prompt(*, nugget: str, response: str) -> str:
-    """Fill in the nugget-scoring prompt."""
-    return JUDGE.replace("<rubric_item>", nugget).replace("<llm_response>", response)
-
-
 def cognee_judge_prompt(*, question: str, nugget: str, response: str) -> str:
-    """Fill in Cognee's variant, which also gets the question."""
+    """Fill in the judge prompt."""
     return (
         COGNEE_JUDGE.replace("<question>", question)
         .replace("<rubric_item>", nugget)
         .replace("<llm_response>", response)
     )
-
-
-def equivalence_prompt(*, first: str, second: str) -> str:
-    """Fill in the user half of the equivalence check."""
-    return EQUIVALENCE_USER.format(first_paragraph=first, second_paragraph=second)

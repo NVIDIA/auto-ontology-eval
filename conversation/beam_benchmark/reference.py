@@ -46,10 +46,6 @@ COVERED_CONVERSATION = "2"
 #: Their headline at 100K, and the number every arm here is chasing.
 COGNEE_OVERALL = 0.7943749999999999
 
-#: Their event-ordering rank correlation, which they report beside the rubric
-#: score rather than as it. See the README's scoring section.
-COGNEE_TAU = 0.514638501094228
-
 
 @cache
 def cognee_ability_means() -> dict[str, float]:

@@ -50,8 +50,8 @@ COGNEE_SUMMARY = (
 COGNEE_CONVERSATION = "2"
 
 
-def cognee_figures() -> tuple[dict[str, float], float, float, int]:
-    """Their per-ability rubric means, overall, tau, and questions per run."""
+def cognee_figures() -> tuple[dict[str, float], float, int]:
+    """Their per-ability rubric means, overall, and questions per run."""
     report = json.loads(COGNEE_SUMMARY.read_text())
     by_ability = {
         ability: stats["beam_rubric"]["mean"]
@@ -60,7 +60,6 @@ def cognee_figures() -> tuple[dict[str, float], float, float, int]:
     return (
         by_ability,
         report["overall"]["beam_rubric"]["mean"],
-        report["overall"]["kendall_tau"]["mean"],
         int(report["question_count"]),
     )
 
@@ -303,7 +302,7 @@ def main() -> int:
             f"conversation {COGNEE_CONVERSATION} only."
         )
 
-    theirs, their_overall, their_tau, their_questions = cognee_figures()
+    theirs, their_overall, their_questions = cognee_figures()
     require_cognee_judge(rows, BENCHMARKS["beam"].judge_model)
     require_complete_rounds(per_round, set(theirs), their_questions)
 
@@ -334,16 +333,6 @@ def main() -> int:
     print(
         f"{'OVERALL':28}{overall:8.3f}{their_overall:9.3f}{overall - their_overall:+8.3f}"
     )
-
-    # Printed side by side and not subtracted: ours is BEAM's tau_norm,
-    # (tau_b + 1) / 2 after aligning events, and theirs is the mean of their
-    # own kendall_tau metric. Two different measures of ordering.
-    taus = [r["ordering"]["tau_norm"] for r in rows if r.get("ordering")]
-    if taus:
-        print(
-            f"\nordering, different metrics: ours BEAM tau_norm "
-            f"{statistics.mean(taus):.3f}, theirs cognee kendall_tau {their_tau:.3f}"
-        )
 
     errors = judge_errors(rows)
     if errors:

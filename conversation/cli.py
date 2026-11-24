@@ -238,9 +238,7 @@ def stage_benchmark(
             judge_model=spec.judge_model,
             workers=concurrency,
             limit=limit,
-            reader_prompt=spec.reader_style,
             retrieval=retrieval,
-            flavour=spec.judge_flavour,
             results_dir=results_dir,
         )
         return
@@ -255,7 +253,6 @@ def stage_benchmark(
             workers=concurrency,
             tag=retrieval,
             limit=limit,
-            reader_prompt=spec.reader_style,
             retrieval=retrieval,
             results_dir=results_dir,
         )
@@ -268,7 +265,6 @@ def stage_benchmark(
             judge_model=spec.judge_model,
             workers=concurrency,
             limit=limit if stage == "judge" else None,
-            flavour=spec.judge_flavour,
             results_dir=results_dir,
         )
 

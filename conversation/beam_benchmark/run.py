@@ -54,13 +54,12 @@ from typing import Any
 
 from langchain_core.callbacks import get_usage_metadata_callback
 
-from .evaluator import ORDERING_ABILITY, ability_means, overall, score_question
+from .evaluator import ability_means, overall, score_question
 from .evaluator.scoring import mean
 from .evaluator.judge import DEFAULT_JUDGE_MODEL, make_ask
 from .reader import answer as read_answer
 from .reference import (
     COGNEE_OVERALL,
-    COGNEE_TAU,
     COVERED_CONVERSATION,
     cognee_ability_means,
     cognee_columns,
@@ -76,7 +75,11 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "beam"
 #: nobody can reproduce.
 RESULTS_DIR = Path(__file__).resolve().parent / "results"
 
-#: The paper's retrieval depth for the RAG baseline that scored 0.323.
+#: Whose judge prompt scored a row, recorded on every row and summary so
+#: ``compare_cognee.py`` can refuse a run judged any other way.
+JUDGE_PROMPT = "cognee"
+
+#: Turns retrieved per question on the vector arm.
 DEFAULT_TOP_K = 5
 
 
@@ -380,7 +383,6 @@ def answer_questions(
     workers: int = 4,
     tag: str = "ontology",
     limit: int | None = None,
-    reader_prompt: str = "beam",
     retrieval: str = "vector",
     results_dir: Path = RESULTS_DIR,
 ) -> int:
@@ -415,10 +417,10 @@ def answer_questions(
         applied: dict[str, Any] = agent_limits()
     else:
         read = make_reader(model=reader_model)
-        prompts = cognee_system_prompts() if reader_prompt == "cognee" else {}
+        prompts = cognee_system_prompts()
         applied = {
             "reader_model": resolve_model(reader_model),
-            "reader_prompt": reader_prompt,
+            "reader_prompt": "cognee",
             "top_k": top_k,
             "widen": widen,
         }
@@ -457,17 +459,11 @@ def answer_questions(
             else:
                 raise ValueError(f"unknown retrieval {retrieval!r}")
             if retrieval != "agent":
-                system = (
-                    prompts.get(row["ability"], prompts.get("default"))
-                    if prompts
-                    else None
-                )
                 response, context = read_answer(
                     row["question"],
                     hits,
                     read,
-                    system=system,
-                    style=reader_prompt,
+                    system=prompts.get(row["ability"], prompts["default"]),
                 )
         return {
             "conversation_id": row["conversation_id"],
@@ -619,7 +615,6 @@ def judge_answers(
     judge_model: str | None = None,
     workers: int = 4,
     limit: int | None = None,
-    flavour: str = "beam",
     cognee_run: int = 0,
     results_dir: Path = RESULTS_DIR,
 ) -> dict[str, Any]:
@@ -640,10 +635,9 @@ def judge_answers(
 
     ask = make_ask(model=judge_model)
     logger.info(
-        "Judging %d answer(s) with %s (%s prompt), workers=%d",
+        "Judging %d answer(s) with %s, workers=%d",
         len(rows),
         judge_model or DEFAULT_JUDGE_MODEL,
-        flavour,
         workers,
     )
 
@@ -656,7 +650,6 @@ def judge_answers(
             response=row["response"],
             rubric=row["rubric"],
             ask=ask,
-            flavour=flavour,
         )
         return {
             **{k: v for k, v in asdict(result).items() if k != "verdicts"},
@@ -675,7 +668,7 @@ def judge_answers(
             "verdicts": [asdict(v) for v in result.verdicts],
             # On every row, so a verdict read back later can be checked against
             # the judge it is being compared as.
-            "judge_prompt": flavour,
+            "judge_prompt": JUDGE_PROMPT,
             "judge_model": judge_model or DEFAULT_JUDGE_MODEL,
             "seconds": round(time.monotonic() - started, 1),
         }
@@ -702,7 +695,7 @@ def judge_answers(
         # were not produced by would be worse than one that named none.
         **_retrieval_settings(rows),
         "judge_model": judge_model or DEFAULT_JUDGE_MODEL,
-        "judge_prompt": flavour,
+        "judge_prompt": JUDGE_PROMPT,
         "judge_errors": sum(
             1
             for r in results
@@ -711,12 +704,6 @@ def judge_answers(
         ),
         "ability_means": ability_means(scored),
         "overall": overall(scored),
-        # Reported beside the headline figure rather than inside it, which is
-        # what cognee's registry does: their cross-run summary carries
-        # kendall_tau as its own metric, null for the nine abilities it does
-        # not apply to. Under flavour="beam" this is also the event-ordering
-        # score; under flavour="cognee" it is a second opinion on it.
-        "kendall_tau": _tau_mean(results),
         "seconds": round(seconds, 1),
     }
     (out_dir / f"{tag}_summary.json").write_text(json.dumps(summary, indent=2))
@@ -728,36 +715,14 @@ def judge_answers(
 def _comparable(summary: dict[str, Any]) -> bool:
     """Whether this run can honestly be put beside cognee's published figures.
 
-    Their 0.794 is conversation 2 under their own scoring rule. A run over other
-    conversations is a different question set, and a run judged under
-    ``flavour="beam"`` scores event ordering by rank correlation where they
-    score it by nuggets -- so in both cases the gap column would be comparing
-    unlike things, and is left off rather than printed with a caveat nobody
+    Their 0.794 is conversation 2 under their judge. A run over other
+    conversations is a different question set, so the gap column would compare
+    unlike things and is left off rather than printed with a caveat nobody
     reads.
     """
-    return summary.get("judge_prompt") == "cognee" and [
+    return summary.get("judge_prompt") == JUDGE_PROMPT and [
         str(c) for c in summary.get("conversations") or []
     ] == [COVERED_CONVERSATION]
-
-
-def _round_taus(per_round: Sequence[dict[str, Any]]) -> list[float]:
-    """Every round's ``kendall_tau``, skipping rounds that have none."""
-    return [s["kendall_tau"] for s in per_round if s.get("kendall_tau") is not None]
-
-
-def _tau_mean(results: Sequence[dict[str, Any]]) -> float | None:
-    """Mean ``tau_norm`` over the event-ordering questions, or None if none ran.
-
-    Pooled over that ability alone, not over all twenty questions. A mean that
-    counted the other nine as zero would be a different and much smaller
-    number, and not the one cognee publishes.
-    """
-    taus = [
-        row["ordering"]["tau_norm"]
-        for row in results
-        if row["ability"] == ORDERING_ABILITY and row.get("ordering")
-    ]
-    return mean(taus) if taus else None
 
 
 def _report(summary: dict[str, Any]) -> None:
@@ -797,45 +762,8 @@ def _report(summary: dict[str, Any]) -> None:
         )
     else:
         logger.info("  %-26s %.3f", "OVERALL", summary["overall"])
-    if summary.get("kendall_tau") is not None:
-        note = (
-            "the score above for this ability"
-            if summary["judge_prompt"] == "beam"
-            else "reported beside it, as cognee does"
-        )
-        # Theirs alongside ours on the same terms as OVERALL. Their tau is
-        # published for the same conversation and the same questions, so the
-        # comparison holds wherever the headline comparison does -- and without
-        # it the figure reads as a bare 0.155 with nothing to be 0.155 against.
-        if theirs:
-            logger.info(
-                "  %-26s %6.3f %8.3f %+8.3f  (event ordering only, %s)",
-                "kendall tau",
-                summary["kendall_tau"],
-                COGNEE_TAU,
-                summary["kendall_tau"] - COGNEE_TAU,
-                note,
-            )
-        else:
-            logger.info(
-                "  %-26s %6.3f  (event ordering only, %s)",
-                "kendall tau",
-                summary["kendall_tau"],
-                note,
-            )
     logger.info("%s", "-" * 62)
-    logger.info(
-        "  %-26s %.3f  (Llama-4-Maverick + RAG, all 400 questions)",
-        "published best baseline",
-        0.323,
-    )
-    if summary["judge_prompt"] == "cognee":
-        logger.info(
-            "  %-26s %.3f  (conversation 2, 4 runs, tau %.3f)",
-            "cognee hybrid 20/20",
-            0.794,
-            0.515,
-        )
+    logger.info("  %-26s %.3f  (conversation 2, 4 runs)", "cognee", COGNEE_OVERALL)
     if len(means) < 10:
         logger.warning(
             "Only %d of 10 abilities have questions -- this number is not "
@@ -857,9 +785,7 @@ def run_rounds(
     workers: int = 4,
     limit: int | None = None,
     results_dir: Path = RESULTS_DIR,
-    reader_prompt: str = "beam",
     retrieval: str = "vector",
-    flavour: str = "beam",
 ) -> dict[str, Any]:
     """Answer and judge *rounds* times, then average, writing a pooled summary.
 
@@ -893,7 +819,6 @@ def run_rounds(
             tag=round_tag,
             limit=limit,
             results_dir=results_dir,
-            reader_prompt=reader_prompt,
             retrieval=retrieval,
         )
         per_round.append(
@@ -902,7 +827,6 @@ def run_rounds(
                 tag=round_tag,
                 judge_model=judge_model,
                 workers=workers,
-                flavour=flavour,
                 cognee_run=index - 1,
                 results_dir=results_dir,
             )
@@ -937,9 +861,6 @@ def run_rounds(
         "overall_sd": statistics.stdev(overalls) if len(overalls) > 1 else 0.0,
         "overall_min": min(overalls),
         "overall_max": max(overalls),
-        # Averaged over the rounds that have one, so a run with no
-        # event-ordering questions reports None rather than zero.
-        "kendall_tau": mean(taus) if (taus := _round_taus(per_round)) else None,
     }
     (results_dir / scale / f"{tag}_rounds.json").write_text(
         json.dumps(pooled, indent=2)

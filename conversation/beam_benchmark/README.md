@@ -108,279 +108,73 @@ memory abilities.
 The paper calls the smallest scale 128K and the dataset files call it 100K. This
 directory uses 100K throughout, because that is what has to be fetched.
 
-## Published results
-
-Table 1 of the paper, reproduced here so a run of ours has something to be
-compared against without re-reading the PDF. Mean question score, 0–1, higher is
-better. **Vanilla** is the whole conversation in the context window, **RAG** is
-their retrieval baseline, **LIGHT** is the paper's own method.
-
-| Scale | Reader model | Vanilla | RAG | LIGHT |
-| --- | --- | --- | --- | --- |
-| 100K | Qwen2.5-32B-AWQ | 0.280 | 0.269 | 0.311 |
-| 100K | Llama-4-Maverick-fp8 | 0.240 | **0.323** | 0.358 |
-| 100K | Gemini-2.0-flash | 0.242 | 0.280 | 0.294 |
-| 100K | GPT-4.1-nano | 0.239 | 0.309 | 0.345 |
-| 500K | Qwen2.5-32B-AWQ | 0.200 | 0.291 | 0.316 |
-| 500K | Llama-4-Maverick-fp8 | 0.283 | **0.330** | 0.359 |
-| 500K | Gemini-2.0-flash | 0.257 | 0.267 | 0.292 |
-| 500K | GPT-4.1-nano | 0.194 | 0.314 | 0.335 |
-| 1M | Qwen2.5-32B-AWQ | 0.193 | 0.285 | 0.309 |
-| 1M | Llama-4-Maverick-fp8 | 0.259 | **0.307** | 0.336 |
-| 1M | Gemini-2.0-flash | 0.199 | 0.271 | 0.284 |
-| 1M | GPT-4.1-nano | 0.191 | 0.302 | 0.336 |
-| 10M | Qwen2.5-32B-AWQ | 0.133 | 0.211 | 0.238 |
-| 10M | Llama-4-Maverick-fp8 | 0.104 | **0.249** | 0.266 |
-| 10M | Gemini-2.0-flash | 0.122 | 0.216 | 0.192 |
-| 10M | GPT-4.1-nano | 0.109 | 0.218 | 0.226 |
-
-The best baseline is Llama-4-Maverick with RAG at every scale (bolded). Two
-things are worth noticing before treating any of these as a target:
-
-- The baseline barely moves between 100K and 1M. The benchmark does not start
-  punishing length until 10M.
-- LIGHT beats the best baseline by 0.02–0.035. That is roughly a fifth of the
-  spread you get from which 20 questions you happen to sample, so the ranking
-  between nearby rows is not something a small run can resolve.
-
-### Per-ability, 100K
-
-Kept because the overall mean hides which abilities the score is made of —
-abstention carries a lot of it and contradiction resolution contributes almost
-nothing for anyone.
-
-| Memory ability | Qwen RAG | Llama RAG | Gemini RAG | GPT RAG |
-| --- | --- | --- | --- | --- |
-| Abstention | 0.650 | 0.800 | 0.800 | 0.800 |
-| Contradiction resolution | 0.025 | 0.031 | 0.050 | 0.018 |
-| Event ordering | 0.201 | 0.162 | 0.191 | 0.169 |
-| Information extraction | 0.338 | 0.392 | 0.341 | 0.362 |
-| Instruction following | 0.375 | 0.375 | 0.287 | 0.350 |
-| Knowledge update | 0.275 | 0.350 | 0.325 | 0.375 |
-| Multi-hop reasoning | 0.203 | 0.225 | 0.148 | 0.263 |
-| Preference following | 0.379 | 0.512 | 0.416 | 0.550 |
-| Summarization | 0.074 | 0.111 | 0.093 | 0.083 |
-| Temporal reasoning | 0.162 | 0.275 | 0.150 | 0.125 |
-| **Average** | **0.269** | **0.323** | **0.280** | **0.309** |
-
-## What the 0.323 actually is
-
-The RAG baseline is deliberately plain, and its chunk grain is the same one our
-`conversation` table uses: one question/answer pair per row, embedded. From §4.1:
-
-> For RAG baselines, each user–assistant turn pair is treated as a document,
-> embedded and stored in a vector database. At inference, the top five most
-> similar documents are retrieved and passed to the LLM.
-
-In `src/answer_probing_questions/long_term_memory_methods.py` that is
-`retrieval_method="pair_chunk"` with `retriever="dense"`:
-
-| Step | Setting |
-| --- | --- |
-| Chunk | one `USER: … ASSISTANT: …` pair, no overlap |
-| Embedding | `BAAI/bge-small-en-v1.5`, normalized |
-| Index | FAISS, in-memory, cosine similarity |
-| Depth | top `k=5` |
-| Context | hits concatenated to a ~29,000-token reader budget |
-| Reader | "answer ONLY from the context, do not use internal knowledge" |
-| Judge | `gpt-4.1-mini`, temperature 0 |
-
-`dense` is just their label for the bge-small configuration; `e5` and the dense
-half of `hybrid` are dense retrievers too.
-
-One discrepancy between the prose and the code, which matters if you treat 0.323
-as a clean reference. Their `pair_chunk` builder nests the pair construction
-inside `for message in turn:`, so each pair is appended once per message in its
-turn. On `chats/100K/7` that turns 130 unique pairs into 324 index entries, a
-2.5x duplication. With `k=5` over a duplicated index the reader sees two or three
-distinct pairs rather than five, so the published baseline is weaker than the
-description suggests.
-
-## The two judge prompts
-
-`--judge-prompt` selects which. They differ in one input line and three
-behaviours, and the choice is not a detail: the same answers score very
-differently under the two.
-
-| | `beam` (default) | `cognee` |
-| --- | --- | --- |
-| Source | `src/prompts.py`, verbatim | `beam_rubric.py`, verbatim |
-| Judge sees the question | no | **yes** |
-| System message | none | "You are an evaluation judge. Return only valid JSON." |
-| Score snapping | none | 0/0.5/1, cuts at 0.25 and 0.75 |
-| Unparseable or failed reply | raises, question excluded | **scores 0.0**, no retry |
-| Comparable to | 0.323 | Cognee's 0.79 |
-
-`beam` is the default because it is the instrument the published table was
-measured on, and a number scored any other way does not belong beside it. It is
-also the worse prompt. If the goal is to know whether a retrieval change helped,
-`cognee` is the better measurement; if the goal is a figure next to 0.323, it
-has to be `beam`.
-
-Two warnings about `cognee`. It silently converts an endpoint failure into a
-real zero rather than raising, so a reasoning judge that runs out of token
-budget contributes a confident 0.0 -- the summary reports `judge_errors` for
-exactly this, and it should be 0 before a score is read. And the snapping is
-theirs, not a rounding convenience; it only bites when a judge invents 0.8, but
-it is part of their arithmetic.
-
 ## How a score is computed
 
+Scored the way cognee scored their published **0.794**, so that a number of ours
+can be put beside it: their judge prompt
+([`beam_rubric.py`](https://github.com/topoteretes/cognee/blob/main/cognee/eval_framework/beam/eval/metrics/beam_rubric.py)),
+their judge model (`gpt-5`), their reader prompts on the vector arm, and four
+rounds. All of it is fixed in `conversation/benchmarks.py`, not by a flag.
+
 Each question carries a rubric: a list of **nuggets**, atomic self-contained
-claims the response has to satisfy. The judge sees one nugget and the response —
-not the question, not a gold answer — and returns `0.0`, `0.5` or `1.0`. The
-question's score is the mean over its nuggets. At 100K that is 400 questions and
-1,051 nuggets, a median of 2 per question and up to 9.
+claims the response has to satisfy. The judge sees the question, one nugget and
+the response, and returns `0.0`, `0.5` or `1.0`, snapped to those three levels
+with cuts at 0.25 and 0.75. The question's score is the mean over its nuggets,
+for all ten abilities, event ordering included. At 100K that is 400 questions
+and 1,051 nuggets, a median of 2 per question and up to 9.
 
-There is no gold answer to diff against, and not only because the judge is not
-shown one: BEAM ships a non-empty `ideal_response` for its 40 abstention
-questions and leaves it blank for all 360 others. The rubric is the reference.
-Most nuggets are phrased as instructions about the answer rather than as the
-answer — `LLM response should state: March 29`, `LLM response should contain:
-avoids recommending large frameworks` — so anything that scores a run by
-comparing text to `ideal_response` is scoring 40 questions and silently zeroing
-the rest.
+There is no gold answer to diff against: BEAM ships a non-empty
+`ideal_response` for its 40 abstention questions and leaves it blank for all
+360 others. The rubric is the reference.
 
-Event ordering is scored differently, and the paper and the code disagree about
-how. §2 says Kendall tau-b, and `compute_metrics.evaluate_event_ordering`
-computes `final_score = tau_norm * f1` **and** a nugget `llm_judge_score`. But
-`report_results.py` aggregates neither:
-
-```python
-if key == "event_ordering":
-    score += object['tau_norm']
-else:
-    score += object['llm_judge_score']
-```
-
-So the published event-ordering numbers are bare `tau_norm = (tau_b + 1) / 2`,
-with the response split on newlines and aligned to the gold events by an LLM
-equivalence detector. That is why every system scores 0.15–0.27 on it: below 0.5
-means the rank vectors are anti-correlated, which is what you get when the
-response and the rubric name mostly different events.
-
-**Cognee does not do this**, and it took us a while to notice. Their
-[`beam_rubric.py`](https://github.com/topoteretes/cognee/blob/main/cognee/eval_framework/beam/eval/metrics/beam_rubric.py)
-contains no tau and no case for this ability — it is the nugget mean for all
-ten.
-[`kendall_tau.py`](https://github.com/topoteretes/cognee/blob/main/cognee/eval_framework/beam/eval/metrics/kendall_tau.py)
-is a separate metric registered alongside it, and their published summary
-carries both, with tau `null` for the nine abilities it does not apply to:
-
-```json
-"event_ordering": {
-  "beam_rubric": { "mean": 0.7875, ... },
-  "kendall_tau": { "mean": 0.514638501094228, ... }
-},
-"information_extraction": {
-  "beam_rubric": { "mean": 0.9791666666666667, ... },
-  "kendall_tau": null
-}
-```
-
-The proof that their headline *includes* the nugget score for this ability and
-not the tau is in the same file: `overall.kendall_tau.mean` is
-`0.514638501094228`, equal to `event_ordering.kendall_tau.mean` to the last
-digit, because
-[`overall_from_by_type`](https://github.com/topoteretes/cognee/blob/main/cognee/eval_framework/beam/eval/aggregate_cross_run.py)
-pools each metric separately and only one ability contributes a tau. Meanwhile
-`overall.beam_rubric.mean` of `0.7943` is the flat mean of all twenty questions'
-rubric scores, the ordering pair at 0.7875 among them.
-
-So `--judge-prompt` picks the rule as well as the prompt:
-
-| | event ordering score | tau |
-| --- | --- | --- |
-| `beam` | `tau_norm` | is the score |
-| `cognee` | nugget mean | reported beside it |
-
-Both numbers are computed and stored either way.
-[`compare_cognee.py`](../../compare_cognee.py) puts a run beside cognee's
-figures, and refuses one that was not judged by cognee's prompt and judge model
-or that is missing questions.
+As in cognee's judge, an unparseable or failed judge reply **scores 0.0** with
+no retry. The summary counts these as `judge_errors`, and it should be 0 before
+a score is read. Connection-shaped endpoint failures are retried below the
+judge, so an outage does not turn into zeros.
 
 Per-conversation ability scores are averaged across conversations, then the ten
 ability means are averaged into the headline number. With two questions per
-ability per conversation that equals a flat mean over questions; it is kept as a
-two-level average so a dropped question does not silently reweight an ability.
+ability per conversation that equals cognee's flat mean over questions; it is
+kept as a two-level average so a dropped question does not silently reweight an
+ability. [`compare_cognee.py`](../../compare_cognee.py) puts a run beside
+cognee's figures, and refuses one that was not judged by cognee's prompt and
+judge model or that is missing questions.
 
-## Other reported numbers
+## What cognee's 0.794 is
 
 Cognee reports **0.79** at 100K and **0.67** at 10M
 ([report](https://github.com/topoteretes/cognee/blob/main/cognee/eval_framework/beam/REPORT.md)).
-Neither is on the same instrument as anything above, for five separate reasons,
-and the report is candid about most of them.
+Things to know before reading a gap to it:
 
-**They changed what event ordering is scored by**, replacing rank correlation
-with the nugget mean and reporting rank correlation separately. The report does
-not mention it and `beam_rubric.py` does not flag it, but their published
-summary shows both numbers for that ability and the aggregator pools them
-separately; the [scoring section](#how-a-score-is-computed) works through the
-proof. This is the one difference that moves a *comparison* rather than the
-score itself, because it is invisible unless you look: both tables print a
-column called event ordering and the two columns are different metrics. It is
-reproduced as part of `--judge-prompt cognee`.
+- **One conversation, 20 questions.** Conversation 2 at 100K. Their prompts and
+  retriever settings were tuned on two other conversations and checked on two
+  more. The quoted standard deviation is across four repeated answer-and-judge
+  rounds on a fixed question set: judge and decoding noise, not sampling error
+  over questions.
+- **`gpt-5` answers as well as judges**, so a frontier reader alone accounts for
+  part of the distance from simpler baselines.
+- **The ability label selects the answer prompt.** It ships with the benchmark,
+  so this is legitimate as a benchmark run, and their report says outside a
+  labelled benchmark the type "would need to be inferred from the question
+  itself". Our vector arm does the same; the agent arm does not.
 
-**They changed the judge, twice over.** Answer generation *and* the rubric judge
-both run on `openai/gpt-5` (Appendix A), where the paper's judge is
-`gpt-4.1-mini` at temperature 0. They also changed the *prompt*, which the
-report does not mention but
-[`beam_rubric.py`](https://github.com/topoteretes/cognee/blob/main/cognee/eval_framework/beam/eval/metrics/beam_rubric.py)
-is explicit about:
-
-> Fix applied: `<question>` is actually substituted — the paper's code never
-> fills it in, leaving the literal string "`<question>`" for the judge.
-
-They are right that it is a bug, and it is a consequential one. BEAM's prompt
-instructs the judge "if the response does not address the QUESTION, score 0.0
-and stop" while never supplying a question, so the judge has to guess at
-responsiveness. `--judge-prompt beam` reproduces the defect faithfully.
-
-So 0.79 is on a third instrument -- neither ours nor the paper's -- and cannot
-be ranked against 0.323. `evaluator/` implements their variant as
-`--judge-prompt cognee` so the comparison has a shared ruler.
-
-**They changed the reader.** `openai/gpt-5` answers as well, so a frontier
-reader alone can account for a large part of the distance from the published
-baselines, independent of whether Cognee's memory helps.
-
-**They used BEAM's answer key as an input.** Each question's ability label
-selects an ability-specific answer prompt. The label ships with the benchmark,
-so this is legitimate as a benchmark run, and §5 says plainly that outside a
-labelled benchmark the question type "would need to be inferred from the question
-itself" and that they did not evaluate a router. The paper's baselines send one
-prompt for all ten abilities.
-
-**One conversation, 20 questions, 1% of the benchmark**, per scale. At 100K
-prompts and retriever settings were tuned on two conversations, checked on two
-more, and a fifth was held out for the reported score. At 10M there is no
-held-out set: the question-type routing was selected by sweeping the same 20
-questions that produced the 0.67, which the report labels in-sample and
-exploratory. The quoted standard deviation of 0.005 is variation across four
-repeated QA-and-judging rounds on a fixed question set — it measures judge and
-decoding noise, not sampling error over questions, and the report says repetition
-"does not add new question samples".
-
-Their memory construction is a genuine superset of ours and the interesting part
-to compare against later: `add` + `cognify` builds a knowledge graph of entities
-and relationships, plus summaries, plus chunks, and hybrid retrieval draws from
-all three views. The chunk grain matches ours — one user/assistant turn per
-chunk, turn order and session metadata preserved, no overlap chunking. They also
-LLM-compressed roughly 0.2% of turns before ingestion to strip noise and leaked
-conversation-plan text, which is a data-cleaning step neither we nor the paper
-apply.
+Their memory construction is a superset of ours: `add` + `cognify` builds a
+knowledge graph of entities and relationships, plus summaries, plus chunks, and
+hybrid retrieval draws from all three. The chunk grain matches ours, one
+user/assistant turn per chunk.
 
 ## Layout
 
 ```
 beam_benchmark/
   download_data.py   fetch a scale from the Hub into ../data/beam/<scale>/
-  evaluator/         the paper's judge, ported
+  build_graph.py     rebuild one conversation's semantic layer
+  verify_graph.py    check a stored graph's edges against their turns
+  evaluator/         cognee's rubric judge, ported
   reference.py       cognee's answers, joined onto our rows
   prompts/           third-party prompts, byte-for-byte (see THIRD_PARTY_NOTICES.md)
-    judge/           BEAM's judge and equivalence prompts, cognee's judge
-    answer/          BEAM's answer prompt
-      cognee/        cognee's per-ability answer prompts
+    judge/           cognee's judge prompt
+    answer/cognee/   cognee's per-ability answer prompts
   cognee_results/    cognee's published config, summary and answers
   results/           run output (git-ignored)
 ```
@@ -391,18 +185,3 @@ unmodified from
 plus `cognee_answers_conv2.json` distilled from the per-question artifacts in
 the same directory. So `compare_cognee.py` runs offline and the numbers it
 prints for their column are theirs rather than ours transcribed.
-
-Each benchmark judges with the model its published figure was judged with.
-`beam-paper` runs on `azure/openai/gpt-4.1-mini` at temperature 0, which is the
-paper's `gpt-4.1-mini` under the id `REASONING_ENDPOINT` routes it by. `beam`
-runs on `azure/openai/gpt-5`, cognee's judge: it is the stricter of the two on
-the same answers, so a cognee-prompt score judged by `gpt-4.1-mini` overstates
-where we stand against 0.794. Both are set in `conversation/benchmarks.py`, not
-by a flag.
-
-Smoke-tested against that endpoint on one question per ability: an answer built
-from the rubric's own nuggets scores 1.000 on seven of the ten and the
-deliberately wrong answer scores 0.000 on all nine nugget-averaged abilities.
-Event ordering returns 1.000 for the events in the right order and 0.146 for the
-wrong answer — the below-chance floor described above, visible in practice.
-
