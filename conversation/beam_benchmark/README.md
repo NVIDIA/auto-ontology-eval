@@ -391,10 +391,13 @@ plus `cognee_answers_conv2.json` distilled from the per-question artifacts in
 the same directory. So `compare_cognee.py` runs offline and the numbers it
 prints for their column are theirs rather than ours transcribed.
 
-The judge runs on `azure/openai/gpt-4.1-mini` at temperature 0, which is the
-paper's `gpt-4.1-mini` under the id `REASONING_ENDPOINT` routes it by.
-`BEAM_JUDGE_MODEL` overrides it, at the cost of no longer being on the same
-instrument as the table above.
+Each benchmark judges with the model its published figure was judged with.
+`beam-paper` runs on `azure/openai/gpt-4.1-mini` at temperature 0, which is the
+paper's `gpt-4.1-mini` under the id `REASONING_ENDPOINT` routes it by. `beam`
+runs on `azure/openai/gpt-5`, cognee's judge: it is the stricter of the two on
+the same answers, so a cognee-prompt score judged by `gpt-4.1-mini` overstates
+where we stand against 0.794. Both are set in `conversation/benchmarks.py`, not
+by a flag.
 
 Smoke-tested against that endpoint on one question per ability: an answer built
 from the rubric's own nuggets scores 1.000 on seven of the ten and the

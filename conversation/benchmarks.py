@@ -15,15 +15,15 @@ under two different instruments and their numbers are not on one scale. The
 paper's own judge, which never shows the judge the question, scored the paper's
 best RAG setup **0.323**. Cognee's edited judge -- it supplies the question,
 snaps every verdict to 0/0.5/1, and scores a judge failure 0.0 instead of
-raising -- scored their system **0.794**. The bar to beat is **0.79**, so the
-instrument that decides whether we have won is cognee's, and under it we score
-**0.856**.
+raising -- scored their system **0.794**, judged by ``gpt-5``. The bar to beat
+is **0.79**, so the instrument that decides whether we have won is cognee's --
+their prompt *and* their judge model.
 
 Both are kept, because a score means nothing apart from the published figure it
 is set beside. They are two entries here rather than two command-line flags,
 and that is the point of the file: while the instrument was spelled out in
 arguments, the defaults quietly combined the paper's judge, the paper's reader
-prompt and a turn budget of 10, which reproduces neither 0.323 nor 0.856 but a
+prompt and a turn budget of 10, which reproduces neither 0.323 nor 0.794 but a
 third number nobody has published. A run that forgot one flag was not a worse
 run, it was an unanswerable one.
 
@@ -88,13 +88,13 @@ class BenchmarkSpec:
 #: an answer is produced and scored, which is what makes them two benchmarks
 #: over one dataset rather than one benchmark with options.
 BENCHMARKS: dict[str, BenchmarkSpec] = {
-    # Cognee's instrument, and the setup behind our 0.856. The default, because
-    # 0.79 is the bar and this is the only instrument that can be held against
-    # it.
+    # Cognee's instrument. The default, because 0.79 is the bar and this is the
+    # only instrument that can be held against it. Their judge model as well as
+    # their prompt: gpt-4.1-mini is the more lenient judge on the same answers.
     "beam": BenchmarkSpec(
         name="beam",
         judge_flavour="cognee",
-        judge_model="azure/openai/gpt-4.1-mini",
+        judge_model="azure/openai/gpt-5",
         reader_style="cognee",
         reader_model="aws/anthropic/bedrock-claude-opus-4-8",
         # Four, as cognee ran this tier. One round against a stochastic judge
