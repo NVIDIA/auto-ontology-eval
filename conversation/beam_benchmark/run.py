@@ -374,7 +374,7 @@ def answer_questions(
     prompts = cognee_system_prompts() if reader_prompt == "cognee" else {}
     logger.info(
         "Answering %d question(s) over %d conversation(s): "
-        "retrieval=%s top_k=%d widen=%d%s workers=%d reader=%s prompts=%s",
+        "retrieval=%s top_k=%d widen=%d workers=%d reader=%s prompts=%s",
         len(rows),
         len({r["conversation_id"] for r in rows}),
         retrieval,
@@ -547,6 +547,7 @@ def _retrieval_settings(rows: Sequence[dict[str, Any]]) -> dict[str, Any]:
         "retrieval",
         "top_k",
         "widen",
+        "react_max_conversation_observation_chars",
         "react_max_observation_chars",
         "react_max_tool_calls",
     ):
