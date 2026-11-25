@@ -44,6 +44,7 @@ venv/
 /datasets/fdabench/*
 /datasets/beaverbench/*
 /datasets/spider2_lite/*
+/datasets/spider2_lite_bq/*
 /datasets/dor_prod/
 !/datasets/bird/.gitkeep
 !/datasets/bird/README.md
@@ -57,6 +58,7 @@ venv/
 !/datasets/beaverbench/README.md
 !/datasets/spider2_lite/.gitkeep
 !/datasets/spider2_lite/README.md
+!/datasets/spider2_lite_bq/README.md
 
 # Test-run outputs (transient, local only), including the flagged_questions
 # notes — not tracked on remote, kept local only.

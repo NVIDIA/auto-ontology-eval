@@ -22,7 +22,9 @@ leaderboard instead.
 Spider2-lite is the other: it ships gold *result* CSVs rather than gold SQL, so
 its tasks carry :class:`~ontology_sql_eval.gym.spider2.GoldResults`, only the
 prediction is executed, and the comparison is Spider2's own
-(:mod:`ontology_sql_eval.gym.spider2`).
+(:mod:`ontology_sql_eval.gym.spider2`). Its BigQuery questions
+(``spider2_lite_bq``) run through :class:`BigQueryExecutor`, under the byte cap
+and project qualification of :mod:`ontology_sql_eval.bigquery`.
 
 Queries run against the database file or DSN directly, not through an Auto Ontology
 connector, so the schema-only arm carries no Auto Ontology dependency at all.
@@ -32,20 +34,37 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import hashlib
+import json
+import logging
 import re
 import sqlite3
+import threading
 import time
 from enum import Enum
 from pathlib import Path
 from typing import Any, Optional, Protocol
 from urllib.parse import unquote, urlparse
 
+from ontology_sql_eval.bigquery import (
+    BigQueryTarget,
+    BytesCapExceeded,
+    NotReadOnly,
+    QueryTimeout,
+    is_infrastructure_error,
+    make_client,
+    run_query,
+)
 from ontology_sql_eval.gym.spider2 import (
     GoldResults,
+    Table,
     gold_is_empty,
     prediction_table,
     results_match,
+    table_from_csv_text,
 )
+
+logger = logging.getLogger(__name__)
 
 ResultSet = list[tuple[Any, ...]]
 
@@ -86,6 +105,7 @@ __all__ = [
     "SqliteExecutor",
     "PostgresExecutor",
     "MySqlExecutor",
+    "BigQueryExecutor",
     "extract_sql",
     "has_sql_codeblock",
     "result_sets_match",
@@ -115,6 +135,10 @@ class FailureCode(str, Enum):
     NO_SQL_EXTRACTED = "no_sql_extracted"
     EXECUTION_ERROR = "execution_error"
     EXECUTION_TIMEOUT = "execution_timeout"
+    # BigQuery refused the prediction for scanning more than the configured
+    # maximum_bytes_billed. Kept apart from EXECUTION_ERROR because it is the
+    # run's budget, not the SQL, that failed: raising the cap may pass it.
+    EXECUTION_BYTES_CAP = "execution_bytes_cap"
     GOLD_EXECUTION_ERROR = "gold_execution_error"
     GOLD_EXECUTION_TIMEOUT = "gold_execution_timeout"
     # Gold failed on a dataset whose official evaluator scores that as a miss
@@ -223,8 +247,13 @@ ERRORS_AS_EMPTY = {"beaverbench"}
 #
 # Spider2-lite's evaluator sets no limit at all. Its slowest gold query takes
 # ~11s here (local099 on db_imdb), so the default would time out a correct
-# prediction that is merely a few times slower than gold.
-QUERY_TIMEOUTS = {"beaverbench": 10.0, "spider2_lite": 120.0}
+# prediction that is merely a few times slower than gold. On BigQuery a query
+# also waits for slots and scans terabyte tables, so it gets longer still.
+QUERY_TIMEOUTS = {
+    "beaverbench": 10.0,
+    "spider2_lite": 120.0,
+    "spider2_lite_bq": 300.0,
+}
 
 # Datasets scored the way BIRD's evaluation_ex.py scores them: the prediction and
 # then the gold query run under ONE time limit, and any failure -- the gold
@@ -352,6 +381,134 @@ class SqliteExecutor:
             return await asyncio.to_thread(
                 _run_sqlite_table, self.db_path(db_id), sql, self.timeout_s
             )
+
+    async def execute_prediction(
+        self, db_id: str, sql: str
+    ) -> tuple[Optional[Table], str]:
+        """The predicted frame Spider2 compares, after its read_sql round trip."""
+        result, status = await self.execute_table(db_id, sql)
+        if result is None:
+            return None, status
+        column_count, rows = result
+        return prediction_table(column_count, rows), ""
+
+
+def _run_bigquery_frame(
+    client: Any, target: BigQueryTarget, sql: str, timeout_s: float
+):
+    """Run *sql* read-only; return ``(frame, status)``. Setup failures raise."""
+    try:
+        rows, _ = run_query(client, target, sql, timeout_s=timeout_s, read_only=True)
+        return rows.to_dataframe(create_bqstorage_client=False), ""
+    except BytesCapExceeded as exc:
+        logger.warning("BigQuery %s: %s", target.db_id, exc)
+        return None, "bytes_cap"
+    except QueryTimeout:
+        return None, "timeout"
+    except NotReadOnly as exc:
+        logger.info("BigQuery %s: %s", target.db_id, exc)
+        return None, "error"
+    except Exception as exc:
+        if is_infrastructure_error(exc):
+            raise
+        logger.info(
+            "BigQuery %s query failed: %s", target.db_id, str(exc).splitlines()[0]
+        )
+        return None, "error"
+
+
+class BigQueryExecutor:
+    """Executes against the BigQuery datasets behind each ``db_id`` (Spider2-lite).
+
+    *targets* maps ``db_id`` to its :class:`~ontology_sql_eval.bigquery.BigQueryTarget`,
+    parsed from the same ``bigquery://`` CONNECTION_STRINGS the treatment
+    arm's connectors use, so both arms bill the same project under the same
+    cap. Every query is dry-run first and refused unless it is a ``SELECT``:
+    the billing project is the user's own, and may hold writable data.
+
+    Errors that mean the setup is broken -- no credentials, no permission to
+    run jobs in the billing project, exhausted quota -- are raised rather than
+    scored, so they surface as ``unknown_error`` instead of as wrong SQL.
+    """
+
+    def __init__(
+        self,
+        targets: "dict[str, BigQueryTarget]",
+        *,
+        max_concurrency: int = 8,
+        timeout_s: float = 300.0,
+    ) -> None:
+        self._targets = targets
+        self.timeout_s = timeout_s
+        self._semaphore = asyncio.Semaphore(max_concurrency)
+        self._clients: dict[tuple[str, str, str, str], Any] = {}
+        self._lock = threading.Lock()
+
+    def _target(self, db_id: str) -> BigQueryTarget:
+        target = self._targets.get(db_id)
+        if target is None:
+            raise KeyError(
+                f"no bigquery:// entry for db_id {db_id!r} in CONNECTION_STRINGS; "
+                f"have {sorted(self._targets)}"
+            )
+        return target
+
+    @staticmethod
+    def _client_key(target: BigQueryTarget) -> tuple[str, str, str, str]:
+        credentials = (
+            hashlib.sha256(
+                json.dumps(target.credentials, sort_keys=True).encode()
+            ).hexdigest()
+            if target.credentials is not None
+            else ""
+        )
+        return (
+            target.billing_project,
+            target.location or "",
+            target.credentials_file or "",
+            credentials,
+        )
+
+    def _client(self, target: BigQueryTarget) -> Any:
+        key = self._client_key(target)
+        with self._lock:
+            if key not in self._clients:
+                self._clients[key] = make_client(target)
+            return self._clients[key]
+
+    async def _frame(self, db_id: str, sql: str, timeout_s: float):
+        target = self._target(db_id)
+        client = self._client(target)
+        async with self._semaphore:
+            return await asyncio.to_thread(
+                _run_bigquery_frame, client, target, sql, timeout_s
+            )
+
+    async def execute(
+        self, db_id: str, sql: str, *, timeout_s: Optional[float] = None
+    ) -> tuple[Optional[ResultSet], str]:
+        frame, status = await self._frame(
+            db_id, sql, self.timeout_s if timeout_s is None else timeout_s
+        )
+        if frame is None:
+            return None, status
+        return [tuple(row) for row in frame.itertuples(index=False)], ""
+
+    async def execute_prediction(
+        self, db_id: str, sql: str
+    ) -> tuple[Optional[Table], str]:
+        """The predicted frame Spider2 compares: ``to_dataframe().to_csv()`` read back.
+
+        An empty result comes back as status ``"empty"``: upstream's
+        ``get_bigquery_sql_result`` reports it as a failed execution, so it
+        scores 0 even against an empty gold.
+        """
+        frame, status = await self._frame(db_id, sql, self.timeout_s)
+        if frame is None:
+            return None, status
+        if frame.empty:
+            return None, "empty"
+        return table_from_csv_text(frame.to_csv(index=False)), ""
 
 
 def _run_postgres(dsn: str, sql: str) -> tuple[Optional[ResultSet], str]:
@@ -520,7 +677,9 @@ async def _execute_and_compare_gold_results(
 
     Missing gold files are a seeding problem, not a wrong answer, so they take
     the task out of the denominator like a broken gold query does. A failed
-    prediction is a miss, as it is officially.
+    prediction is a miss, as it is officially. So is an empty BigQuery result,
+    which upstream counts as a failed execution; it is reported as a wrong
+    result here, since the query did run.
     """
     if not gold.paths or not all(path.is_file() for path in gold.paths):
         return False, "gold_sql_error", None
@@ -528,14 +687,14 @@ async def _execute_and_compare_gold_results(
 
     if pred_sql is None:
         return False, "pred_sql_missing", gold_result
-    execute_table = getattr(executor, "execute_table", None)
-    if execute_table is None:
+    execute_prediction = getattr(executor, "execute_prediction", None)
+    if execute_prediction is None:
         raise TypeError(f"{type(executor).__name__} cannot score gold result files")
-    result, status = await execute_table(db_id, pred_sql)
-    if result is None:
+    pred, status = await execute_prediction(db_id, pred_sql)
+    if status == "empty":
+        return False, None, gold_result
+    if pred is None:
         return False, f"pred_sql_{status or 'error'}", gold_result
-    column_count, rows = result
-    pred = prediction_table(column_count, rows)
     return results_match(pred, gold), None, gold_result
 
 

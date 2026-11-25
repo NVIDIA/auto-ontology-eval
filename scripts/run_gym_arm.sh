@@ -117,16 +117,25 @@ GYM_FLAGS+=(
 # mismatch, and a rebuild never uninstalls it, so a dependency that is dropped
 # from the project must be dropped from this list too: otherwise every run
 # rebuilds that server's venv. nemo-retriever did exactly that after it went.
-CHECKED_DISTS=(nemo-gym ray openai)
+#
+# Auto Ontology is a Git dependency whose version stays the same across
+# commits, so a dist installed from VCS is compared by version and commit:
+# otherwise a pin bump in pyproject.toml leaves the treatment arm on old code.
+CHECKED_DISTS=(nemo-gym ray openai auto-ontology-server)
 dist_versions() {  # <venv>: a "name version" line per CHECKED_DISTS entry it has
   "$1/bin/python" - "${CHECKED_DISTS[@]}" <<'PY'
+import json
 import sys
-from importlib.metadata import PackageNotFoundError, version
+from importlib.metadata import PackageNotFoundError, distribution
 for name in sys.argv[1:]:
     try:
-        print(name, version(name))
+        dist = distribution(name)
     except PackageNotFoundError:
-        pass
+        continue
+    commit = json.loads(dist.read_text("direct_url.json") or "{}").get(
+        "vcs_info", {}
+    ).get("commit_id")
+    print(name, f"{dist.version}@{commit}" if commit else dist.version)
 PY
 }
 if [[ ! -x .venv/bin/python ]] || ! parent="$(dist_versions .venv)"; then

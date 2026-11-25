@@ -19,7 +19,7 @@ differently and we want numbers that are comparable to each one's own leaderboar
 |---|---|
 | everything else | BIRD: `set(gold) == set(pred)` on raw rows |
 | `beaverbench` | BEAVER `ex_acc`: values stringified and stripped first |
-| `spider2_lite` | Spider2's: prediction against gold result CSVs, column by column |
+| `spider2_lite`, `spider2_lite_bq` | Spider2's: prediction against gold result CSVs, column by column |
 
 They genuinely disagree. BEAVER treats `1` and `"1"` as equal and strips
 whitespace, but **not** `Decimal("150.250")` and `Decimal("150.25")` -- which on a
@@ -66,8 +66,8 @@ prediction can be scored correct; it still counts. 518's takes about 26 s on an
 idle machine, leaving the prediction a few seconds, so whether it can pass
 depends on machine speed and load, as it does under the official evaluator.
 
-Spider2-lite has no gold SQL for most of its questions (24 of 135), so it is
-scored against the gold *result* CSVs the seeder copies to
+Only 24 of Spider2-lite's 135 questions have gold SQL, so it is scored against
+the gold *result* CSVs the seeder copies to
 `datasets/spider2_lite/gold/`, the way its official `evaluate.py` scores
 (`ontology_sql_eval/gym/spider2.py`):
 
@@ -92,9 +92,36 @@ scored against the gold *result* CSVs the seeder copies to
 Upstream's own gold SQL reproduces its gold CSVs for only 16 of the 24
 questions that have it, under the official evaluator as under ours.
 
-Every other dataset keeps the stricter handling: a failed prediction is a miss,
-each query gets the full limit, and a failed gold query drops the task
-(`health/excluded_unusable_gold_count`).
+`spider2_lite_bq` (the 205 `bq*`/`ga*` questions) is scored by the same rule,
+with the prediction run on BigQuery the way upstream's `get_bigquery_sql_result`
+runs it (`BigQueryExecutor`, `ontology_sql_eval/bigquery.py`):
+
+- **The frame is what is compared.** `to_dataframe()` -> `to_csv` ->
+  `read_csv`, as upstream does. An **empty result scores 0**, even against an
+  empty gold file, because upstream treats it as a failed execution.
+- **Read-only, checked by a free dry run.** Only `SELECT`s run, plus scripts
+  (`DECLARE`, temporary functions and tables) without `INSERT`, `UPDATE`,
+  `DELETE`, `MERGE`, DDL or `EXECUTE IMMEDIATE`. Anything else is a
+  `pred_sql_error`.
+- **Byte cap.** Each query runs with `maximum_bytes_billed`: the URL's value,
+  else 40 GiB, exactly as in Auto Ontology's connector. The seeder resolves
+  `BIGQUERY_MAXIMUM_BYTES_BILLED` and always writes the result into the URL.
+  A query over it is refused
+  before it runs, and is `execution_bytes_cap` rather than an ordinary SQL
+  error. One gold query scans more than 40 GiB (`bq096`, about 178 GiB), so
+  raise the cap if that question should be winnable.
+- **Projects are filled in.** `dataset.table` becomes
+  `project.dataset.table` for the database's own datasets, and a database
+  with a single dataset also gets it as the job's default dataset. Both arms
+  get this, so a model is not penalised for omitting `bigquery-public-data`.
+- **300-second query timeout.**
+- **Setup failures are not classified as wrong SQL.** Missing credentials, no
+  `bigquery.jobs.create` in the billing project, and exhausted quota score zero
+  as `unknown_error` and cause the health gate to reject the run.
+
+Datasets without an exception described above use the default BIRD-style failure
+handling: a failed prediction is a miss, each query gets the full limit, and a
+failed gold query drops the task (`health/excluded_unusable_gold_count`).
 
 Neither rule involves an LLM.
 
@@ -123,7 +150,8 @@ python scripts/build_gym_tasks.py --dataset bird --arm auto_ontology
 ```
 
 Datasets: `bird` (1,534q), `fdabench` (169q), `wideworldimporters` (41q,
-Postgres), `beaverbench` (MySQL), `spider2_lite` (135q). Output is deterministic, so regenerating is
+Postgres), `beaverbench` (MySQL), `spider2_lite` (135q), `spider2_lite_bq` (205q,
+BigQuery). Output is deterministic, so regenerating is
 safe. `--limit N` takes a prefix; `--start-index` / `--end-index` slice, so a
 long run can be sharded or resumed. `--no-evidence` (`beaverbench` only) leaves
 each question's evidence out of both arms, as the BEAVER leaderboard's Setting 0
@@ -272,6 +300,7 @@ Gym's own guidance is to prefer a deterministic verifier where one exists.
 | `wideworldimporters` (41q) | Postgres | yes |
 | `beaverbench` | MySQL | yes — seed with `scripts/seed/seed_beaverbench.py --import-mysql` |
 | `spider2_lite` (135q) | SQLite | yes — seed with `scripts/seed/seed_spider2_lite.py` |
+| `spider2_lite_bq` (205q) | BigQuery | yes — seed with `scripts/seed/seed_spider2_lite_bq.py`; needs GCP credentials and is billed |
 | `bird_interact` | Postgres | **no, by design** |
 
 `beaverbench` needs a `mysql://` entry in `CONNECTION_STRINGS` (the seeder writes

@@ -33,6 +33,7 @@ from ontology_sql_eval.gym.ddl import (
     column_description_block,
     mysql_schema_dump,
     postgres_schema_dump,
+    seeded_schema_dump,
     sqlite_schema_dump,
 )
 
@@ -95,6 +96,10 @@ class DatasetSpec:
     def mysql_dump_path(self, db_id: str) -> Path:
         return DATASETS_DIR / self.db_root / "dumps" / f"{db_id}.sql"
 
+    def schema_dump_path(self, db_id: str) -> Path:
+        """A schema dump written by the seeder, for engines with no local copy."""
+        return DATASETS_DIR / self.db_root / db_id / "schema.sql"
+
 
 DATASETS: dict[str, DatasetSpec] = {
     # db_root is "bird/dev", not "bird": seed_bird.py writes evaluation.json to
@@ -112,6 +117,10 @@ DATASETS: dict[str, DatasetSpec] = {
     # CSVs, not gold SQL, which most questions lack. Seeded by
     # scripts/seed/seed_spider2_lite.py; not committed.
     "spider2_lite": DatasetSpec("spider2_lite", "sqlite", "spider2_lite"),
+    # Spider2-lite's 205 BigQuery (bq*, ga*) questions over public datasets,
+    # scored like spider2_lite. Needs Google credentials and a billing
+    # project. Seeded by scripts/seed/seed_spider2_lite_bq.py; not committed.
+    "spider2_lite_bq": DatasetSpec("spider2_lite_bq", "bigquery", "spider2_lite_bq"),
 }
 
 # Datasets whose evidence can be left out of the tasks. BEAVER's seed fills each
@@ -138,6 +147,9 @@ def _schema_for(spec: DatasetSpec, root: Path, db_id: str, descriptions: bool) -
 
     if spec.dialect == "mysql":
         return mysql_schema_dump(root / spec.mysql_dump_path(db_id))
+
+    if spec.dialect == "bigquery":
+        return seeded_schema_dump(root / spec.schema_dump_path(db_id))
 
     dump = sqlite_schema_dump(root / spec.sqlite_path(db_id))
     if not descriptions:

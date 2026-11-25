@@ -30,6 +30,7 @@ __all__ = [
     "sqlite_schema_dump",
     "postgres_schema_dump",
     "mysql_schema_dump",
+    "seeded_schema_dump",
     "column_description_block",
 ]
 
@@ -102,6 +103,20 @@ def mysql_schema_dump(dump_path: Path) -> str:
         raise ValueError(f"no CREATE TABLE statements found in {dump_path}")
     body = "\n\n".join(statements)
     return f"BEGIN TRANSACTION;\n{body}\nCOMMIT;"
+
+
+def seeded_schema_dump(dump_path: Path) -> str:
+    """Read the schema dump a seeder wrote beside the database's metadata.
+
+    For BigQuery (Spider2-lite's ``bq*`` questions), whose databases are
+    remote: the seeder renders the DDL Spider2 ships, so building tasks needs
+    no credentials and the dump is byte-stable.
+    """
+    if not dump_path.exists():
+        raise FileNotFoundError(
+            f"no schema dump at {dump_path}; run the dataset's seed script first"
+        )
+    return dump_path.read_text(encoding="utf-8").strip()
 
 
 def column_description_block(description_dir: Path) -> str:

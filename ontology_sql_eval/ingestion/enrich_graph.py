@@ -93,6 +93,17 @@ logger = logging.getLogger(__name__)
 DEFAULT_DIR = REPO_ROOT / DATASETS_DIR
 ANNOTATIONS_DIR = REPO_ROOT / ANNOTATIONS_SUBDIR
 
+# Rows per catalog UPDATE. Each row binds up to four parameters, and Postgres
+# refuses a statement with more than 65,535; a BigQuery database such as bls
+# has over 16,000 columns.
+METADATA_BATCH_ROWS = 5000
+
+
+def _batches(rows: list):
+    size = METADATA_BATCH_ROWS
+    for start in range(0, len(rows), size):
+        yield rows[start : start + size]
+
 
 def _dataset_file_path(
     filename: str, database_name: str, benchmark_name: str | None = None
@@ -192,32 +203,43 @@ def resolve_metadata_column(
     belongs to exactly one catalog table, that column is used. A metadata
     table that does exist is never redirected onto a different table.
     """
-    folded = [
-        (table.casefold(), column.casefold(), table, column)
-        for table, column in catalog_columns
-    ]
-    table_fold = table_name.casefold()
-    column_fold = column_name.casefold()
-    exact = [
-        (table, column)
-        for folded_table, folded_column, table, column in folded
-        if folded_table == table_fold and folded_column == column_fold
-    ]
-    if len(exact) == 1:
-        return exact[0]
-    if exact:
-        return None
-    known_tables = {folded_table for folded_table, *_rest in folded}
-    if table_fold in known_tables:
-        return None
-    by_column = [
-        (table, column)
-        for _folded_table, folded_column, table, column in folded
-        if folded_column == column_fold
-    ]
-    if len(by_column) == 1:
-        return by_column[0]
-    return None
+    return _CatalogNames(catalog_columns).column(table_name, column_name)
+
+
+class _CatalogNames:
+    """Case-folded lookups over one database's catalog ``(table, column)`` names.
+
+    Built once per database: a BigQuery database can hold tens of thousands of
+    columns, too many to scan the whole list for every metadata entry.
+    """
+
+    def __init__(self, catalog_columns: list[tuple[str, str]]) -> None:
+        self._exact: dict[tuple[str, str], list[tuple[str, str]]] = {}
+        self._by_column: dict[str, list[tuple[str, str]]] = {}
+        self._tables: dict[str, set[str]] = {}
+        for table, column in catalog_columns:
+            table_fold, column_fold = table.casefold(), column.casefold()
+            self._exact.setdefault((table_fold, column_fold), []).append(
+                (table, column)
+            )
+            self._by_column.setdefault(column_fold, []).append((table, column))
+            self._tables.setdefault(table_fold, set()).add(table)
+
+    def column(self, table_name: str, column_name: str) -> tuple[str, str] | None:
+        """See :func:`resolve_metadata_column`."""
+        table_fold = table_name.casefold()
+        column_fold = column_name.casefold()
+        exact = self._exact.get((table_fold, column_fold), [])
+        if len(exact) == 1:
+            return exact[0]
+        if exact or table_fold in self._tables:
+            return None
+        by_column = self._by_column.get(column_fold, [])
+        return by_column[0] if len(by_column) == 1 else None
+
+    def table(self, table_name: str) -> str | None:
+        matches = self._tables.get(table_name.casefold(), set())
+        return next(iter(matches)) if len(matches) == 1 else None
 
 
 def _catalog_columns(database_name: str) -> list[tuple[str, str]]:
@@ -249,19 +271,6 @@ def _catalog_columns(database_name: str) -> list[tuple[str, str]]:
         .where(s.catalog_database.c.name == database_name)
     )
     return [(row["table_name"], row["column_name"]) for row in rows]
-
-
-def _resolve_table_name(
-    table_name: str, catalog_columns: list[tuple[str, str]]
-) -> str | None:
-    matches = {
-        table
-        for table, _column in catalog_columns
-        if table.casefold() == table_name.casefold()
-    }
-    if len(matches) == 1:
-        return next(iter(matches))
-    return None
 
 
 def apply_metadata(database_name: str, benchmark_name: str | None = None) -> None:
@@ -296,7 +305,7 @@ def apply_metadata(database_name: str, benchmark_name: str | None = None) -> Non
     with metadata_path.open() as f:
         raw = json.load(f)
 
-    catalog_columns = _catalog_columns(database_name)
+    catalog = _CatalogNames(_catalog_columns(database_name))
     table_rows: list[dict[str, str]] = []
     column_rows: list[dict[str, str | None]] = []
     samples_count = 0
@@ -304,7 +313,7 @@ def apply_metadata(database_name: str, benchmark_name: str | None = None) -> Non
     for table_name, table_meta in raw.items():
         table_desc = table_meta.get("description")
         if table_desc:
-            resolved_table = _resolve_table_name(table_name, catalog_columns)
+            resolved_table = catalog.table(table_name)
             if resolved_table is None:
                 skipped.append(table_name)
             else:
@@ -315,24 +324,22 @@ def apply_metadata(database_name: str, benchmark_name: str | None = None) -> Non
         for col in table_meta.get("columns", []) or []:
             col_desc = col.get("description")
             value_examples = col.get("value_examples")
-            # Column.sample_values is stored as a JSON string, matching
-            # auto_ontology.dal.datasources.store_column_sample_values (profiling's own
-            # writer) and auto_ontology.utils.sample_values.parse_sample_values (the
-            # shared reader, which accepts either a JSON string or a list).
-            sample_values: str | None = (
+            # Preserve the historical representation for every benchmark:
+            # changing these strings changes embeddings and benchmark results.
+            sample_values = (
                 json.dumps([str(v) for v in value_examples])
                 if isinstance(value_examples, list) and value_examples
                 else None
             )
             if not col_desc and sample_values is None:
                 continue
-            resolved = resolve_metadata_column(table_name, col["name"], catalog_columns)
+            resolved = catalog.column(table_name, col["name"])
             if resolved is None:
                 skipped.append(f"{table_name}.{col['name']}")
                 continue
+            resolved_table, resolved_column = resolved
             if sample_values is not None:
                 samples_count += 1
-            resolved_table, resolved_column = resolved
             column_rows.append(
                 {
                     "table_name": resolved_table,
@@ -342,7 +349,10 @@ def apply_metadata(database_name: str, benchmark_name: str | None = None) -> Non
                 }
             )
 
-    apply_metadata_batch(database_name, table_rows, column_rows)
+    for batch in _batches(table_rows):
+        apply_metadata_batch(database_name, batch, [])
+    for batch in _batches(column_rows):
+        apply_metadata_batch(database_name, [], batch)
 
     logger.info(
         "Applied metadata: %d table description(s), %d column description(s), "

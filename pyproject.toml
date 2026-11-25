@@ -13,10 +13,19 @@ dependencies = [
     # pandas, fastapi, ...) come in through this package. Do not redeclare them
     # here: a second copy drifts out of sync with what Auto Ontology is tested
     # against. List only what this project needs on top of it.
-    "auto-ontology-server @ git+https://github.com/NVIDIA/auto-ontology.git@7dac5ff7bce3daf42e2115ef392146a542fa15d2",
+    "auto-ontology-server @ git+https://github.com/NVIDIA/auto-ontology.git@a12fec75226a54ffc91752cca9538f1f01f760eb",
     # Imported directly by bird_interact/bird_interact_http.py. Also reachable
     # transitively through Auto Ontology, but not as part of its contract.
     "sqlglot>=30.12.0",
+    # Spider2-lite's BigQuery questions: the verifier's executor and the
+    # schema-only arm (ontology_sql_eval/bigquery.py). Auto Ontology's own
+    # BigQuery connector depends on the client too, but not on these extras.
+    # to_dataframe() needs db-dtypes and pyarrow to type results the way
+    # Spider2's evaluator does; the client's [pandas] extra would also pull in
+    # pandas-gbq and grpcio, which nothing here uses.
+    "google-cloud-bigquery>=3.47.0",
+    "db-dtypes>=1.4.0",
+    "pyarrow>=21.0.0",
     # Dataset seeding (scripts/seed/seed_beaverbench.py,
     # scripts/bird_interact/seed_bird_interact.py)
     "datasets>=5.0.1",
