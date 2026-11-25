@@ -83,8 +83,6 @@ __all__ = [
     "execute_and_compare",
 ]
 
-_NO_ANSWER_FILLER = "SELECT 1"
-
 
 class FailureCode(str, Enum):
     """Why a task scored zero.
@@ -118,26 +116,24 @@ def has_sql_codeblock(text: Optional[str]) -> bool:
     return bool(re.search(r"(?:```sql)(.*?[a-zA-Z].*?)(?:```)", text, flags=re.DOTALL))
 
 
-def extract_sql(text: Optional[str]) -> str:
-    """Pull SQL out of a fenced ```sql block.
+def extract_sql(text: Optional[str]) -> Optional[str]:
+    """Pull SQL out of the last fenced ```sql block, or return no prediction.
 
-    Mirrors NeMo Gym's ``bird_sql`` extraction so the arms stay comparable with
-    published numbers, including its quirks: the *last* block wins, and comment
-    stripping runs with ``DOTALL`` but not ``MULTILINE``, so a ``--`` comment
-    eats the remainder. When no block is present a harmless ``SELECT 1`` filler
-    is returned; it executes cleanly and matches essentially no gold query.
+    Keep the existing normalization for submitted SQL: comment stripping runs
+    with ``DOTALL`` but not ``MULTILINE``, so a ``--`` comment eats the remainder.
+    If nothing remains, let the dataset's scorer decide how to grade a miss.
     """
     if not text:
-        return _NO_ANSWER_FILLER
+        return None
 
     matches = re.findall(r"(?:```sql)(.*?[a-zA-Z].*?)(?:```)", text, flags=re.DOTALL)
     if not matches:
-        return _NO_ANSWER_FILLER
+        return None
 
     ans = matches[-1]
     ans = re.sub(r"--.*?$|/\*.*?\*/", "", ans, flags=re.DOTALL)
     ans = re.sub(r"\s+", " ", ans)
-    return re.sub(r"^\*\*.*\*\*", "", ans).strip()
+    return re.sub(r"^\*\*.*\*\*", "", ans).strip() or None
 
 
 def result_sets_match(gold: ResultSet, pred: ResultSet) -> bool:

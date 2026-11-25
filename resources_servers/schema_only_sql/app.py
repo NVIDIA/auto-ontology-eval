@@ -283,22 +283,18 @@ class SchemaOnlySqlResourcesServer(SimpleResourcesServer):
             # BIRD: gold failed, and the official evaluator scores that as a
             # miss rather than dropping the task (see SHARED_TIMEOUT).
             failure = FailureCode.GOLD_FAILURE_SCORED
+        elif extracted is None:
+            # BEAVER can still award a match against empty gold. Retain the
+            # missing-SQL diagnostic independently of that benchmark's reward.
+            failure = FailureCode.NO_SQL_EXTRACTED
         elif err == "pred_sql_timeout":
             failure = FailureCode.EXECUTION_TIMEOUT
         elif err == "pred_sql_error":
-            failure = (
-                FailureCode.EXECUTION_ERROR
-                if had_block
-                else FailureCode.NO_SQL_EXTRACTED
-            )
+            failure = FailureCode.EXECUTION_ERROR
         elif match:
             failure = FailureCode.NONE
         else:
-            # The query ran and returned rows, they just did not match. That is
-            # an ordinary wrong answer, not an execution failure.
-            failure = (
-                FailureCode.WRONG_RESULT if had_block else FailureCode.NO_SQL_EXTRACTED
-            )
+            failure = FailureCode.WRONG_RESULT
 
         return _response(
             1.0 if match else 0.0,
