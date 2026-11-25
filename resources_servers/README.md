@@ -375,7 +375,7 @@ transfer.
 
 - `load_dotenv()` runs **before** the Auto-Ontology imports —
   `auto_ontology.retrieval.text_to_sql.main`
-  builds its LLM client and compiles the graph at import time.
+  builds its LLM client and its pipeline at import time.
 - The parent project and resource-server environment must be installed before
   starting the arm.
 - `stream_agent_response` is a blocking generator, so it runs on a worker thread
