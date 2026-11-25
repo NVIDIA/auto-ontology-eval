@@ -17,7 +17,7 @@ dependencies = [
     # auto_ontology.conversations and auto_ontology.retrieval.conversation,
     # which land there first. Move this back to a main commit once that branch
     # merges.
-    "auto-ontology-server @ git+https://github.com/NVIDIA/auto-ontology.git@7b65520afc722f38773d3dd1c2995c4ad5f1b498",
+    "auto-ontology-server @ git+https://github.com/NVIDIA/auto-ontology.git@e83ea37c74408bf1babdc6a2f75a0abd9f85f7a7",
     # Imported directly by bird_interact/bird_interact_http.py. Also reachable
     # transitively through Auto Ontology, but not as part of its contract.
     "sqlglot>=30.12.0",
