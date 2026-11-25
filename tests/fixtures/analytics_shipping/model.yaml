@@ -1,0 +1,71 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES.
+# All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+data_layer:
+  databases:
+    - id: fixture-db
+      dialect: sqlite
+      schemas:
+        - id: fixture-main
+          name: main
+          database_name: analytics_shipping
+          tables:
+            - id: orders
+              name: orders
+              type: table
+              description: One row per order, including cancelled orders.
+              pk: [id]
+              columns:
+                - {id: order-id, name: id, type: INTEGER, is_nullable: false, is_unique: true}
+                - {id: order-region, name: region, type: TEXT, is_nullable: false}
+                - {id: order-date, name: order_date, type: TEXT, is_nullable: false}
+                - {id: order-status, name: status, type: TEXT, is_nullable: false}
+                - {id: order-net-cents, name: net_cents, type: INTEGER, is_nullable: false}
+            - id: shipments
+              name: shipments
+              type: table
+              description: One row per parcel; one order can have zero or more parcels.
+              pk: [id]
+              columns:
+                - {id: shipment-id, name: id, type: INTEGER, is_nullable: false, is_unique: true}
+                - {id: shipment-order-id, name: order_id, type: INTEGER, is_nullable: false}
+                - {id: shipment-date, name: shipped_date, type: TEXT, is_nullable: false}
+  foreign_keys:
+    - {source_column_id: shipment-order-id, target_column_id: order-id}
+  joins:
+    - source_table_id: shipments
+      target_table_id: orders
+      join_columns: [{source: order_id, target: id}]
+semantic_layer:
+  terms:
+    - id: order-term
+      name: Order
+      description: An order at order-ID grain. Reporting month uses order date, not shipment date.
+      represents: [orders]
+      columns_attributes:
+        - {id: order-key-attr, name: Order ID, column_id: order-id}
+        - {id: region-attr, name: Sales Region, column_id: order-region}
+        - {id: order-date-attr, name: Order Date, column_id: order-date}
+        - {id: order-status-attr, name: Order Status, column_id: order-status}
+        - {id: net-cents-attr, name: Net Amount in USD Cents, column_id: order-net-cents}
+    - id: shipment-term
+      name: Shipment
+      description: A parcel linked to its order. Use EXISTS to filter orders with at least one shipment without duplicating order-level amounts.
+      represents: [shipments]
+      columns_attributes:
+        - {id: shipment-date-attr, name: Shipped Date, column_id: shipment-date}
+  semantic_fks:
+    - {column_id: shipment-order-id, column_attribute_id: order-key-attr}
+  sql_attributes:
+    manual:
+      - id: fixture-paid-order-revenue
+        name: Paid Order Net Revenue
+        description: >-
+          Sum net_cents for paid orders only. The unit is integer USD cents and the source grain is one row per order.
+          Group by region or order-date month. Cancelled orders do not contribute. Do not sum amounts after joining
+          to parcel rows. A scalar sum over an empty population is undefined (SQL NULL). Do not infer an unspecified
+          reporting month.
+        sql: SELECT SUM(net_cents) AS revenue_cents FROM orders WHERE status = 'paid'
+        sql_column_is: [order-net-cents, order-status]
+        term_id: order-term

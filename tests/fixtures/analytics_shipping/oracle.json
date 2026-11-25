@@ -1,0 +1,30 @@
+{
+  "fixture_version": 1,
+  "cases": {
+    "paid_revenue": {
+      "outcome": "answer",
+      "required_metric": "fixture-paid-order-revenue",
+      "sql": "SELECT region, SUM(net_cents) AS revenue_cents FROM orders WHERE status = 'paid' AND order_date >= '2026-10-01' AND order_date < '2026-11-01' GROUP BY region ORDER BY region",
+      "rows": [["East", 25000], ["West", 20000]]
+    },
+    "shipped_revenue": {
+      "outcome": "answer",
+      "required_metric": "fixture-paid-order-revenue",
+      "sql": "SELECT o.region, SUM(o.net_cents) AS revenue_cents FROM orders o WHERE o.status = 'paid' AND o.order_date >= '2026-10-01' AND o.order_date < '2026-11-01' AND EXISTS (SELECT 1 FROM shipments s WHERE s.order_id = o.id) GROUP BY o.region ORDER BY o.region",
+      "rows": [["East", 20000], ["West", 12500]]
+    },
+    "clarify_month": {
+      "outcome": "clarify",
+      "missing_slot": "reporting_month",
+      "example_clarification": "Which reporting month do you mean?",
+      "alternatives": [
+        {"reply": "October 2026", "sql": "SELECT SUM(net_cents) AS revenue_cents FROM orders WHERE status = 'paid' AND region = 'West' AND order_date >= '2026-10-01' AND order_date < '2026-11-01'", "rows": [[20000]]},
+        {"reply": "September 2026", "sql": "SELECT SUM(net_cents) AS revenue_cents FROM orders WHERE status = 'paid' AND region = 'West' AND order_date >= '2026-09-01' AND order_date < '2026-10-01'", "rows": [[3000]]}
+      ]
+    },
+    "missing_cost": {
+      "outcome": "unanswerable",
+      "missing_input": "cost of goods sold"
+    }
+  }
+}
