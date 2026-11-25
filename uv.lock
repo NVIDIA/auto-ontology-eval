@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.13.14, <3.14"
 resolution-markers = [
     "sys_platform == 'win32'",
@@ -217,7 +217,7 @@ wheels = [
 [[package]]
 name = "auto-ontology-server"
 version = "1.3.0"
-source = { git = "https://github.com/NVIDIA/auto-ontology.git?rev=7dac5ff7bce3daf42e2115ef392146a542fa15d2#7dac5ff7bce3daf42e2115ef392146a542fa15d2" }
+source = { git = "https://github.com/NVIDIA/auto-ontology.git?rev=a12fec75226a54ffc91752cca9538f1f01f760eb#a12fec75226a54ffc91752cca9538f1f01f760eb" }
 dependencies = [
     { name = "alembic" },
     { name = "apache-ossie-nvidia-auto-ontology" },
@@ -225,6 +225,7 @@ dependencies = [
     { name = "databricks-sql-connector", extra = ["pyarrow"] },
     { name = "duckdb" },
     { name = "fastapi" },
+    { name = "google-cloud-bigquery" },
     { name = "httpx" },
     { name = "hvac" },
     { name = "importlib-metadata" },
@@ -562,6 +563,21 @@ wheels = [
 ]
 
 [[package]]
+name = "db-dtypes"
+version = "1.9.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "packaging" },
+    { name = "pandas" },
+    { name = "pyarrow" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/2d/76/e62b02f975356f14f2895b424f4174476bc7eb9ab417173f9f10ab86349b/db_dtypes-1.9.0.tar.gz", hash = "sha256:52bbe6131b9920ead9e5e8def8f9ab6c3a6c05076d4947ff7e18101ef04f1fdc", size = 37410, upload-time = "2026-10-23T00:38:09.034Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a8/d6/c0e6434ff96161687e6d7b535b124a9135a6cefbae5aaa1a37402777e9b9/db_dtypes-1.9.0-py3-none-any.whl", hash = "sha256:4d28e731d95ec96c87f9ffdac3f2cca79e7cc604517b3f2825d6f08579b2c918", size = 18407, upload-time = "2026-10-23T00:38:07.453Z" },
+]
+
+[[package]]
 name = "devtools"
 version = "0.12.2"
 source = { registry = "https://pypi.org/simple" }
@@ -836,6 +852,12 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/28/ca/fb2a5b38366bcb12990c80384b920f04b968fd834cf98be67d306c374612/google_api_core-2.42.0-py3-none-any.whl", hash = "sha256:b1bdf4f72dc4f910736ce4ba49038352effbbc309579215107649b22973a1317", size = 221364, upload-time = "2026-10-08T18:12:04.618Z" },
 ]
 
+[package.optional-dependencies]
+grpc = [
+    { name = "grpcio" },
+    { name = "grpcio-status" },
+]
+
 [[package]]
 name = "google-auth"
 version = "2.59.1"
@@ -847,6 +869,67 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/81/e3/9f752a968e487fbc10b2c2a1dd561b62489f923972911009577bb88fe7bb/google_auth-2.59.1.tar.gz", hash = "sha256:ce50fc533ac02f489a2b183a0c156672c376ecb2091b1127bc7efba2975fff27", size = 384298, upload-time = "2026-09-30T17:26:25.738Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/03/38/311ac322f46ecd789f1342bb7adb0a14b940cf54b5db0e92d4f449aa6cf8/google_auth-2.59.1-py3-none-any.whl", hash = "sha256:89c3f931683a482ac97e61df7eb9da5e08a91703f3c752b2377d72cfb7d69e6a", size = 263519, upload-time = "2026-09-30T17:26:24.017Z" },
+]
+
+[package.optional-dependencies]
+pyopenssl = [
+    { name = "cryptography" },
+]
+
+[[package]]
+name = "google-cloud-bigquery"
+version = "3.47.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "google-api-core", extra = ["grpc"] },
+    { name = "google-auth", extra = ["pyopenssl"] },
+    { name = "google-cloud-core" },
+    { name = "google-resumable-media" },
+    { name = "packaging" },
+    { name = "python-dateutil" },
+    { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b0/96/482bde8e8b87b65f80aa9c0a4fa86e6e92ae407b6f50da574f264b923b64/google_cloud_bigquery-3.47.0.tar.gz", hash = "sha256:bca7a5ff52326172dc8c292e4592a5b46b491b6872010d242d7663d8ea89b12f", size = 553095, upload-time = "2026-10-29T17:35:33.836Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4b/48/79129b85526710828e84e83cb66efad3680587ac63dfc30ae6eb7ab2fb7b/google_cloud_bigquery-3.47.0-py3-none-any.whl", hash = "sha256:4e42781c3aa7acfc1d3a91ac4052aafcbc05288a4cc1796550f4f94cb9ee3aba", size = 275370, upload-time = "2026-10-29T17:35:31.888Z" },
+]
+
+[[package]]
+name = "google-cloud-core"
+version = "2.8.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "google-api-core" },
+    { name = "google-auth" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/55/71/d6081acadf55d4233271c39860f0d140ef61fbdb4bceb2075e9c2905d947/google_cloud_core-2.8.0.tar.gz", hash = "sha256:365f8e4518ae81c8101b8dea5fc1c32a960badedb8b511f19db2843cbbd285d2", size = 36605, upload-time = "2026-09-29T19:25:59.275Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/12/ed/1b09640a565e5d34d4e517463f65a67a11f9dcdeb6b6e8220f2d06aaf489/google_cloud_core-2.8.0-py3-none-any.whl", hash = "sha256:e235b0952f7ffe7b9c71a4cf96b506d9cfb557e22557c412f0df9b7068b5d007", size = 31048, upload-time = "2026-09-29T19:25:35.361Z" },
+]
+
+[[package]]
+name = "google-crc32c"
+version = "1.9.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/fa/25/9cb0c1c31c45b893eb8f11ae70b3f4309432d59b5acaebca5dbe791729a4/google_crc32c-1.9.0.tar.gz", hash = "sha256:7b8c84c3d159ab6817fe3f74e6e6cef099c3f95dcec3abc0d8afb1404642efbe", size = 14857, upload-time = "2026-09-24T21:39:32.067Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3f/34/cb484e8b6174f130f8c6dc79c733a9dd8869b410ad6511fb6104c46b973a/google_crc32c-1.9.0-cp313-cp313-macosx_12_0_arm64.whl", hash = "sha256:f1dc17d987ddcc5eba12a7ce48f0eb93141dea236b170c1101151396edf2f0cf", size = 31960, upload-time = "2026-09-24T21:19:02.454Z" },
+    { url = "https://files.pythonhosted.org/packages/af/25/3e8e567bd48448e225ea27318ccf2b94e05124e7b8b97b13eaec9e127199/google_crc32c-1.9.0-cp313-cp313-macosx_12_0_x86_64.whl", hash = "sha256:f894a2877650b56201d26a012a257b76d54a68834dc3913a93830ca8a047b075", size = 31803, upload-time = "2026-09-24T21:22:27.008Z" },
+    { url = "https://files.pythonhosted.org/packages/f0/18/bee0dd59ae622482dc6463636c79e4bde7c954d061c859c9256362c9931a/google_crc32c-1.9.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:4488f1553a9ab7e86cdedc833374a7e904031803b995dc0bd0be48c271fa6556", size = 37776, upload-time = "2026-09-24T21:38:11.056Z" },
+    { url = "https://files.pythonhosted.org/packages/fd/b6/e76e80fed5f2558273c7839e622f98095c9b36c719c7147e38e3c055cb70/google_crc32c-1.9.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:0568b17ed90ac596f29400d99e243fd0cc6276766183def888d1bf8d1dc13827", size = 36350, upload-time = "2026-09-24T21:38:12.138Z" },
+    { url = "https://files.pythonhosted.org/packages/87/34/165542bfa99dfef91a76471cc48cce74b8ff4e295722896087ab2b8e8611/google_crc32c-1.9.0-cp313-cp313-win_amd64.whl", hash = "sha256:8583ec21d56b565d68ab2963cc7e21b3b271247c29b04286068255ef65f221bd", size = 35090, upload-time = "2026-09-24T21:39:29.764Z" },
+]
+
+[[package]]
+name = "google-resumable-media"
+version = "2.11.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "google-crc32c" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/cf/64/df6a482d5aa39d7f7be186d892377d605cae6c88525fd851d456e8bbe9c9/google_resumable_media-2.11.0.tar.gz", hash = "sha256:febd83686752799661b4de575f0b993c5c25c349a5362556fc4d7be164056a37", size = 2164914, upload-time = "2026-09-29T19:26:13.546Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5e/2e/4f0a152f2e576e496f31ba1c3c62ed174a8878d06008916a7edc58b1bb28/google_resumable_media-2.11.0-py3-none-any.whl", hash = "sha256:f43d15e6a7f818f762eaead0f369c551f8275a4179c9d6225d0d259f49b87b5d", size = 81515, upload-time = "2026-09-29T19:25:47.31Z" },
 ]
 
 [[package]]
@@ -917,23 +1000,37 @@ wheels = [
 
 [[package]]
 name = "grpcio"
-version = "1.82.0"
+version = "1.85.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b6/19/e29d3979b420b92d516ee97f0bff4fb88cbb3d724791318f50beb55db549/grpcio-1.82.0.tar.gz", hash = "sha256:bfe3247e0bb598585ce26565730970d21bccf3c9dc547dc6703a1a3c7888e8e1", size = 13184479, upload-time = "2026-07-06T04:22:54.421Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/1e/48/8e14d92cca434b448c7018654da80f574aea3663f7d1f87ed044455c45c6/grpcio-1.85.3.tar.gz", hash = "sha256:8e18f15d1b09b8771edbf59d634b26cbe4903bc2577cb667264934a6655eb8b4", size = 14103282, upload-time = "2026-11-18T04:28:00.109Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f0/c8/7aace81e7cd12c6ffccf0d47ac389a3f19e5280e9ab04d301d02855ecd25/grpcio-1.82.0-cp313-cp313-linux_armv7l.whl", hash = "sha256:841bcaa24882921d41cd7a82118f9a766edcf8807c2f486e7deeb0ff5ea36181", size = 6146066, upload-time = "2026-07-06T04:21:57.527Z" },
-    { url = "https://files.pythonhosted.org/packages/10/17/b448f2265e4927188425c0b09fb943c39b50f7f53fbead644b44ccdf834b/grpcio-1.82.0-cp313-cp313-macosx_11_0_universal2.whl", hash = "sha256:d4bb7219c39c735e6573ae3c33aeafb2a4e1f1cc93a762f7899c283defaed365", size = 11948617, upload-time = "2026-07-06T04:22:00.066Z" },
-    { url = "https://files.pythonhosted.org/packages/8e/a3/fba54e50fffc9f74b1ffd5eb4e47310e6650557ef136a165f1fe7df03a65/grpcio-1.82.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:254230d2cb773a87380858d0fc74653b4761bf2013c83fe1c5d77ed8f241fc9d", size = 6714591, upload-time = "2026-07-06T04:22:04.04Z" },
-    { url = "https://files.pythonhosted.org/packages/29/6f/f0ec3f1a61a746dc7037a737ba4cbe60959645311ac8542bb1ad4e72ae8b/grpcio-1.82.0-cp313-cp313-manylinux2014_i686.manylinux_2_17_i686.whl", hash = "sha256:16d4f215344057eb21038319b05a0c531306230c17b075fa8461a944581006dd", size = 7454986, upload-time = "2026-07-06T04:22:06.776Z" },
-    { url = "https://files.pythonhosted.org/packages/b6/11/9d6ce94465d6a7f92c413430b3e77f0879b39427a217ffb3d23585df4bb3/grpcio-1.82.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:a7c283b459151a2e84df32b28c31562ab3e7f624bccffce176c5608565b0212f", size = 6888623, upload-time = "2026-07-06T04:22:09.469Z" },
-    { url = "https://files.pythonhosted.org/packages/51/1a/b887adb7abb69081c4f24bc66c3612975e87caf5f7c6aa3916bb82d42e5f/grpcio-1.82.0-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:96a3be4d2a482ff004c036f6391f33553b36a7627138d1ca3ecc1e70d55d8af5", size = 7505067, upload-time = "2026-07-06T04:22:11.728Z" },
-    { url = "https://files.pythonhosted.org/packages/60/94/90f11c0f227ac653cff769e05c7f279da945e134c9351a1c37d475714686/grpcio-1.82.0-cp313-cp313-musllinux_1_2_i686.whl", hash = "sha256:bc481e6c7e6c8721797f2ab764092c843fd5cea06d4c7e9f4c3e3b7ecf331eb0", size = 8535382, upload-time = "2026-07-06T04:22:14.453Z" },
-    { url = "https://files.pythonhosted.org/packages/d2/3d/de8569386685213135dfbaab58e221add11858485524cf7d5987efc6d70b/grpcio-1.82.0-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:680f633bc788652222cb90a568ec374edcd91e1fe7715a7c248ece8e1032c2bd", size = 7910708, upload-time = "2026-07-06T04:22:17.994Z" },
-    { url = "https://files.pythonhosted.org/packages/42/ab/3950b32369763818ae89ef76d52e84bd034d3a0ab46bf315669c913b32e2/grpcio-1.82.0-cp313-cp313-win32.whl", hash = "sha256:640b4715b9c206e5176e46601aa1422c47c779f642a869dfd27062e8fde13dfb", size = 4240351, upload-time = "2026-07-06T04:22:20.626Z" },
-    { url = "https://files.pythonhosted.org/packages/a7/5c/c7b9a48efe973883f5707a311f87772a4c307a22ec80d6f3c851846a0a02/grpcio-1.82.0-cp313-cp313-win_amd64.whl", hash = "sha256:8523e81bd23f83e607aed28fbd8244b2be4aeb34e084fcef1bd1867709085c2a", size = 5000985, upload-time = "2026-07-06T04:22:23.365Z" },
+    { url = "https://files.pythonhosted.org/packages/9b/ad/31fa425090e5215201248321992ea0ba492a24150209a6c9e083b211585c/grpcio-1.85.3-cp313-cp313-linux_armv7l.whl", hash = "sha256:87d162186a98e907cdf2c3ee4f419967c513f9799fdf9168f5aeb7e7889f020e", size = 6801398, upload-time = "2026-11-18T04:26:55.726Z" },
+    { url = "https://files.pythonhosted.org/packages/b1/a2/4fbd17b1222e42fccc74b9f3c55e93b09283f74906b6328ebc8356649407/grpcio-1.85.3-cp313-cp313-macosx_11_0_universal2.whl", hash = "sha256:16903fb91a0e79c3cb3bf2e2f615782e03366d967b1f7e2419be11dcfb04380a", size = 12629676, upload-time = "2026-11-18T04:26:57.674Z" },
+    { url = "https://files.pythonhosted.org/packages/d5/f7/6c6ca236171d5b4bc8ab15cfa562679d4544407e1cb6f81f192f1dbd91b4/grpcio-1.85.3-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:399fc184b4d2dd0b014b4b880a5b1ecc99383b610dbb270acb43d1b23e1e8b9c", size = 7174532, upload-time = "2026-11-18T04:26:59.672Z" },
+    { url = "https://files.pythonhosted.org/packages/2d/66/e7cf3d79d97a5cf4764a2ec2bb1eb652ae16e82edd64255f35d06baa7ee8/grpcio-1.85.3-cp313-cp313-manylinux2014_i686.manylinux_2_17_i686.whl", hash = "sha256:1fe3c07494cce4fa62e0732d3569f779e6ae04d70f73ef013fb2eb8f97382d80", size = 8185312, upload-time = "2026-11-18T04:27:01.484Z" },
+    { url = "https://files.pythonhosted.org/packages/f8/0c/fd8fc7eb7d1ec942c11716105bca8314028409ca7955fd2aaf203e7fb8ef/grpcio-1.85.3-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:9d20015c0dfc91de7a9a037cc84c7a174e8fe62e6427f563f1e2e35ca10f3798", size = 7362466, upload-time = "2026-11-18T04:27:03.171Z" },
+    { url = "https://files.pythonhosted.org/packages/ae/99/2e087c79e717321eb09bcbff9f352f61a487ff2740974e2b6fca3ca56462/grpcio-1.85.3-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:726a43169704bbc79e8aac0eeb6170e02db2fc9e3f4b76f4ecd2d265477e15ef", size = 7931006, upload-time = "2026-11-18T04:27:05.057Z" },
+    { url = "https://files.pythonhosted.org/packages/db/2b/45b8d0646f7c7c5cf025e64ee066dba09c783b7669aae44ff4ab2754058d/grpcio-1.85.3-cp313-cp313-musllinux_1_2_i686.whl", hash = "sha256:f7adb3642a622fb31a1f03d39c5586bc73c849bb38b6e14fd45061ad66e6fa85", size = 9171504, upload-time = "2026-11-18T04:27:06.941Z" },
+    { url = "https://files.pythonhosted.org/packages/46/40/f7dec903ffdc035abfa95a537f36d156b3dd32373ddc0b7027f633abf784/grpcio-1.85.3-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:e5d3582c1124665b661c2e8a51dc17ba64f35b0b85d0b173e0e1361b398a5322", size = 8309787, upload-time = "2026-11-18T04:27:08.995Z" },
+    { url = "https://files.pythonhosted.org/packages/ec/2e/9a4681c7683f383b49ca9fde12eb46cd5283f86fa0701c07ddf3ba21b1e2/grpcio-1.85.3-cp313-cp313-win32.whl", hash = "sha256:b02c67ceb00596cf1eb33457d1a81295d144e0584b92f7bfb22991b8c4351efd", size = 4768570, upload-time = "2026-11-18T04:27:10.774Z" },
+    { url = "https://files.pythonhosted.org/packages/fd/9d/ca74ad4b5e0433f829aa570b872f9fe88f9937bb38ba633ab8c180e3b8ca/grpcio-1.85.3-cp313-cp313-win_amd64.whl", hash = "sha256:0998f5af9091eb333e6c731b84a8838d92489c367b3f1346d57e0490f981d8e1", size = 5607144, upload-time = "2026-11-18T04:27:12.479Z" },
+]
+
+[[package]]
+name = "grpcio-status"
+version = "1.85.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "googleapis-common-protos" },
+    { name = "grpcio" },
+    { name = "protobuf" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c7/71/ba7f84cf971cde6b59957f75e4a79438395f21e3a4e1c2617001957e8d09/grpcio_status-1.85.3.tar.gz", hash = "sha256:8b839a050917958ba7d21c2319a8797fe2b494a8e5d9109452dd68214d3e46b6", size = 14006, upload-time = "2026-11-18T04:33:29.247Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c1/ae/f3a9867385594f53576c51c1b84e6b11de3462920ec162b64e1487b067ff/grpcio_status-1.85.3-py3-none-any.whl", hash = "sha256:136632e7ac60a133e5299cd970426690200b3dbda370eca407e259b28de0f4a2", size = 14639, upload-time = "2026-11-18T04:33:11.456Z" },
 ]
 
 [[package]]
@@ -1824,9 +1921,12 @@ source = { editable = "." }
 dependencies = [
     { name = "auto-ontology-server" },
     { name = "datasets" },
+    { name = "db-dtypes" },
+    { name = "google-cloud-bigquery" },
     { name = "huggingface-hub" },
     { name = "matplotlib" },
     { name = "nemo-gym" },
+    { name = "pyarrow" },
     { name = "sqlglot" },
 ]
 
@@ -1838,11 +1938,14 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "auto-ontology-server", git = "https://github.com/NVIDIA/auto-ontology.git?rev=7dac5ff7bce3daf42e2115ef392146a542fa15d2" },
+    { name = "auto-ontology-server", git = "https://github.com/NVIDIA/auto-ontology.git?rev=a12fec75226a54ffc91752cca9538f1f01f760eb" },
     { name = "datasets", specifier = ">=5.0.1" },
+    { name = "db-dtypes", specifier = ">=1.4.0" },
+    { name = "google-cloud-bigquery", specifier = ">=3.47.0" },
     { name = "huggingface-hub", specifier = ">=1.28.0" },
     { name = "matplotlib", specifier = ">=3.11.1" },
     { name = "nemo-gym", specifier = "==0.7.0" },
+    { name = "pyarrow", specifier = ">=21.0.0" },
     { name = "sqlglot", specifier = ">=30.12.0" },
 ]
 

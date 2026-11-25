@@ -80,8 +80,10 @@ from ontology_sql_eval.extra_prompts import (  # noqa: E402
     load_value_anchors,
 )
 
+from ontology_sql_eval.bigquery import targets_from_connection_strings  # noqa: E402
 from ontology_sql_eval.gym.exec_match import (  # noqa: E402
     drop_unusable_tasks,
+    BigQueryExecutor,
     FailureCode,
     GoldResults,
     MySqlExecutor,
@@ -334,6 +336,16 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
                     "seed it with scripts/seed/seed_beaverbench.py --import-mysql"
                 )
             executor: Any = MySqlExecutor(dsns, timeout_s=timeout_s)
+        elif spec.dialect == "bigquery":
+            targets = targets_from_connection_strings(
+                os.environ.get("CONNECTION_STRINGS", "")
+            )
+            if not targets:
+                raise RuntimeError(
+                    f"no bigquery:// entry in CONNECTION_STRINGS for dataset "
+                    f"{dataset!r}; seed it with scripts/seed/seed_spider2_lite_bq.py"
+                )
+            executor = BigQueryExecutor(targets, timeout_s=timeout_s)
         elif spec.dialect == "postgres":
             dsn = (
                 (self.config.postgres_dsn or os.environ.get("CONNECTION_STRINGS", ""))
@@ -549,6 +561,8 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
             failure = FailureCode.GOLD_FAILURE_SCORED
         elif err == "pred_sql_timeout":
             failure = FailureCode.EXECUTION_TIMEOUT
+        elif err == "pred_sql_bytes_cap":
+            failure = FailureCode.EXECUTION_BYTES_CAP
         elif err == "pred_sql_error":
             failure = FailureCode.EXECUTION_ERROR
         else:
@@ -662,6 +676,8 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
             # connectors do not know, say) reports 0% with every health
             # counter green, and gym/compare.py publishes it.
             FailureCode.UNKNOWN_ERROR,
+            # BigQuery predictions refused for the run's byte cap, not the SQL.
+            FailureCode.EXECUTION_BYTES_CAP,
         ):
             n = sum(1 for r in rollouts if r.get("failure_reason") == code.value)
             metrics[f"health/{code.value}_rate"] = n / total

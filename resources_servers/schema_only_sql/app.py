@@ -13,8 +13,9 @@ Deliberately close to NeMo Gym's own ``bird_sql`` server so the baseline stays
 comparable to published BIRD numbers. It differs in three ways, all forced by
 our corpora spanning more than BIRD dev:
 
-* executors are chosen per dataset, so Postgres (WideWorldImporters) works
-  alongside SQLite (BIRD, FDABench);
+* executors are chosen per dataset, so Postgres (WideWorldImporters), MySQL
+  (BEAVER) and BigQuery (Spider2-lite's bq* questions) work alongside SQLite
+  (BIRD, FDABench);
 * ``task_id`` is a string, because FDABench's ids are not integers;
 * a ``no_model_output`` failure code is reported and surfaced as its own metric.
 """
@@ -41,8 +42,10 @@ from nemo_gym.reward_profile import (
     highest_k_metrics,
 )
 
+from ontology_sql_eval.bigquery import targets_from_connection_strings
 from ontology_sql_eval.gym.exec_match import (
     drop_unusable_tasks,
+    BigQueryExecutor,
     FailureCode,
     GoldResults,
     MySqlExecutor,
@@ -170,6 +173,16 @@ class SchemaOnlySqlResourcesServer(SimpleResourcesServer):
                     "seed it with scripts/seed/seed_beaverbench.py --import-mysql"
                 )
             executor: Any = MySqlExecutor(dsns, timeout_s=timeout_s)
+        elif spec.dialect == "bigquery":
+            targets = targets_from_connection_strings(
+                os.environ.get("CONNECTION_STRINGS", "")
+            )
+            if not targets:
+                raise RuntimeError(
+                    f"no bigquery:// entry in CONNECTION_STRINGS for dataset "
+                    f"{dataset!r}; seed it with scripts/seed/seed_spider2_lite_bq.py"
+                )
+            executor = BigQueryExecutor(targets, timeout_s=timeout_s)
         elif spec.dialect == "postgres":
             dsn = self.config.postgres_dsn or os.environ.get("CONNECTION_STRINGS", "")
             dsn = dsn.split(",")[0].strip()
@@ -303,6 +316,8 @@ class SchemaOnlySqlResourcesServer(SimpleResourcesServer):
             failure = FailureCode.GOLD_FAILURE_SCORED
         elif err == "pred_sql_timeout":
             failure = FailureCode.EXECUTION_TIMEOUT
+        elif err == "pred_sql_bytes_cap":
+            failure = FailureCode.EXECUTION_BYTES_CAP
         elif err == "pred_sql_error":
             failure = (
                 FailureCode.EXECUTION_ERROR
@@ -359,6 +374,8 @@ class SchemaOnlySqlResourcesServer(SimpleResourcesServer):
             # connectors do not know, say) reports 0% with every health
             # counter green, and gym/compare.py publishes it.
             FailureCode.UNKNOWN_ERROR,
+            # BigQuery predictions refused for the run's byte cap, not the SQL.
+            FailureCode.EXECUTION_BYTES_CAP,
         ):
             n = sum(1 for r in rollouts if r.get("failure_reason") == code.value)
             metrics[f"health/{code.value}_rate"] = n / total

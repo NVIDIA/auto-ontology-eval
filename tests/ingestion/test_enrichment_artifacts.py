@@ -57,6 +57,78 @@ class EnrichmentArtifactResolutionTest(unittest.TestCase):
                     enrich_graph.metadata_json_path(database, dataset), expected
                 )
 
+    def test_metadata_keeps_legacy_sample_strings_and_ignores_types(self) -> None:
+        self._write(
+            self.datasets / "spider2_lite" / "sakila" / "metadata.json",
+            json.dumps(
+                {
+                    "sales_by_store": {
+                        "description": "",
+                        "columns": [
+                            {
+                                "name": "total_sales",
+                                "data_type": "REAL",
+                                "description": None,
+                                "value_examples": [33489.47, 33927.04],
+                            },
+                            {
+                                "name": "store",
+                                "data_type": None,
+                                "description": "Store name.",
+                                "value_examples": ["Woodridge", None],
+                            },
+                            {"name": "manager", "value_examples": []},
+                        ],
+                    }
+                }
+            ),
+        )
+
+        catalog = [
+            ("sales_by_store", "total_sales"),
+            ("sales_by_store", "store"),
+            ("sales_by_store", "manager"),
+        ]
+        with (
+            patch.object(enrich_graph, "_catalog_columns", return_value=catalog),
+            patch("auto_ontology.dal.datasources.apply_metadata_batch") as apply_batch,
+        ):
+            enrich_graph.apply_metadata("sakila", "spider2_lite")
+
+        _, table_rows, column_rows = apply_batch.call_args.args
+        self.assertEqual(table_rows, [])
+        by_name = {row["column_name"]: row for row in column_rows}
+        self.assertEqual(set(by_name), {"total_sales", "store"})
+        self.assertEqual(
+            json.loads(by_name["total_sales"]["sample_values"]),
+            ["33489.47", "33927.04"],
+        )
+        self.assertEqual(
+            json.loads(by_name["store"]["sample_values"]), ["Woodridge", "None"]
+        )
+
+    def test_metadata_writes_wide_databases_in_batches(self) -> None:
+        columns = [{"name": f"c{i}", "value_examples": [i]} for i in range(5)]
+        self._write(
+            self.datasets / "spider2_lite_bq" / "bls" / "metadata.json",
+            json.dumps({"wide": {"description": "Wide.", "columns": columns}}),
+        )
+
+        catalog = [("WIDE", f"C{i}") for i in range(5)]
+        with (
+            patch.object(enrich_graph, "_catalog_columns", return_value=catalog),
+            patch.object(enrich_graph, "METADATA_BATCH_ROWS", 2),
+            patch("auto_ontology.dal.datasources.apply_metadata_batch") as apply_batch,
+        ):
+            enrich_graph.apply_metadata("bls", "spider2_lite_bq")
+
+        column_batches = [c.args[2] for c in apply_batch.call_args_list if c.args[2]]
+        self.assertEqual([len(b) for b in column_batches], [2, 2, 1])
+        self.assertEqual(
+            json.loads(column_batches[0][0]["sample_values"]),
+            ["0"],
+        )
+
     def test_annotation_custom_analyses_override_dataset_copy(self) -> None:
         dataset_copy = self._write(
             self.datasets / "bird" / "dev" / "cards" / "custom_analyses.json",

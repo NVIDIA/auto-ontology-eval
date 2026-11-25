@@ -243,14 +243,16 @@ def _is_sparse_checkout(repo_dir: Path) -> bool:
     return result.stdout.strip() == "true"
 
 
-def _bootstrap_upstream(upstream_root: Path, ref: str) -> None:
+def _bootstrap_upstream(
+    upstream_root: Path, ref: str, sparse_paths: tuple[str, ...] = _SPARSE_PATHS
+) -> None:
     """Clone or update the sparse Spider2 checkout at *upstream_root*."""
     if (upstream_root / ".git").exists():
         logger.info("Updating Spider2 checkout at %s to %s", upstream_root, ref)
         # ``add`` rather than ``set``, so paths another seeder (e.g. Spider2-Snow)
         # materialized in the same checkout are kept.
         if _is_sparse_checkout(upstream_root):
-            _run(["git", "sparse-checkout", "add", *_SPARSE_PATHS], cwd=upstream_root)
+            _run(["git", "sparse-checkout", "add", *sparse_paths], cwd=upstream_root)
         _run(["git", "fetch", "--depth", "1", "origin", ref], cwd=upstream_root)
         _run(["git", "checkout", "--detach", "FETCH_HEAD"], cwd=upstream_root)
         return
@@ -270,7 +272,7 @@ def _bootstrap_upstream(upstream_root: Path, ref: str) -> None:
             str(upstream_root),
         ]
     )
-    _run(["git", "sparse-checkout", "set", *_SPARSE_PATHS], cwd=upstream_root)
+    _run(["git", "sparse-checkout", "set", *sparse_paths], cwd=upstream_root)
     _run(["git", "fetch", "--depth", "1", "origin", ref], cwd=upstream_root)
     _run(["git", "checkout", "--detach", "FETCH_HEAD"], cwd=upstream_root)
 

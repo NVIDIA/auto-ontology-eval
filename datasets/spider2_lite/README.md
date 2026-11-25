@@ -15,7 +15,8 @@
 and local SQLite (`local*`) databases.
 [scripts/seed/seed_spider2_lite.py](../../scripts/seed/seed_spider2_lite.py)
 installs only the **135 local questions over 30 SQLite databases**, the ones
-that run without cloud credentials.
+that run without cloud credentials. The 205 BigQuery questions are a separate
+benchmark, [`spider2_lite_bq`](../spider2_lite_bq/README.md).
 
 > **Nothing you want to keep belongs in this folder.** Everything under
 > `datasets/spider2_lite/` except this README and `.gitkeep` is gitignored and

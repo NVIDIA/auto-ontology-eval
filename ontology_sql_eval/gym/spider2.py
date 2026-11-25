@@ -28,6 +28,12 @@ than approximated. ``tests/gym/spider2_reference.py`` keeps upstream's pandas
 code and ``tests/gym/test_spider2_match.py`` checks the two agree; the
 schema-only server's venv has no pandas, which is why this copy exists.
 
+BigQuery questions take upstream's other path: the prediction is fetched with
+``query_job.result().to_dataframe()`` and written with ``to_csv`` in one go,
+and an empty result scores 0 whatever the gold. The executor
+(:class:`~ontology_sql_eval.gym.exec_match.BigQueryExecutor`) does exactly that,
+and :func:`table_from_csv_text` reads the text back.
+
 Upstream's quirks are kept, since they decide official scores. The one that
 matters most: with a single ``<id>_a.csv`` and a flat ``condition_cols`` such as
 ``[2, 3]``, only gold column 2 is checked, and with ``[0, 1]`` every gold column
@@ -37,12 +43,13 @@ is (``compare_multi_pandas_table`` indexes the flat list per gold file).
 from __future__ import annotations
 
 import csv
+import io
 import math
 import re
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Optional, Sequence
+from typing import Any, Iterable, Optional, Sequence
 
 __all__ = [
     "GoldResults",
@@ -51,6 +58,7 @@ __all__ = [
     "load_gold_csv",
     "prediction_table",
     "results_match",
+    "table_from_csv_text",
 ]
 
 TOLERANCE = 1e-2
@@ -189,14 +197,28 @@ def _parse_rows(header_width: int, rows: Sequence[Sequence[Optional[str]]]) -> T
     )
 
 
+def _parse_csv(lines: Iterable[str], source: str) -> Table:
+    rows = [row for row in csv.reader(lines) if row]
+    if not rows:
+        raise ValueError(f"{source} has no header")
+    return _parse_rows(len(rows[0]), rows[1:])
+
+
 @lru_cache(maxsize=None)
 def load_gold_csv(path: Path) -> Table:
     """Read a gold CSV as ``pd.read_csv`` would (blank lines skipped)."""
     with path.open(encoding="utf-8-sig", newline="") as fh:
-        rows = [row for row in csv.reader(fh) if row]
-    if not rows:
-        raise ValueError(f"{path} has no header")
-    return _parse_rows(len(rows[0]), rows[1:])
+        return _parse_csv(fh, str(path))
+
+
+def table_from_csv_text(text: str) -> Table:
+    """Read CSV text as ``pd.read_csv`` would.
+
+    BigQuery predictions take this path: upstream writes
+    ``query_job.result().to_dataframe()`` with ``to_csv`` and reads it back,
+    so the verifier does the same and parses the text like a gold file.
+    """
+    return _parse_csv(io.StringIO(text, newline=""), "prediction")
 
 
 def _chunk_cells(values: Sequence[Any]) -> list[str]:
