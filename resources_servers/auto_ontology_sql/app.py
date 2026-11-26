@@ -87,6 +87,7 @@ from ontology_sql_eval.gym.exec_match import (  # noqa: E402
     execute_and_compare,
     timeout_for,
 )
+from ontology_sql_eval.gym.connectors import connector_for  # noqa: E402
 from ontology_sql_eval.gym.tasks import DATASETS  # noqa: E402
 from ontology_sql_eval.paths import DATASETS_DIR  # noqa: E402
 
@@ -322,7 +323,7 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
         self, question: str, evidence: str, db_id: str, question_id: str
     ) -> Dict[str, Any]:
         """Drive Auto Ontology's graph to completion. Blocking; call on a worker thread."""
-        connector = self._connectors.get(db_id)
+        connector = connector_for(self._connectors, db_id)
         if connector is None:
             raise KeyError(
                 f"no Auto Ontology connector for db_id {db_id!r}; have {sorted(self._connectors)}"
