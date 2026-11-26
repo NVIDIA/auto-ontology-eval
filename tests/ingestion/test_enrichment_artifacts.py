@@ -235,5 +235,46 @@ class EnrichmentArtifactResolutionTest(unittest.TestCase):
             enrich_graph._read_saved_descriptions(path, "database_a")
 
 
+class MetadataColumnResolutionTest(unittest.TestCase):
+    COLUMNS = [
+        ("DataFlow", "RecordRegistry"),
+        ("virtualidols", "entity_reg"),
+        ("holdings", "instrumentref"),
+        ("securities", "securityref"),
+    ]
+
+    def test_case_difference_uses_the_catalog_name(self) -> None:
+        self.assertEqual(
+            enrich_graph.resolve_metadata_column(
+                "dataflow", "recordregistry", self.COLUMNS
+            ),
+            ("DataFlow", "RecordRegistry"),
+        )
+
+    def test_unknown_table_uses_a_unique_column(self) -> None:
+        self.assertEqual(
+            enrich_graph.resolve_metadata_column(
+                "virtual_idolidols", "entity_reg", self.COLUMNS
+            ),
+            ("virtualidols", "entity_reg"),
+        )
+
+    def test_known_table_is_not_redirected_to_another_table(self) -> None:
+        self.assertIsNone(
+            enrich_graph.resolve_metadata_column(
+                "holdings", "securityref", self.COLUMNS
+            )
+        )
+
+    def test_ambiguous_catalog_names_are_not_chosen(self) -> None:
+        self.assertIsNone(
+            enrich_graph.resolve_metadata_column(
+                "dataflow",
+                "recordregistry",
+                [("DataFlow", "RecordRegistry"), ("dataflow", "RecordRegistry")],
+            )
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

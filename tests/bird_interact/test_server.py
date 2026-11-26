@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import sys
 import types
-from contextlib import asynccontextmanager
+from contextlib import ExitStack, asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -708,10 +708,15 @@ def test_load_kb_children_rejects_unsafe_db_name():
         # An empty name is routine (state with no db_name) and also yields {}.
         assert server_mod._load_kb_children("") == {}
 
-        # A legitimate name is still accepted and memoised -- {} here only
-        # because no *_kb.jsonl exists for it in the test checkout.
-        assert server_mod._load_kb_children("labor_certification_applications") == {}
+        # A legitimate name is accepted and memoised whether or not the optional
+        # local Full dataset is installed in the test checkout.
+        children = server_mod._load_kb_children("labor_certification_applications")
+        assert isinstance(children, dict)
         assert "labor_certification_applications" in server_mod._kb_children_cache
+        assert (
+            server_mod._kb_children_cache["labor_certification_applications"]
+            is children
+        )
     finally:
         server_mod._kb_children_cache.clear()
 
@@ -730,3 +735,471 @@ def test_missing_session_404():
                 json={"task_id": "no-such-task", "message": "hello"},
             )
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# a-Interact
+# ---------------------------------------------------------------------------
+
+
+def test_budget_follows_reference_charging_rules():
+    from ontology_sql_eval.bird_interact.budget import Budget
+
+    budget = Budget.start(5.0)
+    assert budget.charge("ask_user") and budget.remaining == 3.0
+    assert budget.affordable_asks() == 0  # 2 more for an ask would leave < 3 to submit
+    # A submit that spends the balance to zero is the last action.
+    assert budget.charge("submit_sql") and budget.exhausted
+
+    budget = Budget.start(1.5)
+    assert not budget.charge("ask_user")
+    assert budget.remaining == 1.5
+    # An unaffordable submit is still allowed, as the free final exit.
+    assert budget.charge("submit_sql") and budget.exhausted
+
+
+def _ainteract_ctx(
+    mock_sess, steps, submits, phase_transition=None, ask_answer="the 2023 ones"
+):
+    return (
+        patch.object(server_mod, "_DATA_RETRIEVER", MagicMock()),
+        patch.object(server_mod, "_SEMANTIC_RETRIEVER", MagicMock()),
+        patch.object(server_mod, "_CONNECTORS", {"alien": [MagicMock()]}),
+        patch.object(
+            server_mod, "auto_ontology_create_session", return_value=mock_sess
+        ),
+        patch.object(server_mod, "auto_ontology_step", MagicMock(side_effect=steps)),
+        patch.object(server_mod, "auto_ontology_apply_user_answer", MagicMock()),
+        patch.object(server_mod, "auto_ontology_apply_submit_result", MagicMock()),
+        patch(
+            "ontology_sql_eval.bird_interact.bird_interact_http.get_schema",
+            AsyncMock(return_value="CREATE TABLE aliens (id int)"),
+        ),
+        patch(
+            "ontology_sql_eval.bird_interact.bird_interact_http.get_all_knowledge",
+            AsyncMock(return_value="[]"),
+        ),
+        patch(
+            "ontology_sql_eval.bird_interact.bird_interact_http.ask_user",
+            AsyncMock(return_value=ask_answer),
+        ),
+        patch(
+            "ontology_sql_eval.bird_interact.bird_interact_http.submit_sql",
+            AsyncMock(side_effect=submits),
+        ),
+        patch(
+            "ontology_sql_eval.bird_interact.bird_interact_http.phase_transition",
+            phase_transition or AsyncMock(),
+        ),
+        patch.object(app.router, "lifespan_context", _noop_lifespan),
+    )
+
+
+def _run_ainteract(ctx, budget: float, task_id: str = "a-001") -> dict:
+    with ExitStack() as stack:
+        for patcher in ctx:
+            stack.enter_context(patcher)
+        client = stack.enter_context(TestClient(app))
+        init = client.post(
+            "/init_session",
+            json={
+                "task_id": task_id,
+                "mode": "a-interact",
+                "state": {
+                    "db_name": "alien",
+                    "user_query": "Find recent aliens",
+                    "initial_budget": budget,
+                },
+            },
+        )
+        assert init.status_code == 200
+        resp = client.post(
+            "/run_session",
+            json={
+                "task_id": task_id,
+                "mode": "a-interact",
+                "message": "User Query:\nFind recent aliens\n\n...",
+            },
+        )
+    assert resp.status_code == 200
+    return resp.json()["state"]
+
+
+def test_ainteract_runs_both_phases_in_one_call():
+    mock_sess = MagicMock(clarify_history=[])
+    steps = [
+        AskUserAction("Which year?"),
+        SubmitSQLAction("SELECT 1"),
+        SubmitSQLAction("SELECT 2"),
+        SubmitSQLAction("SELECT 3"),
+    ]
+    submits = [
+        {
+            "passed": False,
+            "reward": 0.0,
+            "message": "SQL failed Phase 1. [exec_err_flg] boom",
+        },
+        {
+            "passed": True,
+            "reward": 0.7,
+            "phase_completed": 1,
+            "has_follow_up": True,
+            "follow_up_query": "Now by planet?",
+            "message": "Phase 1 correct!",
+        },
+        {
+            "passed": True,
+            "reward": 0.3,
+            "phase_completed": 2,
+            "message": "Phase 2 correct!",
+        },
+    ]
+    phase_transition = AsyncMock()
+    ctx = _ainteract_ctx(mock_sess, steps, submits, phase_transition)
+    step_mock = ctx[4].new
+
+    state = _run_ainteract(ctx, budget=20.0)
+
+    # 3 (schema + column meanings + KB) + 2 (ask) + 3 * 3 (submits)
+    assert state["budget_remaining"] == 20.0 - 14.0
+    assert state["phase1_completed"] and state["phase2_completed"]
+    assert state["total_reward"] == 1.0
+    assert state["stop_reason"] == "done"
+    phase_transition.assert_awaited_once_with("a-001")
+
+    calls = step_mock.call_args_list
+    assert calls[0].kwargs["turn_type"] == TurnType.INITIAL
+    assert calls[0].kwargs["initial_question"] == "Find recent aliens"
+    assert calls[2].kwargs["turn_type"] == TurnType.DEBUG
+    assert calls[2].kwargs["debug_error"] == "boom"
+    assert calls[3].kwargs["turn_type"] == TurnType.FOLLOW_UP
+    follow_up_question = calls[3].kwargs["follow_up_question"]
+    assert follow_up_question.startswith("Now by planet?\n\nExecution requirements:")
+    assert "Phase 1 SQL as authoritative" in follow_up_question
+    assert "exactly the requested columns" in follow_up_question
+    assert [t["phase"] for t in state["tool_trajectory"]] == [1, 1, 1, 2]
+
+
+def test_ainteract_stops_when_a_submit_spends_the_budget():
+    mock_sess = MagicMock(clarify_history=[])
+    steps = [SubmitSQLAction("SELECT 1"), SubmitSQLAction("SELECT 2")]
+    wrong = {"passed": False, "reward": 0.0, "message": "Your SQL is not correct."}
+    ctx = _ainteract_ctx(mock_sess, steps, [wrong, wrong])
+
+    # 6 - 3 for schema + column meanings + KB leaves exactly one submission.
+    state = _run_ainteract(ctx, budget=6.0)
+
+    assert state["stop_reason"] == "budget_exhausted"
+    assert len(state["tool_trajectory"]) == 1
+    # Only one submission's worth left after the setup purchases, so no asks.
+    assert mock_sess.max_clarify_turns == 0
+
+
+def test_ainteract_stops_instead_of_resubmitting_a_failed_sql():
+    mock_sess = MagicMock(clarify_history=[])
+    steps = [SubmitSQLAction("SELECT 1"), SubmitSQLAction("SELECT 1")]
+    wrong = {"passed": False, "reward": 0.0, "message": "Your SQL is not correct."}
+    ctx = _ainteract_ctx(mock_sess, steps, [wrong])
+
+    state = _run_ainteract(ctx, budget=20.0)
+
+    assert state["stop_reason"] == "repeated_sql"
+    assert state["budget_remaining"] == 20.0 - 3.0 - 3.0
+
+
+def test_ainteract_recovers_last_generated_sql_instead_of_empty_paid_submit():
+    mock_sess = MagicMock(
+        clarify_history=[], path_state={"sql_code": "SELECT recovered"}
+    )
+    steps = [SubmitSQLAction("")]
+    passed = {
+        "passed": True,
+        "reward": 0.7,
+        "phase_completed": 1,
+        "has_follow_up": False,
+        "message": "Phase 1 correct!",
+    }
+    ctx = _ainteract_ctx(mock_sess, steps, [passed])
+    submit = ctx[10].new
+
+    state = _run_ainteract(ctx, budget=14.0, task_id="a-recover-empty-sql")
+
+    submit.assert_awaited_once_with("a-recover-empty-sql", "SELECT recovered")
+    assert state["stop_reason"] == "done"
+    assert state["tool_trajectory"][0]["input"]["sql"] == "SELECT recovered"
+
+
+def test_ainteract_phase1_still_asks_when_the_balance_covers_it():
+    """An ask is sent while the balance still covers the ask and one submission.
+
+    Budget 13, of which schema, column meanings and KB take 3. The ask is still sent.
+    """
+    mock_sess = MagicMock(clarify_history=[])
+    steps = [
+        AskUserAction("Which year?"),
+        SubmitSQLAction("SELECT 1"),
+        SubmitSQLAction("SELECT 2"),
+    ]
+    passed = {
+        "passed": True,
+        "reward": 0.7,
+        "phase_completed": 1,
+        "has_follow_up": True,
+        "follow_up_query": "Now by planet?",
+        "message": "Phase 1 correct!",
+    }
+    follow = {
+        "passed": True,
+        "reward": 0.3,
+        "phase_completed": 2,
+        "message": "Phase 2 correct!",
+    }
+    ctx = _ainteract_ctx(mock_sess, steps, [passed, follow])
+    ask = ctx[9].new
+
+    state = _run_ainteract(ctx, budget=13.0, task_id="a-ask-below-floor")
+
+    ask.assert_awaited()
+    assert state["phase1_completed"] and state["phase2_completed"]
+    assert state["stop_reason"] == "done"
+    # 3 setup + 2 ask + 3 phase 1 + 3 phase 2.
+    assert state["budget_remaining"] == 2.0
+    assert [t["tool"] for t in state["tool_trajectory"]] == [
+        "ask_user",
+        "submit_sql",
+        "submit_sql",
+    ]
+
+
+def test_ainteract_stops_asking_after_the_user_simulator_failure_fallback():
+    mock_sess = MagicMock(clarify_history=[])
+    steps = [
+        AskUserAction("Which year?"),
+        AskUserAction("Which year again?"),
+        SubmitSQLAction("SELECT 1"),
+    ]
+    passed = {
+        "passed": True,
+        "reward": 0.7,
+        "phase_completed": 1,
+        "has_follow_up": False,
+        "message": "Phase 1 correct!",
+    }
+    ctx = _ainteract_ctx(
+        mock_sess,
+        steps,
+        [passed],
+        ask_answer="I'm not sure I understand your question.",
+    )
+    ask = ctx[9].new
+
+    state = _run_ainteract(ctx, budget=20.0, task_id="a-sim-down")
+
+    assert ask.await_count == 1
+    assert state["phase1_completed"] is True
+    assert state["stop_reason"] == "done"
+    assert [t["tool"] for t in state["tool_trajectory"]] == ["ask_user", "submit_sql"]
+    # 3 setup + 2 for the one ask that failed + 3 for the submit.
+    assert state["budget_remaining"] == 12.0
+    assert mock_sess.max_clarify_turns == 0
+
+
+def test_ainteract_phase1_debug_submit_can_spend_the_last_coins():
+    mock_sess = MagicMock(clarify_history=[])
+    steps = [SubmitSQLAction("SELECT 1"), SubmitSQLAction("SELECT 2")]
+    wrong = {"passed": False, "reward": 0.0, "message": "Your SQL is not correct."}
+    passed = {
+        "passed": True,
+        "reward": 0.7,
+        "phase_completed": 1,
+        "has_follow_up": False,
+        "message": "Phase 1 correct!",
+    }
+    ctx = _ainteract_ctx(mock_sess, steps, [wrong, passed])
+
+    # 8 - 2 leaves 6. The first submission leaves 3. The debug submission spends
+    # what is left and is the one that passes; it is not withheld.
+    state = _run_ainteract(ctx, budget=8.0, task_id="a-debug-spends-floor")
+
+    assert state["stop_reason"] == "done"
+    assert state["phase1_completed"] is True
+    assert state["budget_remaining"] == -1.0
+    assert [t["input"]["sql"] for t in state["tool_trajectory"]] == [
+        "SELECT 1",
+        "SELECT 2",
+    ]
+
+
+def test_phase1_holds_four_coins_and_phase2_can_spend_them():
+    """Phase-1 queries stop at 4 coins; the submit may spend them; phase 2 may too."""
+    mock_sess = MagicMock(clarify_history=[])
+    captured = {}
+
+    def create_session(**kwargs):
+        captured.update(kwargs)
+        return mock_sess
+
+    def step(*_args, **kwargs):
+        from ontology_sql_eval.bird_interact.budget import BudgetExhausted
+
+        conn = captured["connectors"][0]
+        turn_type = kwargs.get("turn_type")
+        if turn_type == server_mod.TurnType.FOLLOW_UP:
+            conn.execute("SELECT phase2")
+            return SubmitSQLAction("SELECT 2")
+        conn.execute("SELECT phase1a")
+        try:
+            conn.execute("SELECT phase1b")
+        except BudgetExhausted:
+            pass
+        return SubmitSQLAction("SELECT 1")
+
+    passed = {
+        "passed": True,
+        "reward": 0.7,
+        "phase_completed": 1,
+        "has_follow_up": True,
+        "follow_up_query": "Now by planet?",
+        "message": "Phase 1 correct!",
+    }
+    follow = {
+        "passed": True,
+        "reward": 0.3,
+        "phase_completed": 2,
+        "message": "Phase 2 correct!",
+    }
+    ctx = list(_ainteract_ctx(mock_sess, step, [passed, follow]))
+    ctx[3] = patch.object(
+        server_mod, "auto_ontology_create_session", side_effect=create_session
+    )
+
+    # 8 - 3 for setup leaves 5. The first query leaves the floor of 4.
+    state = _run_ainteract(ctx, budget=8.0, task_id="a-floor-4")
+
+    queries = [t for t in state["tool_trajectory"] if t["tool"] == "execute_sql"]
+    submits = [t for t in state["tool_trajectory"] if t["tool"] == "submit_sql"]
+    assert [(q["phase"], q["charged"], q["budget_after"]) for q in queries] == [
+        (1, True, 4.0),
+        (1, False, 4.0),
+        (2, True, 0.0),
+    ]
+    # Phase-1 submit spends the held coins from 4 down to 1. Phase 2 spends the
+    # last coin on its query, then the submit ends the wallet.
+    assert [s["budget_after"] for s in submits] == [1.0, -1.0]
+    assert state["phase1_completed"] and state["phase2_completed"]
+
+
+def test_phase1_ask_stops_when_four_coins_remain():
+    mock_sess = MagicMock(clarify_history=[])
+    steps = [
+        AskUserAction("Which year?"),
+        AskUserAction("Which year again?"),
+        SubmitSQLAction("SELECT 1"),
+    ]
+    passed = {
+        "passed": True,
+        "reward": 0.7,
+        "phase_completed": 1,
+        "has_follow_up": False,
+        "message": "Phase 1 correct!",
+    }
+    ctx = _ainteract_ctx(mock_sess, steps, [passed])
+
+    # 9 - 3 leaves 6, so one ask lands exactly on the floor of 4. The next ask
+    # would leave 2 and is refused.
+    state = _run_ainteract(ctx, budget=9.0, task_id="a-ask-floor")
+
+    asks = [t for t in state["tool_trajectory"] if t["tool"] == "ask_user"]
+    assert [t["budget_after"] for t in asks] == [4.0]
+    assert state["stop_reason"] == "ask_unaffordable"
+    assert state["phase1_completed"] is False
+
+
+def test_metered_connector_charges_queries_and_refuses_unaffordable_ones():
+    from ontology_sql_eval.bird_interact.budget import (
+        Budget,
+        BudgetExhausted,
+        MeteredConnector,
+    )
+
+    base = MagicMock(database_name="alien")
+    seen = []
+    conn = MeteredConnector(
+        base, Budget.start(1.5), lambda sql, charged: seen.append((sql, charged))
+    )
+
+    conn.execute("SELECT 1", timeout_s=5)
+    base.execute.assert_called_once_with("SELECT 1", timeout_s=5)
+    with pytest.raises(BudgetExhausted):
+        conn.execute("SELECT 2")
+    assert base.execute.call_count == 1
+    assert seen == [("SELECT 1", True), ("SELECT 2", False)]
+    # Everything but execute() passes through uncharged.
+    assert conn.database_name == "alien"
+
+
+def _run_sql(sql, connector, *, record_numeric_kinds=False):
+    """Stand-in for the text-to-SQL runner: any execution error becomes text."""
+
+    class _Response:
+        def __init__(self, error: str, statement: str) -> None:
+            self.error = error
+            self.statement = statement
+
+    try:
+        return connector.execute(sql)
+    except Exception as e:
+        return _Response(str(e), sql)
+
+
+def test_budget_refusal_is_not_turned_into_a_sql_error():
+    from ontology_sql_eval.bird_interact.budget import (
+        BudgetExhausted,
+        _patch_run_sql_to_reraise_budget,
+    )
+
+    module = types.ModuleType("fake_sql_execution")
+    module._run_sql = _run_sql
+    _patch_run_sql_to_reraise_budget(module)
+
+    connector = MagicMock()
+    connector.execute.side_effect = BudgetExhausted("query floor")
+    with pytest.raises(BudgetExhausted):
+        module._run_sql("SELECT 1", connector)
+
+    connector.execute.side_effect = RuntimeError("column missing")
+    response = module._run_sql("SELECT 1", connector)
+    assert response.error and "column missing" in response.error
+
+
+def test_ainteract_charges_auto_ontology_queries_as_execute_sql():
+    mock_sess = MagicMock(clarify_history=[])
+    captured = {}
+
+    def create_session(**kwargs):
+        captured.update(kwargs)
+        return mock_sess
+
+    def step(*_args, **_kwargs):
+        captured["connectors"][0].execute("SELECT DISTINCT planet FROM aliens")
+        return SubmitSQLAction("SELECT 1")
+
+    passed = {
+        "passed": True,
+        "reward": 0.7,
+        "phase_completed": 1,
+        "has_follow_up": False,
+        "message": "Phase 1 correct!",
+    }
+    ctx = list(_ainteract_ctx(mock_sess, step, [passed]))
+    ctx[3] = patch.object(
+        server_mod, "auto_ontology_create_session", side_effect=create_session
+    )
+
+    state = _run_ainteract(ctx, budget=20.0)
+
+    # 3 (schema + column meanings + KB) + 1 (query) + 3 (submit)
+    assert state["budget_remaining"] == 13.0
+    query = state["tool_trajectory"][0]
+    assert query["tool"] == "execute_sql"
+    assert query["phase"] == 1 and query["charged"] is True

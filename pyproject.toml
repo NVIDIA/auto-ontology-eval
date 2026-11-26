@@ -13,9 +13,9 @@ dependencies = [
     # pandas, fastapi, ...) come in through this package. Do not redeclare them
     # here: a second copy drifts out of sync with what Auto Ontology is tested
     # against. List only what this project needs on top of it.
-    # Auto Ontology's main at a630ebd (its ReAct agent), plus the commit of NVIDIA/auto-ontology#543, which accepts
-    # the openai version nemo-gym pins. Move to NVIDIA/auto-ontology once #543 merges.
-    "auto-ontology-server @ git+https://github.com/ffrujeri/auto-ontology.git@e774af9f21aa1dc39efe4b054b0c199561bd2ee9",
+    # Auto Ontology's main at e83ea37c: the ReAct agent this arm runs, and
+    # NVIDIA/auto-ontology#543, which accepts the openai version nemo-gym pins.
+    "auto-ontology-server @ git+https://github.com/NVIDIA/auto-ontology.git@e83ea37c74408bf1babdc6a2f75a0abd9f85f7a7",
     # Imported directly by bird_interact/bird_interact_http.py. Also reachable
     # transitively through Auto Ontology, but not as part of its contract.
     "sqlglot>=30.12.0",

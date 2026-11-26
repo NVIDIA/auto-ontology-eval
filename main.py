@@ -25,6 +25,24 @@ restricted with ``--start-index`` / ``--end-index`` / ``--limit``::
 
     uv run python main.py --database-name bird \
         --skip-ingest --skip-semantic --limit 10 --eval-workers 2
+
+Conversation benchmarks
+-----------------------
+
+A ``--database-name`` naming an entry in :mod:`conversation.benchmarks` runs
+the conversational-memory pipeline instead, which this module only dispatches
+to::
+
+    uv run python main.py --database-name beam --scale 100K --eval-workers 8
+
+Its flags, its stages and its published scoring setup are in
+:mod:`conversation.cli` and :mod:`conversation.benchmarks`, not here. The two
+pipelines share a process and little else: that one has no schema, no
+connectors and no arms, and it does not go through NeMo Gym. The Gym arms exist
+to compare two SQL agents on exec-match, while a conversation benchmark scores
+a continuous rubric mean over a retrieve-and-read loop -- a different shape of
+measurement that would need its own resources server, task builder and reward
+function to express.
 """
 
 from __future__ import annotations
@@ -37,10 +55,18 @@ import os
 import subprocess
 from pathlib import Path
 
+from conversation import cli as conversation_cli
+from conversation.benchmarks import is_conversation_benchmark
+
 logger = logging.getLogger("pipeline")
 
 # Where each arm's rollouts go: runs/control/ and runs/treatment/.
 RUN_LABEL = {"schema_only": "control", "auto_ontology": "treatment"}
+
+# The --database-name values that route to the conversation stages instead of
+# the SQL ones live in conversation/benchmarks.py: a registry of their own
+# rather than entries in gym/tasks.py's DATASETS, because every field of a
+# DatasetSpec -- dialect, db_root -- is meaningless for a transcript.
 
 
 def _banner(step: int, title: str) -> None:
@@ -301,6 +327,17 @@ def stage_benchmark(
                     out,
                 )
         env = {**os.environ, "GYM_CONCURRENCY": str(concurrency)}
+        if label == "treatment":
+            # Gym's policy call here is discarded, but on the agent's model
+            # (REASONING_MODEL) it eats the rate limit and Gym's 3 retries can
+            # fail the question before the agent runs. The control arm keeps
+            # GYM_MODEL: there the policy model's answer is the result.
+            policy_model = os.environ.get("TREATMENT_POLICY_MODEL") or os.environ.get(
+                "NON_REASONING_MODEL"
+            )
+            if policy_model:
+                env["GYM_MODEL"] = policy_model
+
         cmd = ["./scripts/run_gym_arm.sh", server, str(out)]
         # The treatment arm ignores the policy model's output, so its call is
         # capped rather than left to compete for the same rate limit.
@@ -336,7 +373,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--database-name",
         required=True,
         help="Dataset / database name. "
-        "Selects datasets/<name>/evaluation.json; per-question db_id routes the connector.",
+        "Selects datasets/<name>/evaluation.json; per-question db_id routes the "
+        f"connector. The conversation benchmarks are {conversation_cli.benchmark_names()}, which "
+        "take the --scale and other options below instead; each names its own "
+        "judge, reader and retrieval budget in conversation/benchmarks.py "
+        "rather than taking them from here.",
     )
     parser.add_argument(
         "--skip-ingest", action="store_true", help="Skip the ingest stage."
@@ -393,6 +434,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "Use it to keep a long run's output, which runs/ overwrites."
         ),
     )
+    conversation_cli.add_arguments(parser)
     parser.add_argument(
         "--reuse-control",
         action="store_true",
@@ -452,6 +494,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         if args.database_name not in EVIDENCE_OPTIONAL:
             only = ", ".join(sorted(EVIDENCE_OPTIONAL))
             parser.error(f"--no-evidence is only for {only}, not {args.database_name}")
+    conversation_cli.reject_on_sql_datasets(parser, args)
     return args
 
 
@@ -471,6 +514,10 @@ def main(argv: list[str] | None = None) -> None:
         from ontology_sql_eval.catalog_migrations import ensure_current
 
         ensure_current()
+
+    if is_conversation_benchmark(database_name):
+        conversation_cli.run_stages(database_name, args)
+        return
 
     if not args.skip_ingest:
         stage_ingest(database_name)

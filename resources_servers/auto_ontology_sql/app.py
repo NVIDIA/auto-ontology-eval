@@ -4,7 +4,7 @@
 
 """Auto Ontology-grounded text-to-SQL resources server: the treatment arm.
 
-Drives Auto Ontology's LangGraph agent **in-process**, exactly as the
+Drives Auto Ontology's text-to-SQL agent **in-process**, exactly as the
 single-arm harness it replaced did, so the two behave identically. Gym's policy
 model is not in the loop: ``verify`` runs the agent itself and ignores the
 rollout's model output. That costs RL-trainability and buys an apples-to-apples
@@ -12,7 +12,9 @@ comparison.
 
 Grading is shared with the schema-only arm -- same executor, same BIRD
 set-equality rule, same failure codes -- so a difference in the number can only
-come from the SQL.
+come from the SQL. BIRD is the rule rather than the only tenant: ``tasks.py``
+routes every SQL dataset's ``auto_ontology`` arm here, so beaverbench and
+wideworldimporters questions arrive through this server too.
 
 Auto Ontology's own LLM calls go through two Gym model servers rather than
 straight to the endpoint (see ``ontology_sql_eval.gym.model_routing``), each
@@ -21,9 +23,9 @@ captures them per rollout, and ``verify`` reports the question's token totals.
 
 Three couplings with Auto Ontology this module must respect:
 
-* ``auto_ontology.retrieval.text_to_sql.main`` builds its LLM client and compiles the
-  graph *at import time*, so the environment is loaded -- and the endpoints
-  repointed at Gym -- before Auto Ontology imports.
+* ``auto_ontology.retrieval.text_to_sql.main`` builds its LLM client and its
+  pipeline (``steps = create_steps()``) *at import time*, so the environment is
+  loaded -- and the endpoints repointed at Gym -- before Auto Ontology imports.
 * Auto Ontology is installed from the parent project's pinned Git dependency.
 * ``stream_agent_response`` is a blocking generator, so it runs on a worker
   thread under a semaphore rather than on the event loop.
@@ -69,12 +71,8 @@ from nemo_gym.rollout_correlation import current_rollout_id  # noqa: E402
 
 from auto_ontology.connectors import get_connectors  # noqa: E402
 from auto_ontology.retrieval.text_to_sql.main import stream_agent_response  # noqa: E402
-from auto_ontology.retrieval.text_to_sql.state import TextToSQLPayload  # noqa: E402
-from auto_ontology.utils import (  # noqa: E402
-    get_data_objects_retriever,
-    get_semantic_objects_retriever,
-)
-
+from auto_ontology.retrieval.text_to_sql.state import AgentRequest  # noqa: E402
+from ontology_sql_eval.gym.agent_request import build_request  # noqa: E402
 from ontology_sql_eval.extra_prompts import (  # noqa: E402
     load_sql_examples,
     load_value_anchors,
@@ -133,21 +131,6 @@ _GOLD_FAILURE = {
     "gold_sql_timeout": FailureCode.GOLD_EXECUTION_TIMEOUT,
     "gold_sql_error": FailureCode.GOLD_EXECUTION_ERROR,
 }
-
-# Older Auto Ontology builds fold the BIRD-style hint into the question text instead of
-# taking it as its own field. Probe rather than pin a version, so one revision of
-# this harness runs against both.
-_SUPPORTS_EVIDENCE = "evidence" in getattr(TextToSQLPayload, "__annotations__", {})
-
-# Same probe for the two extra prompts. On a build that predates either
-# parameter the payload key would be silently ignored, so a run that asked for
-# exemplars would quietly get none; refuse at startup instead.
-_SUPPORTS_SQL_EXAMPLES = "sql_examples" in getattr(
-    TextToSQLPayload, "__annotations__", {}
-)
-_SUPPORTS_VALUE_ANCHORS = "value_anchors" in getattr(
-    TextToSQLPayload, "__annotations__", {}
-)
 
 
 class AutoOntologySqlResourcesServerConfig(BaseResourcesServerConfig):
@@ -269,20 +252,14 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
                 inflight,
             )
 
-        # Built once: Auto Ontology's retrievers are process-wide singletons and the
-        # connectors hold real database handles.
-        self._data_retriever = get_data_objects_retriever()
-        self._semantic_retriever = get_semantic_objects_retriever()
+        # Built once: the connectors hold real database handles. The retrievers
+        # are not built here at all -- each tool opens the collection it
+        # searches, so there is nothing to hand the agent.
         self._connectors = {c.database_name: c for c in get_connectors()}
         logger.info("Auto Ontology connectors available: %s", sorted(self._connectors))
 
         self._sql_examples: Dict[str, List[Dict[str, str]]] = {}
         if self.config.sql_examples_csv and self.config.sql_examples_k > 0:
-            if not _SUPPORTS_SQL_EXAMPLES:
-                raise RuntimeError(
-                    "sql_examples_csv is set but this Auto Ontology build takes no "
-                    "'sql_examples' payload field; the examples would be dropped."
-                )
             self._sql_examples = load_sql_examples(
                 self._root / self.config.sql_examples_csv,
                 self.config.sql_examples_k,
@@ -291,11 +268,6 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
 
         self._value_anchors: Dict[str, List[Dict[str, str]]] = {}
         if self.config.value_anchors_csv:
-            if not _SUPPORTS_VALUE_ANCHORS:
-                raise RuntimeError(
-                    "value_anchors_csv is set but this Auto Ontology build takes no "
-                    "'value_anchors' payload field; the anchors would be dropped."
-                )
             self._value_anchors = load_value_anchors(
                 self._root / self.config.value_anchors_csv
             )
@@ -356,54 +328,20 @@ class AutoOntologySqlResourcesServer(SimpleResourcesServer):
                 f"no Auto Ontology connector for db_id {db_id!r}; have {sorted(self._connectors)}"
             )
 
-        payload: Dict[str, Any] = {
-            "question": question,
-            # Pins the intent to CALCULATION. Every BIRD question is answered by
-            # running SQL, so letting the intent classifier route elsewhere only
-            # creates ways to lose.
-            "calculation_only": True,
-            "data_retriever": self._data_retriever,
-            "semantic_retriever": self._semantic_retriever,
-            "connectors": [connector],
-            "path_state": {},
-            "custom_prompts": "",
-            "acronyms": [],
-            # Appends "Return exactly the requested output fields and NO others"
-            # to Auto Ontology's projection rules. Not cosmetic: extra columns break the
-            # set(gold) == set(pred) comparison outright, so omitting this scores
-            # Auto Ontology with a handicap the legacy harness no longer carries.
-            #
-            # Set unconditionally, as the single-arm harness this arm replaced
-            # did. TextToSQLPayload is a TypedDict, so on an Auto Ontology revision that
-            # predates the parameter this is an inert extra key rather than an
-            # error -- it simply has no effect.
-            "shorten_answer": True,
-            # Enables the validate_sql_values node, which checks filter literals
-            # against the database before the SQL is accepted. Costly -- it is the
-            # single largest contributor to wall clock -- but the legacy harness
-            # runs with it, so omitting it makes the two arms incomparable.
-            "validate_sql_values": True,
-        }
-        if _SUPPORTS_EVIDENCE:
-            payload["evidence"] = evidence
-        elif evidence:
-            payload["question"] = f"{question}\n\nEvidence: {evidence}"
-
-        # Only set when this question has an entry: an empty list would tell the
-        # agent "no exemplars exist", which is a different instruction from
-        # leaving the key off, and the min_score gate deliberately withholds
-        # exemplars from questions whose best match is too weak.
         examples = self._sql_examples.get(question_id)
-        if examples:
-            payload["sql_examples"] = examples
         anchors = self._value_anchors.get(question_id)
-        if anchors:
-            payload["value_anchors"] = anchors
+        payload = build_request(
+            question=question,
+            evidence=evidence,
+            connector=connector,
+            sql_examples=examples,
+            value_anchors=anchors,
+        )
 
         nodes: List[str] = []
         answer: Dict[str, Any] = {}
         error = ""
-        for event in stream_agent_response(TextToSQLPayload(**payload)):
+        for event in stream_agent_response(AgentRequest(**payload)):
             kind = event.get("type")
             if kind == "step" and event.get("phase") == "end":
                 nodes.append(event.get("node") or "")
