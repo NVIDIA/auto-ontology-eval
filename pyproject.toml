@@ -13,10 +13,8 @@ dependencies = [
     # pandas, fastapi, ...) come in through this package. Do not redeclare them
     # here: a second copy drifts out of sync with what Auto Ontology is tested
     # against. List only what this project needs on top of it.
-    # Pinned to feature/conversation, not main: the BEAM stages need
-    # auto_ontology.conversations and auto_ontology.retrieval.conversation,
-    # which land there first. Move this back to a main commit once that branch
-    # merges.
+    # Auto Ontology's main at e83ea37c: the ReAct agent this arm runs, and
+    # NVIDIA/auto-ontology#543, which accepts the openai version nemo-gym pins.
     "auto-ontology-server @ git+https://github.com/NVIDIA/auto-ontology.git@e83ea37c74408bf1babdc6a2f75a0abd9f85f7a7",
     # Imported directly by bird_interact/bird_interact_http.py. Also reachable
     # transitively through Auto Ontology, but not as part of its contract.
@@ -27,7 +25,9 @@ dependencies = [
     "huggingface-hub>=1.28.0",
     # Charts in scripts/bird_interact/analyze_bird_interact.py
     "matplotlib>=3.11.1",
-    "nemo-gym==0.7.0",
+    # NeMo Gym's main: the Auto Ontology Agent Server needs its agent sessions and sandbox library, which no release
+    # has yet (0.7.0 predates them). Move to the next release once it is out.
+    "nemo-gym @ git+https://github.com/NVIDIA-NeMo/Gym.git@5d6429f5b1362af47954d8cf72f03cbe443ff941",
 ]
 
 [dependency-groups]

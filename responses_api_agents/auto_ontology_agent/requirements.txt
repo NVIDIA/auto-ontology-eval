@@ -1,0 +1,9 @@
+# Gym builds this server its own venv from this file.
+#
+# Only NeMo Gym: Auto Ontology runs in the episode's sandbox, from the image
+# scripts/build_agent_image.sh builds, not in this server.
+#
+# Listed explicitly: Gym decides whether to install nemo-gym by looking for a
+# pyproject.toml two levels up, finds this repo's, and wrongly concludes it is
+# an editable Gym checkout.
+nemo-gym @ git+https://github.com/NVIDIA-NeMo/Gym.git@5d6429f5b1362af47954d8cf72f03cbe443ff941

@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES.
+# All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Start the catalog's Postgres on POSTGRES_PORT, on loopback only, and wait
+# until it takes connections. The sandbox keeps its own entrypoint, so the
+# agent runs this at the seed.
+#
+# Sandboxes on the host network share loopback, so the agent gives each its own
+# port. A port another sandbox already holds fails the start, and the agent
+# tries another.
+set -euo pipefail
+su postgres -c "pg_ctl -D '$PGDATA' -l '$PGDATA/server.log' -w -t 120 \
+  -o '-p $POSTGRES_PORT -c listen_addresses=localhost' start" >/dev/null
+pg_isready -h localhost -p "$POSTGRES_PORT" -t 60

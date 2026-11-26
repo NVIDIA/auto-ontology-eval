@@ -80,6 +80,8 @@ resources_servers/*/data/*
 !resources_servers/*/data/example.jsonl
 !resources_servers/*/data/example_metrics.json
 !resources_servers/*/data/example_rollouts.jsonl
+responses_api_agents/*/data/*
+!responses_api_agents/*/data/example.jsonl
 # Rollouts, aggregate metrics and materialized inputs from `gym eval run`.
 runs/
 # Legacy evaluator per-question and run logs.
