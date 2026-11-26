@@ -7,15 +7,15 @@
     uv run python scripts/migrate_catalog.py
 
 ``main.py`` already does this before every run (unless ``--skip-migrate``);
-this runs it on its own. See ``ontology_sql_eval/catalog_migrations.py``.
+this runs it on its own. See ``auto_ontology_eval/catalog_migrations.py``.
 """
 
 from __future__ import annotations
 
 import logging
 
-from ontology_sql_eval.catalog_migrations import ensure_current
-from ontology_sql_eval.env import load_env
+from auto_ontology_eval.catalog_migrations import ensure_current
+from auto_ontology_eval.env import load_env
 
 if __name__ == "__main__":
     logging.basicConfig(

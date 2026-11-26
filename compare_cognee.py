@@ -15,9 +15,9 @@ stored both as one file and as rounds. Each of those would put a number beside
 0.794 that was not measured the way 0.794 was.
 
     uv run --no-sync python compare_cognee.py agent --rounds 4 \\
-        --results-dir conversation/beam_benchmark/results-<run>
+        --results-dir auto_ontology_eval/beam/results-<run>
 
-Their figures are vendored under ``conversation/beam_benchmark/cognee_results/``
+Their figures are vendored under ``auto_ontology_eval/beam/cognee/vendor/results/``
 so this works offline; see ``THIRD_PARTY_NOTICES.md`` for provenance.
 """
 
@@ -32,16 +32,18 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from conversation.beam_benchmark.reference import cognee_columns
-from conversation.benchmarks import BENCHMARKS
+from auto_ontology_eval.beam.reference import cognee_columns
+from auto_ontology_eval.beam.cognee.config import BEAM
 
 HERE = Path(__file__).parent
-RESULTS = HERE / "conversation" / "beam_benchmark" / "results"
+RESULTS = HERE / "results" / "beam"
 COGNEE_SUMMARY = (
     HERE
-    / "conversation"
-    / "beam_benchmark"
-    / "cognee_results"
+    / "auto_ontology_eval"
+    / "beam"
+    / "cognee"
+    / "vendor"
+    / "results"
     / "hybrid_completion_20_20_qa_v1_cross_run_summary.json"
 )
 
@@ -303,7 +305,7 @@ def main() -> int:
         )
 
     theirs, their_overall, their_questions = cognee_figures()
-    require_cognee_judge(rows, BENCHMARKS["beam"].judge_model)
+    require_cognee_judge(rows, BEAM.judge_model)
     require_complete_rounds(per_round, set(theirs), their_questions)
 
     ours: dict[str, list[float]] = defaultdict(list)

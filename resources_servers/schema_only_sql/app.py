@@ -41,7 +41,7 @@ from nemo_gym.reward_profile import (
     highest_k_metrics,
 )
 
-from ontology_sql_eval.gym.exec_match import (
+from auto_ontology_eval.gym.exec_match import (
     drop_unusable_tasks,
     FailureCode,
     MySqlExecutor,
@@ -52,8 +52,8 @@ from ontology_sql_eval.gym.exec_match import (
     has_sql_codeblock,
     timeout_for,
 )
-from ontology_sql_eval.gym.tasks import DATASETS
-from ontology_sql_eval.paths import DATASETS_DIR
+from auto_ontology_eval.gym.tasks import DATASETS
+from auto_ontology_eval.paths import DATASETS_DIR
 
 logger = logging.getLogger(__name__)
 

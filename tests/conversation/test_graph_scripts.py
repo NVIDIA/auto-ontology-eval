@@ -2,17 +2,20 @@
 # All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""The BEAM graph scripts stop or narrow themselves where a mistake would stick."""
+"""The graph commands stop or narrow themselves where a mistake would stick.
+
+Only what this repository owns. Judging a stored graph and deleting the edges
+it got wrong is the library's, and is tested there -- see
+``auto_ontology/conversations/tests/test_repair.py``.
+"""
 
 from __future__ import annotations
 
 import types
-from typing import Any
 
 import pytest
-import sqlalchemy as sa
 
-from conversation.beam_benchmark import build_graph, verify_graph
+from auto_ontology_eval.ingestion import conversation_semantic
 
 
 def test_a_failed_vector_wipe_stops_the_build(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -28,47 +31,4 @@ def test_a_failed_vector_wipe_stops_the_build(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.setitem(__import__("sys").modules, "auto_ontology.vdb", vdb)
 
     with pytest.raises(RuntimeError, match="vector store down"):
-        build_graph._wipe(database_name="beam_100K_2", conversation_id="2")
-
-
-def test_deleting_an_edge_matches_its_type(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A semantic edge with the same endpoints and role is a different row."""
-    edge = sa.Table(
-        "conversation_edge",
-        sa.MetaData(),
-        sa.Column("source_id", sa.Text, primary_key=True),
-        sa.Column("target_id", sa.Text, primary_key=True),
-        sa.Column("type", sa.Text, primary_key=True),
-        sa.Column("role", sa.Text, primary_key=True),
-    )
-    statements: list[Any] = []
-
-    class Store:
-        def query_write(self, statement: Any) -> list[Any]:
-            statements.append(statement)
-            return [("supersedes",)]
-
-    sys_modules = __import__("sys").modules
-    schema = types.ModuleType("auto_ontology.dal.schema")
-    schema.conversation_edge = edge  # type: ignore[attr-defined]
-    session = types.ModuleType("auto_ontology.dal.session")
-    session.store = Store  # type: ignore[attr-defined]
-    dal = types.ModuleType("auto_ontology.dal")
-    dal.schema = schema  # type: ignore[attr-defined]
-    dal.session = session  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys_modules, "auto_ontology.dal", dal)
-    monkeypatch.setitem(sys_modules, "auto_ontology.dal.schema", schema)
-    monkeypatch.setitem(sys_modules, "auto_ontology.dal.session", session)
-
-    draft = object()
-    row = {
-        "source_id": "a",
-        "target_id": "b",
-        "type": "knowledge",
-        "role": "supersedes",
-    }
-    verify_graph._delete({id(draft): row}, [draft])
-
-    [statement] = statements
-    sql = str(statement.compile(compile_kwargs={"literal_binds": True}))
-    assert "conversation_edge.type = 'knowledge'" in sql
+        conversation_semantic._wipe(database_name="beam_100K_2")

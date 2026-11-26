@@ -15,7 +15,7 @@ from typing import Optional
 
 import pytest
 
-from ontology_sql_eval.gym.exec_match import execute_and_compare
+from auto_ontology_eval.gym.exec_match import execute_and_compare
 
 GOLD, PRED = "gold", "pred"
 

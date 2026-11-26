@@ -19,7 +19,7 @@ dataset; they load `.env` automatically.
 
 ```
 main.py                     end-to-end pipeline entry point (ingest -> compile -> benchmark)
-ontology_sql_eval/          single namespace package
+auto_ontology_eval/          single namespace package
   ingestion/                Auto-Ontology-backed ingestion pipeline
     README.md               ingestion workflow guide
     ingest.py               source DB -> pgvector ingest (calls enrich_graph)

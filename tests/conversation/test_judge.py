@@ -15,8 +15,8 @@ from pathlib import Path
 
 import pytest
 
-from conversation.beam_benchmark.evaluator import prompts
-from conversation.beam_benchmark.evaluator.judge import (
+from auto_ontology_eval.beam.cognee import prompts
+from auto_ontology_eval.beam.cognee.judge import (
     JudgeError,
     parse_verdict,
     score_question,
@@ -158,7 +158,7 @@ class TestScoreQuestion:
 
 
 def test_cognee_prompt_supplies_the_question() -> None:
-    from conversation.beam_benchmark.evaluator.prompts import cognee_judge_prompt
+    from auto_ontology_eval.beam.cognee.prompts import cognee_judge_prompt
 
     filled = cognee_judge_prompt(
         question="What bugs were logged?", nugget="states X", response="X happened"
@@ -168,7 +168,7 @@ def test_cognee_prompt_supplies_the_question() -> None:
 
 
 def test_snap_matches_cognee_cuts() -> None:
-    from conversation.beam_benchmark.evaluator.judge import snap
+    from auto_ontology_eval.beam.cognee.judge import snap
 
     assert [snap(v) for v in (0.0, 0.24, 0.25, 0.74, 0.75, 1.0)] == [
         0.0,
@@ -189,7 +189,7 @@ def test_snap_matches_cognee_cuts() -> None:
 )
 def test_cognee_judge_scores_endpoint_failures_zero(failure: Exception) -> None:
     """Their ``_judge_criterion`` scores an endpoint failure 0.0, so ours does."""
-    from conversation.beam_benchmark.evaluator.judge import cognee_judge_nugget
+    from auto_ontology_eval.beam.cognee.judge import cognee_judge_nugget
 
     def broken(prompt: str, *, system: str | None = None) -> str:
         raise failure
@@ -200,7 +200,7 @@ def test_cognee_judge_scores_endpoint_failures_zero(failure: Exception) -> None:
 
 
 def test_cognee_judge_scores_an_unparseable_reply_zero() -> None:
-    from conversation.beam_benchmark.evaluator.judge import cognee_judge_nugget
+    from auto_ontology_eval.beam.cognee.judge import cognee_judge_nugget
 
     verdict = cognee_judge_nugget(
         "states X", "What?", "X happened", lambda prompt, *, system=None: ""
@@ -211,7 +211,7 @@ def test_cognee_judge_scores_an_unparseable_reply_zero() -> None:
 
 def test_cognee_judge_raises_a_bug_instead_of_scoring_it() -> None:
     """A fault in this harness is not a judgement about the answer."""
-    from conversation.beam_benchmark.evaluator.judge import cognee_judge_nugget
+    from auto_ontology_eval.beam.cognee.judge import cognee_judge_nugget
 
     def buggy(prompt: str, *, system: str | None = None) -> str:
         raise KeyError("nugget")
@@ -221,7 +221,7 @@ def test_cognee_judge_raises_a_bug_instead_of_scoring_it() -> None:
 
 
 def test_cognee_judge_sends_their_system_message() -> None:
-    from conversation.beam_benchmark.evaluator.judge import cognee_judge_nugget
+    from auto_ontology_eval.beam.cognee.judge import cognee_judge_nugget
 
     seen: dict[str, str | None] = {}
 
@@ -234,7 +234,7 @@ def test_cognee_judge_sends_their_system_message() -> None:
 
 
 def test_with_retry_recovers_from_a_transient_error() -> None:
-    from conversation.beam_benchmark.evaluator import judge as J
+    from auto_ontology_eval.beam.cognee import judge as J
 
     calls = {"n": 0}
 
@@ -251,7 +251,7 @@ def test_with_retry_recovers_from_a_transient_error() -> None:
 
 def test_with_retry_does_not_retry_a_real_failure() -> None:
     """A refusal fails the same way four times; retrying only delays it."""
-    from conversation.beam_benchmark.evaluator import judge as J
+    from auto_ontology_eval.beam.cognee import judge as J
 
     calls = {"n": 0}
 
@@ -265,7 +265,7 @@ def test_with_retry_does_not_retry_a_real_failure() -> None:
 
 
 def test_transient_classifier_covers_the_outage_we_saw() -> None:
-    from conversation.beam_benchmark.evaluator.judge import _is_transient
+    from auto_ontology_eval.beam.cognee.judge import _is_transient
 
     assert _is_transient(RuntimeError("Connection error."))
     assert _is_transient(RuntimeError("503 Service Unavailable"))
@@ -274,7 +274,7 @@ def test_transient_classifier_covers_the_outage_we_saw() -> None:
 
 
 def test_the_reader_sends_cognees_template_under_the_ability_prompt() -> None:
-    from conversation.beam_benchmark.reader import answer
+    from auto_ontology_eval.beam.reader import answer
 
     class Hit:
         turn_index, session_index, time_anchor = 1, 1, ""
@@ -294,7 +294,7 @@ def test_the_reader_sends_cognees_template_under_the_ability_prompt() -> None:
 
 def test_cognee_prompts_exclude_the_user_template() -> None:
     """``context_for_question`` is the user slot, not an ability."""
-    from conversation.beam_benchmark.reader import cognee_system_prompts
+    from auto_ontology_eval.beam.reader import cognee_system_prompts
 
     prompts = cognee_system_prompts()
     assert "context_for_question" not in prompts
@@ -304,7 +304,7 @@ def test_cognee_prompts_exclude_the_user_template() -> None:
 
 def test_cognee_prompts_are_upstream_text_with_nothing_appended() -> None:
     """A note tuned on BEAM's rubric items would make the score measure it."""
-    from conversation.beam_benchmark.reader import _COGNEE_QA, cognee_system_prompts
+    from auto_ontology_eval.beam.reader import _COGNEE_QA, cognee_system_prompts
 
     for ability, prompt in cognee_system_prompts().items():
         upstream = (_COGNEE_QA / f"{ability}.txt").read_text(encoding="utf-8")
@@ -313,7 +313,7 @@ def test_cognee_prompts_are_upstream_text_with_nothing_appended() -> None:
 
 def test_endpoint_capacity_exhaustion_is_transient_despite_the_401() -> None:
     """The endpoint returns "too many clients" as an AuthenticationError."""
-    from conversation.beam_benchmark.evaluator.judge import _is_transient
+    from auto_ontology_eval.beam.cognee.judge import _is_transient
 
     exhausted = Exception(
         "Error code: 401 - {'error': {'message': 'Authentication Error, Error "
@@ -327,7 +327,7 @@ def test_endpoint_capacity_exhaustion_is_transient_despite_the_401() -> None:
 
 def test_rounds_must_all_score_the_expected_questions() -> None:
     """Pooling them would compare two question sets and call it noise."""
-    from conversation.beam_benchmark.run import _require_one_question_set
+    from auto_ontology_eval.beam.run import _require_one_question_set
 
     expected = ["2/abstention/0", "2/abstention/1", "2/summarization/0"]
     _require_one_question_set(
@@ -354,7 +354,7 @@ def test_a_failed_question_fails_the_run_after_writing_the_rest(
     tmp_path: Path,
 ) -> None:
     """Leaving it out would score the run over the questions that survived."""
-    from conversation.beam_benchmark.run import _run_concurrently
+    from auto_ontology_eval.beam.run import _run_concurrently
 
     def work(row: dict[str, str]) -> dict[str, str]:
         if row["id"] == "bad":
@@ -376,7 +376,7 @@ def _retrieve(content: str) -> dict[str, str]:
 
 
 def test_the_agent_must_only_see_its_own_conversation() -> None:
-    from conversation.beam_benchmark.run import require_own_conversation
+    from auto_ontology_eval.beam.run import require_own_conversation
 
     own = _retrieve('<turn n="3" conversation="2" session="1">hi</turn>')
     require_own_conversation([own, _retrieve("no turns here")], "2")
@@ -388,7 +388,7 @@ def test_the_agent_must_only_see_its_own_conversation() -> None:
 
 def test_a_turn_quoted_in_the_agent_answer_is_not_a_retrieval() -> None:
     """Only tool observations are what the search returned."""
-    from conversation.beam_benchmark.run import require_own_conversation
+    from auto_ontology_eval.beam.run import require_own_conversation
 
     said = {"role": "ai", "content": '<turn conversation="7">'}
     require_own_conversation([said], "2")

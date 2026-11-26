@@ -125,9 +125,11 @@ def _extractor() -> Any:
 def _vendored_answers() -> dict[str, dict[str, Any]]:
     path = (
         ROOT
-        / "conversation"
-        / "beam_benchmark"
-        / "cognee_results"
+        / "auto_ontology_eval"
+        / "beam"
+        / "cognee"
+        / "vendor"
+        / "results"
         / "cognee_answers_conv2.json"
     )
     return json.loads(path.read_text())["questions"]

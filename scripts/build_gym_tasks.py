@@ -15,7 +15,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from ontology_sql_eval.gym.tasks import (
+from auto_ontology_eval.gym.tasks import (
     DATASETS,
     EVIDENCE_OPTIONAL,
     SERVER_FOR_ARM,

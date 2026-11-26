@@ -77,7 +77,7 @@ def _ensure_auto_ontology_mocks() -> None:
     auto_ontology_utils.get_data_objects_retriever = MagicMock()  # type: ignore[attr-defined]
     auto_ontology_utils.get_semantic_objects_retriever = MagicMock()  # type: ignore[attr-defined]
 
-    # Reached via server.py -> ontology_sql_eval.env, which falls back to
+    # Reached via server.py -> auto_ontology_eval.env, which falls back to
     # Auto Ontology's .env for anything this repo's own .env does not define.
     auto_ontology_env = types.ModuleType("auto_ontology.env")
     auto_ontology_env.load_env = MagicMock()  # type: ignore[attr-defined]
@@ -103,9 +103,9 @@ _ensure_auto_ontology_mocks()
 # Now it is safe to import the server module.
 # ---------------------------------------------------------------------------
 
-import ontology_sql_eval.bird_interact.server as server_mod  # noqa: E402
-from ontology_sql_eval.bird_interact.server import app  # noqa: E402
-from ontology_sql_eval.bird_interact import session as session_mod  # noqa: E402
+import auto_ontology_eval.bird_interact.server as server_mod  # noqa: E402
+from auto_ontology_eval.bird_interact.server import app  # noqa: E402
+from auto_ontology_eval.bird_interact import session as session_mod  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -143,9 +143,10 @@ def _make_client(
         patch.object(server_mod, "auto_ontology_step", mock_step),
         patch.object(server_mod, "auto_ontology_apply_user_answer", MagicMock()),
         patch.object(server_mod, "auto_ontology_apply_submit_result", MagicMock()),
-        patch("ontology_sql_eval.bird_interact.bird_interact_http.ask_user", mock_ask),
+        patch("auto_ontology_eval.bird_interact.bird_interact_http.ask_user", mock_ask),
         patch(
-            "ontology_sql_eval.bird_interact.bird_interact_http.submit_sql", mock_submit
+            "auto_ontology_eval.bird_interact.bird_interact_http.submit_sql",
+            mock_submit,
         ),
         patch.object(app.router, "lifespan_context", _noop_lifespan),
     )
@@ -235,7 +236,7 @@ def test_run_session_submit_only():
         patch.object(server_mod, "auto_ontology_apply_user_answer", MagicMock()),
         patch.object(server_mod, "auto_ontology_apply_submit_result", MagicMock()),
         patch(
-            "ontology_sql_eval.bird_interact.bird_interact_http.submit_sql",
+            "auto_ontology_eval.bird_interact.bird_interact_http.submit_sql",
             AsyncMock(return_value=submit_result),
         ),
         patch.object(app.router, "lifespan_context", _noop_lifespan),
@@ -275,7 +276,7 @@ def test_run_session_treats_null_reward_as_zero():
         ),
         patch.object(server_mod, "auto_ontology_apply_submit_result", MagicMock()),
         patch(
-            "ontology_sql_eval.bird_interact.bird_interact_http.submit_sql",
+            "auto_ontology_eval.bird_interact.bird_interact_http.submit_sql",
             AsyncMock(return_value=submit_result),
         ),
         patch.object(app.router, "lifespan_context", _noop_lifespan),
@@ -331,7 +332,7 @@ def test_run_session_fails_loud_on_known_p1snap_collision():
         patch.object(server_mod, "auto_ontology_apply_user_answer", MagicMock()),
         patch.object(server_mod, "auto_ontology_apply_submit_result", MagicMock()),
         patch(
-            "ontology_sql_eval.bird_interact.bird_interact_http.submit_sql",
+            "auto_ontology_eval.bird_interact.bird_interact_http.submit_sql",
             AsyncMock(return_value=submit_result),
         ),
         patch.object(app.router, "lifespan_context", _noop_lifespan),
@@ -375,11 +376,11 @@ def test_run_session_ask_then_submit():
         patch.object(server_mod, "auto_ontology_apply_user_answer", MagicMock()),
         patch.object(server_mod, "auto_ontology_apply_submit_result", MagicMock()),
         patch(
-            "ontology_sql_eval.bird_interact.bird_interact_http.ask_user",
+            "auto_ontology_eval.bird_interact.bird_interact_http.ask_user",
             AsyncMock(return_value="2023"),
         ),
         patch(
-            "ontology_sql_eval.bird_interact.bird_interact_http.submit_sql",
+            "auto_ontology_eval.bird_interact.bird_interact_http.submit_sql",
             AsyncMock(return_value=submit_result),
         ),
         patch.object(app.router, "lifespan_context", _noop_lifespan),
@@ -424,11 +425,11 @@ def test_one_submit_per_turn():
         patch.object(server_mod, "auto_ontology_apply_user_answer", MagicMock()),
         patch.object(server_mod, "auto_ontology_apply_submit_result", MagicMock()),
         patch(
-            "ontology_sql_eval.bird_interact.bird_interact_http.ask_user",
+            "auto_ontology_eval.bird_interact.bird_interact_http.ask_user",
             AsyncMock(return_value="2023"),
         ),
         patch(
-            "ontology_sql_eval.bird_interact.bird_interact_http.submit_sql",
+            "auto_ontology_eval.bird_interact.bird_interact_http.submit_sql",
             AsyncMock(return_value=submit_result),
         ),
         patch.object(app.router, "lifespan_context", _noop_lifespan),
@@ -469,7 +470,7 @@ def test_exec_err_flg_preserved():
         patch.object(server_mod, "auto_ontology_apply_user_answer", MagicMock()),
         patch.object(server_mod, "auto_ontology_apply_submit_result", MagicMock()),
         patch(
-            "ontology_sql_eval.bird_interact.bird_interact_http.submit_sql",
+            "auto_ontology_eval.bird_interact.bird_interact_http.submit_sql",
             AsyncMock(return_value=submit_result),
         ),
         patch.object(app.router, "lifespan_context", _noop_lifespan),
@@ -513,7 +514,7 @@ def test_next_turn_type_threaded_as_debug_with_error():
         patch.object(server_mod, "auto_ontology_apply_user_answer", MagicMock()),
         patch.object(server_mod, "auto_ontology_apply_submit_result", MagicMock()),
         patch(
-            "ontology_sql_eval.bird_interact.bird_interact_http.submit_sql",
+            "auto_ontology_eval.bird_interact.bird_interact_http.submit_sql",
             AsyncMock(return_value=first_result),
         ),
         patch.object(app.router, "lifespan_context", _noop_lifespan),
@@ -571,7 +572,7 @@ def test_next_turn_type_threaded_as_follow_up():
         patch.object(server_mod, "auto_ontology_apply_user_answer", MagicMock()),
         patch.object(server_mod, "auto_ontology_apply_submit_result", MagicMock()),
         patch(
-            "ontology_sql_eval.bird_interact.bird_interact_http.submit_sql",
+            "auto_ontology_eval.bird_interact.bird_interact_http.submit_sql",
             AsyncMock(return_value=first_result),
         ),
         patch.object(app.router, "lifespan_context", _noop_lifespan),
@@ -625,7 +626,7 @@ def test_first_turn_stays_retryable_after_transient_failure():
         patch.object(server_mod, "auto_ontology_apply_user_answer", MagicMock()),
         patch.object(server_mod, "auto_ontology_apply_submit_result", MagicMock()),
         patch(
-            "ontology_sql_eval.bird_interact.bird_interact_http.submit_sql",
+            "auto_ontology_eval.bird_interact.bird_interact_http.submit_sql",
             submit_mock,
         ),
         patch.object(app.router, "lifespan_context", _noop_lifespan),
@@ -668,9 +669,10 @@ def test_run_session_caps_a_never_ending_clarification_loop():
         patch.object(server_mod, "auto_ontology_step", step_mock),
         patch.object(server_mod, "auto_ontology_apply_user_answer", MagicMock()),
         patch.object(server_mod, "auto_ontology_apply_submit_result", MagicMock()),
-        patch("ontology_sql_eval.bird_interact.bird_interact_http.ask_user", ask_mock),
+        patch("auto_ontology_eval.bird_interact.bird_interact_http.ask_user", ask_mock),
         patch(
-            "ontology_sql_eval.bird_interact.bird_interact_http.submit_sql", submit_mock
+            "auto_ontology_eval.bird_interact.bird_interact_http.submit_sql",
+            submit_mock,
         ),
         patch.object(app.router, "lifespan_context", _noop_lifespan),
     ):
@@ -743,7 +745,7 @@ def test_missing_session_404():
 
 
 def test_budget_follows_reference_charging_rules():
-    from ontology_sql_eval.bird_interact.budget import Budget
+    from auto_ontology_eval.bird_interact.budget import Budget
 
     budget = Budget.start(5.0)
     assert budget.charge("ask_user") and budget.remaining == 3.0
@@ -772,23 +774,23 @@ def _ainteract_ctx(
         patch.object(server_mod, "auto_ontology_apply_user_answer", MagicMock()),
         patch.object(server_mod, "auto_ontology_apply_submit_result", MagicMock()),
         patch(
-            "ontology_sql_eval.bird_interact.bird_interact_http.get_schema",
+            "auto_ontology_eval.bird_interact.bird_interact_http.get_schema",
             AsyncMock(return_value="CREATE TABLE aliens (id int)"),
         ),
         patch(
-            "ontology_sql_eval.bird_interact.bird_interact_http.get_all_knowledge",
+            "auto_ontology_eval.bird_interact.bird_interact_http.get_all_knowledge",
             AsyncMock(return_value="[]"),
         ),
         patch(
-            "ontology_sql_eval.bird_interact.bird_interact_http.ask_user",
+            "auto_ontology_eval.bird_interact.bird_interact_http.ask_user",
             AsyncMock(return_value=ask_answer),
         ),
         patch(
-            "ontology_sql_eval.bird_interact.bird_interact_http.submit_sql",
+            "auto_ontology_eval.bird_interact.bird_interact_http.submit_sql",
             AsyncMock(side_effect=submits),
         ),
         patch(
-            "ontology_sql_eval.bird_interact.bird_interact_http.phase_transition",
+            "auto_ontology_eval.bird_interact.bird_interact_http.phase_transition",
             phase_transition or AsyncMock(),
         ),
         patch.object(app.router, "lifespan_context", _noop_lifespan),
@@ -1040,7 +1042,7 @@ def test_phase1_holds_four_coins_and_phase2_can_spend_them():
         return mock_sess
 
     def step(*_args, **kwargs):
-        from ontology_sql_eval.bird_interact.budget import BudgetExhausted
+        from auto_ontology_eval.bird_interact.budget import BudgetExhausted
 
         conn = captured["connectors"][0]
         turn_type = kwargs.get("turn_type")
@@ -1116,7 +1118,7 @@ def test_phase1_ask_stops_when_four_coins_remain():
 
 
 def test_metered_connector_charges_queries_and_refuses_unaffordable_ones():
-    from ontology_sql_eval.bird_interact.budget import (
+    from auto_ontology_eval.bird_interact.budget import (
         Budget,
         BudgetExhausted,
         MeteredConnector,
@@ -1153,7 +1155,7 @@ def _run_sql(sql, connector, *, record_numeric_kinds=False):
 
 
 def test_budget_refusal_is_not_turned_into_a_sql_error():
-    from ontology_sql_eval.bird_interact.budget import (
+    from auto_ontology_eval.bird_interact.budget import (
         BudgetExhausted,
         _patch_run_sql_to_reraise_budget,
     )

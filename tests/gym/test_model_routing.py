@@ -18,9 +18,9 @@ import sys
 import pytest
 import yaml
 
-from ontology_sql_eval.paths import REPO_ROOT
-from ontology_sql_eval.gym import model_routing
-from ontology_sql_eval.gym.model_routing import (
+from auto_ontology_eval.paths import REPO_ROOT
+from auto_ontology_eval.gym import model_routing
+from auto_ontology_eval.gym.model_routing import (
     GYM_MODEL_SERVERS,
     launch_env,
     route_through_gym,

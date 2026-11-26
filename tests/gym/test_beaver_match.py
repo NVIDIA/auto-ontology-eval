@@ -4,7 +4,7 @@
 
 """The Gym verifier's BEAVER rule must agree with the official BEAVER evaluator.
 
-``ontology_sql_eval.gym.exec_match.beaver_result_match`` reimplements the rule on
+``auto_ontology_eval.gym.exec_match.beaver_result_match`` reimplements the rule on
 raw rows instead of importing ``tests.gym.beaver_reference.compare_results``,
 because that port pulls in pandas and the schema-only server's venv deliberately
 does not have it. This test is what stops the two drifting apart.
@@ -18,7 +18,7 @@ from decimal import Decimal
 import pandas as pd
 import pytest
 
-from ontology_sql_eval.gym.exec_match import (
+from auto_ontology_eval.gym.exec_match import (
     beaver_result_match,
     execute_and_compare,
     matcher_for,

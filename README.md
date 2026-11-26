@@ -29,6 +29,13 @@ A run has three stages, and `main.py` runs them in order:
 3. **Benchmark.** Run every question through two arms on
    [NeMo Gym](https://github.com/NVIDIA-NeMo/Gym), then compare them.
 
+The conversation benchmarks run the same three stages and the same skip flags,
+built out of transcripts instead of tables: ingest writes the turns, the
+compile stage builds one conversation graph per transcript, and the benchmark
+retrieves, answers and scores against a rubric judge. The steps above describe
+the SQL material; see
+[`auto_ontology_eval/beam/README.md`](auto_ontology_eval/beam/README.md).
+
 | Arm       | Server              | What the model gets                                                             |
 | --------- | ------------------- | ------------------------------------------------------------------------------- |
 | Control   | `schema_only_sql`   | The question and a schema dump, in one prompt with no tools                     |
@@ -192,7 +199,7 @@ They're off unless you pass `--sql-examples-csv` or `--value-anchors-csv`; see
    database ID and gold SQL. Add `metadata.json` and `custom_analyses.json` to
    enrich ingestion. The formats are in [docs/datasets.md](./docs/datasets.md).
 2. Register the dataset in `DATASETS` in
-   [`ontology_sql_eval/gym/tasks.py`](./ontology_sql_eval/gym/tasks.py) with its
+   [`auto_ontology_eval/gym/tasks.py`](./auto_ontology_eval/gym/tasks.py) with its
    SQL dialect and the folder that holds its databases or DDL. The control arm
    builds its schema dump from there.
 3. Point `CONNECTION_STRINGS` at the source database and run
@@ -215,7 +222,7 @@ They're off unless you pass `--sql-examples-csv` or `--value-anchors-csv`; see
 | Topic                                     | Doc                                                                              |
 | ----------------------------------------- | -------------------------------------------------------------------------------- |
 | Benchmark arms, scoring rules, and stages | [resources_servers/README.md](./resources_servers/README.md)                     |
-| Ingestion and enrichment                  | [ontology_sql_eval/ingestion/README.md](./ontology_sql_eval/ingestion/README.md) |
+| Ingestion and enrichment                  | [auto_ontology_eval/ingestion/README.md](./auto_ontology_eval/ingestion/README.md) |
 | BIRD-Interact                             | [scripts/bird_interact/README.md](./scripts/bird_interact/README.md)             |
 | Dataset file formats                      | [docs/datasets.md](./docs/datasets.md)                                           |
 | Extra prompts                             | [docs/extra-prompts.md](./docs/extra-prompts.md)                                 |

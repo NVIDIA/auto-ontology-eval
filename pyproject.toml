@@ -1,7 +1,7 @@
 [project]
-name = "ontology-sql-eval"
+name = "auto-ontology-eval"
 version = "0.1.0"
-description = "LLM-powered re-scoring of Text-to-SQL evaluation CSVs, plus Auto Ontology-backed ingestion and a NeMo Gym benchmark."
+description = "Evaluation harness for Auto Ontology: ingestion and semantic compilation for SQL and conversation sources, plus the BIRD, BEAVER and BEAM benchmarks."
 readme = "README.md"
 # nemo-gym requires >=3.13.14. Raised from >=3.12 when the Gym
 # environments were added so the harness and the Gym resources servers can share
@@ -41,7 +41,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["ontology_sql_eval"]
+packages = ["auto_ontology_eval"]
 
 [tool.hatch.metadata]
 allow-direct-references = true

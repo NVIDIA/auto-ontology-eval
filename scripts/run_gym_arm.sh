@@ -23,7 +23,7 @@
 # same command with --resume to retry the failed questions (up to
 # NEMO_GYM_MAX_ROLLOUT_ATTEMPTS, default 3, each) and the ones never finished,
 # keeping everything already done. Until then Gym's metrics count each failed
-# question as a miss, and ontology_sql_eval/gym/compare.py refuses to report
+# question as a miss, and auto_ontology_eval/gym/compare.py refuses to report
 # while any remain.
 set -euo pipefail
 
@@ -44,7 +44,7 @@ set -a
 . ./.env
 set +a
 
-# The schema-only arm imports ontology_sql_eval.gym.* (the shared executors and
+# The schema-only arm imports auto_ontology_eval.gym.* (the shared executors and
 # grader) but deliberately does not install this project, since that would pull
 # in Auto Ontology. It finds the package through this PYTHONPATH entry: Gym puts
 # only each server's own directory there, and keeps whatever it inherits. The
@@ -183,10 +183,10 @@ GYM_FLAGS+=(+observability_enabled=true "+model_call_capture_dir=$CAPTURE_DIR")
 # The Auto Ontology arm sends its own ~19 calls a question through two Gym model
 # servers, so they are captured too. Their endpoint/model/key come from Auto
 # Ontology's own resolution, exported here for the arm's YAML; see
-# ontology_sql_eval/gym/model_routing.py. Assigned before eval so a failure
+# auto_ontology_eval/gym/model_routing.py. Assigned before eval so a failure
 # stops the script under `set -e`, which `eval "$(...)"` would not.
 if [[ "$SERVER" == auto_ontology_sql ]]; then
-  routing_env="$(.venv/bin/python -m ontology_sql_eval.gym.model_routing)"
+  routing_env="$(.venv/bin/python -m auto_ontology_eval.gym.model_routing)"
   eval "$routing_env"
 fi
 

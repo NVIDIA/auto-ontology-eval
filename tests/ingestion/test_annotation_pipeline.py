@@ -17,7 +17,7 @@ class AnnotationPipelineTest(unittest.TestCase):
         auto_ontology_semantic = types.ModuleType("auto_ontology.semantic")
         auto_ontology_compile = types.ModuleType("auto_ontology.semantic.compile")
         auto_ontology_compile.run_semantic_compilation = compile_semantic
-        module_name = "ontology_sql_eval.ingestion.semantic"
+        module_name = "auto_ontology_eval.ingestion.semantic"
         sys.modules.pop(module_name, None)
         with patch.dict(
             sys.modules,
@@ -44,23 +44,43 @@ class AnnotationPipelineTest(unittest.TestCase):
         apply_descriptions.assert_called_once_with("wideworldimporters", None)
 
     def test_main_passes_benchmark_name_to_each_ingest(self) -> None:
-        ingest = types.ModuleType("ontology_sql_eval.ingestion.ingest")
+        ingest = types.ModuleType("auto_ontology_eval.ingestion.ingest")
         ingest.run_ingest = MagicMock()
         connection_strings = "sqlite:///first.sqlite,sqlite:///second.sqlite"
         with (
             patch.dict(os.environ, {"CONNECTION_STRINGS": connection_strings}),
-            patch.dict(sys.modules, {"ontology_sql_eval.ingestion.ingest": ingest}),
+            patch.dict(sys.modules, {"auto_ontology_eval.ingestion.ingest": ingest}),
         ):
             main.stage_ingest("bird")
 
         self.assertEqual(ingest.run_ingest.call_count, 2)
-        ingest.run_ingest.assert_any_call("sqlite:///first.sqlite", "bird")
-        ingest.run_ingest.assert_any_call("sqlite:///second.sqlite", "bird")
+        ingest.run_ingest.assert_any_call("sqlite:///first.sqlite", "bird", reset=True)
+        ingest.run_ingest.assert_any_call("sqlite:///second.sqlite", "bird", reset=True)
+
+    def test_main_forwards_no_reset_to_each_ingest(self) -> None:
+        """Resetting is the default; --no-reset has to reach every database.
+
+        One connection string left resetting while another was asked not to
+        would clear half a multi-database benchmark, and the ingest that did
+        the clearing would report success.
+        """
+        ingest = types.ModuleType("auto_ontology_eval.ingestion.ingest")
+        ingest.run_ingest = MagicMock()
+        connection_strings = "sqlite:///first.sqlite,sqlite:///second.sqlite"
+        with (
+            patch.dict(os.environ, {"CONNECTION_STRINGS": connection_strings}),
+            patch.dict(sys.modules, {"auto_ontology_eval.ingestion.ingest": ingest}),
+        ):
+            main.stage_ingest("bird", reset=False)
+
+        self.assertEqual(ingest.run_ingest.call_count, 2)
+        for call in ingest.run_ingest.call_args_list:
+            self.assertIs(call.kwargs["reset"], False)
 
     def test_main_separates_database_from_benchmark_for_one_connection(self) -> None:
-        ingest = types.ModuleType("ontology_sql_eval.ingestion.ingest")
+        ingest = types.ModuleType("auto_ontology_eval.ingestion.ingest")
         ingest.database_name_for = MagicMock(return_value="california_schools")
-        semantic = types.ModuleType("ontology_sql_eval.ingestion.semantic")
+        semantic = types.ModuleType("auto_ontology_eval.ingestion.semantic")
         semantic.run_semantic = MagicMock()
         connection_string = "sqlite:///california_schools.sqlite"
         with (
@@ -68,8 +88,8 @@ class AnnotationPipelineTest(unittest.TestCase):
             patch.dict(
                 sys.modules,
                 {
-                    "ontology_sql_eval.ingestion.ingest": ingest,
-                    "ontology_sql_eval.ingestion.semantic": semantic,
+                    "auto_ontology_eval.ingestion.ingest": ingest,
+                    "auto_ontology_eval.ingestion.semantic": semantic,
                 },
             ),
         ):

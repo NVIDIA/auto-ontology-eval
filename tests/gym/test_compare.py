@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from ontology_sql_eval.gym import compare
+from auto_ontology_eval.gym import compare
 
 
 def _write(path: Path, rows: list[dict]) -> None:

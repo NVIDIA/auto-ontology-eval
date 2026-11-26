@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, call, patch
 
-from ontology_sql_eval.ingestion import enrich_graph
+from auto_ontology_eval.ingestion import enrich_graph
 
 
 class EnrichmentArtifactResolutionTest(unittest.TestCase):

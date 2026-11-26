@@ -1,4 +1,4 @@
-from ontology_sql_eval.bird_interact.schema import compact_bird_schema
+from auto_ontology_eval.bird_interact.schema import compact_bird_schema
 
 
 def test_compacts_standard_create_table_schema():

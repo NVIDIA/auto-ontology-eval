@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from ontology_sql_eval.bird_interact.known_issues import is_p1snap_collision
+from auto_ontology_eval.bird_interact.known_issues import is_p1snap_collision
 
 _P1SNAP_MESSAGE = (
     "Error: Command ['createdb', '-h', '127.0.0.1', '-p', '5433', '-U', "

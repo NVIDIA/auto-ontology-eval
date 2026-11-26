@@ -124,7 +124,7 @@ GYM_CONCURRENCY=5 scripts/run_gym_arm.sh auto_ontology_sql runs/treatment/beaver
     --max-output-tokens 16 \
     +auto_ontology_sql_resources_server.resources_servers.auto_ontology_sql.max_concurrency=5
 
-uv run python -m ontology_sql_eval.gym.compare \
+uv run python -m auto_ontology_eval.gym.compare \
     --control runs/control/beaverbench.jsonl \
     --treatment runs/treatment/beaverbench.jsonl
 ```

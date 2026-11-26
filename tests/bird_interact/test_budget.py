@@ -1,4 +1,4 @@
-from ontology_sql_eval.bird_interact.budget import Budget, MeteredConnector
+from auto_ontology_eval.bird_interact.budget import Budget, MeteredConnector
 
 
 class _Base:

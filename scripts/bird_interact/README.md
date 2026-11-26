@@ -104,7 +104,7 @@ applies our required ADK patches first (`scripts/bird_interact/patches/adk_*.pat
 start unpatched. Without the patch, Phase 2 scoring for
 `labor_certification_applications` (FULL dataset) silently mis-grades due to a
 Postgres 63-char identifier truncation collision — see
-`ontology_sql_eval/bird_interact/known_issues.py` for the full mechanism.
+`auto_ontology_eval/bird_interact/known_issues.py` for the full mechanism.
 
 Resolves the ADK checkout via `$BIRD_INTERACT_ADK_DIR` if set, else
 `third_party/BIRD-Interact/BIRD-Interact-ADK`. `START_BIRD_SERVICES_DRY_RUN=1`
@@ -177,7 +177,7 @@ ambiguous query and a bird-coin budget of `6 + 2 × ambiguities + 2 × patience`
 whole task inside that call —
 Phase 1, debug retries, the user simulator's phase transition, the follow-up
 and its retries — and charges every action at the reference tool prices
-(`ontology_sql_eval/bird_interact/budget.py`):
+(`auto_ontology_eval/bird_interact/budget.py`):
 
 | Action | Cost |
 | --- | --- |
@@ -273,7 +273,7 @@ top-level [README.md](../../README.md#quickstart) — they apply here too.
 ## Known issues
 
 - **`labor_certification_applications` name-collision bug** — see
-  `ontology_sql_eval/bird_interact/known_issues.py`. Fixed by
+  `auto_ontology_eval/bird_interact/known_issues.py`. Fixed by
   `scripts/bird_interact/patches/adk_p1snap_name_collision.patch`, applied automatically (and
   mandatorily) by `start_bird_services.sh`. If you bypass that script (e.g.
   `run_bird_interact_cinteract.py`'s manual bootstrap), this bug can silently

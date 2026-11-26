@@ -20,7 +20,7 @@ Ports the execution and comparison logic of the official BEAVER evaluator:
   ignored, column names ignored, column count must match).
 
 Only ``tests/gym/test_beaver_match.py`` imports it, which is why it lives
-under ``tests/``. The benchmark scores with ``ontology_sql_eval.gym.exec_match``,
+under ``tests/``. The benchmark scores with ``auto_ontology_eval.gym.exec_match``,
 which carries its own pandas-free copy of the rule for the control arm's venv;
 the test checks the two agree.
 """

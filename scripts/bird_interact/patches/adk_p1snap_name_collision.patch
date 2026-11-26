@@ -1,5 +1,5 @@
 Fix: create_task_db() name-truncation collision (labor_certification_applications
-phase-2 snapshot). See ontology_sql_eval/bird_interact/known_issues.py for the
+phase-2 snapshot). See auto_ontology_eval/bird_interact/known_issues.py for the
 full evidence trail. Postgres truncates identifiers over 63 bytes; for long
 base_db/task_id combos this made the phase-1 task DB and its "__p1snap" phase-2
 snapshot resolve to the identical name, so createdb always failed and phase 2

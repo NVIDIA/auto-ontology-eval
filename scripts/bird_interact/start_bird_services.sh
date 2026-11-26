@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Wrapper around BIRD-Interact-ADK/scripts/start_services.sh that applies
 # our documented, evidence-confirmed ADK patches (see patches/ beside this
-# script and ontology_sql_eval/bird_interact/known_issues.py) before launching the real
+# script and auto_ontology_eval/bird_interact/known_issues.py) before launching the real
 # ADK services — the patching decision lives here, not inside ADK's own
 # start_services.sh, so that file stays byte-for-byte pristine upstream.
 #
@@ -23,7 +23,7 @@ fi
 
 # Apply every patch idempotently; fail hard (not just warn) if one can't be
 # applied and isn't already applied — services must never start unpatched,
-# since ontology_sql_eval/bird_interact/known_issues.py relies on that as an
+# since auto_ontology_eval/bird_interact/known_issues.py relies on that as an
 # invariant rather than working around it at run time.
 patches=("$PATCH_DIR"/adk_*.patch)
 if [ ! -f "${patches[0]}" ]; then

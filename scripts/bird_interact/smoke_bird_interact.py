@@ -39,7 +39,7 @@ import sys
 from pathlib import Path
 
 
-from ontology_sql_eval.bird_interact.harness import (
+from auto_ontology_eval.bird_interact.harness import (
     check_health,
     load_task,
     post,

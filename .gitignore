@@ -30,8 +30,8 @@ venv/
 # Downloaded by scripts/migrate_catalog.py, and Gym's uv cache
 /cache/
 
-# Working area: cloned sources read for comparison, and the extraction drafts
-# build_graph.py --cache-draft writes. Both are regenerable and large, and a
+# Working area: cloned sources read for comparison, cached extraction drafts,
+# and the question-authoring tools. All regenerable or private, and a
 # cached draft is a snapshot of one prompt's output -- committing it would
 # invite a reader to treat it as the current behaviour.
 /.scratch/
@@ -88,14 +88,28 @@ logs/
 # records every override verbatim -- including policy_api_key.
 outputs/
 
-# Benchmark corpora, fetched by conversation/beam_benchmark/download_data.py.
-# Regenerable from the Hugging Face Hub and large -- 13 MB for the smallest
-# scale and 344 MB for the largest -- so the download script is the thing
-# worth reviewing, not its output.
-/conversation/data/
+# Conversation corpora, fetched by scripts/seed/seed_beam.py and pinned by
+# scripts/seed/seed_slack.py. BEAM is regenerable from the Hugging Face Hub
+# and large -- 13 MB for the smallest scale and 344 MB for the largest -- so
+# the seed script is the thing worth reviewing, not its output. The Slack
+# export is not redistributable at all.
+/datasets/beam/
+/datasets/slack/
 
 # Run output: rollouts, scores and reports from the BEAM arms. Regenerable,
-# and a results file committed by hand is a result nobody can reproduce. The
-# directory itself is kept so a run has somewhere to land.
-/conversation/beam_benchmark/results/*
-!/conversation/beam_benchmark/results/.gitkeep
+# and a results file committed by hand is a result nobody can reproduce.
+# Written under the repository's ``results/``, which is already ignored above,
+# rather than beside the code that produced it -- a run directory next to the
+# source needs its own ignore rule, and the one that was here named
+# ``results`` exactly, so five sibling directories holding 12 MB of rollouts
+# were staged for commit without anyone noticing.
+
+# A sibling project's working tree, kept here for side-by-side comparison: its
+# own scripts plus nine directories of its run output, 290 MB in total. Ignored
+# for the same reason as the block above, and more urgently -- it is untracked
+# rather than tracked, so nothing distinguished it from work in progress and a
+# single ``git add -A`` would have committed all of it.
+/unstructured/
+
+# Scratch CSV from the question-authoring tools.
+/.scr

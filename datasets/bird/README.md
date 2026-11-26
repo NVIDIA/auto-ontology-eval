@@ -24,7 +24,7 @@ matching connector at eval time.
 > wholesale by the next download. Our own column descriptions and custom
 > analyses therefore live outside it, in `inputs/annotations/bird/`, and are picked up
 > from there automatically — see
-> [Publishing our descriptions and analyses](../../ontology_sql_eval/ingestion/README.md#publishing-our-descriptions-and-analyses).
+> [Publishing our descriptions and analyses](../../auto_ontology_eval/ingestion/README.md#publishing-our-descriptions-and-analyses).
 
 ## Download
 
@@ -79,7 +79,7 @@ inputs/extra_prompts/bird/                         # precomputed inputs supplied
 ```
 
 `metadata.json` is generated per database from BIRD's `database_description`
-CSVs, in the shape [`enrich_graph.apply_metadata`](../../ontology_sql_eval/ingestion/enrich_graph.py)
+CSVs, in the shape [`enrich_graph.apply_metadata`](../../auto_ontology_eval/ingestion/enrich_graph.py)
 consumes, so column meanings and value descriptions reach the Postgres catalog
 and from there the text-to-SQL prompt. A `value_description` cell that reads
 exactly `not useful` is dropped (it's an annotator note about an opaque column)
@@ -119,8 +119,8 @@ it is present.
 
 ```bash
 # 1. Ingest all 11 DBs, then compile semantics.
-uv run python -m ontology_sql_eval.ingestion.ingest --benchmark-name bird
-uv run python -m ontology_sql_eval.ingestion.semantic --benchmark-name bird
+uv run python -m auto_ontology_eval.ingestion.ingest --benchmark-name bird
+uv run python -m auto_ontology_eval.ingestion.semantic --benchmark-name bird
 
 # 2. Run the benchmark on the ingested DBs (first 10 questions, 3 at a time).
 uv run python main.py --database-name bird \

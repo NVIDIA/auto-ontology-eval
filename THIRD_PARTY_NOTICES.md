@@ -82,7 +82,7 @@ NVIDIA's modifications.
 
 | | |
 |---|---|
-| **Location in this repo** | `conversation/beam_benchmark/prompts/judge/cognee_judge.txt`, `conversation/beam_benchmark/prompts/answer/cognee/`, `conversation/beam_benchmark/cognee_results/` |
+| **Location in this repo** | `auto_ontology_eval/beam/cognee/vendor/` |
 | **Upstream project** | Cognee — https://github.com/topoteretes/cognee |
 | **Copyright holder** | Copyright 2024 Topoteretes UG |
 | **License** | Apache-2.0 |
@@ -100,7 +100,7 @@ extract of the per-question artifacts, produced by
 ### Note on the BEAM dataset
 
 The BEAM **dataset** is not included in this repository.
-`conversation/beam_benchmark/download_data.py` downloads it at runtime from
+`scripts/seed/seed_beam.py` downloads it at runtime from
 [`Mohammadta/BEAM`](https://huggingface.co/datasets/Mohammadta/BEAM), where its
 authors distribute it under CC BY-SA 4.0.
 
@@ -169,7 +169,7 @@ copyrights:
 
 - SQL Server Samples (`datasets/wideworldimporters/`) — Copyright (c) Microsoft Corporation
 - BEAVER (`tests/gym/beaver_reference.py`) — Copyright (c) 2024 MIT Data Systems Group
-- BEAM (`conversation/beam_benchmark/prompts/`) — Copyright (c) 2025 Mohammad Tavakoli
+- BEAM (`auto_ontology_eval/beam/cognee/vendor/`) — Copyright (c) 2025 Mohammad Tavakoli
 
 ---
 

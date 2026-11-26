@@ -5,7 +5,7 @@
 name: Python Tests
 
 # Deliberately unfiltered by path: the suite broke in fd61814 via an import
-# added to ontology_sql_eval/, and stayed broken unnoticed, so narrowing this
+# added to auto_ontology_eval/, and stayed broken unnoticed, so narrowing this
 # to tests/** would miss exactly the case this workflow exists to catch.
 on:
   push:

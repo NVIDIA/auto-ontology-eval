@@ -63,7 +63,7 @@ auto_ontology_sql_environment_server:
 # Auto Ontology's own chat models, served through Gym so that Gym captures and
 # counts every call a question makes, not just the ignored policy call. Built
 # from what Auto Ontology itself resolves, exported by run_gym_arm.sh; see
-# ontology_sql_eval/gym/model_routing.py. The key stays an interpolation so it
+# auto_ontology_eval/gym/model_routing.py. The key stays an interpolation so it
 # never lands in argv or in a resolved config dump.
 auto_ontology_reasoning_model:
   responses_api_models:

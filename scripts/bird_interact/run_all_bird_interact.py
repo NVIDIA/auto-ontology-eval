@@ -51,7 +51,7 @@ from typing import Any
 
 import httpx
 
-from ontology_sql_eval.bird_interact.harness import (
+from auto_ontology_eval.bird_interact.harness import (
     build_debug_message,
     check_health,
     post,

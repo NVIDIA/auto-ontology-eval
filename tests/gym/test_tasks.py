@@ -21,7 +21,7 @@ from typing import Any
 import pytest
 
 import main
-from ontology_sql_eval.gym.tasks import DATASETS, build_records
+from auto_ontology_eval.gym.tasks import DATASETS, build_records
 from scripts import build_gym_tasks
 
 QUESTION = {

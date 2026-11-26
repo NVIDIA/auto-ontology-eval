@@ -17,7 +17,7 @@ routes every SQL dataset's ``auto_ontology`` arm here, so beaverbench and
 wideworldimporters questions arrive through this server too.
 
 Auto Ontology's own LLM calls go through two Gym model servers rather than
-straight to the endpoint (see ``ontology_sql_eval.gym.model_routing``), each
+straight to the endpoint (see ``auto_ontology_eval.gym.model_routing``), each
 tagged with the rollout it belongs to. With ``+observability_enabled=true`` Gym
 captures them per rollout, and ``verify`` reports the question's token totals.
 
@@ -47,7 +47,7 @@ from pydantic import ConfigDict, Field
 # client while its modules are being imported.
 load_dotenv()
 
-from ontology_sql_eval.gym.model_routing import (  # noqa: E402
+from auto_ontology_eval.gym.model_routing import (  # noqa: E402
     captured_usage,
     route_through_gym,
     tag_rollout_requests,
@@ -72,13 +72,13 @@ from nemo_gym.rollout_correlation import current_rollout_id  # noqa: E402
 from auto_ontology.connectors import get_connectors  # noqa: E402
 from auto_ontology.retrieval.text_to_sql.main import stream_agent_response  # noqa: E402
 from auto_ontology.retrieval.text_to_sql.state import AgentRequest  # noqa: E402
-from ontology_sql_eval.gym.agent_request import build_request  # noqa: E402
-from ontology_sql_eval.extra_prompts import (  # noqa: E402
+from auto_ontology_eval.gym.agent_request import build_request  # noqa: E402
+from auto_ontology_eval.extra_prompts import (  # noqa: E402
     load_sql_examples,
     load_value_anchors,
 )
 
-from ontology_sql_eval.gym.exec_match import (  # noqa: E402
+from auto_ontology_eval.gym.exec_match import (  # noqa: E402
     drop_unusable_tasks,
     FailureCode,
     MySqlExecutor,
@@ -87,8 +87,8 @@ from ontology_sql_eval.gym.exec_match import (  # noqa: E402
     execute_and_compare,
     timeout_for,
 )
-from ontology_sql_eval.gym.tasks import DATASETS  # noqa: E402
-from ontology_sql_eval.paths import DATASETS_DIR  # noqa: E402
+from auto_ontology_eval.gym.tasks import DATASETS  # noqa: E402
+from auto_ontology_eval.paths import DATASETS_DIR  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +100,7 @@ logger = logging.getLogger(__name__)
 # request and runs ~23 of them per question.
 _log_handler = logging.StreamHandler()
 _log_handler.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
-for _logger_name in (__name__, "ontology_sql_eval"):
+for _logger_name in (__name__, "auto_ontology_eval"):
     _own_logger = logging.getLogger(_logger_name)
     _own_logger.addHandler(_log_handler)
     _own_logger.setLevel(logging.INFO)

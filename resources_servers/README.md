@@ -8,7 +8,7 @@ grounding add over a competent LLM that sees only the schema?**
 | `schema_only_sql` | control | The question plus a raw schema dump, one shot, no tools |
 | `auto_ontology_sql` | treatment | Nothing directly — Auto-Ontology's agent retrieves its own grounding |
 
-Both are graded by the same verifier (`ontology_sql_eval/gym/exec_match.py`) against
+Both are graded by the same verifier (`auto_ontology_eval/gym/exec_match.py`) against
 the same databases, so any difference in the reported number comes from the SQL,
 never from the grader.
 
@@ -36,7 +36,7 @@ too:
 - **Accuracy without empty-gold questions.** Every rollout records
   `gold_result` (`empty_gold` / `nonempty_gold`), and the metrics carry
   `nonempty_gold/pass@1[avg-of-k]/accuracy` beside the overall number;
-  `ontology_sql_eval/gym/compare.py` prints a matching `nonempty gold` row. An empty
+  `auto_ontology_eval/gym/compare.py` prints a matching `nonempty gold` row. An empty
   gold result is matched by any prediction that returns nothing -- including
   one that errored -- so this is the more honest of the two.
 
@@ -73,12 +73,12 @@ Neither rule involves an LLM.
 
 ## Layout
 
-Logic lives in `ontology_sql_eval/gym/` because CI only lints `./ontology_sql_eval`;
+Logic lives in `auto_ontology_eval/gym/` because CI only lints `./auto_ontology_eval`;
 the servers here stay thin so Gym's workspace layout is satisfied without putting
 real code outside the linted package.
 
 ```
-ontology_sql_eval/gym/
+auto_ontology_eval/gym/
   ddl.py         schema dumping (SQLite introspection, Postgres DDL files)
   tasks.py       evaluation.json -> Gym task JSONL
   exec_match.py  executors + BIRD set-equality + failure codes
@@ -221,7 +221,7 @@ Four things about Gym's CLI that are easy to lose an hour to:
 
 ## Scoring
 
-Both arms are scored by one verifier, `ontology_sql_eval/gym/exec_match.py`:
+Both arms are scored by one verifier, `auto_ontology_eval/gym/exec_match.py`:
 execution match, binary reward.
 
 **The Gym verifier's EX is BIRD's official EX**, `set(gold_rows) ==
@@ -266,7 +266,7 @@ neither. The current pairing:
 
 | Control (`schema_only_sql`) | Auto-Ontology (`auto_ontology_sql`) |
 |---|---|
-| `SYSTEM_PROMPT` in `ontology_sql_eval/gym/tasks.py` carries "Return exactly the requested output fields and NO others" | `shorten_answer=True` appends the same rule to Auto-Ontology's projection rules |
+| `SYSTEM_PROMPT` in `auto_ontology_eval/gym/tasks.py` carries "Return exactly the requested output fields and NO others" | `shorten_answer=True` appends the same rule to Auto-Ontology's projection rules |
 
 That instruction is not cosmetic: extra columns fail `set(gold) == set(pred)`
 outright, so giving it to one arm only would measure projection guidance rather
@@ -341,7 +341,7 @@ is sugar for an override you can interpolate instead.
 ## Comparing arms
 
 ```bash
-python -m ontology_sql_eval.gym.compare --control <control_rollouts> --treatment <auto_ontology_rollouts>
+python -m auto_ontology_eval.gym.compare --control <control_rollouts> --treatment <auto_ontology_rollouts>
 ```
 
 Reports accuracy overall and by difficulty, the delta, and which individual

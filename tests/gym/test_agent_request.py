@@ -10,7 +10,7 @@ import subprocess
 import sys
 import textwrap
 
-from ontology_sql_eval.gym.agent_request import build_request
+from auto_ontology_eval.gym.agent_request import build_request
 
 # Run in a fresh interpreter: tests/bird_interact/test_server.py replaces
 # ``auto_ontology`` in ``sys.modules`` with stubs for the rest of the session.
@@ -20,7 +20,7 @@ _BUILD_STATE = textwrap.dedent(
 
     from auto_ontology.retrieval.text_to_sql.main import _build_state
     from auto_ontology.retrieval.text_to_sql.state import AgentRequest
-    from ontology_sql_eval.gym.agent_request import build_request
+    from auto_ontology_eval.gym.agent_request import build_request
 
     request = build_request(
         question="How many rows?",

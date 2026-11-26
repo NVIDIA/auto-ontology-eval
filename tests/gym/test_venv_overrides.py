@@ -22,7 +22,7 @@ import tomllib
 
 import pytest
 
-from ontology_sql_eval.paths import REPO_ROOT
+from auto_ontology_eval.paths import REPO_ROOT
 
 ROOT = REPO_ROOT
 

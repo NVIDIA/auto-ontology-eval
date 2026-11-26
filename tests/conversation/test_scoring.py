@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from conversation.beam_benchmark.evaluator.scoring import ability_means, overall
+from auto_ontology_eval.beam.cognee.scoring import ability_means, overall
 
 
 class TestAggregation:

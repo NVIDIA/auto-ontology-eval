@@ -60,8 +60,8 @@ Individual stages can be skipped with `--skip-ingest`, `--skip-semantic` and
 
 ```bash
 # 1. Ingest the source DB schema into the catalog + pgvector, then compile semantics.
-uv run python -m ontology_sql_eval.ingestion.ingest
-uv run python -m ontology_sql_eval.ingestion.semantic --database-name wideworldimporters
+uv run python -m auto_ontology_eval.ingestion.ingest
+uv run python -m auto_ontology_eval.ingestion.semantic --database-name wideworldimporters
 
 # 2. Run the benchmark (schema-only control vs ontology arm).
 uv run python main.py --database-name wideworldimporters --skip-ingest --skip-semantic
