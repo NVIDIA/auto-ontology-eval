@@ -1,0 +1,9 @@
+{
+  "fixture_version": 1,
+  "cases": [
+    {"task_id": "paid_revenue", "question": "What was paid order net revenue in USD cents by region for orders placed in October 2026?"},
+    {"task_id": "shipped_revenue", "question": "What was October 2026 paid order net revenue in USD cents by region, counting only orders placed that month that shipped at least one parcel, regardless of shipment date?"},
+    {"task_id": "clarify_month", "question": "What was recent paid order net revenue in the West, in USD cents?"},
+    {"task_id": "missing_cost", "question": "What was the West's October 2026 gross margin in USD cents, after subtracting cost of goods sold?"}
+  ]
+}
